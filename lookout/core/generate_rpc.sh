@@ -7,6 +7,14 @@ mkdir -p $out_dir
 python3 -m grpc_tools.protoc -I$base_dir/server/sdk \
     --python_out=$out_dir --grpc_python_out=$out_dir \
     $base_dir/server/sdk/*.proto
+python3 -m grpc_tools.protoc -I$base_dir/server/sdk \
+    --python_out=$out_dir \
+    $base_dir/server/sdk/github.com/gogo/protobuf/gogoproto/gogo.proto
+python3 -m grpc_tools.protoc -I$base_dir/server/sdk \
+    --python_out=$out_dir \
+    $base_dir/server/sdk/gopkg.in/bblfsh/sdk.v1/uast/generated.proto
 touch $out_dir/__init__.py
 # https://github.com/google/protobuf/issues/1491
-find -name '*_pb2_grpc.py' -exec sed -Ei 's/(import [^ ]+_pb2 as)/from . \1/g' {} \;
+find $out_dir -name '*.py' -exec sed -Ei 's/^(import [^ ]+_pb2 as)/from . \1/g' {} \;
+find $out_dir -name '*.py' -exec sed -i 's/from github/from .github/g' {} \;
+find $out_dir -name '*.py' -exec sed -i 's/from gopkg/from .gopkg/g' {} \;
