@@ -28,12 +28,13 @@ Tokens from splitted identifiers from GitHub repos with known frequencies and ve
 
 ## Results of model suggestions for small datasets (~11k train, ~4k test):
 
-SCORE | DETECTION | TOP SUGGESTION | TOP2 SUGGESTIONS | TOP3 SUGGESTIONS
------ | --------- | -------------- | ---------------- | ----------------
-Accuracy | 0.864 | 0.778 | 0.837 | 0.837
-Precision | 0.949 | 0.934 | 0.999 | 1.000
-Recall | 0.762 | 0.585 | 0.665 | 0.666
-F1 | 0.845 | 0.720 | 0.799 | 0.800
+METRICS        |DETECTION SCORE|TOP1 SCORE CORR|TOP2 SCORE CORR|TOP3 SCORE CORR|TOP1 SCORE ALL |TOP2 SCORE ALL |TOP3 SCORE ALL 
+---------------|---------------|---------------|---------------|---------------|---------------|---------------|---------------
+Accuracy       |         0.860 |         0.709 |         0.786 |         0.788 |         0.776 |         0.806 |         0.807 
+Precision      |         0.944 |         0.926 |         1.000 |         1.000 |         0.928 |         1.000 |         1.000 
+Recall         |         0.758 |         0.751 |         0.774 |         0.775 |         0.585 |         0.602 |         0.603 
+F1             |         0.841 |         0.830 |         0.872 |         0.873 |         0.717 |         0.751 |         0.752 
+
 
 
 ## Results on whole dataset of identifiers (~400k train, ~44k test):
