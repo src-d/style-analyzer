@@ -26,6 +26,7 @@ setup(
     keywords=["machine learning on source code", "babelfish"],
     install_requires=["sourced-ml>=0.5.1,<0.6",
                       "xxhash>=0.5.0,<2.0",
+                      "stringcase>=1.2.0,<2.0",
                       ] + typing,
     extras_require={
         "tf": ["tensorflow>=1.0,<2.0"],

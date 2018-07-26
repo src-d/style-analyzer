@@ -4,6 +4,7 @@ import logging
 from threading import Event
 
 import grpc
+import stringcase
 
 from lookout.core.api.service_analyzer_pb2_grpc import \
     AnalyzerServicer, add_AnalyzerServicer_to_server
@@ -37,10 +38,11 @@ request_log_context_extractors = {
 
 
 class EventListener(AnalyzerServicer):
-    def __init__(self, address: str, n_workers: int=1):
+    def __init__(self, address: str, handlers, n_workers: int=1):
         self._server = grpc.server(ThreadPoolExecutor(max_workers=n_workers),
                                    maximum_concurrent_rpcs=n_workers)
         add_AnalyzerServicer_to_server(self, self._server)
+        self.handlers = handlers
         self._server.add_insecure_port(address)
         self._stop_event = Event()
         self._log = logging.getLogger(type(self).__name__)
@@ -75,20 +77,39 @@ class EventListener(AnalyzerServicer):
 
         return wrapped_set_logging_context
 
-    @set_logging_context
-    def NotifyReviewEvent(self, request: ReviewEvent, context: grpc.ServicerContext):
-        # missing associated documentation comment in .proto file
-        pass
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
+    def log_exceptions(func):
+        @functools.wraps(func)
+        def wrapped_catch_them_all(self, request, context: grpc.ServicerContext):
+            try:
+                return wrapped_catch_them_all(self, request, context)
+            except Exception as e:
+                self._log.exception("")
+                context.set_code(grpc.StatusCode.INTERNAL)
+                context.set_details("%s: %s" % (type(e), e))
+                raise e from None
+
+        return wrapped_catch_them_all
+
+    def handle(func):
+        @functools.wraps(func)
+        def wrapped_handle(self, request, context: grpc.ServicerContext):
+            method_name = "process_" + stringcase.snakecase(type(request).__name__)
+            return getattr(self.handlers, method_name)(request)
+
+        return wrapped_handle
 
     @set_logging_context
-    def NotifyPushEvent(self, request: PushEvent, context: grpc.ServicerContext):
-        # missing associated documentation comment in .proto file
+    @log_exceptions
+    @handle
+    def NotifyReviewEvent(self, request: ReviewEvent, context: grpc.ServicerContext):
         pass
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
+
+    @set_logging_context
+    @log_exceptions
+    @handle
+    def NotifyPushEvent(self, request: PushEvent, context: grpc.ServicerContext):
+        pass
 
     set_logging_context = staticmethod(set_logging_context)
+    log_exceptions = staticmethod(log_exceptions)
+    handle = staticmethod(handle)
