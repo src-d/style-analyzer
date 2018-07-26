@@ -1,4 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
+import functools
+import logging
 from threading import Event
 
 import grpc
@@ -6,6 +8,32 @@ import grpc
 from lookout.core.api.service_analyzer_pb2_grpc import \
     AnalyzerServicer, add_AnalyzerServicer_to_server
 from lookout.core.api.event_pb2 import ReviewEvent, PushEvent
+from lookout.core import slogging
+
+
+def extract_review_event_context(request: ReviewEvent):
+    return {
+        "type": "ReviewEvent",
+        "url_from": request.commit_revision.base.internal_repository_url,
+        "url_to": request.commit_revision.head.internal_repository_url,
+        "commit_from": request.commit_revision.base.Hash,
+        "commit_to": request.commit_revision.head.Hash,
+    }
+
+
+def extract_push_event_context(request: PushEvent):
+    return {
+        "type": "PushEvent",
+        "url": request.commit_revision.head.internal_repository_url,
+        "head": request.commit_revision.head.Hash,
+        "count": request.distinct_commits,
+    }
+
+
+request_log_context_extractors = {
+    ReviewEvent: extract_review_event_context,
+    PushEvent: extract_push_event_context,
+}
 
 
 class EventListener(AnalyzerServicer):
@@ -15,9 +43,11 @@ class EventListener(AnalyzerServicer):
         add_AnalyzerServicer_to_server(self, self._server)
         self._server.add_insecure_port(address)
         self._stop_event = Event()
+        self._log = logging.getLogger(type(self).__name__)
 
     def start(self):
         self._server.start()
+        return self
 
     def block(self):
         self._stop_event.clear()
@@ -30,6 +60,22 @@ class EventListener(AnalyzerServicer):
         self._stop_event.set()
         self._server.stop(None if cancel_running else 0)
 
+    def set_logging_context(func):
+        @functools.wraps(func)
+        def wrapped_set_logging_context(self, request, context: grpc.ServicerContext):
+            obj = request_log_context_extractors[type(request)](request)
+            meta = {}
+            for md in context.invocation_metadata():
+                meta[md.key] = md.value
+            obj["meta"] = meta
+            obj["peer"] = context.peer()
+            slogging.set_context(obj)
+            self._log.info("new %s", type(request).__name__)
+            return func(self, request, context)
+
+        return wrapped_set_logging_context
+
+    @set_logging_context
     def NotifyReviewEvent(self, request: ReviewEvent, context: grpc.ServicerContext):
         # missing associated documentation comment in .proto file
         pass
@@ -37,9 +83,12 @@ class EventListener(AnalyzerServicer):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    @set_logging_context
     def NotifyPushEvent(self, request: PushEvent, context: grpc.ServicerContext):
         # missing associated documentation comment in .proto file
         pass
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
+
+    set_logging_context = staticmethod(set_logging_context)
