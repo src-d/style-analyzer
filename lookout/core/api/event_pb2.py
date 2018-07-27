@@ -22,7 +22,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   name='event.proto',
   package='pb',
   syntax='proto3',
-  serialized_pb=_b('\n\x0b\x65vent.proto\x12\x02pb\x1a-github.com/gogo/protobuf/gogoproto/gogo.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1cgoogle/protobuf/struct.proto\"d\n\x0e\x43ommitRevision\x12(\n\x04\x62\x61se\x18\x01 \x01(\x0b\x32\x14.pb.ReferencePointerB\x04\xc8\xde\x1f\x00\x12(\n\x04head\x18\x02 \x01(\x0b\x32\x14.pb.ReferencePointerB\x04\xc8\xde\x1f\x00\"\xa8\x01\n\x10ReferencePointer\x12:\n\x17internal_repository_url\x18\x01 \x01(\tB\x19\xe2\xde\x1f\x15InternalRepositoryURL\x12J\n\rReferenceName\x18\x02 \x01(\tB3\xfa\xde\x1f/gopkg.in/src-d/go-git.v4/plumbing.ReferenceName\x12\x0c\n\x04Hash\x18\x03 \x01(\t\"\x94\x02\n\tPushEvent\x12\x10\n\x08provider\x18\x01 \x01(\t\x12#\n\x0binternal_id\x18\x02 \x01(\tB\x0e\xe2\xde\x1f\nInternalID\x12\x38\n\ncreated_at\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.TimestampB\x08\xc8\xde\x1f\x00\x90\xdf\x1f\x01\x12\x0f\n\x07\x63ommits\x18\x04 \x01(\r\x12\x18\n\x10\x64istinct_commits\x18\x05 \x01(\r\x12\x34\n\rconfiguration\x18\x06 \x01(\x0b\x32\x17.google.protobuf.StructB\x04\xc8\xde\x1f\x00\x12\x35\n\x0f\x63ommit_revision\x18\x07 \x01(\x0b\x32\x12.pb.CommitRevisionB\x08\xc8\xde\x1f\x00\xd0\xde\x1f\x01\"\x98\x03\n\x0bReviewEvent\x12\x10\n\x08provider\x18\x01 \x01(\t\x12#\n\x0binternal_id\x18\x02 \x01(\tB\x0e\xe2\xde\x1f\nInternalID\x12\x38\n\ncreated_at\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.TimestampB\x08\xc8\xde\x1f\x00\x90\xdf\x1f\x01\x12\x38\n\nupdated_at\x18\x04 \x01(\x0b\x32\x1a.google.protobuf.TimestampB\x08\xc8\xde\x1f\x00\x90\xdf\x1f\x01\x12\x14\n\x0cis_mergeable\x18\x05 \x01(\x08\x12*\n\x06source\x18\x08 \x01(\x0b\x32\x14.pb.ReferencePointerB\x04\xc8\xde\x1f\x00\x12)\n\x05merge\x18\t \x01(\x0b\x32\x14.pb.ReferencePointerB\x04\xc8\xde\x1f\x00\x12\x34\n\rconfiguration\x18\n \x01(\x0b\x32\x17.google.protobuf.StructB\x04\xc8\xde\x1f\x00\x12\x35\n\x0f\x63ommit_revision\x18\x07 \x01(\x0b\x32\x12.pb.CommitRevisionB\x08\xc8\xde\x1f\x00\xd0\xde\x1f\x01:\x04\xe0\xa1\x1f\x00\x42\x04\xc8\xe1\x1e\x00\x62\x06proto3')
+  serialized_pb=_b('\n\x0b\x65vent.proto\x12\x02pb\x1a-github.com/gogo/protobuf/gogoproto/gogo.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1cgoogle/protobuf/struct.proto\"d\n\x0e\x43ommitRevision\x12(\n\x04\x62\x61se\x18\x01 \x01(\x0b\x32\x14.pb.ReferencePointerB\x04\xc8\xde\x1f\x00\x12(\n\x04head\x18\x02 \x01(\x0b\x32\x14.pb.ReferencePointerB\x04\xc8\xde\x1f\x00\"\xa9\x01\n\x10ReferencePointer\x12:\n\x17internal_repository_url\x18\x01 \x01(\tB\x19\xe2\xde\x1f\x15InternalRepositoryURL\x12K\n\x0ereference_name\x18\x02 \x01(\tB3\xfa\xde\x1f/gopkg.in/src-d/go-git.v4/plumbing.ReferenceName\x12\x0c\n\x04hash\x18\x03 \x01(\t\"\x94\x02\n\tPushEvent\x12\x10\n\x08provider\x18\x01 \x01(\t\x12#\n\x0binternal_id\x18\x02 \x01(\tB\x0e\xe2\xde\x1f\nInternalID\x12\x38\n\ncreated_at\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.TimestampB\x08\xc8\xde\x1f\x00\x90\xdf\x1f\x01\x12\x0f\n\x07\x63ommits\x18\x04 \x01(\r\x12\x18\n\x10\x64istinct_commits\x18\x05 \x01(\r\x12\x34\n\rconfiguration\x18\x06 \x01(\x0b\x32\x17.google.protobuf.StructB\x04\xc8\xde\x1f\x00\x12\x35\n\x0f\x63ommit_revision\x18\x07 \x01(\x0b\x32\x12.pb.CommitRevisionB\x08\xc8\xde\x1f\x00\xd0\xde\x1f\x01\"\x98\x03\n\x0bReviewEvent\x12\x10\n\x08provider\x18\x01 \x01(\t\x12#\n\x0binternal_id\x18\x02 \x01(\tB\x0e\xe2\xde\x1f\nInternalID\x12\x38\n\ncreated_at\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.TimestampB\x08\xc8\xde\x1f\x00\x90\xdf\x1f\x01\x12\x38\n\nupdated_at\x18\x04 \x01(\x0b\x32\x1a.google.protobuf.TimestampB\x08\xc8\xde\x1f\x00\x90\xdf\x1f\x01\x12\x14\n\x0cis_mergeable\x18\x05 \x01(\x08\x12*\n\x06source\x18\x08 \x01(\x0b\x32\x14.pb.ReferencePointerB\x04\xc8\xde\x1f\x00\x12)\n\x05merge\x18\t \x01(\x0b\x32\x14.pb.ReferencePointerB\x04\xc8\xde\x1f\x00\x12\x34\n\rconfiguration\x18\n \x01(\x0b\x32\x17.google.protobuf.StructB\x04\xc8\xde\x1f\x00\x12\x35\n\x0f\x63ommit_revision\x18\x07 \x01(\x0b\x32\x12.pb.CommitRevisionB\x08\xc8\xde\x1f\x00\xd0\xde\x1f\x01:\x04\xe0\xa1\x1f\x00\x42\x04\xc8\xe1\x1e\x00\x62\x06proto3')
   ,
   dependencies=[github_dot_com_dot_gogo_dot_protobuf_dot_gogoproto_dot_gogo__pb2.DESCRIPTOR,google_dot_protobuf_dot_timestamp__pb2.DESCRIPTOR,google_dot_protobuf_dot_struct__pb2.DESCRIPTOR,])
 
@@ -82,14 +82,14 @@ _REFERENCEPOINTER = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       options=_descriptor._ParseOptions(descriptor_pb2.FieldOptions(), _b('\342\336\037\025InternalRepositoryURL')), file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
-      name='ReferenceName', full_name='pb.ReferencePointer.ReferenceName', index=1,
+      name='reference_name', full_name='pb.ReferencePointer.reference_name', index=1,
       number=2, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=_b("").decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=_descriptor._ParseOptions(descriptor_pb2.FieldOptions(), _b('\372\336\037/gopkg.in/src-d/go-git.v4/plumbing.ReferenceName')), file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
-      name='Hash', full_name='pb.ReferencePointer.Hash', index=2,
+      name='hash', full_name='pb.ReferencePointer.hash', index=2,
       number=3, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=_b("").decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
@@ -108,7 +108,7 @@ _REFERENCEPOINTER = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=232,
-  serialized_end=400,
+  serialized_end=401,
 )
 
 
@@ -180,8 +180,8 @@ _PUSHEVENT = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=403,
-  serialized_end=679,
+  serialized_start=404,
+  serialized_end=680,
 )
 
 
@@ -267,8 +267,8 @@ _REVIEWEVENT = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=682,
-  serialized_end=1090,
+  serialized_start=683,
+  serialized_end=1091,
 )
 
 _COMMITREVISION.fields_by_name['base'].message_type = _REFERENCEPOINTER
@@ -325,8 +325,8 @@ _COMMITREVISION.fields_by_name['head'].has_options = True
 _COMMITREVISION.fields_by_name['head']._options = _descriptor._ParseOptions(descriptor_pb2.FieldOptions(), _b('\310\336\037\000'))
 _REFERENCEPOINTER.fields_by_name['internal_repository_url'].has_options = True
 _REFERENCEPOINTER.fields_by_name['internal_repository_url']._options = _descriptor._ParseOptions(descriptor_pb2.FieldOptions(), _b('\342\336\037\025InternalRepositoryURL'))
-_REFERENCEPOINTER.fields_by_name['ReferenceName'].has_options = True
-_REFERENCEPOINTER.fields_by_name['ReferenceName']._options = _descriptor._ParseOptions(descriptor_pb2.FieldOptions(), _b('\372\336\037/gopkg.in/src-d/go-git.v4/plumbing.ReferenceName'))
+_REFERENCEPOINTER.fields_by_name['reference_name'].has_options = True
+_REFERENCEPOINTER.fields_by_name['reference_name']._options = _descriptor._ParseOptions(descriptor_pb2.FieldOptions(), _b('\372\336\037/gopkg.in/src-d/go-git.v4/plumbing.ReferenceName'))
 _PUSHEVENT.fields_by_name['internal_id'].has_options = True
 _PUSHEVENT.fields_by_name['internal_id']._options = _descriptor._ParseOptions(descriptor_pb2.FieldOptions(), _b('\342\336\037\nInternalID'))
 _PUSHEVENT.fields_by_name['created_at'].has_options = True

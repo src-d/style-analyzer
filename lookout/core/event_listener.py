@@ -17,8 +17,8 @@ def extract_review_event_context(request: ReviewEvent):
         "type": "ReviewEvent",
         "url_base": request.commit_revision.base.internal_repository_url,
         "url_head": request.commit_revision.head.internal_repository_url,
-        "commit_base": request.commit_revision.base.Hash,
-        "commit_head": request.commit_revision.head.Hash,
+        "commit_base": request.commit_revision.base.hash,
+        "commit_head": request.commit_revision.head.hash,
     }
 
 
@@ -26,7 +26,7 @@ def extract_push_event_context(request: PushEvent):
     return {
         "type": "PushEvent",
         "url": request.commit_revision.head.internal_repository_url,
-        "head": request.commit_revision.head.Hash,
+        "head": request.commit_revision.head.hash,
         "count": request.distinct_commits,
     }
 
