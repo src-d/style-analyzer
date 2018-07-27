@@ -23,8 +23,8 @@ class AnalyzerManager:
     def process_review_event(self, request: ReviewEvent):
         base_url = request.commit_revision.base.internal_repository_url
         external_url = request.commit_revision.head.internal_repository_url
-        commit_head = request.commit_revision.head.Hash
-        commit_base = request.commit_revision.base.Hash
+        commit_head = request.commit_revision.head.hash
+        commit_base = request.commit_revision.base.hash
         configuration = request.configuration
         response = EventResponse()
         response.analyzer_version = self.version
@@ -47,7 +47,7 @@ class AnalyzerManager:
 
     def process_push_event(self, request: PushEvent):
         url = request.commit_revision.head.internal_repository_url
-        commit = request.commit_revision.head.Hash
+        commit = request.commit_revision.head.hash
         configuration = request.configuration
         for analyzer in self._analyzers:
             self._log.debug("training %s", analyzer.__name__)
