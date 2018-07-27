@@ -2,6 +2,7 @@ from concurrent.futures import ThreadPoolExecutor
 import functools
 import logging
 from threading import Event
+import time
 
 import grpc
 import stringcase
@@ -62,6 +63,18 @@ class EventListener(AnalyzerServicer):
         self._stop_event.set()
         self._server.stop(None if cancel_running else 0)
 
+    def timeit(func):
+        @functools.wraps(func)
+        def wrapped_timeit(self, request, context: grpc.ServicerContext):
+            start_time = time.perf_counter_ns()
+            context.start_time = start_time
+            result = func(self, request, context)
+            delta = time.perf_counter_ns() - start_time
+            self._log.info("OK %d", delta // 1000)
+            return result
+
+        return wrapped_timeit
+
     def set_logging_context(func):
         @functools.wraps(func)
         def wrapped_set_logging_context(self, request, context: grpc.ServicerContext):
@@ -83,7 +96,12 @@ class EventListener(AnalyzerServicer):
             try:
                 return func(self, request, context)
             except Exception as e:
-                self._log.exception(str(e))
+                start_time = getattr(request, "start_time", None)
+                if start_time is not None:
+                    delta = time.perf_counter_ns() - start_time
+                    self._log.exception("FAIL %d", delta // 1000)
+                else:
+                    self._log.exception("FAIL ?")
                 context.abort(grpc.StatusCode.INTERNAL, "%s: %s" % (type(e), e))
 
         return wrapped_catch_them_all
@@ -97,17 +115,20 @@ class EventListener(AnalyzerServicer):
         return wrapped_handle
 
     @set_logging_context
+    @timeit
     @log_exceptions
     @handle
     def NotifyReviewEvent(self, request: ReviewEvent, context: grpc.ServicerContext):
         pass
 
     @set_logging_context
+    @timeit
     @log_exceptions
     @handle
     def NotifyPushEvent(self, request: PushEvent, context: grpc.ServicerContext):
         pass
 
+    timeit = staticmethod(timeit)
     set_logging_context = staticmethod(set_logging_context)
     log_exceptions = staticmethod(log_exceptions)
     handle = staticmethod(handle)
