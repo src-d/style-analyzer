@@ -16,5 +16,6 @@ python3 -m grpc_tools.protoc -I$base_dir/server/sdk \
 touch $out_dir/__init__.py
 # https://github.com/google/protobuf/issues/1491
 find $out_dir -name '*.py' -exec sed -Ei 's/^(import [^ ]+_pb2 as)/from . \1/g' {} \;
-find $out_dir -name '*.py' -exec sed -i 's/from github/from .github/g' {} \;
-find $out_dir -name '*.py' -exec sed -i 's/from gopkg/from .gopkg/g' {} \;
+find $out_dir -name '*.py' -exec sed -i 's/from github/from lookout.core.api.github/g' {} \;
+find $out_dir -name '*.py' -exec sed -i 's/from gopkg/from lookout.core.api.gopkg/g' {} \;
+find $out_dir -name '*.py' -exec sed -i "s/importlib.import_module('/importlib.import_module('lookout.core.api./g" {} \;
