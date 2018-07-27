@@ -23,7 +23,8 @@ class AnalyzerManager:
     def process_review_event(self, request: ReviewEvent):
         base_url = request.commit_revision.base.internal_repository_url
         external_url = request.commit_revision.head.internal_repository_url
-        commit = request.commit_revision.head.Hash
+        commit_head = request.commit_revision.head.Hash
+        commit_base = request.commit_revision.base.Hash
         configuration = request.configuration
         response = EventResponse()
         response.analyzer_version = self.version
@@ -35,10 +36,10 @@ class AnalyzerManager:
                 self._log.info("cache miss: %s", analyzer.__name__)
             if model is None:
                 self._log.info("training: %s", analyzer.__name__)
-                model = analyzer.train(base_url, commit, mycfg)
+                model = analyzer.train(base_url, commit_base, mycfg)
                 self._model_repository.set(self._model_id(analyzer), base_url, model)
             self._log.debug("running %s", analyzer.__name__)
-            results = analyzer(model, mycfg).analyze(external_url, commit)
+            results = analyzer(model, external_url, mycfg).analyze(commit_base, commit_head)
             self._log.info("%s: %d comments", analyzer.__name__, len(results))
             comments.extend(results)
         response.comments.extend(comments)

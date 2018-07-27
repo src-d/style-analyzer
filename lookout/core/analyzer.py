@@ -2,12 +2,12 @@ from modelforge import Model
 
 
 class Analyzer:
-    def __init__(self, model: Model, config: dict):
+    def __init__(self, model: Model, url: str, config: dict):
         raise NotImplementedError
 
-    def analyze(self, url, commit):
+    def analyze(self, commit_from: str, commit_to: str):
         raise NotImplementedError
 
     @classmethod
-    def train(cls, url, commit, config):
+    def train(cls, url: str, commit: str, config: str):
         raise NotImplementedError

@@ -15,10 +15,10 @@ from lookout.core import slogging
 def extract_review_event_context(request: ReviewEvent):
     return {
         "type": "ReviewEvent",
-        "url_from": request.commit_revision.base.internal_repository_url,
-        "url_to": request.commit_revision.head.internal_repository_url,
-        "commit_from": request.commit_revision.base.Hash,
-        "commit_to": request.commit_revision.head.Hash,
+        "url_base": request.commit_revision.base.internal_repository_url,
+        "url_head": request.commit_revision.head.internal_repository_url,
+        "commit_base": request.commit_revision.base.Hash,
+        "commit_head": request.commit_revision.head.Hash,
     }
 
 
@@ -81,12 +81,10 @@ class EventListener(AnalyzerServicer):
         @functools.wraps(func)
         def wrapped_catch_them_all(self, request, context: grpc.ServicerContext):
             try:
-                return wrapped_catch_them_all(self, request, context)
+                return func(self, request, context)
             except Exception as e:
-                self._log.exception("")
-                context.set_code(grpc.StatusCode.INTERNAL)
-                context.set_details("%s: %s" % (type(e), e))
-                raise e from None
+                self._log.exception(str(e))
+                context.abort(grpc.StatusCode.INTERNAL, "%s: %s" % (type(e), e))
 
         return wrapped_catch_them_all
 

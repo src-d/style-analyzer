@@ -7,3 +7,6 @@ class ModelRepository:
 
     def set(self, model_id: str, url, model: modelforge.Model):
         raise NotImplementedError
+
+    def init(self):
+        raise NotImplementedError
