@@ -28,6 +28,8 @@ setup(
                       "xxhash>=0.5.0,<2.0",
                       "stringcase>=1.2.0,<2.0",
                       "sqlalchemy>=1.0.0,<2.0",
+                      "pympler>=0.5,<2.0",
+                      "cachetools>=2.0,<3.0",
                       ] + typing,
     extras_require={
         "tf": ["tensorflow>=1.0,<2.0"],
