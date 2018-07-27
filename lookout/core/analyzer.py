@@ -1,7 +1,12 @@
+from typing import Type
+
 from modelforge import Model
 
 
 class Analyzer:
+    version: str = None
+    model_type: Type[Model] = None
+
     def __init__(self, model: Model, url: str, config: dict):
         raise NotImplementedError
 
