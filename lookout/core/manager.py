@@ -31,7 +31,8 @@ class AnalyzerManager:
         comments = []
         for analyzer in self._analyzers:
             mycfg = configuration.get(analyzer.__name__, {})
-            model, cache_miss = self._model_repository.get(self._model_id(analyzer), base_url)
+            model, cache_miss = self._model_repository.get(
+                self._model_id(analyzer), analyzer.model_type, base_url)
             if cache_miss:
                 self._log.info("cache miss: %s", analyzer.__name__)
             if model is None:
