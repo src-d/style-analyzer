@@ -6,6 +6,7 @@ import logging
 import re
 import sys
 import threading
+import traceback
 from typing import Union
 
 import xxhash
@@ -54,7 +55,7 @@ class ColorFormatter(logging.Formatter):
             level_color = "1;31"
         if not fmt:
             fmt = "\033[" + level_color + \
-                  "m%(levelname)s\033[0m:%(rthread):%(name)s:\033[" + text_color + \
+                  "m%(levelname)s\033[0m:%(rthread)s:%(name)s:\033[" + text_color + \
                   "m%(message)s\033[0m"
         record.rthread = reduce_thread_id(record.thread)
         return fmt % record.__dict__
@@ -74,11 +75,14 @@ class StructuredHandler(logging.Handler):
             "time": format_datetime(created),
             "thread": reduce_thread_id(record.thread),
         }
+        if record.exc_info is not None:
+            obj["error"] = traceback.format_exception(*record.exc_info)[1:]
         try:
             obj["context"] = self.local.context
         except AttributeError:
             pass
         json.dump(obj, sys.stdout, sort_keys=True)
+        sys.stdout.write("\n")
 
     def flush(self):
         sys.stdout.flush()
