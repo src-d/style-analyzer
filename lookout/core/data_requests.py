@@ -1,14 +1,22 @@
 import functools
+from typing import Iterable
 
 import modelforge
 
 from lookout.core.analyzer import Analyzer
 from lookout.core.api.service_analyzer_pb2 import Comment
-from lookout.core.api.service_data_pb2 import ChangesRequest, FilesRequest
+from lookout.core.api.service_data_pb2 import ChangesRequest, FilesRequest, Change, File
 from lookout.core.api.service_data_pb2_grpc import DataStub
 
 
 def with_changed_uasts(func):
+    """
+    Use this decorator to provide "changes" keyword argument to `**data` in `Analyzer.analyze()`.
+    "changes" contain the list of `Change` - see lookout/core/server/sdk/service_data.proto.
+
+    :param func: Method with the signature compatible with `Analyzer.analyze()`.
+    :return: The decorated method.
+    """
     @functools.wraps(func)
     def wrapped_with_changed_uasts(self: Analyzer, commit_from: str, commit_to: str,
                                    data_request_stub: DataStub, **data) -> [Comment]:
@@ -20,6 +28,14 @@ def with_changed_uasts(func):
 
 
 def with_uasts(func):
+    """
+    Use this decorator to provide "files" keyword argument to `**data` in `Analyzer.train()`.
+    "files" are the list of `File`-s with all the UASTs for the passed Git repository URL and
+    revision, see lookout/core/server/sdk/service_data.proto.
+
+    :param func: Method with the signature compatible with `Analyzer.train()`.
+    :return: The decorated method.
+    """
     @functools.wraps(func)
     def wrapped_with_uasts(cls, url: str, commit: str, config: dict,
                            data_request_stub: DataStub, **data) -> modelforge.Model:
@@ -30,7 +46,13 @@ def with_uasts(func):
 
 
 def request_changes(stub: DataStub, url: str, commit_from: str, commit_to: str,
-                    contents: bool, uast: bool):
+                    contents: bool, uast: bool) -> Iterable[Change]:
+    """
+    Used by `with_changed_uasts()`.
+
+    :return: The stream of the gRPC invocation results. In theory, `.result()` would turn this \
+             into a synchronous call, but in practice, that function call hangs for some reason.
+    """
     request = ChangesRequest()
     request.base.internal_repository_url = url
     request.base.hash = commit_from
@@ -43,7 +65,13 @@ def request_changes(stub: DataStub, url: str, commit_from: str, commit_to: str,
     return stub.GetChanges(request)
 
 
-def request_files(stub: DataStub, url: str, commit: str, contents: bool, uast: bool):
+def request_files(stub: DataStub, url: str, commit: str, contents: bool,
+                  uast: bool) -> Iterable[File]:
+    """
+    Used by `with_uasts()`.
+
+    :return: The stream of the gRPC invocation results.
+    """
     request = FilesRequest()
     request.revision.internal_repository_url = url
     request.revision.hash = commit
