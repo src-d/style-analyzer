@@ -10,6 +10,9 @@ from lookout.core.data_requests import with_changed_uasts  # noqa: E401
 
 
 class FormatModel(AnalyzerModel):
+    NAME = "code-format"
+    VENDOR = "source{d}"
+
     def _generate_tree(self) -> dict:
         return {}
 

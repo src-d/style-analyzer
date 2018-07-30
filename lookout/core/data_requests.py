@@ -24,7 +24,8 @@ def request_changes(stub: DataStub, url: str, commit_from: str, commit_to: str,
     request.base.hash = commit_from
     request.head.internal_repository_url = url
     request.head.hash = commit_to
-    request.exclude_vendored = True
+    request.exclude_vendored = False
+    # TODO(vmarkovtsev): change to True once https://github.com/src-d/lookout/pull/92 is merged
     request.want_contents = contents
     request.want_uast = uast
     return stub.GetChanges(request)
