@@ -6,9 +6,10 @@ Style analyzer experiments
 
 1. Download [`lookout`](https://github.com/src-d/lookout/releases) binary.
 2. Run an instance of PostgreSQL `docker run -d --name postgres -e POSTGRES_PASSWORD=postgres -p5432:5432 postgres`
-3. Initialize the DB `python3 -m lookout init --db "postgresql://postgres:postgres@localhost:5432/postgres" --fs /tmp`
-4. Run the analyzer `python3 -m lookout run lookout.style.format -s 0.0.0.0:2000 --db "postgresql://postgres:postgres@localhost:5432/postgres" --fs /tmp`
-5. File a fake pull request `./lookout review -v ipv4://localhost:2000`
+3. Install the deps `sudo pip3 install -e .`
+4. Initialize the DB `python3 -m lookout init --db "postgresql://postgres:postgres@localhost:5432/postgres" --fs /tmp`
+5. Run the analyzer `python3 -m lookout run lookout.style.format -s 0.0.0.0:2000 --db "postgresql://postgres:postgres@localhost:5432/postgres" --fs /tmp`
+6. File a fake pull request `./lookout review -v ipv4://localhost:2000`
 
 ### License
 AGPL-3.0, see [LICENSE.md](LICENSE.md).
