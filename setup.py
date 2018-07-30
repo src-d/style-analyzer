@@ -2,7 +2,7 @@ from importlib.machinery import SourceFileLoader
 from setuptools import setup, find_packages
 import sys
 
-lookout_style = SourceFileLoader("lookout.style", "./lookout/style/__init__.py").load_module()
+lookout = SourceFileLoader("lookout", "./lookout/__init__.py").load_module()
 
 if sys.version_info < (3, 5, 0):
     typing = ["typing"]
@@ -12,7 +12,7 @@ else:
 setup(
     name="lookout-style",
     description="Machine learning-based assisted code review - code style analyzers.",
-    version=".".join(map(str, lookout_style.__version__)),
+    version=".".join(map(str, lookout.__version__)),
     license="AGPL-3.0",
     author="source{d}",
     author_email="machine-learning@sourced.tech",
@@ -21,7 +21,7 @@ setup(
     packages=find_packages(exclude=("lookout.style.format.tests",)),
     namespace_packages=["lookout"],
     entry_points={
-        "console_scripts": ["lookout-style=lookout.style.__main__:main"],
+        "console_scripts": ["analyzer=lookout.__main__:main"],
     },
     keywords=["machine learning on source code", "babelfish"],
     install_requires=["sourced-ml>=0.5.1,<0.6",
@@ -30,6 +30,9 @@ setup(
                       "sqlalchemy>=1.0.0,<2.0",
                       "pympler>=0.5,<2.0",
                       "cachetools>=2.0,<3.0",
+                      "configargparse>=0.13,<2.0",
+                      "humanfriendly>=4.0,<5.0",
+                      "psycopg2-binary>=2.7,<3.0",
                       ] + typing,
     extras_require={
         "tf": ["tensorflow>=1.0,<2.0"],

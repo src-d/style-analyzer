@@ -42,11 +42,16 @@ class EventListener(AnalyzerServicer):
     def __init__(self, address: str, handlers, n_workers: int=1):
         self._server = grpc.server(ThreadPoolExecutor(max_workers=n_workers),
                                    maximum_concurrent_rpcs=n_workers)
+        self._server.address = address
+        self._server.n_workers = n_workers
         add_AnalyzerServicer_to_server(self, self._server)
         self.handlers = handlers
         self._server.add_insecure_port(address)
         self._stop_event = Event()
         self._log = logging.getLogger(type(self).__name__)
+
+    def __str__(self) -> str:
+        return "EventListener(%s, %d workers)" % (self._server.address, self._server.n_workers)
 
     def start(self):
         self._server.start()
