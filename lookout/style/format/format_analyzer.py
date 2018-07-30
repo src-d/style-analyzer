@@ -1,12 +1,14 @@
 import importlib
 import logging
 
+import modelforge
+
 from lookout.core.analyzer import Analyzer
 from lookout.core.analyzer_model import AnalyzerModel
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2_grpc import DataStub
 Node = importlib.import_module("lookout.core.api.gopkg.in.bblfsh.sdk.v1.uast.generated_pb2").Node
-from lookout.core.data_requests import with_changed_uasts  # noqa: E401
+from lookout.core.data_requests import with_changed_uasts, with_uasts  # noqa: E401
 
 
 class FormatModel(AnalyzerModel):
@@ -29,7 +31,7 @@ class FormatAnalyzer(Analyzer):
     @with_changed_uasts
     def analyze(self, commit_from: str, commit_to: str, data_request_stub: DataStub,
                 **data) -> [Comment]:
-        changes = data["uast_changes"]
+        changes = data["changes"]
         comments = []
         for change in changes:
             comment = Comment()
@@ -42,8 +44,13 @@ class FormatAnalyzer(Analyzer):
         return comments
 
     @classmethod
-    def train(cls, url: str, commit: str, config: dict, data_request_stub: DataStub, **data):
+    @with_uasts
+    def train(cls, url: str, commit: str, config: dict, data_request_stub: DataStub,
+              **data) -> modelforge.Model:
         cls.log.info("train %s %s %s", url, commit, data)
+        files = data["files"]
+        for file in files:
+            cls.log.info("%s %d", file.path, len(file.uast.children))
         return FormatModel().construct(cls, url, commit)
 
     @staticmethod
