@@ -4,3 +4,6 @@ stringcase==1.2.0
 sqlalchemy==1.2.10
 pympler==0.5
 cachetools==2.0.1
+configargparse==0.13.0
+humanfriendly==4.16.1
+psycopg2-binary==2.7.5

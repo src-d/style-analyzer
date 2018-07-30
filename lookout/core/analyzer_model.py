@@ -15,9 +15,10 @@ class AnalyzerModel(Model):
     def construct(self, analyzer: Type[Analyzer], url: str, commit: str):
         assert isinstance(self, analyzer.model_type)
         self.name = analyzer.__name__
-        self.version = analyzer.version
+        self.version = [analyzer.version]
         self.url = url
         self.commit = commit
+        return self
 
     def dump(self) -> str:
         return "%s/%s %s %s" % (self.name, self.version, self.url, self.commit)

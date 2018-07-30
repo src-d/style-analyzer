@@ -24,6 +24,9 @@ class AnalyzerManager:
         self._data_request_stub = threading.local()
         self._data_request_address = data_request_address
 
+    def __str__(self) -> str:
+        return "AnalyzerManager(%s)" % self.version
+
     @property
     def version(self):
         return " ".join(self._model_id(a) for a in self._analyzers)
@@ -49,7 +52,7 @@ class AnalyzerManager:
         response.analyzer_version = self.version
         comments = []
         for analyzer in self._analyzers:
-            mycfg = configuration.get(analyzer.__name__, {})
+            mycfg = getattr(configuration, analyzer.__name__, {})
             model, cache_miss = self._model_repository.get(
                 self._model_id(analyzer), analyzer.model_type, base_url)
             if cache_miss:
@@ -87,4 +90,4 @@ class AnalyzerManager:
 
     @staticmethod
     def _model_id(analyzer: Type[Analyzer]) -> str:
-        return "%s/%s" % (analyzer.__name__, analyzer.__version__)
+        return "%s/%s" % (analyzer.__name__, analyzer.version)
