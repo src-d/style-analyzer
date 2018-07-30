@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from datetime import datetime
 import os
 import threading
@@ -25,6 +26,19 @@ class Model(Base):
     updated = Column(DateTime(timezone=True), default=datetime.utcnow)
 
 
+class ContextSessionMaker:
+    def __init__(self, factory):
+        self.factory = factory
+
+    @contextmanager
+    def __call__(self):
+        session = self.factory()
+        try:
+            yield session
+        finally:
+            session.close()
+
+
 class SQLAlchemyModelRepository(ModelRepository):
     MAX_SUBDIRS = 1024
 
@@ -33,7 +47,7 @@ class SQLAlchemyModelRepository(ModelRepository):
         self.fs_root = fs_root
         self._engine = create_engine(
             db_endpoint, **(engine_kwargs if engine_kwargs is not None else {}))
-        self._sessionmaker = sessionmaker(bind=self._engine)
+        self._sessionmaker = ContextSessionMaker(sessionmaker(bind=self._engine))
         bakery = baked.bakery()
         self._get_query = bakery(lambda session: session.query(Model))
         self._get_query += lambda query: query.filter(
@@ -56,11 +70,8 @@ class SQLAlchemyModelRepository(ModelRepository):
             model = self._cache.get(cache_key)
         if model is not None:
             return model, False
-        session = self._sessionmaker()
-        try:
+        with self._sessionmaker() as session:
             models = self._get_query(session).params(analyzer=model_id, repository=url).all()
-        finally:
-            session.close()
         if len(models) == 0:
             return None, True
         model = model_type().load(models[0].path)
@@ -70,12 +81,9 @@ class SQLAlchemyModelRepository(ModelRepository):
 
     def set(self, model_id: str, url: str, model: modelforge.Model):
         path = self.store_model(model, model_id, url)
-        session = self._sessionmaker()
-        try:
+        with self._sessionmaker() as session:
             session.add(Model(analyzer=model_id, repository=url, path=path))
             session.commit()
-        finally:
-            session.close()
 
     def init(self):
         Model.metadata.create_all(self._engine)
