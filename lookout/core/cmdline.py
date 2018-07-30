@@ -26,6 +26,12 @@ class ArgumentDefaultsHelpFormatterNoNone(argparse.ArgumentDefaultsHelpFormatter
 
 
 def list_analyzers(args):
+    """
+    Prints the list of the analyzers inside the `lookout` package.
+
+    :param args: Not used - parsed command line arguments.
+    :return: None
+    """
     first = True
     queue = [tuple(c) + ("lookout.",) for c in pkgutil.iter_modules(lookout.__path__)]
     while queue:
@@ -51,6 +57,12 @@ def list_analyzers(args):
 
 
 def run_analyzers(args):
+    """
+    Launches the service with the specified analyzers. Blocks until a KeyboardInterrupt.
+
+    :param args: Parsed command line arguments.
+    :return: None
+    """
     slogging.setup(args.log_level, args.log_structured)
     log = logging.getLogger("run")
     repo = create_model_repo_from_args(args)
@@ -73,6 +85,12 @@ def run_analyzers(args):
 
 
 def init_repo(args):
+    """
+    Initializes the model repository.
+
+    :param args: Parsed command line arguments.
+    :return: None
+    """
     slogging.setup(args.log_level, False)
     repo = create_model_repo_from_args(args)
     repo.init()
