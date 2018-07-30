@@ -11,5 +11,7 @@ Style analyzer experiments
 5. Run the analyzer `python3 -m lookout run lookout.style.format -s 0.0.0.0:2000 --db "postgresql://postgres:postgres@localhost:5432/postgres" --fs /tmp`
 6. File a fake pull request `./lookout review -v ipv4://localhost:2000`
 
+To erase the database of models, run `docker exec -it postgres psql -U postgres -d postgres -c "TRUNCATE models;"`
+
 ### License
 AGPL-3.0, see [LICENSE.md](LICENSE.md).

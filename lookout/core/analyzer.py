@@ -20,5 +20,6 @@ class Analyzer:
         raise NotImplementedError
 
     @classmethod
-    def train(cls, url: str, commit: str, config: dict, data_request_stub: DataStub, **data):
+    def train(cls, url: str, commit: str, config: dict, data_request_stub: DataStub,
+              **data) -> Model:
         raise NotImplementedError
