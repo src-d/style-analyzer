@@ -71,11 +71,11 @@ class EventListener(AnalyzerServicer):
     def timeit(func):
         @functools.wraps(func)
         def wrapped_timeit(self, request, context: grpc.ServicerContext):
-            start_time = time.perf_counter_ns()
+            start_time = time.perf_counter()
             context.start_time = start_time
             result = func(self, request, context)
-            delta = time.perf_counter_ns() - start_time
-            self._log.info("OK %d", delta // 1000)
+            delta = time.perf_counter() - start_time
+            self._log.info("OK %.3f", delta)
             return result
 
         return wrapped_timeit
@@ -103,8 +103,8 @@ class EventListener(AnalyzerServicer):
             except Exception as e:
                 start_time = getattr(request, "start_time", None)
                 if start_time is not None:
-                    delta = time.perf_counter_ns() - start_time
-                    self._log.exception("FAIL %d", delta // 1000)
+                    delta = time.perf_counter() - start_time
+                    self._log.exception("FAIL %.3f", delta)
                 else:
                     self._log.exception("FAIL ?")
                 context.abort(grpc.StatusCode.INTERNAL, "%s: %s" % (type(e), e))
