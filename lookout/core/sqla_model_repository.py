@@ -5,13 +5,13 @@ import threading
 from typing import Tuple, Type
 
 import cachetools
-import modelforge
 from pympler.asizeof import asizeof
 from sqlalchemy import create_engine, Column, String, VARCHAR, DateTime, bindparam, and_
 from sqlalchemy.ext import baked
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
+from lookout.core.analyzer_model import AnalyzerModel
 from lookout.core.model_repository import ModelRepository
 
 
@@ -27,6 +27,9 @@ class Model(Base):
 
 
 class ContextSessionMaker:
+    """
+    Adds the __enter__()/__exit__() to an SQLAlchemy session and thus automatically closes it.
+    """
     def __init__(self, factory):
         self.factory = factory
 
@@ -63,8 +66,8 @@ class SQLAlchemyModelRepository(ModelRepository):
     def __str__(self) -> str:
         return "SQLAlchemyModelRepository(db=%s, fs=%s)" % (self._engine.url, self.fs_root)
 
-    def get(self, model_id: str, model_type: Type[modelforge.Model],
-            url: str) -> Tuple[modelforge.Model, bool]:
+    def get(self, model_id: str, model_type: Type[AnalyzerModel],
+            url: str) -> Tuple[AnalyzerModel, bool]:
         cache_key = self.cache_key(model_id, model_type, url)
         with self._cache_lock:
             model = self._cache.get(cache_key)
@@ -79,7 +82,7 @@ class SQLAlchemyModelRepository(ModelRepository):
             self._cache[cache_key] = model
         return model, True
 
-    def set(self, model_id: str, url: str, model: modelforge.Model):
+    def set(self, model_id: str, url: str, model: AnalyzerModel):
         path = self.store_model(model, model_id, url)
         with self._sessionmaker() as session:
             session.add(Model(analyzer=model_id, repository=url, path=path))
@@ -96,10 +99,10 @@ class SQLAlchemyModelRepository(ModelRepository):
         return url[url.find("://") + 3:].split("/")
 
     @staticmethod
-    def cache_key(model_id: str, model_type: Type[modelforge.Model], url: str):
+    def cache_key(model_id: str, model_type: Type[AnalyzerModel], url: str):
         return model_id + "_" + model_type.__name__ + "_" + url
 
-    def store_model(self, model: modelforge.Model, model_id: str, url: str) -> str:
+    def store_model(self, model: AnalyzerModel, model_id: str, url: str) -> str:
         url_parts = self.split_url(url)
         if url_parts[0] == "github" or url_parts[0] == "bitbucket":
             url_parts = url_parts[:2] + [url_parts[2][:2]] + url_parts[2:]

@@ -9,14 +9,28 @@ from lookout.core.analyzer import Analyzer
 from lookout.core.api.event_pb2 import ReviewEvent, PushEvent
 from lookout.core.api.service_analyzer_pb2 import EventResponse
 from lookout.core.api.service_data_pb2_grpc import DataStub
+from lookout.core.event_listener import EventHandlers
 from lookout.core.model_repository import ModelRepository
 
 
-class AnalyzerManager:
+class AnalyzerManager(EventHandlers):
+    """
+    Manages several `Analyzer`-s: runs them and trains the models.
+
+    Relies on a `ModelRepository` to retrieve and update the models. Also requires the address
+    of the data (UAST, contents) gRPC service, typically running in the same Lookout server.
+    """
     _log = logging.getLogger("AnalyzerManager")
 
     def __init__(self, model_repository: ModelRepository, analyzers: Iterable[Type[Analyzer]],
                  data_request_address: str):
+        """
+        Initializes a new instance of the AnalyzerManager class.
+
+        :param model_repository: Injected implementor of the `ModelRepository` interface.
+        :param analyzers: Analyzer types to manage (not instances!).
+        :param data_request_address: gRPC address of the data retrieval service.
+        """
         self._model_repository = model_repository
         analyzers = [(a.__name__, a) for a in analyzers]
         analyzers.sort()
@@ -28,10 +42,19 @@ class AnalyzerManager:
         return "AnalyzerManager(%s)" % self.version
 
     @property
-    def version(self):
+    def version(self) -> str:
+        """
+        Version depends on all the managed analyzers.
+        """
         return " ".join(self._model_id(a) for a in self._analyzers)
 
     def with_data_request_stub(func):
+        """
+        Lazily creates the gRPC data retrieval API instance (stub). We use the thread-local
+        storage as this method is called from `EventListener`.
+
+        :return: The decorated function.
+        """
         @functools.wraps(func)
         def wrapped_with_data_request_stub(self, request):
             if not hasattr(self._data_request_stub, "stub"):
@@ -42,7 +65,7 @@ class AnalyzerManager:
         return wrapped_with_data_request_stub
 
     @with_data_request_stub
-    def process_review_event(self, request: ReviewEvent):
+    def process_review_event(self, request: ReviewEvent) -> EventResponse:
         base_url = request.commit_revision.base.internal_repository_url
         external_url = request.commit_revision.head.internal_repository_url
         commit_head = request.commit_revision.head.hash
@@ -70,7 +93,7 @@ class AnalyzerManager:
         return response
 
     @with_data_request_stub
-    def process_push_event(self, request: PushEvent):
+    def process_push_event(self, request: PushEvent) -> None:
         url = request.commit_revision.head.internal_repository_url
         commit = request.commit_revision.head.hash
         configuration = request.configuration
@@ -81,6 +104,13 @@ class AnalyzerManager:
             self._model_repository.set(self._model_id(analyzer), url, model)
 
     def warmup(self, urls: Sequence[str]):
+        """
+        Warms up the model cache (which supposedly exists in the injected `ModelRepository`).
+        We get the models corresponding to the managed analyzers and the specified list of
+        repositories.
+
+        :param urls: The list of Git repositories for which to fetch the models.
+        """
         self._log.info("warming up on %d urls", len(urls))
         for url in urls:
             for analyzer in self._analyzers:
