@@ -112,5 +112,5 @@ OPERATORS = [
     '"'
 ]
 
-JS_RESERVED = RESERVED_KEYWORDS + OPERATORS
-JS_RESERVED = list(sorted(JS_RESERVED, key=lambda t: -len(t)))
+TOKENS = RESERVED_KEYWORDS + OPERATORS
+TOKENS = sorted(TOKENS, key=lambda t: -len(t))
