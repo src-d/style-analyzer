@@ -1,18 +1,20 @@
 from collections import defaultdict
 from copy import deepcopy
 import logging
+from typing import Iterable, List
 
+import bblfsh
 from tqdm import tqdm
 
-from .js_reserved import JS_RESERVED
+from lookout.style.format import reserved
 
 
 EXCEPTION_TYPES = ("RegExpLiteral", "TemplateLiteral")
 
 
-class Node:
-    def __init__(self, start, end, node, start_line=None, start_col=None, end_line=None,
-                 end_col=None, parent=None):
+class WrappedNode:
+    def __init__(self, start: int, end: int, node: bblfsh.Node, parent: bblfsh.Node,
+                 start_line: int, start_col: int, end_line: int, end_col: int):
         """
         :param start: start offset of node.
         :param end: end offset of node.
@@ -31,38 +33,37 @@ class Node:
         else:
             self.end = start + len(node.token) + 1
 
-        self.node = node
-
         # start & end line/col are useful for nodes not from UAST
         self.start_line = start_line
         self.start_col = start_col
         self.end_line = end_line
         self.end_col = end_col
-
+        self.node = node
         self.parent = parent
 
+    @staticmethod
+    def wrap(node: bblfsh.Node, parent: bblfsh.Node):
+        """
+        Convert node from UAST to common format.
 
-def convert_node(node, parent):
-    """
-    Convert node from UAST to common format.
-
-    :param node: UAST node
-    :param parent: parent of this node
-    :return: new node
-    """
-    return Node(start=node.start_position.offset, end=node.end_position.offset, node=node,
-                start_line=node.start_position.line, start_col=node.start_position.col,
-                end_line=node.end_position.line, end_col=node.end_position.col, parent=parent)
+        :param node: UAST node
+        :param parent: parent of this node
+        :return: new node
+        """
+        return WrappedNode(start=node.start_position.offset, end=node.end_position.offset,
+                           node=node, parent=parent,
+                           start_line=node.start_position.line, start_col=node.start_position.col,
+                           end_line=node.end_position.line, end_col=node.end_position.col)
 
 
-def prepare_nodes(uast):
+def prepare_nodes(uast: bblfsh.Node):
     nodes = {}
-    root = convert_node(uast, None)
+    root = WrappedNode.wrap(uast, None)
     stack = [(root, uast)]
     while stack:
         parent, parent_uast = stack.pop()
-        children_nodes = [convert_node(child, parent) for child in parent_uast.children]
-        stack.extend(zip(children_nodes, parent_uast.children))
+        stack.extend(zip((WrappedNode.wrap(child, parent) for child in parent_uast.children),
+                         parent_uast.children))
         nodes[id(parent_uast)] = parent
 
     return nodes
@@ -83,9 +84,9 @@ def ordered_nodes(uast, exception_types=EXCEPTION_TYPES):
 
     # check overlapped nodes - it could happen because of nodes with exception_types
     def check_overlap(n1, n2):
-        if (n1.start <= n2.start and n1.end > n2.start):
-            if not (n1.start <= n2.end and n1.end >= n2.end):
-                log.debug("Required check: n1.start {}, n1.end {}, n2.start {}, n2.end {}".format(
+        if n1.start <= n2.start and n1.end > n2.start:
+            if not n1.start <= n2.end and n1.end >= n2.end:
+                log.debug("Required check: n1.start %d, n1.end %d, n2.start %d, n2.end %d" % (
                     n1.start, n1.end, n2.start, n2.end))
             return True
         return False
@@ -109,7 +110,8 @@ def ordered_nodes(uast, exception_types=EXCEPTION_TYPES):
     return [nodes[n] for n in good_nodes], nodes
 
 
-def transform_content(content: str, uast, filler: str="_", exception_types=EXCEPTION_TYPES):
+def transform_content(content: str, uast: bblfsh.Node, filler: str="_",
+                      exception_types=EXCEPTION_TYPES):
     """
     Visualize code without nodes with token and positions and fill theirs positions with filler.
 
@@ -134,20 +136,20 @@ def transform_content(content: str, uast, filler: str="_", exception_types=EXCEP
     return content
 
 
-def _token_to_seq(token, to_check):
+def _token_to_seq(token, to_check: Iterable[str]):
     if not token:
         return
-    for check in JS_RESERVED:
+    for check in to_check:
         pos = token.find(check)
         if pos != -1:
             left = token[:pos]
             center = token[pos:pos + len(check)]
             right = token[pos + len(check):]
 
-            assert center == check, "{} != {}".format(center, check)
+            assert center == check, "%s != %s" % (center, check)
             report = (
-                "Something wrong: token `{}`, left `{}` , center `{}`, right `{}`, check `{}`."
-                .format(token, left, center, right, check)
+                "Something wrong: token `%s`, left `%s`, center `%s`, right `%s`, check `%s`."
+                % (token, left, center, right, check)
             )
             assert left + center + right == token, report
 
@@ -157,20 +159,20 @@ def _token_to_seq(token, to_check):
             break
 
 
-def token_to_seq(token, to_check):
+def token_to_seq(token, to_check: Iterable[str]):
     res = [n for n in _token_to_seq(token, to_check) if n is not None]
     # sanity check
-    report = "token_to_seq: `{}` != `{}`".format("".join(res), token)
+    report = "token_to_seq: `%s` != `%s`" % ("".join(res), token)
     assert "".join(res) == token, report
     return res
 
 
-def split_whitespaces_reserved(text, reserved):
+def split_whitespaces_reserved(text, reserved_tokens: Iterable[str]):
     """
     Split text into whitespaces(including newlines/etc) and reserved keywords/operators.
 
     :param text: text with whitespaces and reserved keywords.
-    :param reserved: list of reserved keywords and operators.
+    :param reserved_tokens: list of reserved keywords and operators.
     :return: list of operators and whitespaces.
     """
     seq = text.split()
@@ -181,7 +183,7 @@ def split_whitespaces_reserved(text, reserved):
 
     # pure operators
     if len(seq) == 1 and len(text) == len(seq[0]):
-        return token_to_seq(seq[0], reserved)
+        return token_to_seq(seq[0], reserved_tokens)
 
     # augment sequence with start and end position
     curr_pos = 0
@@ -202,15 +204,15 @@ def split_whitespaces_reserved(text, reserved):
     # between elements
     if len(seq) > 1:
         for el1, el2 in zip(seq[:-1], seq[1:]):
-            res.extend(token_to_seq(el1[2], reserved))
+            res.extend(token_to_seq(el1[2], reserved_tokens))
             el1_end = el1[1]
             el2_start = el2[0]
             if el1_end != el2_start:
                 res.append(text[el1_end:el2_start])
-        res.extend(token_to_seq(el2[2], reserved))
+        res.extend(token_to_seq(el2[2], reserved_tokens))
     else:
         # add element in the end of sequence
-        res.extend(token_to_seq(seq[0][2], reserved))
+        res.extend(token_to_seq(seq[0][2], reserved_tokens))
 
     # after last element
     last_end = seq[-1][1]
@@ -218,8 +220,8 @@ def split_whitespaces_reserved(text, reserved):
         res.extend(text[last_end:])
 
     # sanity check
-    report = "split_whitespaces_reserved: `{}` != `{}`, debug: {}".format(
-        text, "".join(res), [token_to_seq(el[2], reserved) for el in seq]
+    report = "split_whitespaces_reserved: `%s` != `%s`, debug: %s" % (
+        text, "".join(res), [token_to_seq(el[2], reserved_tokens) for el in seq]
     )
     assert "".join(res) == text, report
     return res
@@ -240,9 +242,9 @@ def find_common_ancestor(node1, node2):
 
 
 def split_whitespaces_reserved_to_nodes(start, start_line, start_col, end, common_anc, content,
-                                        reserved):
+                                        reserved_tokens: Iterable[str]):
     seq = []
-    res = split_whitespaces_reserved(text=content[start:end], reserved=reserved)
+    res = split_whitespaces_reserved(text=content[start:end], reserved_tokens=reserved_tokens)
     for t in res:
         end = start + len(t)
         n_new_lines = t.count("\n")
@@ -252,19 +254,20 @@ def split_whitespaces_reserved_to_nodes(start, start_line, start_col, end, commo
         else:
             end_col = start_col + len(t)
 
-        n = Node(start=start, end=end, node=t, start_line=start_line, start_col=start_col,
-                 end_line=end_line, end_col=end_col, parent=common_anc)
+        n = WrappedNode(start=start, end=end, node=t, parent=common_anc,
+                        start_line=start_line, start_col=start_col,
+                        end_line=end_line, end_col=end_col)
         seq.append(n)
         start, start_col, start_line = end, end_col, end_line
     return seq
 
 
-def node_extraction(content, uast, reserved=JS_RESERVED):
+def extract_nodes(content, uast, reserved_tokens: Iterable[str]):
     """
     Extract list of Nodes ordered by position.
     :param content: content or text of source code.
     :param uast: UAST extracted from source code.
-    :param reserved: list of reserved words ordered by length.
+    :param reserved_tokens: list of reserved words ordered by length.
     :return: list of nodes.
     """
     uast_nodes, _ = ordered_nodes(uast)
@@ -276,7 +279,7 @@ def node_extraction(content, uast, reserved=JS_RESERVED):
     if uast_nodes[0].start != 0:
         res = split_whitespaces_reserved_to_nodes(
             start=0, start_line=1, start_col=1, end=uast_nodes[0].start, content=content,
-            common_anc=uast_nodes[0].parent, reserved=reserved
+            common_anc=uast_nodes[0].parent, reserved_tokens=reserved_tokens
         )
         seq.extend(res)
 
@@ -291,7 +294,7 @@ def node_extraction(content, uast, reserved=JS_RESERVED):
             common_anc = find_common_ancestor(uast_nodes[i], uast_nodes[i + 1])
             res = split_whitespaces_reserved_to_nodes(
                 start=start, start_line=start_line, start_col=start_col, end=end, content=content,
-                common_anc=common_anc, reserved=reserved
+                common_anc=common_anc, reserved_tokens=reserved_tokens
             )
             seq.extend(res)
 
@@ -300,27 +303,27 @@ def node_extraction(content, uast, reserved=JS_RESERVED):
         res = split_whitespaces_reserved_to_nodes(
             start=uast_nodes[-1].end, start_line=uast_nodes[-1].start_line,
             start_col=uast_nodes[-1].start_col, end=len(content), content=content,
-            common_anc=uast_nodes[-1].parent, reserved=reserved
+            common_anc=uast_nodes[-1].parent, reserved_tokens=reserved_tokens
         )
         seq.extend(res)
 
     # sanity check
     new_content = "".join(content[n.start:n.end] for n in seq)
-    report = "feature_extraction: `{}` != `{}`".format(content, new_content)
+    report = "extract_features: `%s` != `%s`" % (content, new_content)
     assert new_content == content, report
 
     return seq
 
 
-def collect_unique_features(contents, uasts, reserved=JS_RESERVED):
-    report = ("Number of contents ({}) & UASTs ({}) is not equal - something wrong."
-              .format(len(contents), len(uasts)))
+def collect_unique_features(contents, uasts, reserved_tokens: Iterable[str]):
+    report = ("Number of contents (%d) & UASTs (%d) is not equal - something wrong."
+              % (len(contents), len(uasts)))
     assert len(contents) == len(uasts), report
     unique_features = defaultdict(int)
-    for check in reserved:
+    for check in reserved_tokens:
         unique_features[check] += 1  # dummy counter for default reserved tokens
     for content, uast in tqdm(zip(contents, uasts)):
-        res = node_extraction(content, uast, reserved)
+        res = extract_nodes(content, uast, reserved_tokens)
         if res is None:
             continue
         for el in res:
@@ -328,12 +331,14 @@ def collect_unique_features(contents, uasts, reserved=JS_RESERVED):
                 unique_features[el.node] += 1
             else:
                 unique_features[el.node.internal_type] += 1
-    logging.debug("Number of unique features: {}".format(len(unique_features)))
+    logging.debug("Number of unique features: %s" % (len(unique_features)))
     return unique_features
 
 
-def feature_extraction(filenames, contents, uasts, reserved=JS_RESERVED, seq_len=5, depth=5,
-                       unique_features=None, use_features_after=True, use_parents=True):
+def extract_features(filenames: Iterable[str], contents: List[str],
+                     uasts: List[bblfsh.Node], reserved_tokens: Iterable[str],
+                     seq_len=5, depth=5, unique_features: Iterable[str]=None,
+                     use_features_after=True, use_parents=True):
     """
     Extract features:
     * before label
@@ -345,7 +350,7 @@ def feature_extraction(filenames, contents, uasts, reserved=JS_RESERVED, seq_len
     :param filenames: list of filenames.
     :param contents: list of contents of files.
     :param uasts: list of extracted UASTs.
-    :param reserved: list of reserved tokens.
+    :param reserved_tokens: list of reserved tokens.
     :param seq_len: sequence length for features (before and after).
     :param depth: how many parents to use.
     :param unique_features: list of unique features. If None it will be collected from data.
@@ -354,7 +359,7 @@ def feature_extraction(filenames, contents, uasts, reserved=JS_RESERVED, seq_len
     :return: list of features, list of labels, list of metadata.
     """
     if unique_features is None:
-        unique_features = collect_unique_features(contents, uasts, reserved=reserved)
+        unique_features = collect_unique_features(contents, uasts, reserved_tokens=reserved_tokens)
     feature2id = dict((feat, i) for i, feat in enumerate(sorted(unique_features)))
 
     def get_feature_id(feature):
@@ -395,7 +400,7 @@ def feature_extraction(filenames, contents, uasts, reserved=JS_RESERVED, seq_len
     metadata = []
 
     for file, content, uast in tqdm(zip(filenames, contents, uasts)):
-        res = node_extraction(content, uast, reserved)
+        res = extract_nodes(content, uast, reserved)
         if res is None:
             continue
 
