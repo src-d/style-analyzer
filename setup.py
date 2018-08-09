@@ -9,6 +9,10 @@ if sys.version_info < (3, 5, 0):
 else:
     typing = []
 
+tests_require = ["docker>=3.4.0,<4.0",
+                 "pandas>=0.20,<2.0"]
+
+
 setup(
     name="lookout-style",
     description="Machine learning-based assisted code review - code style analyzers.",
@@ -33,12 +37,14 @@ setup(
                       "configargparse>=0.13,<2.0",
                       "humanfriendly>=4.0,<5.0",
                       "psycopg2-binary>=2.7,<3.0",
+                      "scikit-learn>=0.19,<2.0",
                       ] + typing,
     extras_require={
         "tf": ["tensorflow>=1.0,<2.0"],
         "tf_gpu": ["tensorflow-gpu>=1.0,<2.0"],
+        "test": tests_require,
     },
-    tests_require=["docker>=3.4.0,<4.0"],
+    tests_require=tests_require,
     package_data={"": ["LICENSE.md", "README.md"], },
     classifiers=[
         "Development Status :: 3 - Alpha",
