@@ -1,6 +1,6 @@
 language: python
 sudo: false
-dist: trusty
+dist: xenial
 services:
 - docker
 addons:
@@ -14,9 +14,9 @@ stages:
     # require any tag name to deploy
     if: tag =~ .*
 _install: &_install
-  - pip install --upgrade pip
+  - pip install --upgrade pip cython
   - pip install -r requirements.txt codecov
-  - pip install -e .
+  - pip install -e .[test]
 _coverage: &_coverage
   - SCRIPT="coverage run --concurrency=multiprocessing -m unittest discover && coverage combine"
 _deploy: &_deploy
@@ -27,22 +27,25 @@ _deploy: &_deploy
     tags: true
 matrix:
   include:
-    - python: 3.4
-      env: *_coverage
-      install: *_install
     - python: 3.5
       env: *_coverage
       install: *_install
     - python: 3.6
-      env: SCRIPT="flake8 . && (! grep -R /tmp lookout/style/*/tests)"
+      env: *_coverage
+      install: *_install
+    - python: 3.7
+      env: SCRIPT="flake8 .
+                   && (! grep -R /tmp lookout/style/*/tests)
+                   && rm -rf lookout/core/server
+                   && (! (grep -R '\.format(' lookout | grep -v /research/) )"
       install: pip install flake8
-    - python: 3.6
+    - python: 3.7
       env: *_coverage
       install: *_install
       after_success:
         - codecov
     - stage: deploy
-      python: 3.4
+      python: 3.5
       install:
         - pip3 install --upgrade pip
         - pip3 install twine
@@ -53,7 +56,7 @@ matrix:
   fast_finish: true
 before_script:
   - docker run -d --privileged -p 9432:9432 --name bblfshd bblfsh/bblfshd
-  - docker exec -it bblfshd bblfshctl driver install python bblfsh/javascript-driver
+  - docker exec -it bblfshd bblfshctl driver install javascript bblfsh/javascript-driver
 script:
   - (eval "$SCRIPT")
 notifications:
