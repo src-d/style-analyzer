@@ -1,4 +1,6 @@
-RESERVED_KEYWORDS = [
+EXCLUDED_INTERNAL_ROLES = ("RegExpLiteral", "TemplateLiteral")
+
+KEYWORDS = [
     "abstract",
     "as",
     "async",
@@ -112,5 +114,4 @@ OPERATORS = [
     '"'
 ]
 
-TOKENS = RESERVED_KEYWORDS + OPERATORS
-TOKENS = sorted(TOKENS, key=lambda t: -len(t))
+RESERVED = sorted(KEYWORDS + OPERATORS, key=lambda t: -len(t))
