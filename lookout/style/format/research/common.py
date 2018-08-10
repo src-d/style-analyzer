@@ -6,54 +6,7 @@ from typing import Iterable, List
 import bblfsh
 from tqdm import tqdm
 
-from lookout.style.format import reserved
-
-
-EXCEPTION_TYPES = ("RegExpLiteral", "TemplateLiteral")
-
-
-class WrappedNode:
-    def __init__(self, start: int, end: int, node: bblfsh.Node, parent: bblfsh.Node,
-                 start_line: int, start_col: int, end_line: int, end_col: int):
-        """
-        :param start: start offset of node.
-        :param end: end offset of node.
-        :param node: UAST node or string with operator/reserved keywords/etc.
-        :param start_line: start line of node (1-based index).
-        :param start_col: start column of node (1-based index). Useful for calculation of
-                          indentation.
-        :param end_line: end line of node (line of newline character is counted as the same line as
-                      start line) (1-based index).
-        :param end_col: end column of node (1-based index).
-        :param parent: parent node.
-        """
-        self.start = start
-        if end != 0:
-            self.end = end
-        else:
-            self.end = start + len(node.token) + 1
-
-        # start & end line/col are useful for nodes not from UAST
-        self.start_line = start_line
-        self.start_col = start_col
-        self.end_line = end_line
-        self.end_col = end_col
-        self.node = node
-        self.parent = parent
-
-    @staticmethod
-    def wrap(node: bblfsh.Node, parent: bblfsh.Node):
-        """
-        Convert node from UAST to common format.
-
-        :param node: UAST node
-        :param parent: parent of this node
-        :return: new node
-        """
-        return WrappedNode(start=node.start_position.offset, end=node.end_position.offset,
-                           node=node, parent=parent,
-                           start_line=node.start_position.line, start_col=node.start_position.col,
-                           end_line=node.end_position.line, end_col=node.end_position.col)
+from lookout.style.format.features import WrappedNode
 
 
 def prepare_nodes(uast: bblfsh.Node):
@@ -69,22 +22,22 @@ def prepare_nodes(uast: bblfsh.Node):
     return nodes
 
 
-def ordered_nodes(uast, exception_types=EXCEPTION_TYPES):
+def order_nodes(uast, excluded_internal_roles):
     """
     Select nodes with (tokens or specific node types) and with correct pos information
     -> order by `start_position.offset`
     """
-    log = logging.getLogger("ordered_nodes")
+    log = logging.getLogger("order_nodes")
     nodes = []
     for node in prepare_nodes(uast).values():
-        if ((node.node.token or node.node.internal_type in exception_types) and
+        if ((node.node.token or node.node.internal_type in excluded_internal_roles) and
                 (node.start != node.end)):
             nodes.append(node)
-    nodes = list(sorted(nodes, key=lambda n: n.start))
+    nodes = sorted(nodes, key=lambda n: n.start)
 
     # check overlapped nodes - it could happen because of nodes with exception_types
     def check_overlap(n1, n2):
-        if n1.start <= n2.start and n1.end > n2.start:
+        if n1.start <= n2.start < n1.end:
             if not n1.start <= n2.end and n1.end >= n2.end:
                 log.debug("Required check: n1.start %d, n1.end %d, n2.start %d, n2.end %d" % (
                     n1.start, n1.end, n2.start, n2.end))
@@ -110,19 +63,19 @@ def ordered_nodes(uast, exception_types=EXCEPTION_TYPES):
     return [nodes[n] for n in good_nodes], nodes
 
 
-def transform_content(content: str, uast: bblfsh.Node, filler: str="_",
-                      exception_types=EXCEPTION_TYPES):
+def transform_content(content: str, uast: bblfsh.Node, filler,
+                      excluded_internal_roles):
     """
     Visualize code without nodes with token and positions and fill theirs positions with filler.
 
     :param content: content.
     :param uast: UAST of content.
     :param filler: string that is used to fill the nodes.
-    :param exception_types: internal types that require special handling.
+    :param excluded_internal_roles: internal types that require special handling.
 
     :return: updated content.
     """
-    nodes, _ = ordered_nodes(uast, exception_types=exception_types)
+    nodes, _ = order_nodes(uast, excluded_internal_roles=excluded_internal_roles)
     content = deepcopy(content)
 
     # replace tokens with filler
@@ -270,7 +223,7 @@ def extract_nodes(content, uast, reserved_tokens: Iterable[str]):
     :param reserved_tokens: list of reserved words ordered by length.
     :return: list of nodes.
     """
-    uast_nodes, _ = ordered_nodes(uast)
+    uast_nodes, _ = order_nodes(uast)
     if len(uast_nodes) == 0:
         return
 
@@ -400,7 +353,7 @@ def extract_features(filenames: Iterable[str], contents: List[str],
     metadata = []
 
     for file, content, uast in tqdm(zip(filenames, contents, uasts)):
-        res = extract_nodes(content, uast, reserved)
+        res = extract_nodes(content, uast, reserved_tokens)
         if res is None:
             continue
 

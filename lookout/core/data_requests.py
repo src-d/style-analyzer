@@ -13,6 +13,7 @@ def with_changed_uasts(func):
     """
     Use this decorator to provide "changes" keyword argument to `**data` in `Analyzer.analyze()`.
     "changes" contain the list of `Change` - see lookout/core/server/sdk/service_data.proto.
+    The changes will have only UASTs.
 
     :param func: Method with the signature compatible with `Analyzer.analyze()`.
     :return: The decorated method.
@@ -25,6 +26,26 @@ def with_changed_uasts(func):
         return func(self, commit_from, commit_to, data_request_stub, changes=changes, **data)
 
     return wrapped_with_changed_uasts
+
+
+def with_changed_uasts_and_contents(func):
+    """
+    Use this decorator to provide "changes" keyword argument to `**data` in `Analyzer.analyze()`.
+    "changes" contain the list of `Change` - see lookout/core/server/sdk/service_data.proto.
+    The changes will have both UASTs and raw file contents.
+
+    :param func: Method with the signature compatible with `Analyzer.analyze()`.
+    :return: The decorated method.
+    """
+    @functools.wraps(func)
+    def wrapped_with_changed_uasts_and_contents(
+            self: Analyzer, commit_from: str, commit_to: str,
+            data_request_stub: DataStub, **data) -> [Comment]:
+        changes = request_changes(data_request_stub, self.url, commit_from, commit_to,
+                                  contents=True, uast=True)
+        return func(self, commit_from, commit_to, data_request_stub, changes=changes, **data)
+
+    return wrapped_with_changed_uasts_and_contents
 
 
 def with_uasts(func):
@@ -43,6 +64,24 @@ def with_uasts(func):
         return func(cls, url, commit, config, data_request_stub, files=files, **data)
 
     return wrapped_with_uasts
+
+
+def with_uasts_and_contents(func):
+    """
+    Use this decorator to provide "files" keyword argument to `**data` in `Analyzer.train()`.
+    "files" are the list of `File`-s with all the UASTs and raw file contents for the passed Git
+    repository URL and revision, see lookout/core/server/sdk/service_data.proto.
+
+    :param func: Method with the signature compatible with `Analyzer.train()`.
+    :return: The decorated method.
+    """
+    @functools.wraps(func)
+    def wrapped_with_uasts_and_contents(cls, url: str, commit: str, config: dict,
+                                        data_request_stub: DataStub, **data) -> modelforge.Model:
+        files = request_files(data_request_stub, url, commit, contents=True, uast=True)
+        return func(cls, url, commit, config, data_request_stub, files=files, **data)
+
+    return wrapped_with_uasts_and_contents
 
 
 def request_changes(stub: DataStub, url: str, commit_from: str, commit_to: str,
