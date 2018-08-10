@@ -2,7 +2,7 @@ from collections import defaultdict
 from itertools import chain
 import functools
 import logging
-from typing import Union, List, Tuple, Dict, Iterable, NamedTuple
+from typing import Union, List, Tuple, Dict, Iterable, NamedTuple, Sequence, Set
 
 import modelforge
 import numpy
@@ -24,9 +24,8 @@ RuleAttribute = NamedTuple(
 RuleStats = NamedTuple("RuleStats", (("cls", int), ("conf", float)))
 """
 `cls` is the predicted class
-`conf` is the rule confidence \in [0, 1], "1" means super confident
+`conf` is the rule confidence \\in [0, 1], "1" means super confident
 """
-
 
 Rule = NamedTuple("RuleType", (("attrs", Tuple[RuleAttribute, ...]), ("stats", RuleStats)))
 
@@ -57,11 +56,16 @@ class Rules(BaseEstimator, ClassifierMixin):
 
     CompiledRulesType = Dict[int, CompiledFeatureRules]
 
+    TopDownGreedyBudget = NamedTuple("TopDownGreedyBudget", (
+        ("absolute", bool), ("value", Union[float, int])))
+
     log = logging.getLogger("Rules")
 
     def __init__(self,
                  base_model: Union[DecisionTreeClassifier, RandomForestClassifier],
-                 prune_branches=True, prune_attributes=True, uncertain_attributes=True):
+                 prune_branches=True, prune_branches_algorithm="top-down-greedy",
+                 top_down_greedy_budget=1.0, prune_attributes=True,
+                 uncertain_attributes=True):
         """
         Initializes a new instance of Rules class.
 
@@ -75,6 +79,8 @@ class Rules(BaseEstimator, ClassifierMixin):
         """
         self.base_model = base_model
         self.prune_branches = prune_branches
+        self.prune_branches_algorithm = prune_branches_algorithm
+        self.top_down_greedy_budget = top_down_greedy_budget
         self.prune_attributes = prune_attributes
         self.uncertain_attributes = uncertain_attributes
         self._cache = None, None  # type: Tuple[Rules.CompiledRulesType, List[Rule]]
@@ -113,7 +119,11 @@ class Rules(BaseEstimator, ClassifierMixin):
         rules = self._merge_rules(rules)
         self.log.debug("Merged number of attributes: %d", count_attrs())
         if self.prune_branches:
-            rules = self._prune_branches(rules, X, y)
+            if self.prune_branches_algorithm == "top-down-greedy":
+                rules = self._prune_branches_top_down_greedy(rules, X, y,
+                                                             self.top_down_greedy_budget)
+            else:
+                rules = self._prune_branches(rules, X, y)
         if self.prune_attributes:
             rules = self._prune_attributes(rules, X, y, not self.uncertain_attributes)
             self.log.debug("Pruned number of attributes (2): %d", len(rules))
@@ -139,25 +149,8 @@ class Rules(BaseEstimator, ClassifierMixin):
         """
         compiled, rules = self._cache
         prediction = numpy.zeros(len(X), dtype=int)
-        triggered = numpy.zeros(len(rules), dtype=numpy.int8)
-        searchsorted = numpy.searchsorted
         for xi, x in enumerate(X):
-            triggered[:] = 0xff
-            for i, v in enumerate(x):
-                try:
-                    vals, arules = compiled[i]
-                except KeyError:
-                    continue
-                border = searchsorted(vals, v)
-                if border > 0:
-                    indices = arules[border - 1][False]
-                    if len(indices):
-                        triggered[indices] = 0
-                if border < len(arules):
-                    indices = arules[border][True]
-                    if len(indices):
-                        triggered[indices] = 0
-            ris = numpy.nonzero(triggered)[0]
+            ris = self._compute_triggered(compiled, rules, x)
             if len(ris) == 0:
                 # self.log.warning("no rule!")
                 continue
@@ -176,6 +169,28 @@ class Rules(BaseEstimator, ClassifierMixin):
         pass
 
     _check_fitted = staticmethod(_check_fitted)
+
+    @classmethod
+    def _compute_triggered(cls, compiled_rules: CompiledRulesType,
+                           rules: Sequence[Rule], x: numpy.ndarray
+                           ) -> numpy.ndarray:
+        searchsorted = numpy.searchsorted
+        triggered = numpy.full(len(rules), 0xff, dtype=numpy.int8)
+        for i, v in enumerate(x):
+            try:
+                vals, arules = compiled_rules[i]
+            except KeyError:
+                continue
+            border = searchsorted(vals, v)
+            if border > 0:
+                indices = arules[border - 1][False]
+                if len(indices):
+                    triggered[indices] = 0
+            if border < len(arules):
+                indices = arules[border][True]
+                if len(indices):
+                    triggered[indices] = 0
+        return numpy.nonzero(triggered)[0]
 
     @classmethod
     def _tree_to_rules(cls, tree: DecisionTreeClassifier) -> List[Rule]:
@@ -230,7 +245,7 @@ class Rules(BaseEstimator, ClassifierMixin):
         return new_rules
 
     @classmethod
-    def _compile_rules(cls, rules: List[Rule]) -> CompiledRulesType:
+    def _compile_rules(cls, rules: Sequence[Rule]) -> CompiledRulesType:
         attrs = defaultdict(lambda: defaultdict(lambda: [[], []]))
         for i, (branch, _) in enumerate(rules):
             for rule in branch:
@@ -252,10 +267,61 @@ class Rules(BaseEstimator, ClassifierMixin):
         return compiled_attrs
 
     @classmethod
-    def _prune_branches(cls, rules: Iterable[Rule],
+    def _prune_branches(cls, rules: Sequence[Rule],
                         X: numpy.ndarray, Y: numpy.ndarray) -> List[Rule]:
         # TODO(vmarkovtsev): implement this function
         return rules
+
+    @classmethod
+    def _build_instances_index(cls, rules: Sequence[Rule],
+                               X: numpy.ndarray) -> Dict[int, Set[int]]:
+        instances_index = defaultdict(set)
+        compiled = cls._compile_rules(rules)
+        for xi, x in enumerate(X):
+            for triggered_rule in cls._compute_triggered(compiled, rules, x):
+                instances_index[triggered_rule].add(xi)
+        return instances_index
+
+    @classmethod
+    def _prune_branches_top_down_greedy(cls, rules: Sequence[Rule], X: numpy.ndarray,
+                                        Y: numpy.ndarray,
+                                        budget: TopDownGreedyBudget) -> List[Rule]:
+        absolute, value = budget
+        if absolute:
+            assert isinstance(value, int)
+            n_budget = max(0, min(value, len(rules)))
+        else:
+            assert value >= 0 and value <= 1
+            n_budget = int(max(0, min(value * len(rules), len(rules))))
+        instances_index = cls._build_instances_index(rules, X)
+        confs_index = numpy.full(X.shape[0], -1.)
+        clss_index = numpy.full(X.shape[0], -1)
+        candidate_rules = set(range(len(rules)))
+        selected_rules = set()
+        for iteration in range(n_budget):
+            scores = []
+            for rule_id in candidate_rules:
+                triggered_instances = instances_index[rule_id]
+                matched_delta = 0
+                stats = rules[rule_id].stats
+                for triggered_instance in triggered_instances:
+                    if (stats.conf > confs_index[triggered_instance]
+                            and stats.cls != clss_index[triggered_instance]):
+                        if Y[triggered_instance] == clss_index[triggered_instance]:
+                            matched_delta -= 1
+                        elif Y[triggered_instance] == stats.cls:
+                            matched_delta += 1
+                scores.append((matched_delta, rule_id))
+            best_matched_delta, best_rule_id = max(scores)
+            for triggered_instance in instances_index[best_rule_id]:
+                stats = rules[best_rule_id].stats
+                confs_index[triggered_instance] = rules[rule_id].stats.conf
+                clss_index[triggered_instance] = stats.cls
+            candidate_rules.remove(best_rule_id)
+            selected_rules.add(best_rule_id)
+            cls.log.debug('iteration %d: selected rule %3d with %3d difference in matched Ys'
+                          % (iteration, best_rule_id, best_matched_delta))
+        return [rules[rule_id] for rule_id in selected_rules]
 
     @classmethod
     def _prune_attributes(cls, rules: Iterable[Rule],
