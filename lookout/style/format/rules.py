@@ -281,15 +281,36 @@ class Rules(BaseEstimator, ClassifierMixin):
         def confidence(v, not_v):
             return (v - 0.5) / (v + not_v)
 
-        # TODO(vmarkovtsev): optimize this the same way we optimized predict()
         new_rules = []
-        for attrs, stats in rules:
+        intervals = {}
+        attrs = defaultdict(set)
+        for i, (branch, _) in enumerate(rules):
+            for rule in branch:
+                attrs[rule.feature].add(rule.threshold)
+        for key, vals in attrs.items():
+            attrs[key] = numpy.array(sorted(vals))
+            intervals[key] = [defaultdict(int) for _ in range(len(vals) + 1)]
+        searchsorted = numpy.searchsorted
+        for i, (x, y) in enumerate(zip(X, Y)):
+            for attr, val in enumerate(x):
+                interval = intervals.get(attr)
+                if interval is not None:
+                    interval[searchsorted(attrs[attr], val)][y] += 1
+        for key, vals in attrs.items():
+            attrs[key] = {v: i for i, v in enumerate(vals)}
+        for vals in intervals.values():
+            for vec in vals:
+                vec[-1] = sum(vec.values())
+        for rule, stats in rules:
             c = stats.cls
             new_verbs = []
-            for feature, cmp, thr in attrs:
-                table = numpy.zeros((2, 2), dtype=int)
-                for x, y in zip(X, Y):
-                    table[int((x[feature] <= thr) == cmp), int(c != y)] += 1
+            for feature, cmp, thr in rule:
+                table = numpy.zeros((2, 2), dtype=numpy.int32)
+                for i, interval in enumerate(intervals[feature]):
+                    row = int((i <= attrs[feature][thr]) == cmp)
+                    num_same_cls = interval[c]
+                    table[row, 0] += num_same_cls
+                    table[row, 1] += interval[-1] - num_same_cls
                 if prune_uncertain:
                     if confidence(table[0, 0] + table[1, 0], table[0, 1] + table[1, 1]) \
                             >= confidence(table[0, 0], table[0, 1]):
