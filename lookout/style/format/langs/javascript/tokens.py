@@ -1,7 +1,8 @@
-EXCLUDED_INTERNAL_ROLES = ("RegExpLiteral", "TemplateLiteral")
+EXCLUDED_INTERNAL_ROLES = ("RegExpLiteral", "TemplateLiteral", "ArrayExpression", "ArrayPattern")
 
 KEYWORDS = [
     "abstract",
+    "any",
     "as",
     "async",
     "await",
@@ -15,6 +16,7 @@ KEYWORDS = [
     "const",
     "continue",
     "debugger",
+    "declare",
     "default",
     "delete",
     "do",
@@ -22,6 +24,7 @@ KEYWORDS = [
     "else",
     "enum",
     "export",
+    "exports",
     "extends",
     "false",
     "final",
@@ -30,7 +33,10 @@ KEYWORDS = [
     "for",
     "from",
     "function",
+    "get",
     "goto",
+    "of",
+    "opaque",
     "if",
     "implements",
     "import",
@@ -40,16 +46,21 @@ KEYWORDS = [
     "interface",
     "let",
     "long",
+    "mixed",
+    "module",
     "native",
     "new",
+    "number",
     "null",
     "package",
     "private",
     "protected",
     "public",
     "return",
+    "set",
     "short",
     "static",
+    "string",
     "super",
     "switch",
     "synchronized",
@@ -59,13 +70,17 @@ KEYWORDS = [
     "transient",
     "true",
     "try",
+    "type",
     "typeof",
+    "yield",
     "var",
     "void",
     "volatile",
     "while",
     "with"
 ]
+# TODO: figure out problem with `module.exports`.
+# TODO: Ex: `https://github.com/facebook/react/tree/master/scripts/flow/environment.js`
 
 OPERATORS = [
     "+",

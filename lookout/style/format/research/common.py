@@ -1,5 +1,4 @@
 from collections import defaultdict
-from copy import deepcopy
 import logging
 from typing import Iterable, List
 
@@ -76,7 +75,6 @@ def transform_content(content: str, uast: bblfsh.Node, filler,
     :return: updated content.
     """
     nodes, _ = order_nodes(uast, excluded_internal_roles=excluded_internal_roles)
-    content = deepcopy(content)
 
     # replace tokens with filler
     def insert_into_str(c, start, end):
@@ -148,6 +146,10 @@ def split_whitespaces_reserved(text, reserved_tokens: Iterable[str]):
         curr_pos = end
 
     seq = new_seq
+    if len(seq) == 0:
+        if len(text) == 0:
+            return []
+        raise ValueError
 
     # mixed
     res = []
@@ -215,15 +217,17 @@ def split_whitespaces_reserved_to_nodes(start, start_line, start_col, end, commo
     return seq
 
 
-def extract_nodes(content, uast, reserved_tokens: Iterable[str]):
+def extract_nodes(content, uast, reserved_tokens: Iterable[str],
+                  excluded_internal_roles: Iterable[str]):
     """
     Extract list of Nodes ordered by position.
     :param content: content or text of source code.
     :param uast: UAST extracted from source code.
     :param reserved_tokens: list of reserved words ordered by length.
+    :param excluded_internal_roles: list of exceptional internal types - special handling for them.
     :return: list of nodes.
     """
-    uast_nodes, _ = order_nodes(uast)
+    uast_nodes, _ = order_nodes(uast, excluded_internal_roles=excluded_internal_roles)
     if len(uast_nodes) == 0:
         return
 
@@ -268,30 +272,45 @@ def extract_nodes(content, uast, reserved_tokens: Iterable[str]):
     return seq
 
 
-def collect_unique_features(contents, uasts, reserved_tokens: Iterable[str]):
+def collect_unique_features(contents, uasts, reserved_tokens: Iterable[str],
+                            excluded_internal_roles: Iterable[str], filenames: Iterable[str],
+                            ignore_errors: bool=False):
     report = ("Number of contents (%d) & UASTs (%d) is not equal - something wrong."
               % (len(contents), len(uasts)))
     assert len(contents) == len(uasts), report
+    internal_types = defaultdict(int)
     unique_features = defaultdict(int)
     for check in reserved_tokens:
         unique_features[check] += 1  # dummy counter for default reserved tokens
-    for content, uast in tqdm(zip(contents, uasts)):
-        res = extract_nodes(content, uast, reserved_tokens)
-        if res is None:
-            continue
-        for el in res:
-            if isinstance(el.node, str):
-                unique_features[el.node] += 1
-            else:
-                unique_features[el.node.internal_type] += 1
-    logging.debug("Number of unique features: %s" % (len(unique_features)))
-    return unique_features
+    for filename, content, uast in tqdm(zip(filenames, contents, uasts)):
+        try:
+            res = extract_nodes(content, uast, reserved_tokens,
+                                excluded_internal_roles=excluded_internal_roles)
+            if res is None:
+                continue
+            for el in res:
+                if isinstance(el.node, str):
+                    unique_features[el.node] += 1
+                else:
+                    unique_features[el.node.internal_type] += 1
+            for node in prepare_nodes(uast).values():
+                internal_types[node.node.internal_type] += 1
+        except (AssertionError, ValueError):
+            report = "Something wrong with file `{}`".format(filename)
+            if ignore_errors:
+                logging.warning(report)
+                continue
+            logging.error(report)
+            raise
+    logging.debug("Number of unique features: {}".format(len(unique_features)))
+    return unique_features, internal_types
 
 
 def extract_features(filenames: Iterable[str], contents: List[str],
                      uasts: List[bblfsh.Node], reserved_tokens: Iterable[str],
-                     seq_len=5, depth=5, unique_features: Iterable[str]=None,
-                     use_features_after=True, use_parents=True):
+                     excluded_internal_roles: Iterable[str], seq_len: int=5, depth: int=5,
+                     unique_features: Iterable[str]=None, use_features_after: bool=True,
+                     use_parents: bool=True, ignore_errors: bool=False, use_siblings: bool=False):
     """
     Extract features:
     * before label
@@ -304,34 +323,56 @@ def extract_features(filenames: Iterable[str], contents: List[str],
     :param contents: list of contents of files.
     :param uasts: list of extracted UASTs.
     :param reserved_tokens: list of reserved tokens.
+    :param excluded_internal_roles: list of exceptional internal types - special handling for them.
     :param seq_len: sequence length for features (before and after).
     :param depth: how many parents to use.
     :param unique_features: list of unique features. If None it will be collected from data.
     :param use_features_after: if context after label should be used.
     :param use_parents: if context about parent nodes should be used.
+    :param ignore_errors: if ignore_errors than files with problems will be skipped.
+    :param use_siblings: if context about siblings nodes should be used.
     :return: list of features, list of labels, list of metadata.
     """
     if unique_features is None:
-        unique_features = collect_unique_features(contents, uasts, reserved_tokens=reserved_tokens)
+        res = collect_unique_features(contents, uasts, reserved_tokens=reserved_tokens,
+                                      ignore_errors=ignore_errors, filenames=filenames,
+                                      excluded_internal_roles=excluded_internal_roles)
+        unique_features, internal_types = res
+        logging.debug("Number of unique features: {}".format(len(unique_features)))
+        logging.debug("Number of unique internal types: {}".format(len(internal_types)))
+        print("Number of unique internal types: {}".format(len(internal_types)))
+        print(internal_types)
     feature2id = dict((feat, i) for i, feat in enumerate(sorted(unique_features)))
+    it2id = dict((internal_type, i) for i, internal_type in enumerate(sorted(internal_types)))
 
     def get_feature_id(feature):
         if isinstance(feature.node, str):
             return feature2id[feature.node]
         return feature2id.setdefault(feature.node.internal_type, len(feature2id))
 
-    def extract_features(element, return_pos=True):
-        parents = []
+    def _extract_features(element, use_pos=True, use_len=False):
+        res = [get_feature_id(element)]
+        if use_pos:
+            res += [element.start, element.end]
+        if use_len:
+            res += [element.end - element.start]
+
         if use_parents:
+            parents = []
             parent = element.parent
             for i in range(depth):
                 parents.append(get_feature_id(parent))
                 if parent.parent is not None:
                     parent = parent.parent
-        if return_pos:
-            res = [element.start, element.end, get_feature_id(element)] + parents
-            return res
-        res = [get_feature_id(element)] + parents
+            res += parents
+
+        if use_siblings:
+            siblings = [0] * len(internal_types)
+            parent = element.parent
+            for sibling in parent.node.children:
+                siblings[it2id[sibling.internal_type]] += 1
+            res += siblings
+
         return res
 
     def count_beginning_spaces(line):
@@ -353,50 +394,57 @@ def extract_features(filenames: Iterable[str], contents: List[str],
     metadata = []
 
     for file, content, uast in tqdm(zip(filenames, contents, uasts)):
-        res = extract_nodes(content, uast, reserved_tokens)
-        if res is None:
-            continue
+        try:
+            res = extract_nodes(content, uast, reserved_tokens=reserved_tokens,
+                                excluded_internal_roles=excluded_internal_roles)
+            if res is None:
+                continue
 
-        for i in range(len(res) - (2 * seq_len + 1)):
-            min_pos = res[i].start
-            feat = []
+            for i in range(len(res) - (2 * seq_len + 1)):
+                min_pos = res[i].start
+                feat = []
 
-            # features before
-            for j in range(seq_len):
-                feat.extend(extract_features(res[i + j]))
+                # features before
+                for j in range(seq_len):
+                    feat.extend(_extract_features(res[i + j]))
 
-            # label
-            label_ind = i + j + 1
-            raw_label = res[label_ind]
-            if (not isinstance(raw_label.node, str) or
-                    ("\n" not in raw_label.node and " " not in raw_label.node)):
-                label = label2id["nope"]
-            elif " " in raw_label.node and "\n" not in raw_label.node:
-                label = label2id["whitespace"]
-            else:
-                splitted_content = content.split("\n")
-
-                start_line = splitted_content[raw_label.start_line - 1]
-                end_line = splitted_content[raw_label.end_line - 1]
-                start_cnt = count_beginning_spaces(start_line)
-                end_cnt = count_beginning_spaces(end_line)
-                if start_cnt == end_cnt:
-                    label = label2id["newline"]
-                elif start_cnt > end_cnt:
-                    label = label2id["newline_decr"]
+                # label
+                label_ind = i + j + 1
+                raw_label = res[label_ind]
+                if (not isinstance(raw_label.node, str) or
+                        ("\n" not in raw_label.node and " " not in raw_label.node)):
+                    label = label2id["nope"]
+                elif " " in raw_label.node and "\n" not in raw_label.node:
+                    label = label2id["whitespace"]
                 else:
-                    label = label2id["newline_incr"]
+                    splitted_content = content.split("\n")
 
-            if use_features_after:
-                # features after
-                for j in range(seq_len + 1, 2 * seq_len + 1):
-                    assert label_ind != i + j, "Information leakage - label in features!"
-                    feat.extend(extract_features(res[i + j], return_pos=False))
+                    start_line = splitted_content[raw_label.start_line - 1]
+                    end_line = splitted_content[raw_label.end_line - 1]
+                    start_cnt = count_beginning_spaces(start_line)
+                    end_cnt = count_beginning_spaces(end_line)
+                    if start_cnt == end_cnt:
+                        label = label2id["newline"]
+                    elif start_cnt > end_cnt:
+                        label = label2id["newline_decr"]
+                    else:
+                        label = label2id["newline_incr"]
 
-            max_pos = res[i + j + 1].end
-            metadata.append((file, min_pos, max_pos, raw_label.start, raw_label.end))
+                if use_features_after:
+                    # features after
+                    for j in range(seq_len + 1, 2 * seq_len + 1):
+                        assert label_ind != i + j, "Information leakage - label in features!"
+                        feat.extend(_extract_features(res[i + j], use_pos=False, use_len=True))
 
-            features.append(feat)
-            labels.append(label)
+                max_pos = res[i + j + 1].end
+                metadata.append((file, min_pos, max_pos, raw_label.start, raw_label.end))
 
-    return features, labels, metadata
+                features.append(feat)
+                labels.append(label)
+        except (AssertionError, ValueError):
+            logging.error("Something wrong with file `{}`".format(file))
+            if ignore_errors:
+                continue
+            raise
+
+    return features, labels, metadata, feature2id
