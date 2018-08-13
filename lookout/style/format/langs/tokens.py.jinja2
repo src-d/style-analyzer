@@ -1,0 +1,15 @@
+EXCLUDED_INTERNAL_ROLES = tuple()
+
+KEYWORDS = [
+{% for kwd in keywords | sort %}
+    "{{ kwd }}",
+{% endfor %}
+]
+
+OPERATORS = [
+{% for op in operators | sort %}
+    "{{ op | replace('"', '\"') }}",
+{% endfor %}
+]
+
+RESERVED = sorted(KEYWORDS + OPERATORS, key=lambda t: -len(t))

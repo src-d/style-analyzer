@@ -1,0 +1,7 @@
+ROLES = [
+{% for role in roles | sort %}
+    "{{ role }}",
+{% endfor %}
+]
+
+ROLE_INDEX = {r: i for i, r in enumerate(ROLES)}
