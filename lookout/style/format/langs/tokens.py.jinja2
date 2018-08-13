@@ -1,4 +1,4 @@
-EXCLUDED_INTERNAL_ROLES = tuple()
+import re
 
 KEYWORDS = [
 {% for kwd in keywords | sort %}
@@ -13,3 +13,4 @@ OPERATORS = [
 ]
 
 RESERVED = sorted(KEYWORDS + OPERATORS, key=lambda t: -len(t))
+PARSER = re.compile("|".join(re.escape(i) for i in (KEYWORDS + OPERATORS)))

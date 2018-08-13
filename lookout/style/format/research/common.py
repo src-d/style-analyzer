@@ -296,13 +296,13 @@ def collect_unique_features(contents, uasts, reserved_tokens: Iterable[str],
             for node in prepare_nodes(uast).values():
                 internal_types[node.node.internal_type] += 1
         except (AssertionError, ValueError):
-            report = "Something wrong with file `{}`".format(filename)
+            report = "Something wrong with file `%s`" % filename
             if ignore_errors:
                 logging.warning(report)
                 continue
             logging.error(report)
             raise
-    logging.debug("Number of unique features: {}".format(len(unique_features)))
+    logging.debug("Number of unique features: %s" % len(unique_features))
     return unique_features, internal_types
 
 
@@ -340,8 +340,6 @@ def extract_features(filenames: Iterable[str], contents: List[str],
         unique_features, internal_types = res
         logging.debug("Number of unique features: {}".format(len(unique_features)))
         logging.debug("Number of unique internal types: {}".format(len(internal_types)))
-        print("Number of unique internal types: {}".format(len(internal_types)))
-        print(internal_types)
     feature2id = dict((feat, i) for i, feat in enumerate(sorted(unique_features)))
     it2id = dict((internal_type, i) for i, internal_type in enumerate(sorted(internal_types)))
 
