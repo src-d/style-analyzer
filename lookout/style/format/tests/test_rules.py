@@ -55,6 +55,19 @@ class RulesTests(unittest.TestCase):
         rules_score = rules.score(self.test_x, self.test_y)
         self.assertGreater(rules_score, tree_score - 0.001)
 
+    def test_prune_branches_top_down_greedy(self):
+        model = tree.DecisionTreeClassifier(min_samples_leaf=26, random_state=1989)
+        model = model.fit(self.train_x, self.train_y)
+
+        def test_budget(budget):
+            rules = Rules(model, prune_branches_algorithm="top-down-greedy", prune_branches=True,
+                          prune_attributes=False, top_down_greedy_budget=(False, budget))
+            rules.fit(self.train_x, self.train_y)
+            return rules.score(self.train_x, self.train_y)
+        scores = [test_budget(x) for x in numpy.linspace(0, 1, 10)]
+        for a, b in zip(range(len(scores)), range(1, len(scores))):
+            self.assertGreater(b, a - 0.00001)
+
 
 if __name__ == "__main__":
     unittest.main()
