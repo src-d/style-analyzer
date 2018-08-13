@@ -8,3 +8,4 @@ configargparse==0.13.0
 humanfriendly==4.16.1
 psycopg2-binary==2.7.5
 scikit-learn==0.19.2
+tqdm==4.11.2
