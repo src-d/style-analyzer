@@ -1,4 +1,4 @@
-EXCLUDED_INTERNAL_ROLES = ("RegExpLiteral", "TemplateLiteral", "ArrayExpression", "ArrayPattern")
+import re
 
 KEYWORDS = [
     "abstract",
@@ -79,7 +79,7 @@ KEYWORDS = [
     "while",
     "with"
 ]
-# TODO: figure out problem with `module.exports`.
+# TODO: figure out the problem with `module.exports`.
 # TODO: Ex: `https://github.com/facebook/react/tree/master/scripts/flow/environment.js`
 
 OPERATORS = [
@@ -130,3 +130,4 @@ OPERATORS = [
 ]
 
 RESERVED = sorted(KEYWORDS + OPERATORS, key=lambda t: -len(t))
+PARSER = re.compile("|".join(re.escape(i) for i in (KEYWORDS + OPERATORS)) + r"|\s+")
