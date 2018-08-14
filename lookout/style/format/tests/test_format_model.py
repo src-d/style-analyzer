@@ -57,6 +57,31 @@ class FormatModelTests(unittest.TestCase):
         fm["js2"] = self.rules
         self.assertEqual(len(fm), 2)
 
+    def test_set_unfitted_item(self):
+        model = tree.DecisionTreeClassifier(min_samples_leaf=26, random_state=1989)
+        rules = Rules(model, prune_branches=False, prune_attributes=False)
+        fm = FormatModel()
+        with self.assertRaises(ValueError):
+            fm[""] = rules
+
+    def test_iter(self):
+        langs = set(self.fm.languages)
+        for item in self.fm:
+            self.assertIn(item, langs)
+            langs.remove(item)
+        self.assertEqual(len(langs), 0)
+
+    def test_constuct(self):
+        fm = FormatModel()
+        fm.construct((
+            ("name1", self.rules),
+            ("name2", self.rules),
+            ("name3", self.rules),
+        ))
+        self.assertIn("name1", fm)
+        self.assertIn("name2", fm)
+        self.assertIn("name3", fm)
+
 
 if __name__ == "__main__":
     unittest.main()

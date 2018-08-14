@@ -113,7 +113,10 @@ class FormatModel(modelforge.Model):
         self._rules_by_lang[lang] = rules
 
     def __iter__(self):
-        self._rules_by_lang.__iter__()
+        yield from self._rules_by_lang.__iter__()
+
+    def __contains__(self, item):
+        return item in self._rules_by_lang
 
     @staticmethod
     def _assemble_rules(rules_tree: dict) -> List[Rule]:
