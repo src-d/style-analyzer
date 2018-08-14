@@ -1,7 +1,5 @@
 ROLES = [
     "AnyTypeAnnotation",
-    "ArrayExpression",
-    "ArrayPattern",
     "ArrowFunctionExpression",
     "AssignmentExpression",
     "AssignmentPattern",
@@ -85,7 +83,6 @@ ROLES = [
     "ObjectTypeProperty",
     "OpaqueType",
     "Program",
-    "RegExpLiteral",
     "RestElement",
     "ReturnStatement",
     "SequenceExpression",
@@ -98,7 +95,6 @@ ROLES = [
     "SwitchStatement",
     "TaggedTemplateExpression",
     "TemplateElement",
-    "TemplateLiteral",
     "ThisExpression",
     "ThrowStatement",
     "TryStatement",
