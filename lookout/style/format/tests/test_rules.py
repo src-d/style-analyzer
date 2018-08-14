@@ -3,7 +3,7 @@ import unittest
 
 import numpy
 import pandas
-from sklearn import model_selection, tree
+from sklearn import model_selection, tree, ensemble
 
 from lookout.style.format.rules import Rules
 
@@ -48,6 +48,16 @@ class RulesTests(unittest.TestCase):
         tree_score = model.score(self.train_x, self.train_y)
         rules_score = rules.score(self.train_x, self.train_y)
         self.assertAlmostEqual(tree_score, rules_score)
+
+    def test_forest_no_pruning(self):
+        model = ensemble.RandomForestClassifier(n_estimators=50, min_samples_leaf=26,
+                                                random_state=1989)
+        model = model.fit(self.train_x, self.train_y)
+        rules = Rules(model, prune_branches=False, prune_attributes=False)
+        rules.fit(self.train_x, self.train_y)
+        forest_score = model.score(self.train_x, self.train_y)
+        rules_score = rules.score(self.train_x, self.train_y)
+        self.assertGreater(rules_score * 1.1, forest_score)
 
     def test_tree_attr_pruning(self):
         model = tree.DecisionTreeClassifier(min_samples_leaf=26, random_state=1989)
