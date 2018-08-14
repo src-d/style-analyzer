@@ -63,9 +63,9 @@ class Rules(BaseEstimator, ClassifierMixin):
 
     def __init__(self,
                  base_model: Union[DecisionTreeClassifier, RandomForestClassifier],
-                 prune_branches=True, prune_branches_algorithm="top-down-greedy",
-                 top_down_greedy_budget=1.0, prune_attributes=True,
-                 uncertain_attributes=True):
+                 prune_branches: bool = True, prune_branches_algorithm: str = "top-down-greedy",
+                 top_down_greedy_budget: TopDownGreedyBudget = (False, 1.0),
+                 prune_attributes: bool = True, uncertain_attributes: bool = True):
         """
         Initializes a new instance of Rules class.
 
