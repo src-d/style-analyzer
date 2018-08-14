@@ -28,7 +28,7 @@ class FormatModelTests(unittest.TestCase):
             fm2 = FormatModel().load(f.name)
             self.assertEqual(fm1.languages, fm2.languages)
             for lang in fm1.languages:
-                self.assertAlmostEqual(fm1[lang].get_params(False), fm2[lang].get_params(False))
+                self.assertEqual(fm1[lang].get_params(False), fm2[lang].get_params(False))
                 for rule1, rule2 in zip(fm1[lang]._rules, fm2[lang]._rules):
                     self.assertEqual(rule1.stats[0], rule2.stats[0])
                     self.assertAlmostEqual(rule1.stats[1], rule2.stats[1])
@@ -39,12 +39,12 @@ class FormatModelTests(unittest.TestCase):
 
     def test_dump(self):
         fm = FormatModel()
-        self.assertEqual(fm.dump(), "Empty FormatModel.")
+        self.assertEqual(fm.dump(), "<empty FormatModel>")
 
         DUMP = "Models number: 3.\n" \
                "First model name: js\n" \
                "First model params: prune_attributes=False, prune_branches=False, " \
-               "prune_branches_algorithm=top-down-greedy, top_down_greedy_budget=1.0, " \
+               "prune_branches_algorithm=top-down-greedy, top_down_greedy_budget=(False, 1.0), " \
                "uncertain_attributes=True\n" \
                "Rules number: 85.\n"
         self.assertEqual(self.fm.dump(), DUMP)
