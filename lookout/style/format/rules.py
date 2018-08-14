@@ -53,7 +53,7 @@ class FormatModel(modelforge.Model):
 
     def dump(self) -> str:
         if len(self) == 0:
-            return "Empty FormatModel."
+            return "<empty FormatModel>"
         language = self.languages[0]
         param_names = self[language]._get_param_names()
         return "Models number: %d.\n" \
@@ -68,30 +68,19 @@ class FormatModel(modelforge.Model):
     def _generate_tree(self) -> dict:
         languages = self.languages
         return dict(
-            names=modelforge.merge_strings(languages),
+            languages=languages,
             paramss=[self[lang].get_params(deep=False) for lang in languages],
-            ruless=[FormatModel._disassemble_rules(self[lang]._rules) for lang in languages],
-        )
-
-    def _load_tree_kwargs(self, tree: dict) -> dict:
-        return dict(
-            names=modelforge.split_strings(tree["names"]),
-            paramss=tree["paramss"],
-            ruless=[FormatModel._assemble_rules(c) for c in tree["ruless"]],
+            ruless=[self._disassemble_rules(self[lang]._rules) for lang in languages],
         )
 
     def _load_tree(self, tree: dict) -> None:
-        kwargs = self._load_tree_kwargs(tree)
-        for name, params, rules in zip(kwargs["names"], kwargs["paramss"], kwargs["ruless"]):
-            self[name] = self._restore_rules_estimator(params, rules)
-
-    @staticmethod
-    def _restore_rules_estimator(params: dict, _rules: List[Rule]) -> "Rules":
-        rules = Rules.__new__(Rules)
-        params = dict(params)
-        params["_rules"] = _rules
-        rules.__setstate__(params)
-        return rules
+        for name, params, rules in zip(tree["languages"], tree["paramss"], tree["ruless"]):
+            params = dict(params)
+            params["top_down_greedy_budget"] = tuple(params["top_down_greedy_budget"])
+            params["_rules"] = self._assemble_rules(rules)
+            _rules = Rules.__new__(Rules)
+            _rules.__setstate__(params)
+            self[name] = _rules
 
     def __len__(self) -> int:
         return len(self._rules_by_lang)
@@ -109,7 +98,7 @@ class FormatModel(modelforge.Model):
         Set a new Rules estimator to the model by its language.
         """
         if not rules.fitted:
-            raise ValueError("Rules estimator should be fitted before adding to FormatModel.")
+            raise NotFittedError("Rules estimator should be fitted before adding to FormatModel.")
         self._rules_by_lang[lang] = rules
 
     def __iter__(self):
@@ -122,14 +111,11 @@ class FormatModel(modelforge.Model):
     def _assemble_rules(rules_tree: dict) -> List[Rule]:
         rules = []
         cur_length = 0
+        rule_attrs = [RuleAttribute(*params) for params in
+                      zip(rules_tree["features"],  rules_tree["cmps"], rules_tree["thresholds"])]
         for cls, conf, length in zip(rules_tree["cls"], rules_tree["conf"], rules_tree["lengths"]):
-            rule_stats = RuleStats(cls, conf)
-            rule_attrs = []
-            for i in range(cur_length, cur_length + length):
-                rule_attrs.append(RuleAttribute(rules_tree["features"][i],
-                                                rules_tree["cmps"][i],
-                                                rules_tree["thresholds"][i]))
-            rules.append(Rule(tuple(rule_attrs), rule_stats))
+            rules.append(Rule(tuple(rule_attrs[cur_length:cur_length + length]),
+                              RuleStats(cls, conf)))
             cur_length += length
         return rules
 
@@ -257,7 +243,7 @@ class Rules(BaseEstimator, ClassifierMixin):
 
     @property
     def fitted(self):
-        return self._compiled is not None
+        return self._rules is not None
 
     @property
     def fittable(self):
@@ -279,19 +265,20 @@ class Rules(BaseEstimator, ClassifierMixin):
         :param X: input features.
         :return: array of the same length as X with predictions.
         """
+        rules = self._rules
         prediction = numpy.zeros(len(X), dtype=int)
         for xi, x in enumerate(X):
-            ris = self._compute_triggered(self._compiled, self._rules, x)
+            ris = self._compute_triggered(self._compiled, rules, x)
             if len(ris) == 0:
                 # self.log.warning("no rule!")
                 continue
             if len(ris) > 1:
                 confs = numpy.zeros(len(ris), dtype=numpy.float32)
                 for i, ri in enumerate(ris):
-                    confs[i] = self._rules[ri].stats.conf
-                winner = self._rules[ris[numpy.argmax(confs)]].stats.cls
+                    confs[i] = rules[ri].stats.conf
+                winner = rules[ris[numpy.argmax(confs)]].stats.cls
             else:
-                winner = self._rules[ris[0]].stats.cls
+                winner = rules[ris[0]].stats.cls
             prediction[xi] = winner
         return prediction
 
@@ -522,8 +509,7 @@ class Rules(BaseEstimator, ClassifierMixin):
         return new_rules
 
     def __setstate__(self, state):
-        if "_base_model" not in state:
-            state["_base_model"] = None
+        state["_base_model"] = None
         super().__setstate__(state)
         if self._rules is not None:
             self._compiled = self._compile_rules(self._rules)
