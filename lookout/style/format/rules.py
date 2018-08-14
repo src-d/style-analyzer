@@ -31,17 +31,127 @@ Rule = NamedTuple("RuleType", (("attrs", Tuple[RuleAttribute, ...]), ("stats", R
 
 
 class FormatModel(modelforge.Model):
-    def construct(self, rules: Iterable[Rule]):
-        pass
+    """
+    A modelforge model to store Rules instances.
+    It is required to store all the Rules for different programming languages in a single model,
+    named after each language.
+    Note that Rules must be fitted and Rules.base_model is not saved.
+    """
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._rules_by_lang = {}
+
+    @property
+    def languages(self):
+        return sorted(self._rules_by_lang.keys())
+
+    def construct(self, ruless: Iterable[Tuple[str, "Rules"]]) -> "FormatModel":
+        for name, rules in ruless:
+            self[name] = rules
+        return self
 
     def dump(self) -> str:
-        pass
+        if len(self) == 0:
+            return "Empty FormatModel."
+        language = self.languages[0]
+        param_names = self[language]._get_param_names()
+        return "Models number: %d.\n" \
+               "First model name: %s\n" \
+               "First model params: %s\n" \
+               "Rules number: %d.\n" % \
+               (len(self),
+                language,
+                ", ".join(["%s=%s" % (p, str(getattr(self[language], p))) for p in param_names]),
+                len(self[language]._rules))
 
     def _generate_tree(self) -> dict:
-        pass
+        languages = self.languages
+        return dict(
+            names=modelforge.merge_strings(languages),
+            paramss=[self[lang].get_params(deep=False) for lang in languages],
+            ruless=[FormatModel._disassemble_rules(self[lang]._rules) for lang in languages],
+        )
+
+    def _load_tree_kwargs(self, tree: dict) -> dict:
+        return dict(
+            names=modelforge.split_strings(tree["names"]),
+            paramss=tree["paramss"],
+            ruless=[FormatModel._assemble_rules(c) for c in tree["ruless"]],
+        )
 
     def _load_tree(self, tree: dict) -> None:
-        pass
+        kwargs = self._load_tree_kwargs(tree)
+        for name, params, rules in zip(kwargs["names"], kwargs["paramss"], kwargs["ruless"]):
+            self[name] = self._restore_rules_estimator(params, rules)
+
+    @staticmethod
+    def _restore_rules_estimator(params: dict, _rules: List[Rule]) -> "Rules":
+        rules = Rules.__new__(Rules)
+        params = dict(params)
+        params["_rules"] = _rules
+        rules.__setstate__(params)
+        return rules
+
+    def __len__(self) -> int:
+        return len(self._rules_by_lang)
+
+    def __getitem__(self, lang: str) -> "Rules":
+        """
+        Get a Rules estimator by its language.
+        :param lang: Estimator language.
+        :return: Rules estimator instance.
+        """
+        return self._rules_by_lang[lang]
+
+    def __setitem__(self, lang: str, rules: "Rules"):
+        """
+        Set a new Rules estimator to the model by its language.
+        """
+        if not rules.fitted:
+            raise ValueError("Rules estimator should be fitted before adding to FormatModel.")
+        self._rules_by_lang[lang] = rules
+
+    def __iter__(self):
+        self._rules_by_lang.__iter__()
+
+    @staticmethod
+    def _assemble_rules(rules_tree: dict) -> List[Rule]:
+        rules = []
+        cur_length = 0
+        for cls, conf, length in zip(rules_tree["cls"], rules_tree["conf"], rules_tree["lengths"]):
+            rule_stats = RuleStats(cls, conf)
+            rule_attrs = []
+            for i in range(cur_length, cur_length + length):
+                rule_attrs.append(RuleAttribute(rules_tree["features"][i],
+                                                rules_tree["cmps"][i],
+                                                rules_tree["thresholds"][i]))
+            rules.append(Rule(tuple(rule_attrs), rule_stats))
+            cur_length += length
+        return rules
+
+    @staticmethod
+    def _disassemble_rules(rules: Iterable[Rule]):
+        def disassemble_rule(rule: Rule) -> tuple:
+            rule_len = len(rule.attrs)
+            features = numpy.empty(shape=(rule_len,), dtype=numpy.uint16)
+            cmps = numpy.empty(shape=(rule_len,), dtype=numpy.bool)
+            thresholds = numpy.empty(shape=(rule_len,), dtype=numpy.float32)
+            for i, attr in enumerate(rule.attrs):
+                features[i] = attr.feature
+                cmps[i] = attr.cmp
+                thresholds[i] = attr.threshold
+            return (rule.stats.cls, rule.stats.conf, features, cmps, thresholds, rule_len)
+
+        disassembled_rules = list(zip(*[disassemble_rule(rule) for rule in rules]))
+        return dict(
+            cls=numpy.array(disassembled_rules[0], dtype=numpy.uint16),
+            conf=numpy.array(disassembled_rules[1], dtype=numpy.float32),
+            features=numpy.concatenate(disassembled_rules[2]),
+            cmps=numpy.concatenate(disassembled_rules[3]),
+            thresholds=numpy.concatenate(disassembled_rules[4]),
+            lengths=numpy.array(disassembled_rules[5], dtype=numpy.uint16),
+        )
 
 
 class Rules(BaseEstimator, ClassifierMixin):
@@ -83,7 +193,8 @@ class Rules(BaseEstimator, ClassifierMixin):
         self.top_down_greedy_budget = top_down_greedy_budget
         self.prune_attributes = prune_attributes
         self.uncertain_attributes = uncertain_attributes
-        self._cache = None, None  # type: Tuple[Rules.CompiledRulesType, List[Rule]]
+        self._compiled = None  # type: Rules.CompiledRulesType
+        self._rules = None  # type: List[Rule]
 
     @property
     def base_model(self) -> Union[DecisionTreeClassifier, RandomForestClassifier]:
@@ -93,9 +204,18 @@ class Rules(BaseEstimator, ClassifierMixin):
     def base_model(self, value: Union[DecisionTreeClassifier, RandomForestClassifier]):
         if not isinstance(value, (DecisionTreeClassifier, RandomForestClassifier)):
             raise TypeError("base_model must be an instance of DecisionTreeClassifier or "
-                            "RandomForestClassifier")
+                            "RandomForestClassifier.")
         self._base_model = value
 
+    def _check_fittable(func):
+        @functools.wraps(func)
+        def wrapped_check_fittable(self: "Rules", *args, **kwargs):
+            if not self.fittable:
+                raise ValueError("This method requires a fittable instance of Rules.")
+            return func(self, *args, **kwargs)
+        return wrapped_check_fittable
+
+    @_check_fittable
     def fit(self, X: numpy.ndarray, y: numpy.ndarray) -> "Rules":
         """
         Trains the rules using the base tree model and the samples (X, y). The samples may be
@@ -128,13 +248,22 @@ class Rules(BaseEstimator, ClassifierMixin):
             rules = self._prune_attributes(rules, X, y, not self.uncertain_attributes)
             self.log.debug("Pruned number of attributes (2): %d", len(rules))
             self.log.debug("Pruned number of attributes: %d", count_attrs())
-        self._cache = self._compile_rules(rules), rules
+        self._rules = rules
+        self._compiled = self._compile_rules(self._rules)
         return self
+
+    @property
+    def fitted(self):
+        return self._compiled is not None
+
+    @property
+    def fittable(self):
+        return self.base_model is not None
 
     def _check_fitted(func):
         @functools.wraps(func)
         def wrapped_check_fitted(self: "Rules", *args, **kwargs):
-            if None in self._cache:
+            if not self.fitted:
                 raise NotFittedError
             return func(self, *args, **kwargs)
         return wrapped_check_fitted
@@ -147,28 +276,29 @@ class Rules(BaseEstimator, ClassifierMixin):
         :param X: input features.
         :return: array of the same length as X with predictions.
         """
-        compiled, rules = self._cache
         prediction = numpy.zeros(len(X), dtype=int)
         for xi, x in enumerate(X):
-            ris = self._compute_triggered(compiled, rules, x)
+            ris = self._compute_triggered(self._compiled, self._rules, x)
             if len(ris) == 0:
                 # self.log.warning("no rule!")
                 continue
             if len(ris) > 1:
                 confs = numpy.zeros(len(ris), dtype=numpy.float32)
                 for i, ri in enumerate(ris):
-                    confs[i] = rules[ri].stats.conf
-                winner = rules[ris[numpy.argmax(confs)]].stats.cls
+                    confs[i] = self._rules[ri].stats.conf
+                winner = self._rules[ris[numpy.argmax(confs)]].stats.cls
             else:
-                winner = rules[ris[0]].stats.cls
+                winner = self._rules[ris[0]].stats.cls
             prediction[xi] = winner
         return prediction
 
-    @_check_fitted
-    def to_modelforge(self) -> FormatModel:
-        pass
+    def _get_param_names(self):
+        param_names = super()._get_param_names()
+        param_names.remove("base_model")
+        return param_names
 
     _check_fitted = staticmethod(_check_fitted)
+    _check_fittable = staticmethod(_check_fittable)
 
     @classmethod
     def _compute_triggered(cls, compiled_rules: CompiledRulesType,
@@ -387,3 +517,16 @@ class Rules(BaseEstimator, ClassifierMixin):
             if new_verbs:
                 new_rules.append(Rule(tuple(new_verbs), stats))
         return new_rules
+
+    def __setstate__(self, state):
+        if "_base_model" not in state:
+            state["_base_model"] = None
+        super().__setstate__(state)
+        if self._rules is not None:
+            self._compiled = self._compile_rules(self._rules)
+
+    def __getstate__(self):
+        state = super().__getstate__()
+        del state["_base_model"]
+        del state["_compiled"]
+        return state
