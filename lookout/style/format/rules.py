@@ -1,8 +1,8 @@
 from collections import defaultdict
-from itertools import chain, islice
+from itertools import islice
 import functools
 import logging
-from typing import Union, List, Tuple, Dict, Iterable, NamedTuple, Sequence, Set
+from typing import Union, List, Tuple, Dict, Iterable, Mapping, NamedTuple, Sequence, Set
 
 import modelforge
 import numpy
@@ -209,10 +209,17 @@ class Rules(BaseEstimator, ClassifierMixin):
         :return: self
         """
         if isinstance(self.base_model, DecisionTreeClassifier):
-            rules = self._tree_to_rules(self.base_model)
+            rules, leaf2rule_dict = self._tree_to_rules(self.base_model)
+            leaf2rule = [leaf2rule_dict]
         else:
-            rules = list(chain.from_iterable(self._tree_to_rules(tree)
-                                             for tree in self.base_model.estimators_))
+            rules = []
+            offset = 0
+            leaf2rule = []
+            for i, estimator in enumerate(self.base_model.estimators_):
+                rules_partial, leaf2rule_partial = self._tree_to_rules(estimator, offset=offset)
+                offset += len(rules_partial)
+                leaf2rule.append(leaf2rule_partial)
+                rules.extend(rules_partial)
 
         def count_attrs():
             return sum(len(r.attrs) for r in rules)
@@ -223,7 +230,7 @@ class Rules(BaseEstimator, ClassifierMixin):
         self.log.debug("Merged number of attributes: %d", count_attrs())
         if self.prune_branches:
             if self.prune_branches_algorithm == "top-down-greedy":
-                rules = self._prune_branches_top_down_greedy(rules, X, y,
+                rules = self._prune_branches_top_down_greedy(rules, X, y, leaf2rule,
                                                              self.top_down_greedy_budget)
             else:
                 rules = self._prune_branches(rules, X, y)
@@ -307,7 +314,8 @@ class Rules(BaseEstimator, ClassifierMixin):
         return numpy.nonzero(triggered)[0]
 
     @classmethod
-    def _tree_to_rules(cls, tree: DecisionTreeClassifier) -> List[Rule]:
+    def _tree_to_rules(cls, tree: DecisionTreeClassifier, offset: int = 0
+                       ) -> Tuple[List[Rule], Mapping[int, int]]:
         """
         Converts the sklearn's decision tree to the set of rules.
         Each rule is a branch in the tree.
@@ -319,6 +327,7 @@ class Rules(BaseEstimator, ClassifierMixin):
         feature_names = [i if i != Tree.TREE_UNDEFINED else None for i in tree_.feature]
         queue = [(0, tuple())]
         rules = []
+        leaf2rule = {}
         while queue:
             node, path = queue.pop()
             if tree_.feature[node] != Tree.TREE_UNDEFINED:
@@ -332,8 +341,9 @@ class Rules(BaseEstimator, ClassifierMixin):
                 freqs = tree_.value[node][0]
                 # why -0.5? See the papers mentioned in _prune_attributes()
                 conf = (freqs.max() - 0.5) / freqs.sum()
+                leaf2rule[node] = len(rules) + offset
                 rules.append(Rule(path, RuleStats(tree.classes_[numpy.argmax(freqs)], conf)))
-        return rules
+        return rules, leaf2rule
 
     @classmethod
     def _merge_rules(cls, rules: List[Rule]) -> List[Rule]:
@@ -386,19 +396,26 @@ class Rules(BaseEstimator, ClassifierMixin):
         # TODO(vmarkovtsev): implement this function
         return rules
 
-    @classmethod
-    def _build_instances_index(cls, rules: Sequence[Rule],
-                               X: numpy.ndarray) -> Dict[int, Set[int]]:
+    def _build_instances_index(self, rules: Sequence[Rule], X: numpy.ndarray,
+                               leaf2rule: Sequence[Mapping[int, int]]) -> Dict[int, Set[int]]:
+
+        self.log.debug("building instances index")
+
         instances_index = defaultdict(set)
-        compiled = cls._compile_rules(rules)
-        for xi, x in enumerate(X):
-            for triggered_rule in cls._compute_triggered(compiled, rules, x):
-                instances_index[triggered_rule].add(xi)
+
+        if isinstance(self.base_model, DecisionTreeClassifier):
+            leaves = self.base_model.apply(X)  # ndim = 1
+            for i, leaf in enumerate(leaves):
+                instances_index[leaf2rule[0][leaf]].add(i)
+        else:
+            leaves = self.base_model.apply(X)  # ndim = 2
+            for i, col in enumerate(leaves):
+                for leaf, l2r in zip(col, leaf2rule):
+                    instances_index[l2r[leaf]].add(i)
         return instances_index
 
-    @classmethod
-    def _prune_branches_top_down_greedy(cls, rules: Sequence[Rule], X: numpy.ndarray,
-                                        Y: numpy.ndarray,
+    def _prune_branches_top_down_greedy(self, rules: Sequence[Rule], X: numpy.ndarray,
+                                        Y: numpy.ndarray, leaf2rule: Sequence[Mapping[int, int]],
                                         budget: TopDownGreedyBudget) -> List[Rule]:
         absolute, value = budget
         if absolute:
@@ -407,7 +424,7 @@ class Rules(BaseEstimator, ClassifierMixin):
         else:
             assert value >= 0 and value <= 1
             n_budget = int(max(0, min(value * len(rules), len(rules))))
-        instances_index = cls._build_instances_index(rules, X)
+        instances_index = self._build_instances_index(rules, X, leaf2rule)
         confs_index = numpy.full(X.shape[0], -1.)
         clss_index = numpy.full(X.shape[0], -1)
         candidate_rules = set(range(len(rules)))
@@ -433,8 +450,8 @@ class Rules(BaseEstimator, ClassifierMixin):
                 clss_index[triggered_instance] = stats.cls
             candidate_rules.remove(best_rule_id)
             selected_rules.add(best_rule_id)
-            cls.log.debug('iteration %d: selected rule %3d with %3d difference in matched Ys'
-                          % (iteration, best_rule_id, best_matched_delta))
+            self.log.debug("iteration %d: selected rule %3d with %3d difference in matched Ys"
+                           % (iteration, best_rule_id, best_matched_delta))
         return [rules[rule_id] for rule_id in selected_rules]
 
     @classmethod
