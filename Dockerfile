@@ -30,3 +30,4 @@ COPY lookout/style lookout/style/
 COPY lookout/__init__.py lookout/__init__.py
 COPY setup.py setup.py
 RUN pip3 install -e . --no-deps
+ENTRYPOINT ["analyzer"]

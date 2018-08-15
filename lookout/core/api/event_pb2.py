@@ -22,7 +22,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   name='lookout/core/api/event.proto',
   package='pb',
   syntax='proto3',
-  serialized_pb=_b('\n\x1clookout/core/api/event.proto\x12\x02pb\x1a-github.com/gogo/protobuf/gogoproto/gogo.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1cgoogle/protobuf/struct.proto\"d\n\x0e\x43ommitRevision\x12(\n\x04\x62\x61se\x18\x01 \x01(\x0b\x32\x14.pb.ReferencePointerB\x04\xc8\xde\x1f\x00\x12(\n\x04head\x18\x02 \x01(\x0b\x32\x14.pb.ReferencePointerB\x04\xc8\xde\x1f\x00\"\xa9\x01\n\x10ReferencePointer\x12:\n\x17internal_repository_url\x18\x01 \x01(\tB\x19\xe2\xde\x1f\x15InternalRepositoryURL\x12K\n\x0ereference_name\x18\x02 \x01(\tB3\xfa\xde\x1f/gopkg.in/src-d/go-git.v4/plumbing.ReferenceName\x12\x0c\n\x04hash\x18\x03 \x01(\t\"\x94\x02\n\tPushEvent\x12\x10\n\x08provider\x18\x01 \x01(\t\x12#\n\x0binternal_id\x18\x02 \x01(\tB\x0e\xe2\xde\x1f\nInternalID\x12\x38\n\ncreated_at\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.TimestampB\x08\xc8\xde\x1f\x00\x90\xdf\x1f\x01\x12\x0f\n\x07\x63ommits\x18\x04 \x01(\r\x12\x18\n\x10\x64istinct_commits\x18\x05 \x01(\r\x12\x34\n\rconfiguration\x18\x06 \x01(\x0b\x32\x17.google.protobuf.StructB\x04\xc8\xde\x1f\x00\x12\x35\n\x0f\x63ommit_revision\x18\x07 \x01(\x0b\x32\x12.pb.CommitRevisionB\x08\xc8\xde\x1f\x00\xd0\xde\x1f\x01\"\x98\x03\n\x0bReviewEvent\x12\x10\n\x08provider\x18\x01 \x01(\t\x12#\n\x0binternal_id\x18\x02 \x01(\tB\x0e\xe2\xde\x1f\nInternalID\x12\x38\n\ncreated_at\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.TimestampB\x08\xc8\xde\x1f\x00\x90\xdf\x1f\x01\x12\x38\n\nupdated_at\x18\x04 \x01(\x0b\x32\x1a.google.protobuf.TimestampB\x08\xc8\xde\x1f\x00\x90\xdf\x1f\x01\x12\x14\n\x0cis_mergeable\x18\x05 \x01(\x08\x12*\n\x06source\x18\x08 \x01(\x0b\x32\x14.pb.ReferencePointerB\x04\xc8\xde\x1f\x00\x12)\n\x05merge\x18\t \x01(\x0b\x32\x14.pb.ReferencePointerB\x04\xc8\xde\x1f\x00\x12\x34\n\rconfiguration\x18\n \x01(\x0b\x32\x17.google.protobuf.StructB\x04\xc8\xde\x1f\x00\x12\x35\n\x0f\x63ommit_revision\x18\x07 \x01(\x0b\x32\x12.pb.CommitRevisionB\x08\xc8\xde\x1f\x00\xd0\xde\x1f\x01:\x04\xe0\xa1\x1f\x00\x42\x04\xc8\xe1\x1e\x00\x62\x06proto3')
+  serialized_pb=_b('\n\x1clookout/core/api/event.proto\x12\x02pb\x1a-github.com/gogo/protobuf/gogoproto/gogo.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1cgoogle/protobuf/struct.proto\"d\n\x0e\x43ommitRevision\x12(\n\x04\x62\x61se\x18\x01 \x01(\x0b\x32\x14.pb.ReferencePointerB\x04\xc8\xde\x1f\x00\x12(\n\x04head\x18\x02 \x01(\x0b\x32\x14.pb.ReferencePointerB\x04\xc8\xde\x1f\x00\"\xa9\x01\n\x10ReferencePointer\x12:\n\x17internal_repository_url\x18\x01 \x01(\tB\x19\xe2\xde\x1f\x15InternalRepositoryURL\x12K\n\x0ereference_name\x18\x02 \x01(\tB3\xfa\xde\x1f/gopkg.in/src-d/go-git.v4/plumbing.ReferenceName\x12\x0c\n\x04hash\x18\x03 \x01(\t\"\x94\x02\n\tPushEvent\x12\x10\n\x08provider\x18\x01 \x01(\t\x12#\n\x0binternal_id\x18\x02 \x01(\tB\x0e\xe2\xde\x1f\nInternalID\x12\x38\n\ncreated_at\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.TimestampB\x08\xc8\xde\x1f\x00\x90\xdf\x1f\x01\x12\x0f\n\x07\x63ommits\x18\x04 \x01(\r\x12\x18\n\x10\x64istinct_commits\x18\x05 \x01(\r\x12\x34\n\rconfiguration\x18\x06 \x01(\x0b\x32\x17.google.protobuf.StructB\x04\xc8\xde\x1f\x00\x12\x35\n\x0f\x63ommit_revision\x18\x07 \x01(\x0b\x32\x12.pb.CommitRevisionB\x08\xc8\xde\x1f\x00\xd0\xde\x1f\x01\"\xd1\x03\n\x0bReviewEvent\x12\x10\n\x08provider\x18\x01 \x01(\t\x12#\n\x0binternal_id\x18\x02 \x01(\tB\x0e\xe2\xde\x1f\nInternalID\x12\x38\n\ncreated_at\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.TimestampB\x08\xc8\xde\x1f\x00\x90\xdf\x1f\x01\x12\x38\n\nupdated_at\x18\x04 \x01(\x0b\x32\x1a.google.protobuf.TimestampB\x08\xc8\xde\x1f\x00\x90\xdf\x1f\x01\x12\x14\n\x0cis_mergeable\x18\x05 \x01(\x08\x12*\n\x06source\x18\x08 \x01(\x0b\x32\x14.pb.ReferencePointerB\x04\xc8\xde\x1f\x00\x12)\n\x05merge\x18\t \x01(\x0b\x32\x14.pb.ReferencePointerB\x04\xc8\xde\x1f\x00\x12\x34\n\rconfiguration\x18\n \x01(\x0b\x32\x17.google.protobuf.StructB\x04\xc8\xde\x1f\x00\x12\'\n\rrepository_id\x18\x0b \x01(\rB\x10\xe2\xde\x1f\x0cRepositoryID\x12\x0e\n\x06number\x18\x0c \x01(\r\x12\x35\n\x0f\x63ommit_revision\x18\x07 \x01(\x0b\x32\x12.pb.CommitRevisionB\x08\xc8\xde\x1f\x00\xd0\xde\x1f\x01:\x04\xe0\xa1\x1f\x00\x42\x04\xc8\xe1\x1e\x00\x62\x06proto3')
   ,
   dependencies=[github_dot_com_dot_gogo_dot_protobuf_dot_gogoproto_dot_gogo__pb2.DESCRIPTOR,google_dot_protobuf_dot_timestamp__pb2.DESCRIPTOR,google_dot_protobuf_dot_struct__pb2.DESCRIPTOR,])
 
@@ -249,7 +249,21 @@ _REVIEWEVENT = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       options=_descriptor._ParseOptions(descriptor_pb2.FieldOptions(), _b('\310\336\037\000')), file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
-      name='commit_revision', full_name='pb.ReviewEvent.commit_revision', index=8,
+      name='repository_id', full_name='pb.ReviewEvent.repository_id', index=8,
+      number=11, type=13, cpp_type=3, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=_descriptor._ParseOptions(descriptor_pb2.FieldOptions(), _b('\342\336\037\014RepositoryID')), file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='number', full_name='pb.ReviewEvent.number', index=9,
+      number=12, type=13, cpp_type=3, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='commit_revision', full_name='pb.ReviewEvent.commit_revision', index=10,
       number=7, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
@@ -268,7 +282,7 @@ _REVIEWEVENT = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=700,
-  serialized_end=1108,
+  serialized_end=1165,
 )
 
 _COMMITREVISION.fields_by_name['base'].message_type = _REFERENCEPOINTER
@@ -347,6 +361,8 @@ _REVIEWEVENT.fields_by_name['merge'].has_options = True
 _REVIEWEVENT.fields_by_name['merge']._options = _descriptor._ParseOptions(descriptor_pb2.FieldOptions(), _b('\310\336\037\000'))
 _REVIEWEVENT.fields_by_name['configuration'].has_options = True
 _REVIEWEVENT.fields_by_name['configuration']._options = _descriptor._ParseOptions(descriptor_pb2.FieldOptions(), _b('\310\336\037\000'))
+_REVIEWEVENT.fields_by_name['repository_id'].has_options = True
+_REVIEWEVENT.fields_by_name['repository_id']._options = _descriptor._ParseOptions(descriptor_pb2.FieldOptions(), _b('\342\336\037\014RepositoryID'))
 _REVIEWEVENT.fields_by_name['commit_revision'].has_options = True
 _REVIEWEVENT.fields_by_name['commit_revision']._options = _descriptor._ParseOptions(descriptor_pb2.FieldOptions(), _b('\310\336\037\000\320\336\037\001'))
 _REVIEWEVENT.has_options = True
