@@ -35,8 +35,9 @@ class FormatAnalyzer(Analyzer):
         for change in changes:
             comment = Comment()
             comment.file = change.head.path
-            comment.text = "%d > %d" % (self.count_nodes(change.base.uast),
-                                        self.count_nodes(change.head.uast))
+            comment.text = "%s %d > %d" % (change.head.language,
+                                           self.count_nodes(change.base.uast),
+                                           self.count_nodes(change.head.uast))
             comment.line = 1
             comment.confidence = 100
             comments.append(comment)
@@ -49,7 +50,7 @@ class FormatAnalyzer(Analyzer):
         cls.log.info("train %s %s %s", url, commit, data)
         files = data["files"]
         for file in files:
-            cls.log.info("%s %d", file.path, len(file.uast.children))
+            cls.log.info("%s %s %d", file.path, file.language, len(file.uast.children))
 
         """
         Plan:
