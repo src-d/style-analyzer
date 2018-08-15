@@ -23,7 +23,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   name='lookout/core/api/service_data.proto',
   package='pb',
   syntax='proto3',
-  serialized_pb=_b('\n#lookout/core/api/service_data.proto\x12\x02pb\x1a-github.com/gogo/protobuf/gogoproto/gogo.proto\x1a+gopkg.in/bblfsh/sdk.v1/uast/generated.proto\x1a\x1clookout/core/api/event.proto\"\x86\x01\n\x04\x46ile\x12\x0c\n\x04path\x18\x01 \x01(\t\x12\x0c\n\x04mode\x18\x02 \x01(\r\x12\x0c\n\x04hash\x18\x03 \x01(\t\x12\x0f\n\x07\x63ontent\x18\x04 \x01(\x0c\x12\x39\n\x04uast\x18\x05 \x01(\x0b\x32!.gopkg.in.bblfsh.sdk.v1.uast.NodeB\x08\xe2\xde\x1f\x04UAST:\x08\xa0\xa1\x1f\x00\xe0\xa1\x1f\x01\"B\n\x06\x43hange\x12\x16\n\x04\x62\x61se\x18\x01 \x01(\x0b\x32\x08.pb.File\x12\x16\n\x04head\x18\x02 \x01(\x0b\x32\x08.pb.File:\x08\xa0\xa1\x1f\x00\xe0\xa1\x1f\x01\"\xdc\x01\n\x0e\x43hangesRequest\x12\"\n\x04\x62\x61se\x18\x01 \x01(\x0b\x32\x14.pb.ReferencePointer\x12\"\n\x04head\x18\x02 \x01(\x0b\x32\x14.pb.ReferencePointer\x12\x17\n\x0finclude_pattern\x18\x03 \x01(\t\x12\x17\n\x0f\x65xclude_pattern\x18\x04 \x01(\t\x12\x18\n\x10\x65xclude_vendored\x18\x05 \x01(\x08\x12\x15\n\rwant_contents\x18\x06 \x01(\x08\x12\x1f\n\twant_uast\x18\x07 \x01(\x08\x42\x0c\xe2\xde\x1f\x08WantUAST\"\xba\x01\n\x0c\x46ilesRequest\x12&\n\x08revision\x18\x01 \x01(\x0b\x32\x14.pb.ReferencePointer\x12\x17\n\x0finclude_pattern\x18\x02 \x01(\t\x12\x17\n\x0f\x65xclude_pattern\x18\x03 \x01(\t\x12\x18\n\x10\x65xclude_vendored\x18\x04 \x01(\x08\x12\x15\n\rwant_contents\x18\x05 \x01(\x08\x12\x1f\n\twant_uast\x18\x06 \x01(\x08\x42\x0c\xe2\xde\x1f\x08WantUAST2`\n\x04\x44\x61ta\x12.\n\nGetChanges\x12\x12.pb.ChangesRequest\x1a\n.pb.Change0\x01\x12(\n\x08GetFiles\x12\x10.pb.FilesRequest\x1a\x08.pb.File0\x01\x42\x04\xc8\xe1\x1e\x00\x62\x06proto3')
+  serialized_pb=_b('\n#lookout/core/api/service_data.proto\x12\x02pb\x1a-github.com/gogo/protobuf/gogoproto/gogo.proto\x1a+gopkg.in/bblfsh/sdk.v1/uast/generated.proto\x1a\x1clookout/core/api/event.proto\"\x98\x01\n\x04\x46ile\x12\x0c\n\x04path\x18\x01 \x01(\t\x12\x0c\n\x04mode\x18\x02 \x01(\r\x12\x0c\n\x04hash\x18\x03 \x01(\t\x12\x0f\n\x07\x63ontent\x18\x04 \x01(\x0c\x12\x39\n\x04uast\x18\x05 \x01(\x0b\x32!.gopkg.in.bblfsh.sdk.v1.uast.NodeB\x08\xe2\xde\x1f\x04UAST\x12\x10\n\x08language\x18\x06 \x01(\t:\x08\xa0\xa1\x1f\x00\xe0\xa1\x1f\x01\"B\n\x06\x43hange\x12\x16\n\x04\x62\x61se\x18\x01 \x01(\x0b\x32\x08.pb.File\x12\x16\n\x04head\x18\x02 \x01(\x0b\x32\x08.pb.File:\x08\xa0\xa1\x1f\x00\xe0\xa1\x1f\x01\"\xf3\x01\n\x0e\x43hangesRequest\x12\"\n\x04\x62\x61se\x18\x01 \x01(\x0b\x32\x14.pb.ReferencePointer\x12\"\n\x04head\x18\x02 \x01(\x0b\x32\x14.pb.ReferencePointer\x12\x17\n\x0finclude_pattern\x18\x03 \x01(\t\x12\x17\n\x0f\x65xclude_pattern\x18\x04 \x01(\t\x12\x18\n\x10\x65xclude_vendored\x18\x05 \x01(\x08\x12\x15\n\rwant_contents\x18\x06 \x01(\x08\x12\x1f\n\twant_uast\x18\x07 \x01(\x08\x42\x0c\xe2\xde\x1f\x08WantUAST\x12\x15\n\rwant_language\x18\x08 \x01(\x08\"\xd1\x01\n\x0c\x46ilesRequest\x12&\n\x08revision\x18\x01 \x01(\x0b\x32\x14.pb.ReferencePointer\x12\x17\n\x0finclude_pattern\x18\x02 \x01(\t\x12\x17\n\x0f\x65xclude_pattern\x18\x03 \x01(\t\x12\x18\n\x10\x65xclude_vendored\x18\x04 \x01(\x08\x12\x15\n\rwant_contents\x18\x05 \x01(\x08\x12\x1f\n\twant_uast\x18\x06 \x01(\x08\x42\x0c\xe2\xde\x1f\x08WantUAST\x12\x15\n\rwant_language\x18\x07 \x01(\x08\x32`\n\x04\x44\x61ta\x12.\n\nGetChanges\x12\x12.pb.ChangesRequest\x1a\n.pb.Change0\x01\x12(\n\x08GetFiles\x12\x10.pb.FilesRequest\x1a\x08.pb.File0\x01\x42\x04\xc8\xe1\x1e\x00\x62\x06proto3')
   ,
   dependencies=[github_dot_com_dot_gogo_dot_protobuf_dot_gogoproto_dot_gogo__pb2.DESCRIPTOR,gopkg_dot_in_dot_bblfsh_dot_sdk_dot_v1_dot_uast_dot_generated__pb2.DESCRIPTOR,lookout_dot_core_dot_api_dot_event__pb2.DESCRIPTOR,])
 
@@ -72,6 +72,13 @@ _FILE = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=_descriptor._ParseOptions(descriptor_pb2.FieldOptions(), _b('\342\336\037\004UAST')), file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='language', full_name='pb.File.language', index=5,
+      number=6, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None, file=DESCRIPTOR),
   ],
   extensions=[
   ],
@@ -85,7 +92,7 @@ _FILE = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=166,
-  serialized_end=300,
+  serialized_end=318,
 )
 
 
@@ -122,8 +129,8 @@ _CHANGE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=302,
-  serialized_end=368,
+  serialized_start=320,
+  serialized_end=386,
 )
 
 
@@ -183,6 +190,13 @@ _CHANGESREQUEST = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=_descriptor._ParseOptions(descriptor_pb2.FieldOptions(), _b('\342\336\037\010WantUAST')), file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='want_language', full_name='pb.ChangesRequest.want_language', index=7,
+      number=8, type=8, cpp_type=7, label=1,
+      has_default_value=False, default_value=False,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None, file=DESCRIPTOR),
   ],
   extensions=[
   ],
@@ -195,8 +209,8 @@ _CHANGESREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=371,
-  serialized_end=591,
+  serialized_start=389,
+  serialized_end=632,
 )
 
 
@@ -249,6 +263,13 @@ _FILESREQUEST = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=_descriptor._ParseOptions(descriptor_pb2.FieldOptions(), _b('\342\336\037\010WantUAST')), file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='want_language', full_name='pb.FilesRequest.want_language', index=6,
+      number=7, type=8, cpp_type=7, label=1,
+      has_default_value=False, default_value=False,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None, file=DESCRIPTOR),
   ],
   extensions=[
   ],
@@ -261,8 +282,8 @@ _FILESREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=594,
-  serialized_end=780,
+  serialized_start=635,
+  serialized_end=844,
 )
 
 _FILE.fields_by_name['uast'].message_type = gopkg_dot_in_dot_bblfsh_dot_sdk_dot_v1_dot_uast_dot_generated__pb2._NODE
@@ -325,8 +346,8 @@ _DATA = _descriptor.ServiceDescriptor(
   file=DESCRIPTOR,
   index=0,
   options=None,
-  serialized_start=782,
-  serialized_end=878,
+  serialized_start=846,
+  serialized_end=942,
   methods=[
   _descriptor.MethodDescriptor(
     name='GetChanges',
