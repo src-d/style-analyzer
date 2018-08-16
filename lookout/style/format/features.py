@@ -1,11 +1,10 @@
 import importlib
-from typing import List, Dict, Tuple, NamedTuple, Iterable
+from typing import Dict, Iterable, List, Mapping, NamedTuple, Optional, Sequence, Tuple
 
 import bblfsh
 import numpy
 
 from lookout.core.api.service_data_pb2 import File
-
 
 Position = NamedTuple("Position", (("offset", int), ("line", int), ("col", int)))
 """
@@ -15,7 +14,7 @@ Position = NamedTuple("Position", (("offset", int), ("line", int), ("col", int))
 
 class VirtualNode:
     def __init__(self,  value: str, start: Position, end: Position,
-                 *, node: bblfsh.Node=None, y: int=None):
+                 *, node: bblfsh.Node = None, y: int = None):
         """
         This represents either a real UAST node or an imaginary token.
 
@@ -96,20 +95,50 @@ CLASS_INDEX = {cls: i for i, cls in enumerate(CLASSES)}
 
 
 class FeatureExtractor:
-    def __init__(self, language: str):
+
+    feature_names = ["start_offset", "start_line", "start_col", "end_offset", "end_line",
+                     "end_col", "internal_role"]
+
+    def __init__(self, language: str, siblings_window: int = 5, parents_depth: int = 2):
+        """
+        Construct a `FeatureExtractor`.
+
+        :param parents_depth: how many parents to use for each node.
+        :param siblings_window: how many siblings to use for each node (both left and right).
+        """
+        self.siblings_window = siblings_window
+        self.parents_depth = parents_depth
         self.tokens = importlib.import_module("lookout.style.format.langs.%s.tokens" % language)
         self.roles = importlib.import_module("lookout.style.format.langs.%s.roles" % language)
 
-    def extract_features(self, files: List[File]):
+    def extract_features(self, files: List[File]) -> Tuple[numpy.ndarray, numpy.ndarray]:
         """
-        This is the dream interface for the feature extraction.
+        Given a list of `File`-s, compute the features and labels required for the training of
+        downstream models.
 
         :param files: the list of `File`-s (see service_data.proto) of the same language.
-        :param language: the name of the language.
-        :param config: feature extraction parameters.
-        :return:
+        :return: tuple of numpy.ndarray (2 and 1 dimensional respectively): features and labels.
         """
-        pass
+        parsed_files = []
+        labels = []
+        for file in files:
+            contents = file.content.decode("utf-8", "replace")
+            uast = file.uast
+            vnodes, parents = self._parse_file(contents, uast)
+            vnodes = self._classify_vnodes(vnodes)
+            parsed_files.append((vnodes, parents))
+            labels.append([vnode.y for vnode in vnodes if vnode.y])
+
+        y = numpy.concatenate(labels)
+        X = numpy.full(
+            (y.shape[0],
+             (1 + self.siblings_window * 2 + self.parents_depth) * len(self.feature_names)),
+            -1)
+        line_offset = 0
+        for (vnodes, parents), partial_labels in zip(parsed_files, labels):
+            self._inplace_write_vnodes_features(vnodes, parents, line_offset, X)
+            line_offset += len(labels)
+        return X, y
 
     def _classify_vnodes(self, nodes: Iterable[VirtualNode]) -> List[VirtualNode]:
         """
@@ -225,17 +254,121 @@ class FeatureExtractor:
                             y=cls))
         return result
 
+    def _inplace_write_vnode_features(self, vnode: VirtualNode, vnode_focused: VirtualNode,
+                                      row: int, vnode_index: int, features: numpy.ndarray) -> None:
+        """
+        Given a feature `numpy.ndarray`, a `VirtualNode`, a row and a feature index, write the
+        features of the vnode at the correct location in the feature matrix.
+
+        :param vnode: `VirtualNode` we want to write the features of.
+        :param vnode_focused: the focused `VirtualNode` we'll compare our characteristics with
+        :param row: on which row to write the features.
+        :param vnode_index: the column at which we'll start writing the features is \
+                            vnode_index * n_features.
+        :param features: `numpy.ndarray` the features matrix.
+        """
+        vnode_focused_pos = (vnode_focused.start.line, vnode_focused.end.line,
+                             vnode_focused.start.col, vnode_focused.end.col)
+        if vnode is vnode_focused:
+            pos = vnode_focused_pos
+        else:
+            vnode_pos = (vnode.start.line, vnode.end.line, vnode.start.col, vnode.end.col)
+            pos = tuple(map(lambda a, b: abs(a - b), vnode_focused_pos, vnode_pos))
+        role_index = -1
+        if vnode.node:
+            role = vnode.node.internal_type
+            if role in self.roles.ROLE_INDEX:
+                role_index = self.roles.ROLE_INDEX[role]
+        col = vnode_index * len(self.feature_names)
+        features[row, col:col + 4] = pos
+        features[row, col + 4] = role_index
+
+    @staticmethod
+    def _find_parent(vnode_index: int, vnodes: Sequence[VirtualNode],
+                     parents: Mapping[int, bblfsh.Node], closest_left_parent: bblfsh.Node
+                     ) -> Optional[bblfsh.Node]:
+        """
+        Compute current vnode parent. If both left and right closest parent are the same then we
+        use it else we use no parent feature (set them to -1 later on)
+
+        :param vnode_index: the index of the current node
+        :param vnodes: the sequence of `VirtualNode`-s being transformed into features
+        :param parents: the id of bblfsh node to parent bblfsh node mapping
+        :oaram closest_left_parent: bblfsh node of the closest parent already gone through
+        """
+        next_right_parent = None
+        for future_vnode in vnodes[vnode_index + 1:]:
+            if future_vnode.node:
+                next_right_parent = parents[id(future_vnode.node)]
+                break
+        return closest_left_parent if closest_left_parent is next_right_parent else None
+
+    def _inplace_write_vnodes_features(self, vnodes: Sequence[VirtualNode],
+                                       parents: Mapping[int, bblfsh.Node], line_offset: int,
+                                       X: numpy.ndarray) -> None:
+        """
+        Given a sequence of `VirtualNode`-s and relevant info, compute the input matrix and label
+        vector.
+
+        :param vnodes: sequence of `VirtualNode`-s
+        :param parents: dictionnary of node id to parent node
+        :param line_offset: at which line of the input ndarrays should we start writing
+        :param X: features matrix
+        """
+        closest_left_parent = None
+        i = 0
+        for vnode in vnodes:
+            if vnode.node:
+                closest_left_parent = parents[id(vnode.node)]
+            if not vnode.y:
+                continue
+            parent = self._find_parent(i, vnodes, parents, closest_left_parent)
+
+            # compute how many dummy features we'll need to account for the lack of left and right
+            # siblings and the lack of parents
+            n_dummies_left = abs(min(i - self.siblings_window, 0))
+            parents_list = []
+            if parent:
+                current_vnode = vnode
+                for j in range(self.parents_depth):
+                    node_id = id(current_vnode)
+                    if node_id not in parents:
+                        break
+                    parent = parents[node_id]
+                    parents_list.append(parent)
+                    current_vnode = parent
+
+            # complete the feature ndarray by taking the dummies into account in 4 steps:
+            # 1. write the node itself's features
+            self._inplace_write_vnode_features(vnode, vnode, i + line_offset, 0, X)
+            # 2. write the node's left siblings features
+            # The offset is now 1 (the node) + n_dummies_left (if there are not enough siblings on
+            # the left to obtain siblings_window features)
+            for j, left_vnode in enumerate(vnodes[max(0, i - self.siblings_window):i]):
+                self._inplace_write_vnode_features(left_vnode, vnode, i + line_offset,
+                                                   1 + n_dummies_left + j, X)
+            # 3. write the node's right siblings features
+            # The offset is now 1 (the node) + siblings_window (the node's siblings on the left)
+            for j, right_vnode in enumerate(vnodes[i + 1:i + 1 + self.siblings_window]):
+                self._inplace_write_vnode_features(right_vnode, vnode, i + line_offset,
+                                                   1 + self.siblings_window + j, X)
+            # 4. write the node's parents features.
+            # The offset is now 1 (the node) + 2 * siblings (the node's siblings on both sides)
+            for j, parent_vnode in enumerate(parents_list):
+                self._inplace_write_vnode_features(parent_vnode, vnode, i + line_offset,
+                                                   1 + self.siblings_window * 2 + j, X)
+            i += 1
+
     def _parse_file(self, contents: str, root: bblfsh.Node) -> \
             Tuple[List[VirtualNode], Dict[int, bblfsh.Node]]:
         """
         Given the source text and the corresponding UAST this function compiles the list of
         `VirtualNode`-s and the parents mapping. That list of nodes equals to the original
         source text bit-to-bit after `"".join(n.value for n in nodes)`. `parents` map from
-        `id(node)` to it's parent `bblfsh.Node`.
+        `id(node)` to its parent `bblfsh.Node`.
 
         :param contents: source file text
         :param root: UAST root node
-        :param language: programming language of the file
         :return: list of `VirtualNode`-s and the parents.
         """
         # build the line mapping
