@@ -1,7 +1,9 @@
 import io
 import os
 import pathlib
+import random
 from shutil import copyfileobj
+import socket
 import subprocess
 import sys
 import tarfile
@@ -31,3 +33,22 @@ def fetch():
 def run(cmd: str, fr: str, to: str, port):
     subprocess.run([str(file), cmd, "-v", "ipv4://localhost:%s" % port, "--from", fr, "--to", to],
                    stdout=sys.stdout, stderr=sys.stderr, check=True)
+
+
+def find_port(attempts=100) -> int:
+    while True:
+        attempts -= 1
+        if attempts == 0:
+            raise ConnectionError("cannot find an open port")
+        port = random.randint(1024, 32768)
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            s.connect(("localhost", port))
+        except ConnectionRefusedError:
+            return port
+        finally:
+            try:
+                s.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+            s.close()
