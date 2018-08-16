@@ -59,8 +59,9 @@ class AnalyzerManager(EventHandlers):
         def wrapped_with_data_request_stub(self, request):
             if not hasattr(self._data_request_stub, "stub"):
                 channel = grpc.insecure_channel(self._data_request_address, options=[
-                    (grpc._cython.cygrpc.ChannelArgKey.max_send_message_length, -1),
-                    (grpc._cython.cygrpc.ChannelArgKey.max_receive_message_length, -1)])
+                    ("grpc.max_send_message_length", 100 * 1024 * 1024),
+                    ("grpc.max_receive_message_length", 100 * 1024 * 1024),
+                ])
                 self._data_request_stub.stub = DataStub(channel)
             return func(self, request)
 
