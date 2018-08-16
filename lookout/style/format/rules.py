@@ -1,5 +1,5 @@
 from collections import defaultdict
-from itertools import chain
+from itertools import chain, islice
 import functools
 import logging
 from typing import Union, List, Tuple, Dict, Iterable, NamedTuple, Sequence, Set
@@ -44,7 +44,7 @@ class FormatModel(modelforge.Model):
 
     @property
     def languages(self):
-        return sorted(self._rules_by_lang.keys())
+        return sorted(self._rules_by_lang)
 
     def construct(self, ruless: Iterable[Tuple[str, "Rules"]]) -> "FormatModel":
         for name, rules in ruless:
@@ -54,16 +54,15 @@ class FormatModel(modelforge.Model):
     def dump(self) -> str:
         if len(self) == 0:
             return "<empty FormatModel>"
-        language = self.languages[0]
-        param_names = self[language]._get_param_names()
-        return "Models number: %d.\n" \
-               "First model name: %s\n" \
-               "First model params: %s\n" \
-               "Rules number: %d.\n" % \
-               (len(self),
-                language,
-                ", ".join(["%s=%s" % (p, str(getattr(self[language], p))) for p in param_names]),
-                len(self[language]._rules))
+        languages = self.languages
+        param_names = self[languages[0]]._get_param_names()
+        return "Model languages: %s.\n" \
+               "First model's params: %s\n" \
+               "First model's rules number: %d.\n" % \
+               (languages,
+                ", ".join(["%s=%s" % (p, str(getattr(self[languages[0]], p)))
+                           for p in param_names]),
+                len(self[languages[0]]._rules))
 
     def _generate_tree(self) -> dict:
         languages = self.languages
@@ -76,7 +75,8 @@ class FormatModel(modelforge.Model):
     def _load_tree(self, tree: dict) -> None:
         for name, params, rules in zip(tree["languages"], tree["paramss"], tree["ruless"]):
             params = dict(params)
-            params["top_down_greedy_budget"] = tuple(params["top_down_greedy_budget"])
+            params["top_down_greedy_budget"] = Rules.TopDownGreedyBudget(
+                *params["top_down_greedy_budget"])
             params["_rules"] = self._assemble_rules(rules)
             _rules = Rules.__new__(Rules)
             _rules.__setstate__(params)
@@ -87,7 +87,7 @@ class FormatModel(modelforge.Model):
 
     def __getitem__(self, lang: str) -> "Rules":
         """
-        Get a Rules estimator by its language.
+        Get the Rules estimator by its language.
         :param lang: Estimator language.
         :return: Rules estimator instance.
         """
@@ -110,26 +110,20 @@ class FormatModel(modelforge.Model):
     @staticmethod
     def _assemble_rules(rules_tree: dict) -> List[Rule]:
         rules = []
-        cur_length = 0
-        rule_attrs = [RuleAttribute(*params) for params in
-                      zip(rules_tree["features"],  rules_tree["cmps"], rules_tree["thresholds"])]
+        rule_attrs = (RuleAttribute(*params) for params in
+                      zip(rules_tree["features"],  rules_tree["cmps"], rules_tree["thresholds"]))
         for cls, conf, length in zip(rules_tree["cls"], rules_tree["conf"], rules_tree["lengths"]):
-            rules.append(Rule(tuple(rule_attrs[cur_length:cur_length + length]),
-                              RuleStats(cls, conf)))
-            cur_length += length
+            rules.append(Rule(tuple(islice(rule_attrs, int(length))), RuleStats(cls, conf)))
         return rules
 
     @staticmethod
     def _disassemble_rules(rules: Iterable[Rule]):
         def disassemble_rule(rule: Rule) -> tuple:
             rule_len = len(rule.attrs)
-            features = numpy.empty(shape=(rule_len,), dtype=numpy.uint16)
-            cmps = numpy.empty(shape=(rule_len,), dtype=numpy.bool)
-            thresholds = numpy.empty(shape=(rule_len,), dtype=numpy.float32)
-            for i, attr in enumerate(rule.attrs):
-                features[i] = attr.feature
-                cmps[i] = attr.cmp
-                thresholds[i] = attr.threshold
+            features, cmps, thresholds = zip(*rule.attrs)
+            features = numpy.fromiter(features, numpy.uint16, rule_len)
+            cmps = numpy.fromiter(cmps, numpy.bool, rule_len)
+            thresholds = numpy.fromiter(thresholds, numpy.float32, rule_len)
             return (rule.stats.cls, rule.stats.conf, features, cmps, thresholds, rule_len)
 
         disassembled_rules = list(zip(*[disassemble_rule(rule) for rule in rules]))

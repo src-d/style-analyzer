@@ -41,12 +41,12 @@ class FormatModelTests(unittest.TestCase):
         fm = FormatModel()
         self.assertEqual(fm.dump(), "<empty FormatModel>")
 
-        DUMP = "Models number: 3.\n" \
-               "First model name: js\n" \
-               "First model params: prune_attributes=False, prune_branches=False, " \
-               "prune_branches_algorithm=top-down-greedy, top_down_greedy_budget=(False, 1.0), " \
+        DUMP = "Model languages: ['js', 'js2', 'js3'].\n" \
+               "First model's params: prune_attributes=False, prune_branches=False, " \
+               "prune_branches_algorithm=top-down-greedy, top_down_greedy_budget=" \
+               "TopDownGreedyBudget(absolute=False, value=1.0), " \
                "uncertain_attributes=True\n" \
-               "Rules number: 85.\n"
+               "First model's rules number: 85.\n"
         self.assertEqual(self.fm.dump(), DUMP)
 
     def test_len(self):
