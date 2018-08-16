@@ -201,24 +201,24 @@ class Rules(BaseEstimator, ClassifierMixin):
         :param tree: input decision tree.
         :return: list of extracted rules.
         """
-        tree = tree.tree_
-        feature_names = [i if i != Tree.TREE_UNDEFINED else None for i in tree.feature]
+        tree_ = tree.tree_
+        feature_names = [i if i != Tree.TREE_UNDEFINED else None for i in tree_.feature]
         queue = [(0, tuple())]
         rules = []
         while queue:
             node, path = queue.pop()
-            if tree.feature[node] != Tree.TREE_UNDEFINED:
+            if tree_.feature[node] != Tree.TREE_UNDEFINED:
                 name = feature_names[node]
-                threshold = tree.threshold[node]
+                threshold = tree_.threshold[node]
                 queue.append(
-                    (tree.children_left[node], path + (RuleAttribute(name, False, threshold),)))
+                    (tree_.children_left[node], path + (RuleAttribute(name, False, threshold),)))
                 queue.append(
-                    (tree.children_right[node], path + (RuleAttribute(name, True, threshold),)))
+                    (tree_.children_right[node], path + (RuleAttribute(name, True, threshold),)))
             else:
-                freqs = tree.value[node][0]
+                freqs = tree_.value[node][0]
                 # why -0.5? See the papers mentioned in _prune_attributes()
                 conf = (freqs.max() - 0.5) / freqs.sum()
-                rules.append(Rule(path, RuleStats(numpy.argmax(freqs), conf)))
+                rules.append(Rule(path, RuleStats(tree.classes_[numpy.argmax(freqs)], conf)))
         return rules
 
     @classmethod
