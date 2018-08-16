@@ -46,7 +46,7 @@ class EventHandlers:
     def process_review_event(self, request: ReviewEvent) -> EventResponse:
         raise NotImplementedError
 
-    def process_push_event(self, request: PushEvent) -> None:
+    def process_push_event(self, request: PushEvent) -> EventResponse:
         raise NotImplementedError
 
 
@@ -203,7 +203,7 @@ class EventListener(AnalyzerServicer):
     @timeit
     @log_exceptions
     @handle
-    def NotifyPushEvent(self, request: PushEvent, context: grpc.ServicerContext) -> None:
+    def NotifyPushEvent(self, request: PushEvent, context: grpc.ServicerContext) -> EventResponse:
         """
         Fired on `PushEvent`-s. Returns nothing - we are not supposed to answer anything.
 

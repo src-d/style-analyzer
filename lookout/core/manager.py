@@ -96,15 +96,16 @@ class AnalyzerManager(EventHandlers):
         return response
 
     @with_data_request_stub
-    def process_push_event(self, request: PushEvent) -> None:
+    def process_push_event(self, request: PushEvent) -> EventResponse:
         url = request.commit_revision.head.internal_repository_url
         commit = request.commit_revision.head.hash
         configuration = request.configuration
         for analyzer in self._analyzers:
             self._log.debug("training %s", analyzer.__name__)
-            mycfg = configuration.get(analyzer.__name__, {})
+            mycfg = configuration.fields.get(analyzer.__name__, {})
             model = analyzer.train(url, commit, mycfg, self._data_request_stub.stub)
             self._model_repository.set(self._model_id(analyzer), url, model)
+        return EventResponse()
 
     def warmup(self, urls: Sequence[str]):
         """

@@ -122,7 +122,11 @@ def setup(level: Union[str, int], structured: bool):
 
 
 def set_context(context):
-    handler = logging.getLogger().handlers[0]
+    try:
+        handler = logging.getLogger().handlers[0]
+    except IndexError:
+        # logging is not initialized
+        return
     if not isinstance(handler, StructuredHandler):
         return
     handler.acquire()
