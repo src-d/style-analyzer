@@ -1,12 +1,15 @@
 import lzma
+import unittest
 from collections import defaultdict
 from pathlib import Path
-import unittest
 
 import bblfsh
 
-from lookout.style.format.features import FeatureExtractor, CLASSES, CLS_SPACE_INC, \
-    CLS_SPACE_DEC, CLS_NEWLINE, CLS_SPACE, CLS_SINGLE_QUOTE
+from lookout.core.api.service_data_pb2 import File
+from lookout.style.format.features import (CLASSES, CLS_NEWLINE,
+                                           CLS_SINGLE_QUOTE, CLS_SPACE,
+                                           CLS_SPACE_DEC, CLS_SPACE_INC,
+                                           FeatureExtractor)
 
 
 class FeaturesTests(unittest.TestCase):
@@ -18,7 +21,7 @@ class FeaturesTests(unittest.TestCase):
             cls.contents = fin.read()
         with lzma.open(str(base / "benchmark.uast.xz")) as fin:
             cls.uast = bblfsh.Node.FromString(fin.read())
-        cls.extractor = FeatureExtractor("javascript")
+        cls.extractor = FeatureExtractor("javascript", parents_depth=2, siblings_window=5)
 
     def test_parse_file(self):
         nodes, parents = self.extractor._parse_file(self.contents, self.uast)
@@ -56,6 +59,19 @@ class FeaturesTests(unittest.TestCase):
         self.assertGreater(cls_counts[CLS_NEWLINE], 0)
         self.assertGreater(cls_counts[CLS_SINGLE_QUOTE], 0)
         self.assertTrue(cls_counts[CLS_SINGLE_QUOTE] % 2 == 0)
+
+    def test_extract_features(self):
+        file = File(content=bytes(self.contents, 'utf-8'),
+                    uast=self.uast)
+        files = [file, file]
+
+        X, y = self.extractor.extract_features(files)
+        self.assertEqual(X.shape[0], y.shape[0])
+        self.assertTrue(X.shape[1] % (1 + self.extractor.parents_depth
+                                      + self.extractor.siblings_window * 2) == 0)
+        self.assertTrue(X.shape[1],
+                        (1 + self.extractor.parents_depth + self.extractor.siblings_window * 2)
+                        * self.extractor.feature_names)
 
 
 if __name__ == "__main__":
