@@ -1,4 +1,5 @@
 import importlib
+import logging
 from typing import Dict, Iterable, List, Mapping, NamedTuple, Optional, Sequence, Tuple
 
 import bblfsh
@@ -99,6 +100,8 @@ class FeatureExtractor:
     feature_names = ["start_offset", "start_line", "start_col", "end_offset", "end_line",
                      "end_col", "internal_role"]
 
+    _log = logging.getLogger("FeaturesExtractor")
+
     def __init__(self, language: str, siblings_window: int = 5, parents_depth: int = 2):
         """
         Construct a `FeatureExtractor`.
@@ -125,7 +128,12 @@ class FeatureExtractor:
         for file in files:
             contents = file.content.decode("utf-8", "replace")
             uast = file.uast
-            vnodes, parents = self._parse_file(contents, uast)
+            try:
+                vnodes, parents = self._parse_file(contents, uast)
+            except AssertionError as e:
+                self._log.warning("could not parse file %s, skipped it", file.path,
+                                  extra={"file": file.path, "unhandled": str(e)})
+                continue
             vnodes = self._classify_vnodes(vnodes)
             parsed_files.append((vnodes, parents))
             labels.append([vnode.y for vnode in vnodes if vnode.y])
