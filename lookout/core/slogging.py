@@ -83,6 +83,7 @@ class StructuredHandler(logging.Handler):
             pass
         json.dump(obj, sys.stdout, sort_keys=True)
         sys.stdout.write("\n")
+        sys.stdout.flush()
 
     def flush(self):
         sys.stdout.flush()
