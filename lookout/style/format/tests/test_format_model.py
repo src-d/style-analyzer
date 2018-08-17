@@ -28,7 +28,8 @@ class FormatModelTests(unittest.TestCase):
             fm2 = FormatModel().load(f.name)
             self.assertEqual(fm1.languages, fm2.languages)
             for lang in fm1.languages:
-                self.assertEqual(fm1[lang].get_params(False), fm2[lang].get_params(False))
+                self.assertEqual(fm1[lang].get_saved_params(),
+                                 fm2[lang].get_saved_params())
                 for rule1, rule2 in zip(fm1[lang]._rules, fm2[lang]._rules):
                     self.assertEqual(rule1.stats[0], rule2.stats[0])
                     self.assertAlmostEqual(rule1.stats[1], rule2.stats[1])
@@ -58,8 +59,7 @@ class FormatModelTests(unittest.TestCase):
         self.assertEqual(len(fm), 2)
 
     def test_set_unfitted_item(self):
-        model = tree.DecisionTreeClassifier(min_samples_leaf=26, random_state=1989)
-        rules = Rules(model, prune_branches=False, prune_attributes=False)
+        rules = Rules(self.model, prune_branches=False, prune_attributes=False)
         fm = FormatModel()
         with self.assertRaises(ValueError):
             fm[""] = rules

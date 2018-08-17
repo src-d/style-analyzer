@@ -4,6 +4,7 @@ import unittest
 import numpy
 import pandas
 from sklearn import model_selection, tree, ensemble
+from sklearn.exceptions import NotFittedError
 
 from lookout.style.format.rules import Rules
 
@@ -39,6 +40,11 @@ def load_abalone_data(filepath=os.path.join(os.path.dirname(__file__), "abalone.
 class RulesTests(unittest.TestCase):
     def setUp(self):
         self.train_x, self.test_x, self.train_y, self.test_y = load_abalone_data()
+
+    def test_set_unfitted_item(self):
+        model = tree.DecisionTreeClassifier(min_samples_leaf=26, random_state=1989)
+        with self.assertRaises(NotFittedError):
+            Rules(model, prune_branches=False, prune_attributes=False)
 
     def test_tree_no_pruning(self):
         model = tree.DecisionTreeClassifier(min_samples_leaf=26, random_state=1989)
