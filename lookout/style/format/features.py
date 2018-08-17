@@ -108,6 +108,7 @@ class FeatureExtractor:
         """
         self.siblings_window = siblings_window
         self.parents_depth = parents_depth
+        language = language.lower()
         self.tokens = importlib.import_module("lookout.style.format.langs.%s.tokens" % language)
         self.roles = importlib.import_module("lookout.style.format.langs.%s.roles" % language)
 
