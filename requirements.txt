@@ -2,6 +2,7 @@ sourced-ml==0.5.1
 xxhash==1.2.0
 stringcase==1.2.0
 sqlalchemy==1.2.10
+sqlalchemy-utils==0.33.3
 pympler==0.5
 cachetools==2.0.1
 configargparse==0.13.0

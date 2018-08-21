@@ -1,6 +1,7 @@
 from importlib.machinery import SourceFileLoader
-from setuptools import setup, find_packages
 import sys
+
+from setuptools import setup, find_packages
 
 lookout = SourceFileLoader("lookout", "./lookout/__init__.py").load_module()
 
@@ -32,6 +33,7 @@ setup(
                       "xxhash>=0.5.0,<2.0",
                       "stringcase>=1.2.0,<2.0",
                       "sqlalchemy>=1.0.0,<2.0",
+                      "sqlalchemy-utils>=0.33,<2.0",
                       "pympler>=0.5,<2.0",
                       "cachetools>=2.0,<3.0",
                       "configargparse>=0.13,<2.0",

@@ -1,5 +1,6 @@
 from contextlib import contextmanager
 from datetime import datetime
+import logging
 import os
 import threading
 from typing import Tuple, Type
@@ -10,10 +11,10 @@ from sqlalchemy import create_engine, Column, String, VARCHAR, DateTime, bindpar
 from sqlalchemy.ext import baked
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy_utils import database_exists, create_database
 
 from lookout.core.analyzer_model import AnalyzerModel
 from lookout.core.model_repository import ModelRepository
-
 
 Base = declarative_base()
 
@@ -44,10 +45,15 @@ class ContextSessionMaker:
 
 class SQLAlchemyModelRepository(ModelRepository):
     MAX_SUBDIRS = 1024
+    log = logging.getLogger("SQLAlchemyModelRepository")
 
     def __init__(self, db_endpoint: str, fs_root: str, max_cache_mem: int, ttl: int,
                  engine_kwargs: dict=None):
         self.fs_root = fs_root
+        if not database_exists(db_endpoint):
+            self.log.debug("%s does not exist, creating")
+            create_database(db_endpoint)
+            self.log.warning("created new database at %s", db_endpoint)
         self._engine = create_engine(
             db_endpoint, **(engine_kwargs if engine_kwargs is not None else {}))
         self._sessionmaker = ContextSessionMaker(sessionmaker(bind=self._engine))
@@ -72,14 +78,17 @@ class SQLAlchemyModelRepository(ModelRepository):
         with self._cache_lock:
             model = self._cache.get(cache_key)
         if model is not None:
+            self.log.debug("used cache for %s with %s", model_id, url)
             return model, False
         with self._sessionmaker() as session:
             models = self._get_query(session).params(analyzer=model_id, repository=url).all()
         if len(models) == 0:
+            self.log.debug("no models found for %s with %s", model_id, url)
             return None, True
         model = model_type().load(models[0].path)
         with self._cache_lock:
             self._cache[cache_key] = model
+        self.log.debug("loaded %s with %s from %s", model_id, url, models[0].path)
         return model, True
 
     def set(self, model_id: str, url: str, model: AnalyzerModel):
@@ -87,8 +96,10 @@ class SQLAlchemyModelRepository(ModelRepository):
         with self._sessionmaker() as session:
             session.add(Model(analyzer=model_id, repository=url, path=path))
             session.commit()
+        self.log.debug("set %s with %s", model_id, url)
 
     def init(self):
+        self.log.info("initializing")
         Model.metadata.create_all(self._engine)
         os.makedirs(self.fs_root, exist_ok=True)
 
