@@ -1,16 +1,9 @@
 import re
 
-KEYWORDS = [
-{% for kwd in keywords | sort %}
-    "{{ kwd }}",
+RESERVED = [
+{% for op in reserved | sort %}
+    "{{ op | replace("\\", "\\\\") | replace('"', '\\"') }}",
 {% endfor %}
 ]
 
-OPERATORS = [
-{% for op in operators | sort %}
-    "{{ op | replace('"', '\"') }}",
-{% endfor %}
-]
-
-RESERVED = sorted(KEYWORDS + OPERATORS, key=lambda t: -len(t))
-PARSER = re.compile("|".join(re.escape(i) for i in (KEYWORDS + OPERATORS)))
+PARSER = re.compile("|".join(re.escape(i) for i in RESERVED) + r"|\s+")

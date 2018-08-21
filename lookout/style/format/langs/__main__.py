@@ -1,8 +1,9 @@
 import argparse
 from concurrent.futures import ThreadPoolExecutor
-import multiprocessing
 import logging
+import multiprocessing
 from pathlib import Path
+import re
 import sys
 import threading
 
@@ -43,36 +44,81 @@ def extract_node_token(file: str, node: bblfsh.Node) -> str:
     return file[spos.offset:epos.offset].lower()
 
 
-def analyze_uast(path: str, uast: bblfsh.Node, roles: set, keywords: set, operators: set):
-    KEYWORD = bblfsh.role_id("STATEMENT")
-    OPERATOR = bblfsh.role_id("OPERATOR")
-    file = Path(path).read_text()
-    queue = [uast]
+def analyze_uast(path: str, root: bblfsh.Node, roles: set, reserved: set):
+    contents = Path(path).read_text()
+
+    # walk the tree: collect nodes with assigned tokens and build the parents map
+    node_tokens = []
+    parents = {}
+    queue = [root]
     while queue:
         node = queue.pop()
+        for child in node.children:
+            parents[id(child)] = node
         queue.extend(node.children)
-        roles.add(node.internal_type)
-        if KEYWORD in node.roles:
-            keywords.add(extract_node_token(file, node))
-        if OPERATOR in node.roles:
-            operators.add(extract_node_token(file, node))
-    # Things which vmarkovtsev tried but failed:
-    #
-    # * use node.properties["operator"] returns instanceof, etc. for JS
-    # * erase characters with assigned node.token-s, take the rest, split by whitespace,
-    #   take non-alpha, put into set each char, then split alphas by those and push as keywords -
-    #   yields much garbage for incorrectly parsed files.
+        if node.token:
+            node_tokens.append(node)
+    node_tokens.sort(key=lambda n: n.start_position.offset)
+    sentinel = bblfsh.Node()
+    sentinel.start_position.offset = len(contents)
+    sentinel.start_position.line = contents.count("\n")
+    node_tokens.append(sentinel)
+
+    # scan `node_tokens` and analyze the gaps and the token prefixes and suffixes
+    pos = 0
+    ws = re.compile("\s+")
+    alpha = re.compile("[a-zA-Z]+")
+    IDENTIFIER = bblfsh.role_id("IDENTIFIER")
+    log = logging.getLogger("analyze_uast")
+
+    def ccheck(char: str) -> bool:
+        return not char.isspace() and not char.isalnum() and not ord(char) >= 128
+
+    for node in node_tokens:
+        if node.start_position.offset > pos:
+            diff = contents[pos:node.start_position.offset]
+            parts = ws.split(diff)
+            for part in parts:
+                if len(part) >= 8:
+                    continue
+                # for keyword in alpha.finditer(part):
+                #    reserved.add(keyword.group())
+                for nonalpha in alpha.split(part):
+                    for char in nonalpha:
+                        if ccheck(char):
+                            reserved.add(char)
+        if node is sentinel:
+            break
+        pos = node.end_position.offset
+        if not node.token or IDENTIFIER not in node.roles:
+            continue
+        outer = contents[node.start_position.offset:node.end_position.offset]
+        if outer == node.token:
+            continue
+        pos = outer.find(node.token)
+        if pos < 0:
+            log.warning("skipped %s, token offset corruption \"%s\" vs. \"%s\"",
+                        path, node.token, outer)
+            break
+        if pos > 0:
+            for char in outer[:pos]:
+                if ccheck(char):
+                    reserved.add(char)
+        if pos + len(node.token) < len(outer):
+            for char in outer[pos + len(node.token):]:
+                if ccheck(char):
+                    reserved.add(char)
 
 
-def generate_files(outdir: str, roles: set, keywords: set, operators: set):
+def generate_files(outdir: str, roles: set, reserved: set):
     env = dict(trim_blocks=True, lstrip_blocks=True)
     base = Path(__file__).parent
     outdir = Path(outdir)
+    outdir.mkdir(exist_ok=True)
     (outdir / "roles.py").write_text(
         Template((base / "roles.py.jinja2").read_text(), **env).render(roles=roles))
     (outdir / "tokens.py").write_text(
-        Template((base / "tokens.py.jinja2").read_text(), **env).render(
-            keywords=keywords, operators=operators))
+        Template((base / "tokens.py.jinja2").read_text(), **env).render(reserved=reserved))
     (outdir / "__init__.py").touch()
 
 
@@ -84,8 +130,7 @@ def main():
     log = logging.getLogger("main")
     log.info("Will parse %d files", len(args.input))
     roles = set()
-    keywords = set()
-    operators = set()
+    reserved = set()
     language = ""
     progress = tqdm(total=len(args.input))
     errors = False
@@ -108,7 +153,7 @@ def main():
                 log.warning("dropped %s - language mismatch %s != %s",
                             path, language, response.language)
                 return
-            analyze_uast(path, response.uast, roles, keywords, operators)
+            analyze_uast(path, response.uast, roles, reserved)
             progress.update(1)
         except:  # noqa: E722
             log.exception("Parsing %s", path)
@@ -120,12 +165,10 @@ def main():
         pool.shutdown()
     if errors:
         return 1
-    keywords.discard("")
-    operators.discard("")
+    reserved.discard("")
     log.info("Internal roles: %d", len(roles))
-    log.info("Keywords: %d", len(keywords))
-    log.info("Operators: %d", len(operators))
-    generate_files(args.output, roles, keywords, operators)
+    log.info("Reserved: %d", len(reserved))
+    generate_files(args.output, roles, reserved)
 
 
 if __name__ == "__main__":
