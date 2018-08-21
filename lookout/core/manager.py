@@ -20,6 +20,7 @@ class AnalyzerManager(EventHandlers):
     Relies on a `ModelRepository` to retrieve and update the models. Also requires the address
     of the data (UAST, contents) gRPC service, typically running in the same Lookout server.
     """
+    GRPC_MAX_MESSAGE_SIZE = 100 * 1024 * 1024
     _log = logging.getLogger("AnalyzerManager")
 
     def __init__(self, model_repository: ModelRepository, analyzers: Iterable[Type[Analyzer]],
@@ -36,7 +37,15 @@ class AnalyzerManager(EventHandlers):
         analyzers.sort()
         self._analyzers = [a[1] for a in analyzers]
         self._data_request_stub = threading.local()
+        self._data_request_channels = []
         self._data_request_address = data_request_address
+
+    def shutdown(self):
+        """
+        Closes all the open network connections.
+        """
+        for channel in self._data_request_channels:
+            channel.close()
 
     def __str__(self) -> str:
         return "AnalyzerManager(%s)" % self.version
@@ -59,9 +68,10 @@ class AnalyzerManager(EventHandlers):
         def wrapped_with_data_request_stub(self, request):
             if not hasattr(self._data_request_stub, "stub"):
                 channel = grpc.insecure_channel(self._data_request_address, options=[
-                    ("grpc.max_send_message_length", 100 * 1024 * 1024),
-                    ("grpc.max_receive_message_length", 100 * 1024 * 1024),
+                    ("grpc.max_send_message_length", self.GRPC_MAX_MESSAGE_SIZE),
+                    ("grpc.max_receive_message_length", self.GRPC_MAX_MESSAGE_SIZE),
                 ])
+                self._data_request_channels.append(channel)
                 self._data_request_stub.stub = DataStub(channel)
             return func(self, request)
 
