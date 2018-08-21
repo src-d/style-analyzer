@@ -1,6 +1,6 @@
 import re
 
-KEYWORDS = [
+RESERVED = [
     "abstract",
     "any",
     "as",
@@ -77,12 +77,7 @@ KEYWORDS = [
     "void",
     "volatile",
     "while",
-    "with"
-]
-# TODO: figure out the problem with `module.exports`.
-# TODO: Ex: `https://github.com/facebook/react/tree/master/scripts/flow/environment.js`
-
-OPERATORS = [
+    "with",
     "+",
     "-",
     "*",
@@ -118,16 +113,16 @@ OPERATORS = [
     ")",
     "{",
     "}",
-    ",",
     ".",
     "...",
-    ";",
     "[",
     "]",
     ">>>",
+    ",",
+    ";",
     "'",
-    '"'
+    '"',
+    "`",
 ]
 
-RESERVED = sorted(KEYWORDS + OPERATORS, key=lambda t: -len(t))
-PARSER = re.compile("|".join(re.escape(i) for i in (KEYWORDS + OPERATORS)) + r"|\s+")
+PARSER = re.compile("|".join(re.escape(i) for i in RESERVED) + r"|\s+")
