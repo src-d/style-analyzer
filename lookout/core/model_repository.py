@@ -39,3 +39,9 @@ class ModelRepository:
         :return: None
         """
         raise NotImplementedError
+
+    def shutdown(self):
+        """
+        Frees the resources allocated by the storage.
+        """
+        raise NotImplementedError
