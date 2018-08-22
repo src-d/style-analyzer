@@ -274,9 +274,9 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
                                  algorithm. Available for DecisionTreeClassifier model only.
         """
         super().__init__()
-        self.prune_branches_algorithm = prune_branches_algorithm
         self.base_model = base_model
         self.prune_branches = prune_branches
+        self.prune_branches_algorithm = prune_branches_algorithm
         self.top_down_greedy_budget = top_down_greedy_budget
         self.prune_attributes = prune_attributes
         self.uncertain_attributes = uncertain_attributes
@@ -295,11 +295,6 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
             check_is_fitted(value, "tree_")
         elif isinstance(value, RandomForestClassifier):
             check_is_fitted(value, "estimators_")
-        if self.prune_branches_algorithm == "reduced-error" and \
-                isinstance(value, RandomForestClassifier):
-            raise ValueError("A reduced-error pruning method can be used only for "
-                             "DecisionTreeClassifier. Please change the base_model or set "
-                             "prune_branches_algorithm to a different method.")
         self._base_model = value
 
     def fit(self, X: numpy.ndarray, y: numpy.ndarray) -> "Rules":
@@ -323,6 +318,8 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
             offset = 0
             leaf2rule = []
             for i, estimator in enumerate(self.base_model.estimators_):
+                if self.prune_branches_algorithm == "reduced-error":
+                    estimator = self._prune_reduced_error(estimator, X, y)
                 rules_partial, leaf2rule_partial = self._tree_to_rules(estimator, offset=offset)
                 offset += len(rules_partial)
                 leaf2rule.append(leaf2rule_partial)
@@ -430,13 +427,6 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
             new_rules.append(Rule(tuple(new_rule), stats))
         return new_rules
 
-    @staticmethod
-    def _get_parents(tree: Tree.Tree) -> Dict[int, int]:
-            parents = {x: i for i, x in enumerate(tree.children_left) if x != Tree.TREE_LEAF}
-            parents.update(
-                {x: i for i, x in enumerate(tree.children_right) if x != Tree.TREE_LEAF})
-            return parents
-
     @classmethod
     def _prune_reduced_error(cls, model: DecisionTreeClassifier, X: numpy.array, y: numpy.array,
                              step_score_drop: float = 0,
@@ -450,7 +440,8 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         tree = model.tree_
         changes = True
         checked = set()
-        parents = cls._get_parents(tree)
+        parents = {x: i for i, x in enumerate(tree.children_left) if x != Tree.TREE_LEAF}
+        parents.update({x: i for i, x in enumerate(tree.children_right) if x != Tree.TREE_LEAF})
         leaves = list(numpy.where(tree.children_left == Tree.TREE_LEAF)[0])
         decision_path = {leaf: d.nonzero()[1] for leaf, d in
                          zip(leaves, model.decision_path(X).T[leaves])}
