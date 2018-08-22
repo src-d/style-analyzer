@@ -56,7 +56,7 @@ def analyze_uast(path: str, root: bblfsh.Node, roles: set, reserved: set):
         for child in node.children:
             parents[id(child)] = node
         queue.extend(node.children)
-        if node.token:
+        if node.token or node.start_position and node.end_position and not node.children:
             node_tokens.append(node)
     node_tokens.sort(key=lambda n: n.start_position.offset)
     sentinel = bblfsh.Node()
@@ -75,6 +75,8 @@ def analyze_uast(path: str, root: bblfsh.Node, roles: set, reserved: set):
         return not char.isspace() and not char.isalnum() and not ord(char) >= 128
 
     for node in node_tokens:
+        token = node.token if node.token else \
+            contents[node.start_position.offset:node.end_position.offset]
         if node.start_position.offset > pos:
             diff = contents[pos:node.start_position.offset]
             parts = ws.split(diff)
@@ -90,22 +92,22 @@ def analyze_uast(path: str, root: bblfsh.Node, roles: set, reserved: set):
         if node is sentinel:
             break
         pos = node.end_position.offset
-        if not node.token or IDENTIFIER not in node.roles:
+        if IDENTIFIER not in node.roles:
             continue
         outer = contents[node.start_position.offset:node.end_position.offset]
-        if outer == node.token:
+        if outer == token:
             continue
-        pos = outer.find(node.token)
+        pos = outer.find(token)
         if pos < 0:
             log.warning("skipped %s, token offset corruption \"%s\" vs. \"%s\"",
-                        path, node.token, outer)
+                        path, token, outer)
             break
         if pos > 0:
             for char in outer[:pos]:
                 if ccheck(char):
                     reserved.add(char)
-        if pos + len(node.token) < len(outer):
-            for char in outer[pos + len(node.token):]:
+        if pos + len(token) < len(outer):
+            for char in outer[pos + len(token):]:
                 if ccheck(char):
                     reserved.add(char)
 
