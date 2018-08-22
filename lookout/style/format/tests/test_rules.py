@@ -5,6 +5,7 @@ import numpy
 import pandas
 from sklearn import model_selection, tree, ensemble
 from sklearn.exceptions import NotFittedError
+from sklearn.tree import _tree
 
 from lookout.style.format.rules import TrainableRules
 
@@ -90,6 +91,50 @@ class RulesTests(unittest.TestCase):
         scores = [test_budget(x) for x in numpy.linspace(0, 1, 10)]
         for a, b in zip(range(len(scores)), range(1, len(scores))):
             self.assertGreater(b, a - 0.00001)
+
+    def test_reduced_error_prune(self):
+        LEAF = _tree.TREE_LEAF
+
+        class FakeFeature:
+            def __getitem__(self, item):
+                pass
+
+            def __setitem__(self, key, value):
+                pass
+
+        class FakeTree:
+            def __init__(self, *args):
+                self.children_left = numpy.array(args[0])
+                self.children_right = numpy.array(args[1])
+                self.feature = FakeFeature()
+
+        class FakeModel:
+            def __init__(self, ):
+                self.tree_ = FakeTree(
+                    [1, 2, 4, 6, 8, LEAF, LEAF, LEAF, LEAF, LEAF, LEAF],
+                    [10, 3, 5, 7, 9, LEAF, LEAF, LEAF, LEAF, LEAF, LEAF],
+                )
+
+            def score(self, X, y):
+                if self.tree_.children_left[0] == LEAF:
+                    return 0
+                elif self.tree_.children_left[1] == LEAF:
+                    return 0
+                elif self.tree_.children_left[2] == LEAF:
+                    return 1
+                elif self.tree_.children_left[3] == LEAF:
+                    return 1
+                elif self.tree_.children_left[4] == LEAF:
+                    return 1
+                else:
+                    return 0.5
+
+        model = FakeModel()
+        pruned_model = Rules._prune_reduced_error(model, None, None, verbose=True)
+        self.assertEqual(list(pruned_model.tree_.children_left),
+                         [1, 2, LEAF, LEAF, LEAF, LEAF, LEAF, LEAF, LEAF, LEAF, LEAF])
+        self.assertEqual(list(pruned_model.tree_.children_right),
+                         [10, 3, LEAF, LEAF, LEAF, LEAF, LEAF, LEAF, LEAF, LEAF, LEAF])
 
 
 if __name__ == "__main__":

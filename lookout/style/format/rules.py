@@ -1,4 +1,5 @@
 from collections import defaultdict
+from copy import deepcopy
 import functools
 import io
 from itertools import islice
@@ -266,13 +267,14 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
                                        number from 0 to 1 or the exact quantity.
         :param prune_attributes: indicates whether to remove useless parts of rules.
         :param uncertain_attributes: indicates whether to **retain** parts of rules with low \
-                                     certainty (see "Generating Production Rules From Decision
+                                     certainty (see "Generating Production Rules From Decision \
                                      Trees" by J.R. Quinlan).
+        :param prune_base_model: indicates whether to prune base_model via reduced error pruning \
+                                 algorithm. Available for DecisionTreeClassifier model only.
         """
         super().__init__()
         self.base_model = base_model
         self.prune_branches = prune_branches
-        self.prune_branches_algorithm = prune_branches_algorithm
         self.top_down_greedy_budget = top_down_greedy_budget
         self.prune_attributes = prune_attributes
         self.uncertain_attributes = uncertain_attributes
@@ -291,6 +293,11 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
             check_is_fitted(value, "tree_")
         elif isinstance(value, RandomForestClassifier):
             check_is_fitted(value, "estimators_")
+        if self.prune_branches_algorithm == "reduced-error" and \
+                isinstance(value, RandomForestClassifier):
+            raise ValueError("A reduced-error pruning method can be used only for "
+                             "DecisionTreeClassifier. Please change the base_model or set "
+                             "prune_branches_algorithm to a different method.")
         self._base_model = value
 
     def fit(self, X: numpy.ndarray, y: numpy.ndarray) -> "Rules":
@@ -303,7 +310,11 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         :return: self
         """
         if isinstance(self.base_model, DecisionTreeClassifier):
-            rules, leaf2rule_dict = self._tree_to_rules(self.base_model)
+            if self.prune_branches_algorithm == "reduced-error":
+                model = self._prune_reduced_error(self.base_model, X, y)
+            else:
+                model = self.base_model
+            rules, leaf2rule_dict = self._tree_to_rules(model)
             leaf2rule = [leaf2rule_dict]
         else:
             rules = []
@@ -326,8 +337,6 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
             if self.prune_branches_algorithm == "top-down-greedy":
                 rules = self._prune_branches_top_down_greedy(rules, X, y, leaf2rule,
                                                              self.top_down_greedy_budget)
-            else:
-                rules = self._prune_branches(rules, X, y)
         if self.prune_attributes:
             rules = self._prune_attributes(rules, X, y, not self.uncertain_attributes)
             self._log.debug("Pruned number of attributes (2): %d", len(rules))
@@ -420,10 +429,87 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         return new_rules
 
     @classmethod
-    def _prune_branches(cls, rules: Sequence[Rule],
-                        X: numpy.ndarray, Y: numpy.ndarray) -> List[Rule]:
-        # TODO(vmarkovtsev): implement this function
-        return rules
+    def _compile_rules(cls, rules: Sequence[Rule]) -> CompiledRulesType:
+        attrs = defaultdict(lambda: defaultdict(lambda: [[], []]))
+        for i, (branch, _) in enumerate(rules):
+            for rule in branch:
+                attrs[rule.feature][rule.threshold][rule.cmp].append(i)
+        compiled_attrs = {}
+        for key, attr in attrs.items():
+            vals = sorted(attr)
+            false_rules = set()
+            true_rules = set()
+            vr = [[None, None] for _ in vals]
+            for i in range(len(vals)):
+                false_rules.update(attr[vals[i]][False])
+                true_rules.update(attr[vals[len(vals) - i - 1]][True])
+                vr[i][False] = numpy.array(sorted(false_rules))
+                vr[len(vr) - i - 1][True] = numpy.array(sorted(true_rules))
+            compiled_attrs[key] = cls.CompiledFeatureRules(
+                numpy.array(vals, dtype=numpy.float32),
+                tuple(cls.CompiledNegatedRules(*v) for v in vr))
+        return compiled_attrs
+
+    @staticmethod
+    def _get_parents(tree: DecisionTreeClassifier) -> Dict[int, int]:
+            parents = {x: i for i, x in enumerate(tree.children_left) if x != Tree.TREE_LEAF}
+            parents.update(
+                {x: i for i, x in enumerate(tree.children_right) if x != Tree.TREE_LEAF})
+            return parents
+
+    @classmethod
+    def _prune_reduced_error(cls, model: DecisionTreeClassifier, validation_X, validation_y,
+                             possible_step_score_drop=0, possible_max_score_drop=0, verbose=False):
+        def _prune_tree(tree, node_to_prune):
+            backup = (tree.children_left[node_to_prune],
+                      tree.children_right[node_to_prune],
+                      tree.feature[node_to_prune])
+            tree.children_left[node_to_prune] = Tree.TREE_LEAF
+            tree.children_right[node_to_prune] = Tree.TREE_LEAF
+            tree.feature[node_to_prune] = Tree.TREE_UNDEFINED
+            return backup
+
+        def _restore_tree(tree, node, backup):
+            tree.children_left[node], tree.children_right[node], tree.feature[node] = backup
+
+        model = deepcopy(model)
+        tree = model.tree_
+        init_score = current_score = model.score(validation_X, validation_y)
+        changes = True
+        bad_change = set()
+        parents = cls._get_parents(tree)
+        leaves = list(numpy.where(tree.children_left == Tree.TREE_LEAF)[0])
+        while changes:
+            changes = False
+            for leaf_index, leaf in enumerate(leaves):
+                if leaf not in parents:
+                    continue
+                parent = parents[leaf]
+                if parent in bad_change:
+                    continue
+                second_leaf = tree.children_right[parent]
+                second_leaf = second_leaf if second_leaf != leaf else tree.children_left[parent]
+                if tree.children_left[second_leaf] != Tree.TREE_LEAF or \
+                        tree.children_right[second_leaf] != Tree.TREE_LEAF:
+                    continue
+
+                backup = _prune_tree(tree, parent)
+                new_score = model.score(validation_X, validation_y)
+                score_change = (new_score - current_score) / current_score
+                full_score_change = (new_score - init_score) / init_score
+                if score_change < possible_step_score_drop or \
+                        full_score_change < possible_max_score_drop:
+                    _restore_tree(tree, parent, backup)
+                    bad_change.add(parent)
+                else:
+                    cls.log.debug("Remove %d and %d leaves. Score change: %f" % (
+                        backup[0], backup[1], score_change))
+                    current_score = new_score
+                    leaves.remove(second_leaf)
+                    leaves[leaf_index] = parent
+                    changes = True
+                    break
+        return model
 
     def _build_instances_index(self, rules: Sequence[Rule], X: numpy.ndarray,
                                leaf2rule: Sequence[Mapping[int, int]]) -> Dict[int, Set[int]]:
