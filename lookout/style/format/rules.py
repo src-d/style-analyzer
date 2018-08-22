@@ -1,16 +1,17 @@
 from collections import defaultdict
-from itertools import islice
 import functools
+from itertools import islice
 import logging
-from typing import Union, List, Tuple, Dict, Iterable, Mapping, NamedTuple, Sequence, Set
+from typing import Any, Dict, Iterable, List, Mapping, NamedTuple, Sequence, Set, Tuple, Union
 
 import modelforge
 import numpy
-from sklearn.exceptions import NotFittedError
 from scipy.stats import fisher_exact
 from sklearn.base import BaseEstimator, ClassifierMixin
-from sklearn.tree import DecisionTreeClassifier, _tree as Tree
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.exceptions import NotFittedError
+from sklearn.tree import _tree as Tree, DecisionTreeClassifier
+from sklearn.utils.validation import check_is_fitted
 
 
 RuleAttribute = NamedTuple(
@@ -55,7 +56,7 @@ class FormatModel(modelforge.Model):
         if len(self) == 0:
             return "<empty FormatModel>"
         languages = self.languages
-        param_names = self[languages[0]]._get_param_names()
+        param_names = self[languages[0]].get_saved_param_names()
         return "Model languages: %s.\n" \
                "First model's params: %s\n" \
                "First model's rules number: %d.\n" % \
@@ -68,7 +69,7 @@ class FormatModel(modelforge.Model):
         languages = self.languages
         return dict(
             languages=languages,
-            paramss=[self[lang].get_params(deep=False) for lang in languages],
+            paramss=[self[lang].get_saved_params() for lang in languages],
             ruless=[self._disassemble_rules(self[lang]._rules) for lang in languages],
         )
 
@@ -170,6 +171,13 @@ class Rules(BaseEstimator, ClassifierMixin):
                                      certainty (see "Generating Production Rules From Decision
                                      Trees" by J.R. Quinlan).
         """
+        if isinstance(base_model, DecisionTreeClassifier):
+            check_is_fitted(base_model, "tree_")
+        elif isinstance(base_model, RandomForestClassifier):
+            check_is_fitted(base_model, "estimators_")
+        else:
+            raise ValueError("base_model must be a DecisionTreeClassifier or a "
+                             "RandomForestClassifier.")
         self.base_model = base_model
         self.prune_branches = prune_branches
         self.prune_branches_algorithm = prune_branches_algorithm
@@ -201,8 +209,8 @@ class Rules(BaseEstimator, ClassifierMixin):
     @_check_fittable
     def fit(self, X: numpy.ndarray, y: numpy.ndarray) -> "Rules":
         """
-        Trains the rules using the base tree model and the samples (X, y). The samples may be
-        different from the ones the base model was trained on (actually, they should).
+        Trains the rules using the base tree model and the samples (X, y). If `base_model` is
+        already fitted, the samples may be different from the ones that were used.
 
         :param X: input features.
         :param y: input labels - the same length as X.
@@ -241,6 +249,16 @@ class Rules(BaseEstimator, ClassifierMixin):
         self._rules = rules
         self._compiled = self._compile_rules(self._rules)
         return self
+
+    def get_saved_param_names(self) -> Sequence[str]:
+        param_names = self._get_param_names()
+        param_names.remove("base_model")
+        return param_names
+
+    def get_saved_params(self) -> Mapping[str, Any]:
+        params = self.get_params(False)
+        return {param_name: param for param_name, param in params.items()
+                if param_name in self.get_saved_param_names()}
 
     @property
     def fitted(self):
@@ -282,11 +300,6 @@ class Rules(BaseEstimator, ClassifierMixin):
                 winner = rules[ris[0]].stats.cls
             prediction[xi] = winner
         return prediction
-
-    def _get_param_names(self):
-        param_names = super()._get_param_names()
-        param_names.remove("base_model")
-        return param_names
 
     _check_fitted = staticmethod(_check_fitted)
     _check_fittable = staticmethod(_check_fittable)
