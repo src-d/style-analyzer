@@ -68,12 +68,19 @@ class FeaturesTests(unittest.TestCase):
 
         X, y = self.extractor.extract_features(files)
         self.assertEqual(X.shape[0], y.shape[0])
-        self.assertTrue(X.shape[1] % (1 + self.extractor.parents_depth
-                                      + self.extractor.siblings_window * 2) == 0)
-        self.assertTrue(X.shape[1],
-                        (1 + self.extractor.parents_depth + self.extractor.siblings_window * 2)
-                        * self.extractor.feature_names)
-        self.assertFalse(numpy.any(numpy.all(X == -1, axis=1)))
+        self.assertEqual(
+            X.shape[1],
+            (len(self.extractor.self_features)
+             + self.extractor.siblings_window * len(self.extractor.left_siblings_features)
+             + self.extractor.siblings_window * len(self.extractor.right_siblings_features)
+             + self.extractor.parents_depth * len(self.extractor.parents_features)))
+        # check that no row is full of -1 (no offset errors on instances)
+        not_set = X == -1
+        unset_rows = numpy.nonzero(numpy.all(not_set, axis=1))[0]
+        unset_columns = numpy.nonzero(numpy.all(not_set, axis=0))[0]
+        self.assertEqual(len(unset_rows), 0, "%d rows are unset" % len(unset_rows))
+        self.assertEqual(len(unset_columns), 0,
+                         "columns %s are unset" % ", ".join(map(str, unset_columns)))
 
 
 if __name__ == "__main__":
