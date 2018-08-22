@@ -1,6 +1,7 @@
 from collections import defaultdict
 from copy import deepcopy
 import functools
+import importlib
 import logging
 from typing import Any, Dict, Iterable, List, Mapping, NamedTuple, Sequence, Set, Tuple, Union
 
@@ -10,8 +11,8 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.exceptions import NotFittedError
 from sklearn.metrics import accuracy_score
+from sklearn.model_selection import train_test_split
 from sklearn.tree import _tree as Tree, DecisionTreeClassifier
-from sklearn.utils.validation import check_is_fitted
 
 RuleAttribute = NamedTuple(
     "RuleAttribute", (("feature", int), ("cmp", bool), ("threshold", float)))
@@ -153,16 +154,16 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
 
     _log = logging.getLogger("TrainableRules")
 
-    def __init__(self,
-                 base_model: Union[DecisionTreeClassifier, RandomForestClassifier],
-                 prune_branches=True, prune_branches_algorithm="top-down-greedy",
-                 top_down_greedy_budget=TopDownGreedyBudget(False, 1.0),
-                 prune_attributes=True, uncertain_attributes=True):
+    def __init__(self, base_model_type_string: str, prune_branches=True,
+                 prune_branches_algorithm="top-down-greedy",
+                 top_down_greedy_budget=TopDownGreedyBudget(False, 1.0), prune_attributes=True,
+                 uncertain_attributes=True, prune_dataset_ratio=.2, **base_model_kwargs):
         """
         Initializes a new instance of Rules class.
 
-        :param base_model: trained decision tree or random forest. \
-                           The rules will be extracted from it.
+        :param base_model_type_string: fully qualified type of the base model to use as a string. \
+                                       Can be "sklearn.tree.DecisionTreeClassifier" or \
+                                       "sklearn.ensemble.RandomForestClassifier".
         :param prune_branches: indicates whether to remove useless rules.
         :param prune_branches_algorithm: chooses the pruning algorithm.
         :param top_down_greedy_budget: how many the branches to leave, either a floating point \
@@ -175,28 +176,18 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
                                  algorithm. Available for DecisionTreeClassifier model only.
         """
         super().__init__()
-        self.base_model = base_model
+        if base_model_type_string not in ["sklearn.tree.DecisionTreeClassifier",
+                                          "sklearn.ensemble.RandomForestClassifier"]:
+            raise ValueError("base_model_type_string %s is invalid" % base_model_type_string)
+        self.base_model_type_string = base_model_type_string
         self.prune_branches = prune_branches
         self.prune_branches_algorithm = prune_branches_algorithm
         self.top_down_greedy_budget = top_down_greedy_budget
         self.prune_attributes = prune_attributes
         self.uncertain_attributes = uncertain_attributes
+        self.prune_dataset_ratio = prune_dataset_ratio
+        self.base_model_kwargs = base_model_kwargs
         self._rules = None  # type: Rules
-
-    @property
-    def base_model(self) -> Union[DecisionTreeClassifier, RandomForestClassifier]:
-        return self._base_model
-
-    @base_model.setter
-    def base_model(self, value: Union[DecisionTreeClassifier, RandomForestClassifier]):
-        if not isinstance(value, (DecisionTreeClassifier, RandomForestClassifier)):
-            raise TypeError("base_model must be an instance of DecisionTreeClassifier or "
-                            "RandomForestClassifier.")
-        if isinstance(value, DecisionTreeClassifier):
-            check_is_fitted(value, "tree_")
-        elif isinstance(value, RandomForestClassifier):
-            check_is_fitted(value, "estimators_")
-        self._base_model = value
 
     def fit(self, X: numpy.ndarray, y: numpy.ndarray) -> "Rules":
         """
@@ -207,18 +198,30 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         :param y: input labels - the same length as X.
         :return: self
         """
-        if isinstance(self.base_model, DecisionTreeClassifier):
+
+        base_model_module_name, base_model_class_name = self.base_model_type_string.rsplit(".", 1)
+        base_model_module = importlib.import_module(base_model_module_name)
+        base_model_class = getattr(base_model_module, base_model_class_name)
+
+        base_model = base_model_class(**self.base_model_kwargs)
+
+        if self.prune_branches or self.prune_attributes:
+            X_train, X_prune, y_train, y_prune = train_test_split(
+                X, y, test_size=self.prune_dataset_ratio, random_state=42)
+        else:
+            X_train, y_train = X, y
+        base_model.fit(X_train, y_train)
+
+        if isinstance(base_model, DecisionTreeClassifier):
             if self.prune_branches_algorithm == "reduced-error":
-                model = self._prune_reduced_error(self.base_model, X, y)
-            else:
-                model = self.base_model
-            rules, leaf2rule_dict = self._tree_to_rules(model)
+                base_model = self._prune_reduced_error(base_model, X_prune, y_prune)
+            rules, leaf2rule_dict = self._tree_to_rules(base_model)
             leaf2rule = [leaf2rule_dict]
         else:
             rules = []
             offset = 0
             leaf2rule = []
-            for i, estimator in enumerate(self.base_model.estimators_):
+            for i, estimator in enumerate(base_model.estimators_):
                 if self.prune_branches_algorithm == "reduced-error":
                     estimator = self._prune_reduced_error(estimator, X, y)
                 rules_partial, leaf2rule_partial = self._tree_to_rules(estimator, offset=offset)
@@ -235,10 +238,10 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         self._log.debug("Merged number of attributes: %d", count_attrs())
         if self.prune_branches:
             if self.prune_branches_algorithm == "top-down-greedy":
-                rules = self._prune_branches_top_down_greedy(rules, X, y, leaf2rule,
-                                                             self.top_down_greedy_budget)
+                rules = self._prune_branches_top_down_greedy(
+                    base_model, rules, X_prune, y_prune, leaf2rule, self.top_down_greedy_budget)
         if self.prune_attributes:
-            rules = self._prune_attributes(rules, X, y, not self.uncertain_attributes)
+            rules = self._prune_attributes(rules, X_prune, y_prune, not self.uncertain_attributes)
             self._log.debug("Pruned number of attributes (2): %d", len(rules))
             self._log.debug("Pruned number of attributes: %d", count_attrs())
         self._rules = Rules(rules, self._sanitize_params(self.get_params(True)))
@@ -392,26 +395,28 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
                     break
         return model
 
-    def _build_instances_index(self, X: numpy.ndarray,
-                               leaf2rule: Sequence[Mapping[int, int]]) -> Dict[int, Set[int]]:
+    def _build_instances_index(
+            self, base_model: Union[DecisionTreeClassifier, RandomForestClassifier],
+            X: numpy.ndarray, leaf2rule: Sequence[Mapping[int, int]]) -> Dict[int, Set[int]]:
         self._log.debug("building the instances index")
 
         instances_index = defaultdict(set)
 
-        if isinstance(self.base_model, DecisionTreeClassifier):
-            leaves = self.base_model.apply(X)  # ndim = 1
+        if isinstance(base_model, DecisionTreeClassifier):
+            leaves = base_model.apply(X)  # ndim = 1
             for i, leaf in enumerate(leaves):
                 instances_index[leaf2rule[0][leaf]].add(i)
         else:
-            leaves = self.base_model.apply(X)  # ndim = 2
+            leaves = base_model.apply(X)  # ndim = 2
             for i, col in enumerate(leaves):
                 for leaf, l2r in zip(col, leaf2rule):
                     instances_index[l2r[leaf]].add(i)
         return instances_index
 
-    def _prune_branches_top_down_greedy(self, rules: Sequence[Rule], X: numpy.ndarray,
-                                        Y: numpy.ndarray, leaf2rule: Sequence[Mapping[int, int]],
-                                        budget: TopDownGreedyBudget) -> List[Rule]:
+    def _prune_branches_top_down_greedy(
+            self, base_model: Union[DecisionTreeClassifier, RandomForestClassifier],
+            rules: Sequence[Rule], X: numpy.ndarray, Y: numpy.ndarray,
+            leaf2rule: Sequence[Mapping[int, int]], budget: TopDownGreedyBudget) -> List[Rule]:
         absolute, value = budget
         if absolute:
             assert isinstance(value, int)
@@ -419,7 +424,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         else:
             assert value >= 0 and value <= 1
             n_budget = int(max(0, min(value * len(rules), len(rules))))
-        instances_index = self._build_instances_index(X, leaf2rule)
+        instances_index = self._build_instances_index(base_model, X, leaf2rule)
         confs_index = numpy.full(X.shape[0], -1.)
         clss_index = numpy.full(X.shape[0], -1)
         candidate_rules = set(range(len(rules)))
@@ -524,8 +529,6 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         """
         sanitized = {}
         for k, v in params.items():
-            if k == "base_model" or v is None:
-                continue
             if isinstance(v, (list, tuple)):
                 v = list(v)
             sanitized[k] = v
