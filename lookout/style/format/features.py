@@ -50,6 +50,12 @@ class VirtualNode:
         """
 
         outer_token = file[node.start_position.offset:node.end_position.offset]
+        if not node.token:
+            yield VirtualNode(outer_token,
+                              Position(*[f[1] for f in node.start_position.ListFields()]),
+                              Position(*[f[1] for f in node.end_position.ListFields()]),
+                              node=node)
+            return
         start_offset = outer_token.find(node.token)
         start_pos = node.start_position.offset + start_offset
         if start_offset:
@@ -403,7 +409,7 @@ class FeatureExtractor:
             for child in node.children:
                 parents[id(child)] = node
             queue.extend(node.children)
-            if node.token:
+            if node.token or node.start_position and node.end_position and not node.children:
                 node_tokens.append(node)
         node_tokens.sort(key=lambda n: n.start_position.offset)
         sentinel = bblfsh.Node()

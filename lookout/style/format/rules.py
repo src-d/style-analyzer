@@ -425,10 +425,9 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         # TODO(vmarkovtsev): implement this function
         return rules
 
-    def _build_instances_index(self, rules: Sequence[Rule], X: numpy.ndarray,
+    def _build_instances_index(self, X: numpy.ndarray,
                                leaf2rule: Sequence[Mapping[int, int]]) -> Dict[int, Set[int]]:
-
-        self._log.debug("building instances index")
+        self._log.debug("building the instances index")
 
         instances_index = defaultdict(set)
 
@@ -453,7 +452,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         else:
             assert value >= 0 and value <= 1
             n_budget = int(max(0, min(value * len(rules), len(rules))))
-        instances_index = self._build_instances_index(rules, X, leaf2rule)
+        instances_index = self._build_instances_index(X, leaf2rule)
         confs_index = numpy.full(X.shape[0], -1.)
         clss_index = numpy.full(X.shape[0], -1)
         candidate_rules = set(range(len(rules)))

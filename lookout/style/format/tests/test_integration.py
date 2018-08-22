@@ -1,10 +1,10 @@
 import lzma
-import unittest
 from pathlib import Path
-
-from sklearn import model_selection, tree
+import unittest
 
 import bblfsh
+from sklearn import model_selection, tree
+
 from lookout.core.api.service_data_pb2 import File
 from lookout.style.format.features import FeatureExtractor
 from lookout.style.format.rules import TrainableRules
