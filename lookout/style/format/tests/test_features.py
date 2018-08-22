@@ -1,9 +1,10 @@
-import lzma
-import unittest
 from collections import defaultdict
+import lzma
 from pathlib import Path
+import unittest
 
 import bblfsh
+import numpy
 
 from lookout.core.api.service_data_pb2 import File
 from lookout.style.format.features import (CLASSES, CLS_NEWLINE,
@@ -72,6 +73,7 @@ class FeaturesTests(unittest.TestCase):
         self.assertTrue(X.shape[1],
                         (1 + self.extractor.parents_depth + self.extractor.siblings_window * 2)
                         * self.extractor.feature_names)
+        self.assertFalse(numpy.any(numpy.all(X == -1, axis=1)))
 
 
 if __name__ == "__main__":

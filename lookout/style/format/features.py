@@ -97,8 +97,7 @@ CLASS_INDEX = {cls: i for i, cls in enumerate(CLASSES)}
 
 class FeatureExtractor:
 
-    feature_names = ["start_offset", "start_line", "start_col", "end_offset", "end_line",
-                     "end_col", "internal_role"]
+    feature_names = ["start_line", "end_line", "start_col", "end_col", "role_id"]
 
     _log = logging.getLogger("FeaturesExtractor")
 
@@ -143,10 +142,10 @@ class FeatureExtractor:
             (y.shape[0],
              (1 + self.siblings_window * 2 + self.parents_depth) * len(self.feature_names)),
             -1)
-        line_offset = 0
+        global_line_offset = 0
         for (vnodes, parents), partial_labels in zip(parsed_files, labels):
-            self._inplace_write_vnodes_features(vnodes, parents, line_offset, X)
-            line_offset += len(labels)
+            self._inplace_write_vnodes_features(vnodes, parents, global_line_offset, X)
+            global_line_offset += len(partial_labels)
         return X, y
 
     def _classify_vnodes(self, nodes: Iterable[VirtualNode]) -> List[VirtualNode]:
@@ -281,8 +280,10 @@ class FeatureExtractor:
         if vnode is vnode_focused:
             pos = vnode_focused_pos
         else:
-            vnode_pos = (vnode.start.line, vnode.end.line, vnode.start.col, vnode.end.col)
-            pos = tuple(map(lambda a, b: abs(a - b), vnode_focused_pos, vnode_pos))
+            pos = (abs(vnode.start.line - vnode_focused_pos[0]),
+                   abs(vnode.end.line - vnode_focused_pos[1]),
+                   vnode.start.col - vnode_focused_pos[2],
+                   vnode.end.col - vnode_focused_pos[3])
         role_index = -1
         if vnode.node:
             role = vnode.node.internal_type
@@ -313,7 +314,7 @@ class FeatureExtractor:
         return closest_left_parent if closest_left_parent is next_right_parent else None
 
     def _inplace_write_vnodes_features(self, vnodes: Sequence[VirtualNode],
-                                       parents: Mapping[int, bblfsh.Node], line_offset: int,
+                                       parents: Mapping[int, bblfsh.Node], global_line_offset: int,
                                        X: numpy.ndarray) -> None:
         """
         Given a sequence of `VirtualNode`-s and relevant info, compute the input matrix and label
@@ -321,12 +322,12 @@ class FeatureExtractor:
 
         :param vnodes: sequence of `VirtualNode`-s
         :param parents: dictionnary of node id to parent node
-        :param line_offset: at which line of the input ndarrays should we start writing
+        :param global_line_offset: at which line of the input ndarrays should we start writing
         :param X: features matrix
         """
         closest_left_parent = None
-        i = 0
-        for vnode in vnodes:
+        current_line_offset = 0
+        for i, vnode in enumerate(vnodes):
             if vnode.node:
                 closest_left_parent = parents[id(vnode.node)]
             if not vnode.y:
@@ -349,24 +350,28 @@ class FeatureExtractor:
 
             # complete the feature ndarray by taking the dummies into account in 4 steps:
             # 1. write the node itself's features
-            self._inplace_write_vnode_features(vnode, vnode, i + line_offset, 0, X)
+            self._inplace_write_vnode_features(vnode, vnode,
+                                               current_line_offset + global_line_offset, 0, X)
             # 2. write the node's left siblings features
             # The offset is now 1 (the node) + n_dummies_left (if there are not enough siblings on
             # the left to obtain siblings_window features)
             for j, left_vnode in enumerate(vnodes[max(0, i - self.siblings_window):i]):
-                self._inplace_write_vnode_features(left_vnode, vnode, i + line_offset,
+                self._inplace_write_vnode_features(left_vnode, vnode,
+                                                   current_line_offset + global_line_offset,
                                                    1 + n_dummies_left + j, X)
             # 3. write the node's right siblings features
             # The offset is now 1 (the node) + siblings_window (the node's siblings on the left)
             for j, right_vnode in enumerate(vnodes[i + 1:i + 1 + self.siblings_window]):
-                self._inplace_write_vnode_features(right_vnode, vnode, i + line_offset,
+                self._inplace_write_vnode_features(right_vnode, vnode,
+                                                   current_line_offset + global_line_offset,
                                                    1 + self.siblings_window + j, X)
             # 4. write the node's parents features.
             # The offset is now 1 (the node) + 2 * siblings (the node's siblings on both sides)
             for j, parent_vnode in enumerate(parents_list):
-                self._inplace_write_vnode_features(parent_vnode, vnode, i + line_offset,
+                self._inplace_write_vnode_features(parent_vnode, vnode,
+                                                   current_line_offset + global_line_offset,
                                                    1 + self.siblings_window * 2 + j, X)
-            i += 1
+            current_line_offset += 1
 
     def _parse_file(self, contents: str, root: bblfsh.Node) -> \
             Tuple[List[VirtualNode], Dict[int, bblfsh.Node]]:
