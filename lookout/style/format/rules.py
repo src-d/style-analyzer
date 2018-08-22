@@ -12,6 +12,7 @@ from scipy.stats import fisher_exact
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.exceptions import NotFittedError
+from sklearn.metrics import accuracy_score
 from sklearn.tree import _tree as Tree, DecisionTreeClassifier
 from sklearn.utils.validation import check_is_fitted
 
@@ -273,6 +274,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
                                  algorithm. Available for DecisionTreeClassifier model only.
         """
         super().__init__()
+        self.prune_branches_algorithm = prune_branches_algorithm
         self.base_model = base_model
         self.prune_branches = prune_branches
         self.top_down_greedy_budget = top_down_greedy_budget
@@ -428,85 +430,72 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
             new_rules.append(Rule(tuple(new_rule), stats))
         return new_rules
 
-    @classmethod
-    def _compile_rules(cls, rules: Sequence[Rule]) -> CompiledRulesType:
-        attrs = defaultdict(lambda: defaultdict(lambda: [[], []]))
-        for i, (branch, _) in enumerate(rules):
-            for rule in branch:
-                attrs[rule.feature][rule.threshold][rule.cmp].append(i)
-        compiled_attrs = {}
-        for key, attr in attrs.items():
-            vals = sorted(attr)
-            false_rules = set()
-            true_rules = set()
-            vr = [[None, None] for _ in vals]
-            for i in range(len(vals)):
-                false_rules.update(attr[vals[i]][False])
-                true_rules.update(attr[vals[len(vals) - i - 1]][True])
-                vr[i][False] = numpy.array(sorted(false_rules))
-                vr[len(vr) - i - 1][True] = numpy.array(sorted(true_rules))
-            compiled_attrs[key] = cls.CompiledFeatureRules(
-                numpy.array(vals, dtype=numpy.float32),
-                tuple(cls.CompiledNegatedRules(*v) for v in vr))
-        return compiled_attrs
-
     @staticmethod
-    def _get_parents(tree: DecisionTreeClassifier) -> Dict[int, int]:
+    def _get_parents(tree: Tree.Tree) -> Dict[int, int]:
             parents = {x: i for i, x in enumerate(tree.children_left) if x != Tree.TREE_LEAF}
             parents.update(
                 {x: i for i, x in enumerate(tree.children_right) if x != Tree.TREE_LEAF})
             return parents
 
     @classmethod
-    def _prune_reduced_error(cls, model: DecisionTreeClassifier, validation_X, validation_y,
-                             possible_step_score_drop=0, possible_max_score_drop=0, verbose=False):
+    def _prune_reduced_error(cls, model: DecisionTreeClassifier, X: numpy.array, y: numpy.array,
+                             step_score_drop: float = 0,
+                             max_score_drop: float = 0) -> DecisionTreeClassifier:
         def _prune_tree(tree, node_to_prune):
-            backup = (tree.children_left[node_to_prune],
-                      tree.children_right[node_to_prune],
-                      tree.feature[node_to_prune])
             tree.children_left[node_to_prune] = Tree.TREE_LEAF
             tree.children_right[node_to_prune] = Tree.TREE_LEAF
             tree.feature[node_to_prune] = Tree.TREE_UNDEFINED
-            return backup
-
-        def _restore_tree(tree, node, backup):
-            tree.children_left[node], tree.children_right[node], tree.feature[node] = backup
 
         model = deepcopy(model)
         tree = model.tree_
-        init_score = current_score = model.score(validation_X, validation_y)
         changes = True
-        bad_change = set()
+        checked = set()
         parents = cls._get_parents(tree)
         leaves = list(numpy.where(tree.children_left == Tree.TREE_LEAF)[0])
+        decision_path = {leaf: d.nonzero()[1] for leaf, d in
+                         zip(leaves, model.decision_path(X).T[leaves])}
+        y_predicted = model.predict(X)
+        init_score = current_score = accuracy_score(y, y_predicted)
         while changes:
             changes = False
-            for leaf_index, leaf in enumerate(leaves):
-                if leaf not in parents:
+            for leaf_index, leaf1 in enumerate(leaves):
+                if leaf1 not in parents:
                     continue
-                parent = parents[leaf]
-                if parent in bad_change:
+                parent = parents[leaf1]
+                if parent in checked:
                     continue
-                second_leaf = tree.children_right[parent]
-                second_leaf = second_leaf if second_leaf != leaf else tree.children_left[parent]
-                if tree.children_left[second_leaf] != Tree.TREE_LEAF or \
-                        tree.children_right[second_leaf] != Tree.TREE_LEAF:
+                leaf2 = tree.children_right[parent]
+                leaf2 = leaf2 if leaf2 != leaf1 else tree.children_left[parent]
+                if tree.children_left[leaf2] != Tree.TREE_LEAF or \
+                        tree.children_right[leaf2] != Tree.TREE_LEAF:
                     continue
 
-                backup = _prune_tree(tree, parent)
-                new_score = model.score(validation_X, validation_y)
-                score_change = (new_score - current_score) / current_score
-                full_score_change = (new_score - init_score) / init_score
-                if score_change < possible_step_score_drop or \
-                        full_score_change < possible_max_score_drop:
-                    _restore_tree(tree, parent, backup)
-                    bad_change.add(parent)
+                data_leaf1_index = decision_path[leaf1]
+                data_leaf2_index = decision_path[leaf2]
+                data_parent_index = numpy.concatenate((data_leaf1_index, data_leaf2_index))
+                y_predicted_leaf1 = model.classes_[numpy.argmax(tree.value[leaf1, 0, :])]
+                y_predicted_leaf2 = model.classes_[numpy.argmax(tree.value[leaf2, 0, :])]
+                new_y = model.classes_[numpy.argmax(tree.value[parent, 0, :])]
+
+                score_delta = (numpy.sum(new_y == y[data_parent_index]) -
+                               numpy.sum(y_predicted_leaf1 == y[data_leaf1_index]) -
+                               numpy.sum(y_predicted_leaf2 == y[data_leaf2_index])) \
+                    / X.shape[0]
+
+                if score_delta / init_score < max_score_drop or \
+                        score_delta / current_score < step_score_drop:
+                    checked.add(parent)
+                    continue
                 else:
-                    cls.log.debug("Remove %d and %d leaves. Score change: %f" % (
-                        backup[0], backup[1], score_change))
-                    current_score = new_score
-                    leaves.remove(second_leaf)
+                    cls._log.info("Remove %d and %d leaves, parent: %d. Score change: %f" % (
+                        leaf1, leaf2, parent, score_delta))
+                    current_score += score_delta
+                    leaves.remove(leaf2)
                     leaves[leaf_index] = parent
+                    _prune_tree(tree, parent)
+                    y_predicted[data_parent_index] = new_y
+                    del decision_path[leaf1], decision_path[leaf2]
+                    decision_path[parent] = data_parent_index
                     changes = True
                     break
         return model
