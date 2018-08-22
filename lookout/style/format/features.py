@@ -103,7 +103,11 @@ CLASS_INDEX = {cls: i for i, cls in enumerate(CLASSES)}
 
 class FeatureExtractor:
 
-    feature_names = ["start_line", "end_line", "start_col", "end_col", "role_id"]
+    self_features = ["start_line", "end_line", "start_col", "end_col"]
+    left_siblings_features = ["start_line_diff", "end_line_diff", "start_col_diff", "end_col_diff",
+                              "role_id"]
+    right_siblings_features = ["role_id"]
+    parents_features = ["role_id"]
 
     _log = logging.getLogger("FeaturesExtractor")
 
@@ -146,7 +150,10 @@ class FeatureExtractor:
         y = numpy.concatenate(labels)
         X = numpy.full(
             (y.shape[0],
-             (1 + self.siblings_window * 2 + self.parents_depth) * len(self.feature_names)),
+             len(self.self_features)
+             + self.siblings_window * len(self.left_siblings_features)
+             + self.siblings_window * len(self.right_siblings_features)
+             + self.parents_depth * len(self.parents_features)),
             -1)
         global_line_offset = 0
         for (vnodes, parents), partial_labels in zip(parsed_files, labels):
@@ -268,40 +275,34 @@ class FeatureExtractor:
                             y=cls))
         return result
 
-    def _inplace_write_vnode_features(self, vnode: VirtualNode, vnode_focused: VirtualNode,
-                                      row: int, vnode_index: int, features: numpy.ndarray) -> None:
-        """
-        Given a feature `numpy.ndarray`, a `VirtualNode`, a row and a feature index, write the
-        features of the vnode at the correct location in the feature matrix.
-
-        :param vnode: `VirtualNode` we want to write the features of.
-        :param vnode_focused: the focused `VirtualNode` we'll compare our characteristics with
-        :param row: on which row to write the features.
-        :param vnode_index: the column at which we'll start writing the features is \
-                            vnode_index * n_features.
-        :param features: `numpy.ndarray` the features matrix.
-        """
-        vnode_focused_pos = (vnode_focused.start.line, vnode_focused.end.line,
-                             vnode_focused.start.col, vnode_focused.end.col)
-        if vnode is vnode_focused:
-            pos = vnode_focused_pos
-        else:
-            pos = (abs(vnode.start.line - vnode_focused_pos[0]),
-                   abs(vnode.end.line - vnode_focused_pos[1]),
-                   vnode.start.col - vnode_focused_pos[2],
-                   vnode.end.col - vnode_focused_pos[3])
+    def _get_role_index(self, vnode: VirtualNode) -> int:
         role_index = -1
         if vnode.node:
             role = vnode.node.internal_type
             if role in self.roles.ROLE_INDEX:
                 role_index = self.roles.ROLE_INDEX[role]
-        col = vnode_index * len(self.feature_names)
-        features[row, col:col + 4] = pos
-        features[row, col + 4] = role_index
+        return role_index
+
+    def _get_self_features(self, vnode: VirtualNode) -> Sequence[int]:
+        return (vnode.start.line, vnode.end.line, vnode.start.col, vnode.end.col)
+
+    def _get_left_sibling_features(self, left_sibling_vnode: VirtualNode, vnode: VirtualNode
+                                   ) -> Sequence[int]:
+        return (abs(left_sibling_vnode.start.line - vnode.start.line),
+                abs(left_sibling_vnode.end.line - vnode.end.line),
+                left_sibling_vnode.start.col - vnode.start.col,
+                left_sibling_vnode.end.col - vnode.end.col,
+                self._get_role_index(left_sibling_vnode))
+
+    def _get_right_sibling_features(self, right_sibling_vnode: VirtualNode) -> Sequence[int]:
+        return self._get_role_index(right_sibling_vnode),
+
+    def _get_parent_features(self, parent_node: bblfsh.Node) -> Sequence[int]:
+        return self.roles.ROLE_INDEX.get(parent_node.internal_type, -1),
 
     @staticmethod
     def _find_parent(vnode_index: int, vnodes: Sequence[VirtualNode],
-                     parents: Mapping[int, bblfsh.Node], closest_left_parent: bblfsh.Node
+                     parents: Mapping[int, bblfsh.Node], closest_left_node_id: int
                      ) -> Optional[bblfsh.Node]:
         """
         Compute current vnode parent. If both left and right closest parent are the same then we
@@ -310,14 +311,41 @@ class FeatureExtractor:
         :param vnode_index: the index of the current node
         :param vnodes: the sequence of `VirtualNode`-s being transformed into features
         :param parents: the id of bblfsh node to parent bblfsh node mapping
-        :oaram closest_left_parent: bblfsh node of the closest parent already gone through
+        :param closest_left_parent: bblfsh node of the closest parent already gone through
         """
-        next_right_parent = None
+        left_ancestors = set()
+        current_left_ancestor_id = closest_left_node_id
+        while current_left_ancestor_id in parents:
+            left_ancestors.add(id(parents[current_left_ancestor_id]))
+            current_left_ancestor_id = id(parents[current_left_ancestor_id])
+
         for future_vnode in vnodes[vnode_index + 1:]:
             if future_vnode.node:
-                next_right_parent = parents[id(future_vnode.node)]
                 break
-        return closest_left_parent if closest_left_parent is next_right_parent else None
+        else:
+            return None
+        current_right_ancestor_id = id(future_vnode.node)
+        while current_right_ancestor_id in parents:
+            if id(parents[current_right_ancestor_id]) in left_ancestors:
+                return parents[current_right_ancestor_id]
+            current_right_ancestor_id = id(parents[current_right_ancestor_id])
+        return None
+
+    @staticmethod
+    def _inplace_write_features(features: Sequence[int], row: int, col: int, X: numpy.ndarray
+                                ) -> int:
+        """
+        Write features in X at the given location (row, col) and return the number of features
+        written.
+
+        :param features: the features
+        :param row: the row where we should write
+        :param col: the column where we should write
+        :param X: the feature matrix
+        :return: the number of features written
+        """
+        X[row, col:col + len(features)] = features
+        return len(features)
 
     def _inplace_write_vnodes_features(self, vnodes: Sequence[VirtualNode],
                                        parents: Mapping[int, bblfsh.Node], global_line_offset: int,
@@ -331,53 +359,52 @@ class FeatureExtractor:
         :param global_line_offset: at which line of the input ndarrays should we start writing
         :param X: features matrix
         """
-        closest_left_parent = None
-        current_line_offset = 0
+        closest_left_node_id = None
+        line_offset = global_line_offset
         for i, vnode in enumerate(vnodes):
             if vnode.node:
-                closest_left_parent = parents[id(vnode.node)]
+                closest_left_node_id = id(vnode.node)
             if not vnode.y:
                 continue
-            parent = self._find_parent(i, vnodes, parents, closest_left_parent)
+            if self.parents_depth:
+                parent = self._find_parent(i, vnodes, parents, closest_left_node_id)
 
-            # compute how many dummy features we'll need to account for the lack of left and right
-            # siblings and the lack of parents
-            n_dummies_left = abs(min(i - self.siblings_window, 0))
             parents_list = []
             if parent:
-                current_vnode = vnode
+                current_ancestor = parent
                 for j in range(self.parents_depth):
-                    node_id = id(current_vnode)
-                    if node_id not in parents:
+                    parents_list.append(current_ancestor)
+                    current_ancestor_id = id(current_ancestor)
+                    if current_ancestor_id not in parents:
                         break
-                    parent = parents[node_id]
-                    parents_list.append(parent)
-                    current_vnode = parent
+                    current_ancestor = parents[current_ancestor_id]
 
-            # complete the feature ndarray by taking the dummies into account in 4 steps:
-            # 1. write the node itself's features
-            self._inplace_write_vnode_features(vnode, vnode,
-                                               current_line_offset + global_line_offset, 0, X)
-            # 2. write the node's left siblings features
-            # The offset is now 1 (the node) + n_dummies_left (if there are not enough siblings on
-            # the left to obtain siblings_window features)
-            for j, left_vnode in enumerate(vnodes[max(0, i - self.siblings_window):i]):
-                self._inplace_write_vnode_features(left_vnode, vnode,
-                                                   current_line_offset + global_line_offset,
-                                                   1 + n_dummies_left + j, X)
-            # 3. write the node's right siblings features
-            # The offset is now 1 (the node) + siblings_window (the node's siblings on the left)
-            for j, right_vnode in enumerate(vnodes[i + 1:i + 1 + self.siblings_window]):
-                self._inplace_write_vnode_features(right_vnode, vnode,
-                                                   current_line_offset + global_line_offset,
-                                                   1 + self.siblings_window + j, X)
-            # 4. write the node's parents features.
-            # The offset is now 1 (the node) + 2 * siblings (the node's siblings on both sides)
-            for j, parent_vnode in enumerate(parents_list):
-                self._inplace_write_vnode_features(parent_vnode, vnode,
-                                                   current_line_offset + global_line_offset,
-                                                   1 + self.siblings_window * 2 + j, X)
-            current_line_offset += 1
+            col_offset = 0
+
+            # 1. write features of the current node
+            col_offset += self._inplace_write_features(self._get_self_features(vnode),
+                                                       line_offset, col_offset, X)
+            # 2. account for the possible lack of siblings by adjusting offset and write features
+            # of the left siblings of the current node
+            col_offset += abs(min(i - self.siblings_window, 0)) * len(self.left_siblings_features)
+            for left_vnode in vnodes[max(0, i - self.siblings_window):i]:
+                col_offset += self._inplace_write_features(
+                    self._get_left_sibling_features(left_vnode, vnode), line_offset, col_offset, X)
+
+            # 3. write features of the right siblings of the current node and account for the
+            # possible lack of siblings by adjusting offset
+            for right_vnode in vnodes[i + 1:i + 1 + self.siblings_window]:
+                col_offset += self._inplace_write_features(
+                    self._get_right_sibling_features(right_vnode), line_offset, col_offset, X)
+            col_offset += (max(i + self.siblings_window - len(vnodes) + 1, 0)
+                           * len(self.right_siblings_features))
+
+            # 4. write features of the parents of the current node
+            for parent_vnode in parents_list:
+                col_offset += self._inplace_write_features(
+                    self._get_parent_features(parent_vnode), line_offset, col_offset, X)
+
+            line_offset += 1
 
     def _parse_file(self, contents: str, root: bblfsh.Node) -> \
             Tuple[List[VirtualNode], Dict[int, bblfsh.Node]]:
