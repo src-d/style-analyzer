@@ -7,7 +7,7 @@ from sklearn import model_selection, tree
 import bblfsh
 from lookout.core.api.service_data_pb2 import File
 from lookout.style.format.features import FeatureExtractor
-from lookout.style.format.rules import Rules
+from lookout.style.format.rules import TrainableRules
 
 
 class IntegrationTests(unittest.TestCase):
@@ -33,7 +33,7 @@ class IntegrationTests(unittest.TestCase):
 
         model = tree.DecisionTreeClassifier(min_samples_leaf=26, random_state=1989)
         model.fit(train_X, train_y)
-        rules = Rules(model, prune_branches=False, prune_attributes=False)
+        rules = TrainableRules(model, prune_branches=False, prune_attributes=False)
         rules.fit(train_X, train_y)
         model_score_train = model.score(train_X, train_y)
         model_score_test = model.score(test_X, test_y)
