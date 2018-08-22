@@ -6,7 +6,7 @@ import pandas
 from sklearn import model_selection, tree, ensemble
 from sklearn.exceptions import NotFittedError
 
-from lookout.style.format.rules import Rules
+from lookout.style.format.rules import TrainableRules
 
 
 def load_abalone_data(filepath=os.path.join(os.path.dirname(__file__), "abalone.data.xz")):
@@ -44,12 +44,15 @@ class RulesTests(unittest.TestCase):
     def test_set_unfitted_item(self):
         model = tree.DecisionTreeClassifier(min_samples_leaf=26, random_state=1989)
         with self.assertRaises(NotFittedError):
-            Rules(model, prune_branches=False, prune_attributes=False)
+            TrainableRules(model, prune_branches=False, prune_attributes=False)
+        model = ensemble.RandomForestClassifier(min_samples_leaf=26, random_state=1989)
+        with self.assertRaises(NotFittedError):
+            TrainableRules(model, prune_branches=False, prune_attributes=False)
 
     def test_tree_no_pruning(self):
         model = tree.DecisionTreeClassifier(min_samples_leaf=26, random_state=1989)
         model = model.fit(self.train_x, self.train_y)
-        rules = Rules(model, prune_branches=False, prune_attributes=False)
+        rules = TrainableRules(model, prune_branches=False, prune_attributes=False)
         rules.fit(self.train_x, self.train_y)
         tree_score = model.score(self.train_x, self.train_y)
         rules_score = rules.score(self.train_x, self.train_y)
@@ -59,7 +62,7 @@ class RulesTests(unittest.TestCase):
         model = ensemble.RandomForestClassifier(n_estimators=50, min_samples_leaf=26,
                                                 random_state=1989)
         model = model.fit(self.train_x, self.train_y)
-        rules = Rules(model, prune_branches=False, prune_attributes=False)
+        rules = TrainableRules(model, prune_branches=False, prune_attributes=False)
         rules.fit(self.train_x, self.train_y)
         forest_score = model.score(self.train_x, self.train_y)
         rules_score = rules.score(self.train_x, self.train_y)
@@ -68,7 +71,7 @@ class RulesTests(unittest.TestCase):
     def test_tree_attr_pruning(self):
         model = tree.DecisionTreeClassifier(min_samples_leaf=26, random_state=1989)
         model = model.fit(self.train_x, self.train_y)
-        rules = Rules(model, prune_branches=False, prune_attributes=True)
+        rules = TrainableRules(model, prune_branches=False, prune_attributes=True)
         rules.fit(self.train_x, self.train_y)
         tree_score = model.score(self.test_x, self.test_y)
         rules_score = rules.score(self.test_x, self.test_y)
@@ -79,8 +82,9 @@ class RulesTests(unittest.TestCase):
         model = model.fit(self.train_x, self.train_y)
 
         def test_budget(budget):
-            rules = Rules(model, prune_branches_algorithm="top-down-greedy", prune_branches=True,
-                          prune_attributes=False, top_down_greedy_budget=(False, budget))
+            rules = TrainableRules(
+                model, prune_branches_algorithm="top-down-greedy", prune_branches=True,
+                prune_attributes=False, top_down_greedy_budget=(False, budget))
             rules.fit(self.train_x, self.train_y)
             return rules.score(self.train_x, self.train_y)
         scores = [test_budget(x) for x in numpy.linspace(0, 1, 10)]

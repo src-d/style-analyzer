@@ -1,5 +1,6 @@
 from collections import defaultdict
 import functools
+import io
 from itertools import islice
 import logging
 from typing import Any, Dict, Iterable, List, Mapping, NamedTuple, Sequence, Set, Tuple, Union
@@ -12,7 +13,6 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.exceptions import NotFittedError
 from sklearn.tree import _tree as Tree, DecisionTreeClassifier
 from sklearn.utils.validation import check_is_fitted
-
 
 RuleAttribute = NamedTuple(
     "RuleAttribute", (("feature", int), ("cmp", bool), ("threshold", float)))
@@ -41,7 +41,7 @@ class FormatModel(modelforge.Model):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self._rules_by_lang = {}
+        self._rules_by_lang = {}  # type: Dict[str, Rules]
 
     @property
     def languages(self):
@@ -55,33 +55,24 @@ class FormatModel(modelforge.Model):
     def dump(self) -> str:
         if len(self) == 0:
             return "<empty FormatModel>"
-        languages = self.languages
-        param_names = self[languages[0]].get_saved_param_names()
-        return "Model languages: %s.\n" \
-               "First model's params: %s\n" \
-               "First model's rules number: %d.\n" % \
-               (languages,
-                ", ".join(["%s=%s" % (p, str(getattr(self[languages[0]], p)))
-                           for p in param_names]),
-                len(self[languages[0]]._rules))
+        result = io.StringIO()
+        for i, (lang, rules) in enumerate(sorted(self._rules_by_lang.items())):
+            result.write("# %s\n%s" % (lang, rules))
+            if i < len(self._rules_by_lang) - 1:
+                result.write("\n\n")
+        return result.getvalue()
 
     def _generate_tree(self) -> dict:
         languages = self.languages
         return dict(
             languages=languages,
-            paramss=[self[lang].get_saved_params() for lang in languages],
-            ruless=[self._disassemble_rules(self[lang]._rules) for lang in languages],
+            paramss=[self[lang].origin for lang in languages],
+            ruless=[self._disassemble_rules(self[lang].rules) for lang in languages],
         )
 
     def _load_tree(self, tree: dict) -> None:
         for name, params, rules in zip(tree["languages"], tree["paramss"], tree["ruless"]):
-            params = dict(params)
-            params["top_down_greedy_budget"] = Rules.TopDownGreedyBudget(
-                *params["top_down_greedy_budget"])
-            params["_rules"] = self._assemble_rules(rules)
-            _rules = Rules.__new__(Rules)
-            _rules.__setstate__(params)
-            self[name] = _rules
+            self[name] = Rules(self._assemble_rules(rules), params)
 
     def __len__(self) -> int:
         return len(self._rules_by_lang)
@@ -98,8 +89,6 @@ class FormatModel(modelforge.Model):
         """
         Set a new Rules estimator to the model by its language.
         """
-        if not rules.fitted:
-            raise NotFittedError("Rules estimator should be fitted before adding to FormatModel.")
         self._rules_by_lang[lang] = rules
 
     def __iter__(self):
@@ -125,7 +114,7 @@ class FormatModel(modelforge.Model):
             features = numpy.fromiter(features, numpy.uint16, rule_len)
             cmps = numpy.fromiter(cmps, numpy.bool, rule_len)
             thresholds = numpy.fromiter(thresholds, numpy.float32, rule_len)
-            return (rule.stats.cls, rule.stats.conf, features, cmps, thresholds, rule_len)
+            return rule.stats.cls, rule.stats.conf, features, cmps, thresholds, rule_len
 
         disassembled_rules = list(zip(*[disassemble_rule(rule) for rule in rules]))
         return dict(
@@ -138,7 +127,7 @@ class FormatModel(modelforge.Model):
         )
 
 
-class Rules(BaseEstimator, ClassifierMixin):
+class Rules:
     CompiledNegatedRules = NamedTuple("CompiledNegatedRules", (
         ("false", numpy.ndarray), ("true", numpy.ndarray)))
     """
@@ -150,42 +139,144 @@ class Rules(BaseEstimator, ClassifierMixin):
 
     CompiledRulesType = Dict[int, CompiledFeatureRules]
 
+    _log = logging.getLogger("Rules")
+
+    def __init__(self, rules: List[Rule], origin: Mapping[str, Any]):
+        """
+        Initializes the rules so that it is possible to call predict() afterwards.
+
+        :param rules: the list of rules to assign.
+        :param origin: the dictionary of parameters used to train the rules.
+        """
+        super().__init__()
+        assert rules is not None, "rules may not be None"
+        self._rules = rules
+        self._compiled = self._compile(rules)
+        self._origin = origin
+
+    def __str__(self):
+        return "%d rules, avg.len. %.1f" % (len(self._rules), self.avg_rule_len)
+
+    def __len__(self):
+        return len(self._rules)
+
+    def predict(self, X: numpy.ndarray) -> numpy.ndarray:
+        """
+        Evaluates the rules against the given features.
+
+        :param X: input features.
+        :return: array of the same length as X with predictions.
+        """
+        self._log.debug("predicting %d samples using %d rules", len(X), len(self._rules))
+        rules = self._rules
+        _compute_triggered = self._compute_triggered
+        prediction = numpy.zeros(len(X), dtype=int)
+        for xi, x in enumerate(X):
+            ris = _compute_triggered(self._compiled, rules, x)
+            if len(ris) == 0:
+                # self._log.warning("no rule!")
+                continue
+            if len(ris) > 1:
+                confs = numpy.zeros(len(ris), dtype=numpy.float32)
+                for i, ri in enumerate(ris):
+                    confs[i] = rules[ri].stats.conf
+                winner = rules[ris[numpy.argmax(confs)]].stats.cls
+            else:
+                winner = rules[ris[0]].stats.cls
+            prediction[xi] = winner
+        return prediction
+
+    @property
+    def rules(self) -> List[Rule]:
+        return self._rules
+
+    @property
+    def origin(self) -> Mapping[str, Any]:
+        return self._origin
+
+    @property
+    def avg_rule_len(self):
+        return sum(len(r.attrs) for r in self._rules) / len(self._rules)
+
+    @classmethod
+    def _compile(cls, rules: Sequence[Rule]) -> CompiledRulesType:
+        cls._log.debug("compiling %d rules", len(rules))
+        attrs = defaultdict(lambda: defaultdict(lambda: [[], []]))
+        for i, (branch, _) in enumerate(rules):
+            for rule in branch:
+                attrs[rule.feature][rule.threshold][int(rule.cmp)].append(i)
+        compiled_attrs = {}
+        for key, attr in attrs.items():
+            vals = sorted(attr)
+            false_rules = set()
+            true_rules = set()
+            vr = [[None, None] for _ in vals]
+            for i in range(len(vals)):
+                false_rules.update(attr[vals[i]][False])
+                true_rules.update(attr[vals[len(vals) - i - 1]][True])
+                vr[i][False] = numpy.array(sorted(false_rules))
+                vr[len(vr) - i - 1][True] = numpy.array(sorted(true_rules))
+            compiled_attrs[key] = cls.CompiledFeatureRules(
+                numpy.array(vals, dtype=numpy.float32),
+                tuple(cls.CompiledNegatedRules(*v) for v in vr))
+        return compiled_attrs
+
+    @classmethod
+    def _compute_triggered(cls, compiled_rules: CompiledRulesType,
+                           rules: Sequence[Rule], x: numpy.ndarray
+                           ) -> numpy.ndarray:
+        searchsorted = numpy.searchsorted
+        triggered = numpy.full(len(rules), 0xff, dtype=numpy.int8)
+        for i, v in enumerate(x):
+            try:
+                vals, arules = compiled_rules[i]
+            except KeyError:
+                continue
+            border = searchsorted(vals, v)
+            if border > 0:
+                indices = arules[border - 1][False]
+                if len(indices):
+                    triggered[indices] = 0
+            if border < len(arules):
+                indices = arules[border][True]
+                if len(indices):
+                    triggered[indices] = 0
+        return numpy.nonzero(triggered)[0]
+
+
+class TrainableRules(BaseEstimator, ClassifierMixin):
     TopDownGreedyBudget = NamedTuple("TopDownGreedyBudget", (
         ("absolute", bool), ("value", Union[float, int])))
 
-    log = logging.getLogger("Rules")
+    _log = logging.getLogger("TrainableRules")
 
     def __init__(self,
                  base_model: Union[DecisionTreeClassifier, RandomForestClassifier],
-                 prune_branches: bool = True, prune_branches_algorithm: str = "top-down-greedy",
-                 top_down_greedy_budget: TopDownGreedyBudget = (False, 1.0),
-                 prune_attributes: bool = True, uncertain_attributes: bool = True):
+                 prune_branches=True, prune_branches_algorithm="top-down-greedy",
+                 top_down_greedy_budget=TopDownGreedyBudget(False, 1.0),
+                 prune_attributes=True, uncertain_attributes=True):
         """
         Initializes a new instance of Rules class.
 
         :param base_model: trained decision tree or random forest. \
                            The rules will be extracted from it.
         :param prune_branches: indicates whether to remove useless rules.
+        :param prune_branches_algorithm: chooses the pruning algorithm.
+        :param top_down_greedy_budget: how many the branches to leave, either a floating point \
+                                       number from 0 to 1 or the exact quantity.
         :param prune_attributes: indicates whether to remove useless parts of rules.
         :param uncertain_attributes: indicates whether to **retain** parts of rules with low \
                                      certainty (see "Generating Production Rules From Decision
                                      Trees" by J.R. Quinlan).
         """
-        if isinstance(base_model, DecisionTreeClassifier):
-            check_is_fitted(base_model, "tree_")
-        elif isinstance(base_model, RandomForestClassifier):
-            check_is_fitted(base_model, "estimators_")
-        else:
-            raise ValueError("base_model must be a DecisionTreeClassifier or a "
-                             "RandomForestClassifier.")
+        super().__init__()
         self.base_model = base_model
         self.prune_branches = prune_branches
         self.prune_branches_algorithm = prune_branches_algorithm
         self.top_down_greedy_budget = top_down_greedy_budget
         self.prune_attributes = prune_attributes
         self.uncertain_attributes = uncertain_attributes
-        self._compiled = None  # type: Rules.CompiledRulesType
-        self._rules = None  # type: List[Rule]
+        self._rules = None  # type: Rules
 
     @property
     def base_model(self) -> Union[DecisionTreeClassifier, RandomForestClassifier]:
@@ -196,17 +287,12 @@ class Rules(BaseEstimator, ClassifierMixin):
         if not isinstance(value, (DecisionTreeClassifier, RandomForestClassifier)):
             raise TypeError("base_model must be an instance of DecisionTreeClassifier or "
                             "RandomForestClassifier.")
+        if isinstance(value, DecisionTreeClassifier):
+            check_is_fitted(value, "tree_")
+        elif isinstance(value, RandomForestClassifier):
+            check_is_fitted(value, "estimators_")
         self._base_model = value
 
-    def _check_fittable(func):
-        @functools.wraps(func)
-        def wrapped_check_fittable(self: "Rules", *args, **kwargs):
-            if not self.fittable:
-                raise ValueError("This method requires a fittable instance of Rules.")
-            return func(self, *args, **kwargs)
-        return wrapped_check_fittable
-
-    @_check_fittable
     def fit(self, X: numpy.ndarray, y: numpy.ndarray) -> "Rules":
         """
         Trains the rules using the base tree model and the samples (X, y). If `base_model` is
@@ -232,10 +318,10 @@ class Rules(BaseEstimator, ClassifierMixin):
         def count_attrs():
             return sum(len(r.attrs) for r in rules)
 
-        self.log.debug("Initial number of rules: %d", len(rules))
-        self.log.debug("Initial number of attributes: %d", count_attrs())
+        self._log.debug("Initial number of rules: %d", len(rules))
+        self._log.debug("Initial number of attributes: %d", count_attrs())
         rules = self._merge_rules(rules)
-        self.log.debug("Merged number of attributes: %d", count_attrs())
+        self._log.debug("Merged number of attributes: %d", count_attrs())
         if self.prune_branches:
             if self.prune_branches_algorithm == "top-down-greedy":
                 rules = self._prune_branches_top_down_greedy(rules, X, y, leaf2rule,
@@ -244,29 +330,14 @@ class Rules(BaseEstimator, ClassifierMixin):
                 rules = self._prune_branches(rules, X, y)
         if self.prune_attributes:
             rules = self._prune_attributes(rules, X, y, not self.uncertain_attributes)
-            self.log.debug("Pruned number of attributes (2): %d", len(rules))
-            self.log.debug("Pruned number of attributes: %d", count_attrs())
-        self._rules = rules
-        self._compiled = self._compile_rules(self._rules)
+            self._log.debug("Pruned number of attributes (2): %d", len(rules))
+            self._log.debug("Pruned number of attributes: %d", count_attrs())
+        self._rules = Rules(rules, self._sanitize_params(self.get_params(True)))
         return self
-
-    def get_saved_param_names(self) -> Sequence[str]:
-        param_names = self._get_param_names()
-        param_names.remove("base_model")
-        return param_names
-
-    def get_saved_params(self) -> Mapping[str, Any]:
-        params = self.get_params(False)
-        return {param_name: param for param_name, param in params.items()
-                if param_name in self.get_saved_param_names()}
 
     @property
     def fitted(self):
         return self._rules is not None
-
-    @property
-    def fittable(self):
-        return self.base_model is not None
 
     def _check_fitted(func):
         @functools.wraps(func)
@@ -274,6 +345,7 @@ class Rules(BaseEstimator, ClassifierMixin):
             if not self.fitted:
                 raise NotFittedError
             return func(self, *args, **kwargs)
+
         return wrapped_check_fitted
 
     @_check_fitted
@@ -284,47 +356,13 @@ class Rules(BaseEstimator, ClassifierMixin):
         :param X: input features.
         :return: array of the same length as X with predictions.
         """
-        rules = self._rules
-        prediction = numpy.zeros(len(X), dtype=int)
-        for xi, x in enumerate(X):
-            ris = self._compute_triggered(self._compiled, rules, x)
-            if len(ris) == 0:
-                # self.log.warning("no rule!")
-                continue
-            if len(ris) > 1:
-                confs = numpy.zeros(len(ris), dtype=numpy.float32)
-                for i, ri in enumerate(ris):
-                    confs[i] = rules[ri].stats.conf
-                winner = rules[ris[numpy.argmax(confs)]].stats.cls
-            else:
-                winner = rules[ris[0]].stats.cls
-            prediction[xi] = winner
-        return prediction
+        return self._rules.predict(X)
 
     _check_fitted = staticmethod(_check_fitted)
-    _check_fittable = staticmethod(_check_fittable)
 
-    @classmethod
-    def _compute_triggered(cls, compiled_rules: CompiledRulesType,
-                           rules: Sequence[Rule], x: numpy.ndarray
-                           ) -> numpy.ndarray:
-        searchsorted = numpy.searchsorted
-        triggered = numpy.full(len(rules), 0xff, dtype=numpy.int8)
-        for i, v in enumerate(x):
-            try:
-                vals, arules = compiled_rules[i]
-            except KeyError:
-                continue
-            border = searchsorted(vals, v)
-            if border > 0:
-                indices = arules[border - 1][False]
-                if len(indices):
-                    triggered[indices] = 0
-            if border < len(arules):
-                indices = arules[border][True]
-                if len(indices):
-                    triggered[indices] = 0
-        return numpy.nonzero(triggered)[0]
+    @property
+    def rules(self) -> Rules:
+        return self._rules
 
     @classmethod
     def _tree_to_rules(cls, tree: DecisionTreeClassifier, offset: int = 0
@@ -382,28 +420,6 @@ class Rules(BaseEstimator, ClassifierMixin):
         return new_rules
 
     @classmethod
-    def _compile_rules(cls, rules: Sequence[Rule]) -> CompiledRulesType:
-        attrs = defaultdict(lambda: defaultdict(lambda: [[], []]))
-        for i, (branch, _) in enumerate(rules):
-            for rule in branch:
-                attrs[rule.feature][rule.threshold][rule.cmp].append(i)
-        compiled_attrs = {}
-        for key, attr in attrs.items():
-            vals = sorted(attr)
-            false_rules = set()
-            true_rules = set()
-            vr = [[None, None] for _ in vals]
-            for i in range(len(vals)):
-                false_rules.update(attr[vals[i]][False])
-                true_rules.update(attr[vals[len(vals) - i - 1]][True])
-                vr[i][False] = numpy.array(sorted(false_rules))
-                vr[len(vr) - i - 1][True] = numpy.array(sorted(true_rules))
-            compiled_attrs[key] = cls.CompiledFeatureRules(
-                numpy.array(vals, dtype=numpy.float32),
-                tuple(cls.CompiledNegatedRules(*v) for v in vr))
-        return compiled_attrs
-
-    @classmethod
     def _prune_branches(cls, rules: Sequence[Rule],
                         X: numpy.ndarray, Y: numpy.ndarray) -> List[Rule]:
         # TODO(vmarkovtsev): implement this function
@@ -412,7 +428,7 @@ class Rules(BaseEstimator, ClassifierMixin):
     def _build_instances_index(self, rules: Sequence[Rule], X: numpy.ndarray,
                                leaf2rule: Sequence[Mapping[int, int]]) -> Dict[int, Set[int]]:
 
-        self.log.debug("building instances index")
+        self._log.debug("building instances index")
 
         instances_index = defaultdict(set)
 
@@ -463,8 +479,8 @@ class Rules(BaseEstimator, ClassifierMixin):
                 clss_index[triggered_instance] = stats.cls
             candidate_rules.remove(best_rule_id)
             selected_rules.add(best_rule_id)
-            self.log.debug("iteration %d: selected rule %3d with %3d difference in matched Ys"
-                           % (iteration, best_rule_id, best_matched_delta))
+            self._log.debug("iteration %d: selected rule %3d with %3d difference in matched Ys"
+                            % (iteration, best_rule_id, best_matched_delta))
         return [rules[rule_id] for rule_id in selected_rules]
 
     @classmethod
@@ -532,14 +548,19 @@ class Rules(BaseEstimator, ClassifierMixin):
                 new_rules.append(Rule(tuple(new_verbs), stats))
         return new_rules
 
-    def __setstate__(self, state):
-        state["_base_model"] = None
-        super().__setstate__(state)
-        if self._rules is not None:
-            self._compiled = self._compile_rules(self._rules)
+    @staticmethod
+    def _sanitize_params(params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Normalizes the parameters from get_params() so that they are suitable for serialization.
 
-    def __getstate__(self):
-        state = super().__getstate__()
-        del state["_base_model"]
-        del state["_compiled"]
-        return state
+        :param params: dict from get_params().
+        :return: normalized dict.
+        """
+        sanitized = {}
+        for k, v in params.items():
+            if k == "base_model" or v is None:
+                continue
+            if isinstance(v, (list, tuple)):
+                v = list(v)
+            sanitized[k] = v
+        return sanitized
