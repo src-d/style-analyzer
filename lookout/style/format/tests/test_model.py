@@ -4,7 +4,8 @@ import unittest
 
 from sklearn import tree
 
-from lookout.style.format.rules import FormatModel, TrainableRules
+from lookout.style.format.model import FormatModel
+from lookout.style.format.rules import TrainableRules
 from lookout.style.format.tests.test_rules import load_abalone_data
 
 
@@ -40,9 +41,11 @@ class FormatModelTests(unittest.TestCase):
 
     def test_dump(self):
         fm = FormatModel()
-        self.assertEqual(fm.dump(), "<empty FormatModel>")
+        self.assertEqual(fm.dump(), "<unknown name>/[1, 0, 0] <unknown url> <unknown commit>")
 
-        DUMP = """# js
+        DUMP = """<unknown name>/[1, 0, 2] <unknown url> <unknown commit>
+
+# js
 85 rules, avg.len. 4.9
 
 # js2
@@ -66,17 +69,6 @@ class FormatModelTests(unittest.TestCase):
             self.assertIn(item, langs)
             langs.remove(item)
         self.assertEqual(len(langs), 0)
-
-    def test_constuct(self):
-        fm = FormatModel()
-        fm.construct((
-            ("name1", self.rules),
-            ("name2", self.rules),
-            ("name3", self.rules),
-        ))
-        self.assertIn("name1", fm)
-        self.assertIn("name2", fm)
-        self.assertIn("name3", fm)
 
 
 if __name__ == "__main__":

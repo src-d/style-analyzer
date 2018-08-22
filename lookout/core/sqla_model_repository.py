@@ -13,7 +13,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy_utils import database_exists, create_database
 
-from lookout.core.analyzer_model import AnalyzerModel
+from lookout.core.analyzer import AnalyzerModel
 from lookout.core.model_repository import ModelRepository
 
 Base = declarative_base()

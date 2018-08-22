@@ -1,6 +1,6 @@
 from typing import Tuple, Type
 
-from lookout.core.analyzer_model import AnalyzerModel
+from lookout.core.analyzer import AnalyzerModel
 
 
 class ModelRepository:
