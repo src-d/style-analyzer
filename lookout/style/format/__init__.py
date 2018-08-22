@@ -1,3 +1,3 @@
-from lookout.style.format.format_analyzer import FormatAnalyzer
+from lookout.style.format.analyzer import FormatAnalyzer
 
 analyzer_class = FormatAnalyzer

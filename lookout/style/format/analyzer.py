@@ -1,24 +1,12 @@
 import logging
 
 from bblfsh import Node
-import modelforge
 
-from lookout.core.analyzer import Analyzer
-from lookout.core.analyzer_model import AnalyzerModel
+from lookout.core.analyzer import Analyzer, AnalyzerModel
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2_grpc import DataStub
 from lookout.core.data_requests import with_changed_uasts_and_contents, with_uasts_and_contents
-
-
-class FormatModel(AnalyzerModel):
-    NAME = "code-format"
-    VENDOR = "source{d}"
-
-    def _generate_tree(self) -> dict:
-        return {}
-
-    def _load_tree(self, tree: dict) -> None:
-        pass
+from lookout.style.format.model import FormatModel
 
 
 class FormatAnalyzer(Analyzer):
@@ -46,7 +34,7 @@ class FormatAnalyzer(Analyzer):
     @classmethod
     @with_uasts_and_contents
     def train(cls, url: str, commit: str, config: dict, data_request_stub: DataStub,
-              **data) -> modelforge.Model:
+              **data) -> AnalyzerModel:
         cls.log.info("train %s %s %s", url, commit, data)
         files = data["files"]
         for file in files:
