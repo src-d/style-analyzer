@@ -40,11 +40,13 @@ Create `my_analyzer.py`:
 
 ```python
 import logging
+from typing import Iterable
 
 from bblfsh import Node
 
 from lookout.core.analyzer import Analyzer, AnalyzerModel
 from lookout.core.api.service_analyzer_pb2 import Comment
+from lookout.core.api.service_data_pb2 import Change, File
 from lookout.core.api.service_data_pb2_grpc import DataStub
 from lookout.core.data_requests import with_changed_uasts_and_contents, with_uasts_and_contents
 
@@ -68,10 +70,10 @@ class MyAnalyzer(Analyzer):
     
     @with_changed_uasts_and_contents
     def analyze(self, commit_from: str, commit_to: str, data_request_stub: DataStub,
-                **data) -> [Comment]:
+                changes: Iterable[Change]) -> [Comment]:
         self._log.info("analyze %s %s", commit_from, commit_to)
         comments = []
-        for change in data["changes"]:
+        for change in changes:
             comment = Comment()
             comment.file = change.head.path
             comment.text = "%s %d > %d" % (change.head.language,
@@ -85,11 +87,11 @@ class MyAnalyzer(Analyzer):
     @classmethod
     @with_uasts_and_contents
     def train(cls, url: str, commit: str, config: dict, data_request_stub: DataStub,
-              **data) -> AnalyzerModel:
+              files: Iterable[File]) -> AnalyzerModel:
         cls._log.info("train %s %s", url, commit)
-        model = MyModel().construct(cls, url, commit)
+        model = cls.construct_model(url, commit)
         model.node_counts = {}
-        for file in data["files"]:
+        for file in files:
             model.node_counts[file.path] = cls.count_nodes(file.uast)
         return model
 
@@ -105,6 +107,10 @@ class MyAnalyzer(Analyzer):
         
 analyzer_class = MyAnalyzer
 ```
+
+`@with_changed_uasts_and_contents` and `@with_uasts_and_contents` populate the corresponding
+objects with UASTs and file contents. If you need only the UASTs, use
+`@with_changed_uasts` and `@with_uasts` respectively.
 
 ## Running
 

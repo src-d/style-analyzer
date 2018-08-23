@@ -25,7 +25,7 @@ class AnalyzerModel(Model):
 
     def construct(self, analyzer: Type["Analyzer"], url: str, commit: str):
         """
-        Initializing method.
+        Initialization of the model (__init__ is empty to allow load()).
 
         :param analyzer: Bound type of the `Analyzer`. Not instance!
         :param url: Git repository on which the model was trained.
@@ -105,3 +105,7 @@ class Analyzer:
         :return: Instance of `AnalyzerModel` (`model_type`, to be precise).
         """
         raise NotImplementedError
+
+    @classmethod
+    def construct_model(cls, url: str, commit: str) -> AnalyzerModel:
+        return cls.model_type().construct(cls, url, commit)
