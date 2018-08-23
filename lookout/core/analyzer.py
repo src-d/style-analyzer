@@ -69,7 +69,7 @@ class Analyzer:
         """
         self.model = model
         self.url = url
-        self.config = config
+        self.__dict__.update(config)
 
     def analyze(self, commit_from: str, commit_to: str, data_request_stub: DataStub,
                 **data) -> [Comment]:

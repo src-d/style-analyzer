@@ -8,9 +8,10 @@ import configargparse
 import humanfriendly
 
 import lookout
+from lookout.core import slogging
+from lookout.core.data_requests import DataService
 from lookout.core.event_listener import EventListener
 from lookout.core.manager import AnalyzerManager
-from lookout.core import slogging
 from lookout.core.sqla_model_repository import SQLAlchemyModelRepository
 
 
@@ -65,16 +66,17 @@ def run_analyzers(args):
     """
     slogging.setup(args.log_level, args.log_structured)
     log = logging.getLogger("run")
-    repo = create_model_repo_from_args(args)
-    log.info("Created %s", repo)
+    model_repository = create_model_repo_from_args(args)
+    log.info("Created %s", model_repository)
     if args.request_server == "auto":
         data_request_address = "%s:10301" % args.server.split(":")[0]
     else:
         data_request_address = args.request_server
+    data_service = DataService(data_request_address)
     manager = AnalyzerManager(
-        model_repository=repo,
         analyzers=[importlib.import_module(a).analyzer_class for a in args.analyzer],
-        data_request_address=data_request_address,
+        model_repository=model_repository,
+        data_service=data_service,
     )
     log.info("Created %s", manager)
     listener = EventListener(address=args.server, handlers=manager, n_workers=args.workers)
@@ -82,6 +84,8 @@ def run_analyzers(args):
     listener.start()
     log.info("Listening %s", args.server)
     listener.block()
+    model_repository.shutdown()
+    data_service.shutdown()
 
 
 def init_repo(args):
