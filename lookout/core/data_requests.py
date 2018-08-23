@@ -1,12 +1,46 @@
 import functools
+import threading
 from typing import Iterable
 
-import modelforge
+import grpc
 
-from lookout.core.analyzer import Analyzer
+from lookout.core.analyzer import Analyzer, AnalyzerModel
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2 import ChangesRequest, FilesRequest, Change, File
 from lookout.core.api.service_data_pb2_grpc import DataStub
+
+
+class DataService:
+    """
+    Retrieves UASTs/files from the Lookout server.
+    """
+    GRPC_MAX_MESSAGE_SIZE = 100 * 1024 * 1024
+
+    def __init__(self, address: str):
+        self._data_request_local = threading.local()
+        self._data_request_channels = []
+        self._data_request_address = address
+
+    def get(self) -> DataStub:
+        """
+        Returns a `DataStub` for the current thread.
+        """
+        stub = getattr(self._data_request_local, "stub", None)
+        if stub is None:
+            channel = grpc.insecure_channel(self._data_request_address, options=[
+                ("grpc.max_send_message_length", self.GRPC_MAX_MESSAGE_SIZE),
+                ("grpc.max_receive_message_length", self.GRPC_MAX_MESSAGE_SIZE),
+            ])
+            self._data_request_channels.append(channel)
+            self._data_request_local.stub = stub = DataStub(channel)
+        return stub
+
+    def shutdown(self):
+        """
+        Closes all the open network connections.
+        """
+        for channel in self._data_request_channels:
+            channel.close()
 
 
 def with_changed_uasts(func):
@@ -59,7 +93,7 @@ def with_uasts(func):
     """
     @functools.wraps(func)
     def wrapped_with_uasts(cls, url: str, commit: str, config: dict,
-                           data_request_stub: DataStub, **data) -> modelforge.Model:
+                           data_request_stub: DataStub, **data) -> AnalyzerModel:
         files = request_files(data_request_stub, url, commit, contents=False, uast=True)
         return func(cls, url, commit, config, data_request_stub, files=files, **data)
 
@@ -77,7 +111,7 @@ def with_uasts_and_contents(func):
     """
     @functools.wraps(func)
     def wrapped_with_uasts_and_contents(cls, url: str, commit: str, config: dict,
-                                        data_request_stub: DataStub, **data) -> modelforge.Model:
+                                        data_request_stub: DataStub, **data) -> AnalyzerModel:
         files = request_files(data_request_stub, url, commit, contents=True, uast=True)
         return func(cls, url, commit, config, data_request_stub, files=files, **data)
 
