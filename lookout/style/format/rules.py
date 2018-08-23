@@ -1,4 +1,5 @@
 from collections import defaultdict
+from copy import deepcopy
 import functools
 import logging
 from typing import Any, Dict, Iterable, List, Mapping, NamedTuple, Sequence, Set, Tuple, Union
@@ -8,6 +9,7 @@ from scipy.stats import fisher_exact
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.exceptions import NotFittedError
+from sklearn.metrics import accuracy_score
 from sklearn.tree import _tree as Tree, DecisionTreeClassifier
 from sklearn.utils.validation import check_is_fitted
 
@@ -167,8 +169,10 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
                                        number from 0 to 1 or the exact quantity.
         :param prune_attributes: indicates whether to remove useless parts of rules.
         :param uncertain_attributes: indicates whether to **retain** parts of rules with low \
-                                     certainty (see "Generating Production Rules From Decision
+                                     certainty (see "Generating Production Rules From Decision \
                                      Trees" by J.R. Quinlan).
+        :param prune_base_model: indicates whether to prune base_model via reduced error pruning \
+                                 algorithm. Available for DecisionTreeClassifier model only.
         """
         super().__init__()
         self.base_model = base_model
@@ -204,13 +208,19 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         :return: self
         """
         if isinstance(self.base_model, DecisionTreeClassifier):
-            rules, leaf2rule_dict = self._tree_to_rules(self.base_model)
+            if self.prune_branches_algorithm == "reduced-error":
+                model = self._prune_reduced_error(self.base_model, X, y)
+            else:
+                model = self.base_model
+            rules, leaf2rule_dict = self._tree_to_rules(model)
             leaf2rule = [leaf2rule_dict]
         else:
             rules = []
             offset = 0
             leaf2rule = []
             for i, estimator in enumerate(self.base_model.estimators_):
+                if self.prune_branches_algorithm == "reduced-error":
+                    estimator = self._prune_reduced_error(estimator, X, y)
                 rules_partial, leaf2rule_partial = self._tree_to_rules(estimator, offset=offset)
                 offset += len(rules_partial)
                 leaf2rule.append(leaf2rule_partial)
@@ -227,8 +237,6 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
             if self.prune_branches_algorithm == "top-down-greedy":
                 rules = self._prune_branches_top_down_greedy(rules, X, y, leaf2rule,
                                                              self.top_down_greedy_budget)
-            else:
-                rules = self._prune_branches(rules, X, y)
         if self.prune_attributes:
             rules = self._prune_attributes(rules, X, y, not self.uncertain_attributes)
             self._log.debug("Pruned number of attributes (2): %d", len(rules))
@@ -321,10 +329,68 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         return new_rules
 
     @classmethod
-    def _prune_branches(cls, rules: Sequence[Rule],
-                        X: numpy.ndarray, Y: numpy.ndarray) -> List[Rule]:
-        # TODO(vmarkovtsev): implement this function
-        return rules
+    def _prune_reduced_error(cls, model: DecisionTreeClassifier, X: numpy.array, y: numpy.array,
+                             step_score_drop: float = 0,
+                             max_score_drop: float = 0) -> DecisionTreeClassifier:
+        def _prune_tree(tree, node_to_prune):
+            tree.children_left[node_to_prune] = Tree.TREE_LEAF
+            tree.children_right[node_to_prune] = Tree.TREE_LEAF
+            tree.feature[node_to_prune] = Tree.TREE_UNDEFINED
+
+        model = deepcopy(model)
+        tree = model.tree_
+        changes = True
+        checked = set()
+        parents = {x: i for i, x in enumerate(tree.children_left) if x != Tree.TREE_LEAF}
+        parents.update({x: i for i, x in enumerate(tree.children_right) if x != Tree.TREE_LEAF})
+        leaves = list(numpy.where(tree.children_left == Tree.TREE_LEAF)[0])
+        decision_path = {leaf: d.nonzero()[1] for leaf, d in
+                         zip(leaves, model.decision_path(X).T[leaves])}
+        y_predicted = model.predict(X)
+        init_score = current_score = accuracy_score(y, y_predicted)
+        while changes:
+            changes = False
+            for leaf_index, leaf1 in enumerate(leaves):
+                if leaf1 not in parents:
+                    continue
+                parent = parents[leaf1]
+                if parent in checked:
+                    continue
+                leaf2 = tree.children_right[parent]
+                leaf2 = leaf2 if leaf2 != leaf1 else tree.children_left[parent]
+                if tree.children_left[leaf2] != Tree.TREE_LEAF or \
+                        tree.children_right[leaf2] != Tree.TREE_LEAF:
+                    continue
+
+                data_leaf1_index = decision_path[leaf1]
+                data_leaf2_index = decision_path[leaf2]
+                data_parent_index = numpy.concatenate((data_leaf1_index, data_leaf2_index))
+                y_predicted_leaf1 = model.classes_[numpy.argmax(tree.value[leaf1, 0, :])]
+                y_predicted_leaf2 = model.classes_[numpy.argmax(tree.value[leaf2, 0, :])]
+                new_y = model.classes_[numpy.argmax(tree.value[parent, 0, :])]
+
+                score_delta = (numpy.sum(new_y == y[data_parent_index]) -
+                               numpy.sum(y_predicted_leaf1 == y[data_leaf1_index]) -
+                               numpy.sum(y_predicted_leaf2 == y[data_leaf2_index])) \
+                    / X.shape[0]
+
+                if score_delta / init_score < max_score_drop or \
+                        score_delta / current_score < step_score_drop:
+                    checked.add(parent)
+                    continue
+                else:
+                    cls._log.info("Remove %d and %d leaves, parent: %d. Score change: %f" % (
+                        leaf1, leaf2, parent, score_delta))
+                    current_score += score_delta
+                    leaves.remove(leaf2)
+                    leaves[leaf_index] = parent
+                    _prune_tree(tree, parent)
+                    y_predicted[data_parent_index] = new_y
+                    del decision_path[leaf1], decision_path[leaf2]
+                    decision_path[parent] = data_parent_index
+                    changes = True
+                    break
+        return model
 
     def _build_instances_index(self, X: numpy.ndarray,
                                leaf2rule: Sequence[Mapping[int, int]]) -> Dict[int, Set[int]]:
