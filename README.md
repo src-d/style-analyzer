@@ -1,8 +1,12 @@
 # style-analyzer [![PyPI](https://img.shields.io/pypi/v/lookout-style.svg)](https://pypi.python.org/pypi/lookout-style) [![Build Status](https://travis-ci.org/src-d/style-analyzer.svg)](https://travis-ci.org/src-d/style-analyzer) [![Docker Build Status](https://img.shields.io/docker/build/srcd/style-analyzer.svg)](https://hub.docker.com/r/srcd/style-analyzer) [![codecov](https://codecov.io/github/src-d/style-analyzer/coverage.svg)](https://codecov.io/gh/src-d/style-analyzer)
 
-Style analyzer experiments
+Code style analyzer.
 
-### Quick start
+### How to write and run an Analyzer using Python SDK
+
+[lookout/core/doc/getting_started.md](lookout/core/doc/getting_started.md)
+
+### How to run the format analyzer
 
 1. Download [`lookout`](https://github.com/src-d/lookout/releases) binary.
 2. Install the deps `sudo pip3 install -e .`
