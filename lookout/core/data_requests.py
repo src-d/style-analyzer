@@ -21,6 +21,9 @@ class DataService:
         self._data_request_channels = []
         self._data_request_address = address
 
+    def __str__(self):
+        return "DataService(%s)" % self._data_request_address
+
     def get(self) -> DataStub:
         """
         Returns a `DataStub` for the current thread.

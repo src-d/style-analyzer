@@ -73,6 +73,7 @@ def run_analyzers(args):
     else:
         data_request_address = args.request_server
     data_service = DataService(data_request_address)
+    log.info("Created %s", data_service)
     manager = AnalyzerManager(
         analyzers=[importlib.import_module(a).analyzer_class for a in args.analyzer],
         model_repository=model_repository,
@@ -128,7 +129,8 @@ def add_log_level_arg(parser):
 def create_parser():
     parser = configargparse.ArgParser(default_config_files=[
         "/etc/lookout/analyzer.conf", "~/.config/lookout/analyzer.conf"],
-        formatter_class=ArgumentDefaultsHelpFormatterNoNone)
+        formatter_class=ArgumentDefaultsHelpFormatterNoNone,
+        auto_env_var_prefix="lookout_")
     subparsers = parser.add_subparsers(help="Commands", dest="command")
 
     def add_parser(name, help):

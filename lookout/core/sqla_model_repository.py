@@ -50,12 +50,15 @@ class SQLAlchemyModelRepository(ModelRepository):
     def __init__(self, db_endpoint: str, fs_root: str, max_cache_mem: int, ttl: int,
                  engine_kwargs: dict=None):
         self.fs_root = fs_root
-        if not database_exists(db_endpoint):
+        must_initialize = not database_exists(db_endpoint)
+        if must_initialize:
             self._log.debug("%s does not exist, creating")
             create_database(db_endpoint)
-            self._log.warning("created new database at %s", db_endpoint)
+            self._log.warning("created a new database at %s", db_endpoint)
         self._engine = create_engine(
             db_endpoint, **(engine_kwargs if engine_kwargs is not None else {}))
+        if must_initialize:
+            Model.metadata.create_all(self._engine)
         self._sessionmaker = ContextSessionMaker(sessionmaker(bind=self._engine))
         bakery = baked.bakery()
         self._get_query = bakery(lambda session: session.query(Model))
@@ -100,6 +103,7 @@ class SQLAlchemyModelRepository(ModelRepository):
 
     def init(self):
         self._log.info("initializing")
+        Model.metadata.drop_all(self._engine)
         Model.metadata.create_all(self._engine)
         os.makedirs(self.fs_root, exist_ok=True)
 
