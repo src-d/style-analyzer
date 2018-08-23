@@ -7,6 +7,7 @@ from typing import Any, Dict, Iterable, List, Mapping, NamedTuple, Sequence, Set
     Type
 
 import numpy
+from numpy import count_nonzero
 from scipy.stats import fisher_exact
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.ensemble import RandomForestClassifier
@@ -155,18 +156,19 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
 
     _log = logging.getLogger("TrainableRules")
 
-    def __init__(self, base_model_name: str, prune_branches=True,
-                 prune_branches_algorithm="top-down-greedy",
+    def __init__(self, base_model_name: str = "sklearn.tree.DecisionTreeClassifier",
+                 prune_branches_algorithms=("reduced-error", "top-down-greedy"),
                  top_down_greedy_budget=TopDownGreedyBudget(False, 1.0), prune_attributes=True,
-                 uncertain_attributes=True, prune_dataset_ratio=.2, **base_model_kwargs):
+                 uncertain_attributes=True, prune_dataset_ratio=.2, n_estimators=10,
+                 max_depth=None, max_features=None, min_samples_leaf=1, min_samples_split=2,
+                 random_state=42):
         """
         Initializes a new instance of Rules class.
 
         :param base_model_name: fully qualified type name of the base model to train. \
                                 Must be either "sklearn.tree.DecisionTreeClassifier" or \
                                "sklearn.ensemble.RandomForestClassifier".
-        :param prune_branches: indicates whether to remove useless rules.
-        :param prune_branches_algorithm: chooses the pruning algorithm.
+        :param prune_branches_algorithms: branch pruning algorithms to use.
         :param top_down_greedy_budget: how many the branches to leave, either a floating point \
                                        number from 0 to 1 or the exact quantity.
         :param prune_attributes: indicates whether to remove useless parts of rules.
@@ -178,13 +180,17 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         """
         super().__init__()
         self.base_model_name = base_model_name
-        self.prune_branches = prune_branches
-        self.prune_branches_algorithm = prune_branches_algorithm
+        self.prune_branches_algorithms = prune_branches_algorithms
         self.top_down_greedy_budget = top_down_greedy_budget
         self.prune_attributes = prune_attributes
         self.uncertain_attributes = uncertain_attributes
         self.prune_dataset_ratio = prune_dataset_ratio
-        self.base_model_kwargs = base_model_kwargs
+        self.n_estimators = n_estimators
+        self.max_features = max_features
+        self.max_depth = max_depth
+        self.min_samples_leaf = min_samples_leaf
+        self.min_samples_split = min_samples_split
+        self.random_state = random_state
         self._rules = None  # type: Rules
 
     def fit(self, X: numpy.ndarray, y: numpy.ndarray) -> "TrainableRules":
@@ -196,10 +202,13 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         :param y: input labels - the same length as X.
         :return: self
         """
+        base_model = self._base_model_class(max_depth=self.max_depth,
+                                            max_features=self.max_features,
+                                            min_samples_leaf=self.min_samples_leaf,
+                                            min_samples_split=self.min_samples_split,
+                                            random_state=self.random_state)
 
-        base_model = self._base_model_class(**self.base_model_kwargs)
-
-        if self.prune_branches or self.prune_attributes:
+        if self.prune_branches_algorithms or self.prune_attributes:
             X_train, X_prune, y_train, y_prune = train_test_split(
                 X, y, test_size=self.prune_dataset_ratio, random_state=42)
         else:
@@ -207,37 +216,49 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         base_model.fit(X_train, y_train)
 
         if isinstance(base_model, DecisionTreeClassifier):
-            if self.prune_branches_algorithm == "reduced-error":
+            if "reduced-error" in self.prune_branches_algorithms:
+                old = (count_nonzero(base_model.tree_.children_left == Tree.TREE_LEAF)
+                       + count_nonzero(base_model.tree_.children_right == Tree.TREE_LEAF))
                 base_model = self._prune_reduced_error(base_model, X_prune, y_prune)
+                new = (count_nonzero(base_model.tree_.children_left == Tree.TREE_LEAF)
+                       + count_nonzero(base_model.tree_.children_right == Tree.TREE_LEAF))
+                self._log.debug("pruned %d/%d branches w/ reduced error pruning", old - new, old)
             rules, leaf2rule_dict = self._tree_to_rules(base_model)
             leaf2rule = [leaf2rule_dict]
         else:
             rules = []
             offset = 0
             leaf2rule = []
+            old, new = 0, 0
             for i, estimator in enumerate(base_model.estimators_):
-                if self.prune_branches_algorithm == "reduced-error":
-                    estimator = self._prune_reduced_error(estimator, X, y)
+                if "reduced-error" in self.prune_branches_algorithms:
+                    old += (count_nonzero(estimator.tree_.children_left == Tree.TREE_LEAF)
+                            + count_nonzero(estimator.tree_.children_right == Tree.TREE_LEAF))
+                    estimator = self._prune_reduced_error(estimator, X_prune, y_prune)
+                    new += (count_nonzero(estimator.tree_.children_left == Tree.TREE_LEAF)
+                            + count_nonzero(estimator.tree_.children_right == Tree.TREE_LEAF))
                 rules_partial, leaf2rule_partial = self._tree_to_rules(estimator, offset=offset)
                 offset += len(rules_partial)
                 leaf2rule.append(leaf2rule_partial)
                 rules.extend(rules_partial)
+            if "reduced-error" in self.prune_branches_algorithms:
+                self._log.debug("pruned %d/%d branches w/ reduced error pruning", old - new, old)
 
         def count_attrs():
             return sum(len(r.attrs) for r in rules)
 
-        self._log.debug("Initial number of rules: %d", len(rules))
-        self._log.debug("Initial number of attributes: %d", count_attrs())
+        old = count_attrs()
         rules = self._merge_rules(rules)
-        self._log.debug("Merged number of attributes: %d", count_attrs())
-        if self.prune_branches:
-            if self.prune_branches_algorithm == "top-down-greedy":
-                rules = self._prune_branches_top_down_greedy(
-                    base_model, rules, X_prune, y_prune, leaf2rule, self.top_down_greedy_budget)
+        self._log.debug("merged %d/%d attributes", old - count_attrs(), old)
+        if "top-down-greedy" in self.prune_branches_algorithms:
+            old = len(rules)
+            rules = self._prune_branches_top_down_greedy(
+                base_model, rules, X_prune, y_prune, leaf2rule, self.top_down_greedy_budget)
+            self._log.debug("pruned %d/%d rules w/ greedy pruning", old - len(rules), old)
         if self.prune_attributes:
+            old = count_attrs()
             rules = self._prune_attributes(rules, X_prune, y_prune, not self.uncertain_attributes)
-            self._log.debug("Pruned number of attributes (2): %d", len(rules))
-            self._log.debug("Pruned number of attributes: %d", count_attrs())
+            self._log.debug("pruned %d/%d attributes", old - count_attrs(), old)
         self._rules = Rules(rules, self._sanitize_params(self.get_params(False)))
         return self
 
@@ -346,6 +367,12 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
                              step_score_drop: float = 0,
                              max_score_drop: float = 0) -> DecisionTreeClassifier:
         def _prune_tree(tree, node_to_prune):
+            child_left = tree.children_left[node_to_prune]
+            child_right = tree.children_right[node_to_prune]
+            tree.children_left[child_left] = Tree.TREE_UNDEFINED
+            tree.children_left[child_right] = Tree.TREE_UNDEFINED
+            tree.children_right[child_left] = Tree.TREE_UNDEFINED
+            tree.children_right[child_right] = Tree.TREE_UNDEFINED
             tree.children_left[node_to_prune] = Tree.TREE_LEAF
             tree.children_right[node_to_prune] = Tree.TREE_LEAF
             tree.feature[node_to_prune] = Tree.TREE_UNDEFINED
@@ -392,8 +419,6 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
                     checked.add(parent)
                     continue
                 else:
-                    cls._log.info("Remove %d and %d leaves, parent: %d. Score change: %f" % (
-                        leaf1, leaf2, parent, score_delta))
                     current_score += score_delta
                     leaves.remove(leaf2)
                     leaves[leaf_index] = parent
@@ -408,8 +433,6 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
     def _build_instances_index(
             self, base_model: Union[DecisionTreeClassifier, RandomForestClassifier],
             X: numpy.ndarray, leaf2rule: Sequence[Mapping[int, int]]) -> Dict[int, Set[int]]:
-        self._log.debug("building the instances index")
-
         instances_index = defaultdict(set)
 
         if isinstance(base_model, DecisionTreeClassifier):
@@ -460,8 +483,6 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
                 clss_index[triggered_instance] = stats.cls
             candidate_rules.remove(best_rule_id)
             selected_rules.add(best_rule_id)
-            self._log.debug("iteration %d: selected rule %3d with %3d difference in matched Ys"
-                            % (iteration, best_rule_id, best_matched_delta))
         return [rules[rule_id] for rule_id in selected_rules]
 
     @classmethod
