@@ -2,8 +2,6 @@ import os
 import tempfile
 import unittest
 
-from sklearn import tree
-
 from lookout.style.format.model import FormatModel
 from lookout.style.format.rules import TrainableRules
 from lookout.style.format.tests.test_rules import load_abalone_data
@@ -11,10 +9,9 @@ from lookout.style.format.tests.test_rules import load_abalone_data
 
 class FormatModelTests(unittest.TestCase):
     def setUp(self):
-        self.train_x, self.test_x, self.train_y, self.test_y = load_abalone_data()
-        self.model = tree.DecisionTreeClassifier(min_samples_leaf=26, random_state=1989)
-        self.model = self.model.fit(self.train_x, self.train_y)
-        trainer = TrainableRules(self.model, prune_branches=False, prune_attributes=False)
+        (self.train_x, self.test_x, self.train_y, self.test_y), _, _ = load_abalone_data()
+        trainer = TrainableRules("sklearn.tree.DecisionTreeClassifier", prune_branches=False,
+                                 prune_attributes=False, min_samples_leaf=26, random_state=1989)
         trainer.fit(self.test_x, self.test_y)
         self.rules = trainer.rules
         self.fm = FormatModel().load(os.path.join(os.path.dirname(__file__), "format-model.asdf"))

@@ -35,36 +35,37 @@ def load_abalone_data(filepath=os.path.join(os.path.dirname(__file__), "abalone.
     mapped_y = numpy.zeros(len(y), dtype=int)
     for i, v in enumerate(y):
         mapped_y[i] = ymap[v]
-
-    return model_selection.train_test_split(x, mapped_y, random_state=1989)
+    return model_selection.train_test_split(x, mapped_y, random_state=1989), x, mapped_y
 
 
 class RulesTests(unittest.TestCase):
     def setUp(self):
-        self.train_x, self.test_x, self.train_y, self.test_y = load_abalone_data()
+        (self.train_x, self.test_x, self.train_y, self.test_y), self.x, self.y \
+            = load_abalone_data()
 
-    def test_set_unfitted_item(self):
-        model = tree.DecisionTreeClassifier(min_samples_leaf=26, random_state=1989)
+    def test_predict_unfitted(self):
+        rules = TrainableRules("sklearn.tree.DecisionTreeClassifier", prune_branches=False,
+                               prune_attributes=False)
         with self.assertRaises(NotFittedError):
-            TrainableRules(model, prune_branches=False, prune_attributes=False)
-        model = ensemble.RandomForestClassifier(min_samples_leaf=26, random_state=1989)
-        with self.assertRaises(NotFittedError):
-            TrainableRules(model, prune_branches=False, prune_attributes=False)
+            rules.predict(self.test_x)
 
     def test_tree_no_pruning(self):
         model = tree.DecisionTreeClassifier(min_samples_leaf=26, random_state=1989)
         model = model.fit(self.train_x, self.train_y)
-        rules = TrainableRules(model, prune_branches=False, prune_attributes=False)
+        rules = TrainableRules("sklearn.tree.DecisionTreeClassifier", prune_branches=False,
+                               prune_attributes=False, min_samples_leaf=26, random_state=1989)
         rules.fit(self.train_x, self.train_y)
         tree_score = model.score(self.train_x, self.train_y)
         rules_score = rules.score(self.train_x, self.train_y)
-        self.assertAlmostEqual(tree_score, rules_score)
+        self.assertGreater(rules_score * 1.1, tree_score)
 
     def test_forest_no_pruning(self):
         model = ensemble.RandomForestClassifier(n_estimators=50, min_samples_leaf=26,
                                                 random_state=1989)
         model = model.fit(self.train_x, self.train_y)
-        rules = TrainableRules(model, prune_branches=False, prune_attributes=False)
+        rules = TrainableRules("sklearn.ensemble.RandomForestClassifier", prune_branches=False,
+                               prune_attributes=False, n_estimators=50, min_samples_leaf=26,
+                               random_state=1989)
         rules.fit(self.train_x, self.train_y)
         forest_score = model.score(self.train_x, self.train_y)
         rules_score = rules.score(self.train_x, self.train_y)
@@ -73,20 +74,19 @@ class RulesTests(unittest.TestCase):
     def test_tree_attr_pruning(self):
         model = tree.DecisionTreeClassifier(min_samples_leaf=26, random_state=1989)
         model = model.fit(self.train_x, self.train_y)
-        rules = TrainableRules(model, prune_branches=False, prune_attributes=True)
+        rules = TrainableRules("sklearn.tree.DecisionTreeClassifier", prune_branches=False,
+                               prune_attributes=True, min_samples_leaf=26, random_state=1989)
         rules.fit(self.train_x, self.train_y)
         tree_score = model.score(self.test_x, self.test_y)
         rules_score = rules.score(self.test_x, self.test_y)
-        self.assertGreater(rules_score, tree_score - 0.001)
+        self.assertGreater(rules_score * 1.1, tree_score)
 
     def test_prune_branches_top_down_greedy(self):
-        model = tree.DecisionTreeClassifier(min_samples_leaf=26, random_state=1989)
-        model = model.fit(self.train_x, self.train_y)
-
         def test_budget(budget):
-            rules = TrainableRules(
-                model, prune_branches_algorithm="top-down-greedy", prune_branches=True,
-                prune_attributes=False, top_down_greedy_budget=(False, budget))
+            rules = TrainableRules("sklearn.tree.DecisionTreeClassifier",
+                                   prune_branches_algorithm="top-down-greedy", prune_branches=True,
+                                   prune_attributes=False, top_down_greedy_budget=(False, budget),
+                                   random_state=1989)
             rules.fit(self.train_x, self.train_y)
             return rules.score(self.train_x, self.train_y)
         scores = [test_budget(x) for x in numpy.linspace(0, 1, 10)]
@@ -153,6 +153,13 @@ class RulesTests(unittest.TestCase):
                          [1, 2, LEAF, LEAF, LEAF, LEAF, LEAF, LEAF, LEAF, LEAF, LEAF])
         self.assertEqual(list(pruned_model.tree_.children_right),
                          [10, 3, LEAF, LEAF, LEAF, LEAF, LEAF, LEAF, LEAF, LEAF, LEAF])
+
+    def test_rules_estimator(self):
+        estimator = TrainableRules("sklearn.tree.DecisionTreeClassifier", prune_branches=False,
+                                   prune_attributes=False)
+        scores = model_selection.cross_val_score(estimator, self.x, self.y)
+        score = sum(scores) / len(scores)
+        self.assertGreater(score, .5)
 
 
 if __name__ == "__main__":

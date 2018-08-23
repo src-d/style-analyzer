@@ -19,7 +19,7 @@ class IntegrationTests(unittest.TestCase):
             contents = fin.read()
         with lzma.open(str(base / "benchmark.uast.xz")) as fin:
             uast = bblfsh.Node.FromString(fin.read())
-        file = File(content=bytes(contents, 'utf-8'),
+        file = File(content=bytes(contents, "utf-8"),
                     uast=uast)
         cls.files = [file]
         cls.extractor = FeatureExtractor("javascript",
@@ -33,14 +33,15 @@ class IntegrationTests(unittest.TestCase):
 
         model = tree.DecisionTreeClassifier(min_samples_leaf=26, random_state=1989)
         model.fit(train_X, train_y)
-        rules = TrainableRules(model, prune_branches=False, prune_attributes=False)
+        rules = TrainableRules("sklearn.tree.DecisionTreeClassifier", prune_branches=False,
+                               prune_attributes=False, min_samples_leaf=26, random_state=1989)
         rules.fit(train_X, train_y)
         model_score_train = model.score(train_X, train_y)
         model_score_test = model.score(test_X, test_y)
         rules_score_train = rules.score(train_X, train_y)
         rules_score_test = rules.score(test_X, test_y)
-        self.assertEqual(model_score_train, rules_score_train)
-        self.assertEqual(model_score_test, rules_score_test)
+        self.assertEqual(rules_score_train, model_score_train)
+        self.assertEqual(rules_score_test, model_score_test)
 
 
 if __name__ == "__main__":
