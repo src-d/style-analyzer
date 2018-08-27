@@ -7,10 +7,9 @@ import bblfsh
 import numpy
 
 from lookout.core.api.service_data_pb2 import File
-from lookout.style.format.features import (CLASSES, CLS_NEWLINE,
-                                           CLS_SINGLE_QUOTE, CLS_SPACE,
-                                           CLS_SPACE_DEC, CLS_SPACE_INC,
-                                           FeatureExtractor)
+from lookout.style.format.features import (
+    CLASSES, CLS_NEWLINE, CLS_SINGLE_QUOTE, CLS_SPACE, CLS_SPACE_DEC, CLS_SPACE_INC,
+    FeatureExtractor)
 
 
 class FeaturesTests(unittest.TestCase):
@@ -65,8 +64,9 @@ class FeaturesTests(unittest.TestCase):
         file = File(content=bytes(self.contents, 'utf-8'),
                     uast=self.uast)
         files = [file, file]
+        self.check_X_y(*self.extractor.extract_features(files))
 
-        X, y = self.extractor.extract_features(files)
+    def check_X_y(self, X, y):
         self.assertEqual(X.shape[0], y.shape[0])
         self.assertEqual(
             X.shape[1],
@@ -81,6 +81,27 @@ class FeaturesTests(unittest.TestCase):
         self.assertEqual(len(unset_rows), 0, "%d rows are unset" % len(unset_rows))
         self.assertEqual(len(unset_columns), 0,
                          "columns %s are unset" % ", ".join(map(str, unset_columns)))
+
+    def test_extract_features_all_lines(self):
+        file = File(content=bytes(self.contents, 'utf-8'),
+                    uast=self.uast)
+        files = [file, file]
+
+        self.check_X_y(*self.extractor.extract_features(
+            files, [list(range(1, self.contents.count("\n") + 1))] * 2))
+
+    def test_extract_features_some_lines(self):
+        file = File(content=bytes(self.contents, 'utf-8'),
+                    uast=self.uast)
+        files = [file]
+
+        X1, y1 = self.extractor.extract_features(
+            files, [list(range(1, self.contents.count("\n") // 2 + 1))] * 2)
+        self.check_X_y(X1, y1)
+        X2, y2 = self.extractor.extract_features(files)
+        self.assertTrue((X1 == X2[:len(X1)]).all())
+        self.assertTrue((y1 == y2[:len(y1)]).all())
+        self.assertLess(len(y1), len(y2))
 
 
 if __name__ == "__main__":

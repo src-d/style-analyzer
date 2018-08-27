@@ -1,6 +1,6 @@
 import importlib
 import logging
-from typing import Dict, Iterable, List, Mapping, NamedTuple, Optional, Sequence, Tuple
+from typing import Dict, Iterable, List, Mapping, NamedTuple, Optional, Sequence, Tuple, Set
 
 import bblfsh
 import numpy
@@ -46,6 +46,7 @@ class VirtualNode:
         Initializes the VirtualNode from a UAST node. Takes into account prefixes and suffixes.
 
         :param node: UAST node
+        :param file: the file contents.
         :return: new VirtualNode-s
         """
 
@@ -124,17 +125,20 @@ class FeatureExtractor:
         self.tokens = importlib.import_module("lookout.style.format.langs.%s.tokens" % language)
         self.roles = importlib.import_module("lookout.style.format.langs.%s.roles" % language)
 
-    def extract_features(self, files: List[File]) -> Tuple[numpy.ndarray, numpy.ndarray]:
+    def extract_features(self, files: List[File], lines: List[List[int]]=None
+                         ) -> Tuple[numpy.ndarray, numpy.ndarray]:
         """
         Given a list of `File`-s, compute the features and labels required for the training of
         downstream models.
 
         :param files: the list of `File`-s (see service_data.proto) of the same language.
+        :param lines: the list of enabled line numbers per file. The lines which are not \
+                      mentioned will not be extracted.
         :return: tuple of numpy.ndarray (2 and 1 dimensional respectively): features and labels.
         """
         parsed_files = []
         labels = []
-        for file in files:
+        for i, file in enumerate(files):
             contents = file.content.decode("utf-8", "replace")
             uast = file.uast
             try:
@@ -144,8 +148,10 @@ class FeatureExtractor:
                                   extra={"file": file.path, "unhandled": str(e)})
                 continue
             vnodes = self._classify_vnodes(vnodes)
-            parsed_files.append((vnodes, parents))
-            labels.append([vnode.y for vnode in vnodes if vnode.y])
+            file_lines = set(lines[i]) if lines is not None else None
+            parsed_files.append((vnodes, parents, file_lines))
+            labels.append([vnode.y for vnode in vnodes if vnode.y and
+                           (vnode.start.line in file_lines if file_lines is not None else True)])
 
         y = numpy.concatenate(labels)
         X = numpy.full(
@@ -155,10 +161,9 @@ class FeatureExtractor:
              + self.siblings_window * len(self.right_siblings_features)
              + self.parents_depth * len(self.parents_features)),
             -1)
-        global_line_offset = 0
-        for (vnodes, parents), partial_labels in zip(parsed_files, labels):
-            self._inplace_write_vnodes_features(vnodes, parents, global_line_offset, X)
-            global_line_offset += len(partial_labels)
+        offset = 0
+        for (vnodes, parents, file_lines), partial_labels in zip(parsed_files, labels):
+            offset = self._inplace_write_vnodes_features(vnodes, parents, file_lines, offset, X)
         return X, y
 
     def _classify_vnodes(self, nodes: Iterable[VirtualNode]) -> List[VirtualNode]:
@@ -347,27 +352,30 @@ class FeatureExtractor:
         X[row, col:col + len(features)] = features
         return len(features)
 
-    def _inplace_write_vnodes_features(self, vnodes: Sequence[VirtualNode],
-                                       parents: Mapping[int, bblfsh.Node], global_line_offset: int,
-                                       X: numpy.ndarray) -> None:
+    def _inplace_write_vnodes_features(
+            self, vnodes: Sequence[VirtualNode], parents: Mapping[int, bblfsh.Node],
+            lines: Set[int], index_offset: int, X: numpy.ndarray) -> int:
         """
         Given a sequence of `VirtualNode`-s and relevant info, compute the input matrix and label
         vector.
 
         :param vnodes: sequence of `VirtualNode`-s
         :param parents: dictionnary of node id to parent node
-        :param global_line_offset: at which line of the input ndarrays should we start writing
+        :param index_offset: at which index in the input ndarrays we should start writing
         :param X: features matrix
+        :return: the new offset
         """
         closest_left_node_id = None
-        line_offset = global_line_offset
+        position = index_offset
         for i, vnode in enumerate(vnodes):
             if vnode.node:
                 closest_left_node_id = id(vnode.node)
-            if not vnode.y:
+            if not vnode.y or (lines is not None and vnode.start.line not in lines):
                 continue
             if self.parents_depth:
                 parent = self._find_parent(i, vnodes, parents, closest_left_node_id)
+            else:
+                parent = None
 
             parents_list = []
             if parent:
@@ -383,28 +391,29 @@ class FeatureExtractor:
 
             # 1. write features of the current node
             col_offset += self._inplace_write_features(self._get_self_features(vnode),
-                                                       line_offset, col_offset, X)
+                                                       position, col_offset, X)
             # 2. account for the possible lack of siblings by adjusting offset and write features
             # of the left siblings of the current node
             col_offset += abs(min(i - self.siblings_window, 0)) * len(self.left_siblings_features)
             for left_vnode in vnodes[max(0, i - self.siblings_window):i]:
                 col_offset += self._inplace_write_features(
-                    self._get_left_sibling_features(left_vnode, vnode), line_offset, col_offset, X)
+                    self._get_left_sibling_features(left_vnode, vnode), position, col_offset, X)
 
             # 3. write features of the right siblings of the current node and account for the
             # possible lack of siblings by adjusting offset
             for right_vnode in vnodes[i + 1:i + 1 + self.siblings_window]:
                 col_offset += self._inplace_write_features(
-                    self._get_right_sibling_features(right_vnode), line_offset, col_offset, X)
+                    self._get_right_sibling_features(right_vnode), position, col_offset, X)
             col_offset += (max(i + self.siblings_window - len(vnodes) + 1, 0)
                            * len(self.right_siblings_features))
 
             # 4. write features of the parents of the current node
             for parent_vnode in parents_list:
                 col_offset += self._inplace_write_features(
-                    self._get_parent_features(parent_vnode), line_offset, col_offset, X)
+                    self._get_parent_features(parent_vnode), position, col_offset, X)
 
-            line_offset += 1
+            position += 1
+        return position
 
     def _parse_file(self, contents: str, root: bblfsh.Node) -> \
             Tuple[List[VirtualNode], Dict[int, bblfsh.Node]]:
