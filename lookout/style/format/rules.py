@@ -3,7 +3,8 @@ from copy import deepcopy
 import functools
 import importlib
 import logging
-from typing import Any, Dict, Iterable, List, Mapping, NamedTuple, Sequence, Set, Tuple, Union
+from typing import Any, Dict, Iterable, List, Mapping, NamedTuple, Sequence, Set, Tuple, Union, \
+    Type
 
 import numpy
 from scipy.stats import fisher_exact
@@ -154,16 +155,16 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
 
     _log = logging.getLogger("TrainableRules")
 
-    def __init__(self, base_model_type_string: str, prune_branches=True,
+    def __init__(self, base_model_name: str, prune_branches=True,
                  prune_branches_algorithm="top-down-greedy",
                  top_down_greedy_budget=TopDownGreedyBudget(False, 1.0), prune_attributes=True,
                  uncertain_attributes=True, prune_dataset_ratio=.2, **base_model_kwargs):
         """
         Initializes a new instance of Rules class.
 
-        :param base_model_type_string: fully qualified type of the base model to use as a string. \
-                                       Can be "sklearn.tree.DecisionTreeClassifier" or \
-                                       "sklearn.ensemble.RandomForestClassifier".
+        :param base_model_name: fully qualified type name of the base model to train. \
+                                Must be either "sklearn.tree.DecisionTreeClassifier" or \
+                               "sklearn.ensemble.RandomForestClassifier".
         :param prune_branches: indicates whether to remove useless rules.
         :param prune_branches_algorithm: chooses the pruning algorithm.
         :param top_down_greedy_budget: how many the branches to leave, either a floating point \
@@ -176,10 +177,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
                                  algorithm. Available for DecisionTreeClassifier model only.
         """
         super().__init__()
-        if base_model_type_string not in ["sklearn.tree.DecisionTreeClassifier",
-                                          "sklearn.ensemble.RandomForestClassifier"]:
-            raise ValueError("base_model_type_string %s is invalid" % base_model_type_string)
-        self.base_model_type_string = base_model_type_string
+        self.base_model_name = base_model_name
         self.prune_branches = prune_branches
         self.prune_branches_algorithm = prune_branches_algorithm
         self.top_down_greedy_budget = top_down_greedy_budget
@@ -189,7 +187,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         self.base_model_kwargs = base_model_kwargs
         self._rules = None  # type: Rules
 
-    def fit(self, X: numpy.ndarray, y: numpy.ndarray) -> "Rules":
+    def fit(self, X: numpy.ndarray, y: numpy.ndarray) -> "TrainableRules":
         """
         Trains the rules using the base tree model and the samples (X, y). If `base_model` is
         already fitted, the samples may be different from the ones that were used.
@@ -199,11 +197,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         :return: self
         """
 
-        base_model_module_name, base_model_class_name = self.base_model_type_string.rsplit(".", 1)
-        base_model_module = importlib.import_module(base_model_module_name)
-        base_model_class = getattr(base_model_module, base_model_class_name)
-
-        base_model = base_model_class(**self.base_model_kwargs)
+        base_model = self._base_model_class(**self.base_model_kwargs)
 
         if self.prune_branches or self.prune_attributes:
             X_train, X_prune, y_train, y_prune = train_test_split(
@@ -244,8 +238,24 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
             rules = self._prune_attributes(rules, X_prune, y_prune, not self.uncertain_attributes)
             self._log.debug("Pruned number of attributes (2): %d", len(rules))
             self._log.debug("Pruned number of attributes: %d", count_attrs())
-        self._rules = Rules(rules, self._sanitize_params(self.get_params(True)))
+        self._rules = Rules(rules, self._sanitize_params(self.get_params(False)))
         return self
+
+    @property
+    def base_model_name(self) -> str:
+        return self._base_model_name
+
+    @base_model_name.setter
+    def base_model_name(self, value: Union[str, Type[DecisionTreeClassifier],
+                                           Type[RandomForestClassifier]]):
+        if isinstance(value, str):
+            base_model_module_name, base_model_class_name = value.rsplit(".", 1)
+            base_model_module = importlib.import_module(base_model_module_name)
+            value = getattr(base_model_module, base_model_class_name)
+        if not issubclass(value, (DecisionTreeClassifier, RandomForestClassifier)):
+            raise TypeError("%s base model type is not allowed" % value)
+        self._base_model_class = value
+        self._base_model_name = "%s.%s" % (value.__module__, value.__name__)
 
     @property
     def fitted(self):
@@ -253,7 +263,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
 
     def _check_fitted(func):
         @functools.wraps(func)
-        def wrapped_check_fitted(self: "Rules", *args, **kwargs):
+        def wrapped_check_fitted(self: "TrainableRules", *args, **kwargs):
             if not self.fitted:
                 raise NotFittedError
             return func(self, *args, **kwargs)
@@ -529,7 +539,8 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         """
         sanitized = {}
         for k, v in params.items():
-            if isinstance(v, (list, tuple)):
+            if isinstance(v, tuple):
+                # fix namedtuple-s in ASDF
                 v = list(v)
             sanitized[k] = v
         return sanitized
