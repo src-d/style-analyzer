@@ -65,17 +65,24 @@ class Rules:
     def __len__(self):
         return len(self._rules)
 
-    def predict(self, X: numpy.ndarray) -> numpy.ndarray:
+    def predict(self, X: numpy.ndarray, return_rules_infos: bool = False
+                ) -> Union[numpy.ndarray, Tuple[numpy.ndarray, numpy.ndarray, numpy.ndarray]]:
         """
         Evaluates the rules against the given features.
 
         :param X: input features.
-        :return: array of the same length as X with predictions.
+        :param return_rules_infos: whether to return additional infos about the rules used during
+                                   prediction (index and confidence)
+        :return: array of the same length as X with predictions or tuple of three arrays of same
+                 length as X containing (predictions, indices, confidences).
         """
         self._log.debug("predicting %d samples using %d rules", len(X), len(self._rules))
         rules = self._rules
         _compute_triggered = self._compute_triggered
         prediction = numpy.zeros(len(X), dtype=int)
+        if return_rules_infos:
+            indices = numpy.zeros(len(X), dtype=int)
+            confidences = numpy.zeros(len(X), dtype=float)
         for xi, x in enumerate(X):
             ris = _compute_triggered(self._compiled, rules, x)
             if len(ris) == 0:
@@ -85,10 +92,15 @@ class Rules:
                 confs = numpy.zeros(len(ris), dtype=numpy.float32)
                 for i, ri in enumerate(ris):
                     confs[i] = rules[ri].stats.conf
-                winner = rules[ris[numpy.argmax(confs)]].stats.cls
+                winner_index = ris[numpy.argmax(confs)]
             else:
-                winner = rules[ris[0]].stats.cls
-            prediction[xi] = winner
+                winner_index = ris[0]
+            prediction[xi] = rules[winner_index].stats.cls
+            if return_rules_infos:
+                indices[xi] = winner_index
+                confidences[xi] = rules[winner_index].stats.conf
+        if return_rules_infos:
+            return prediction, indices, confidences
         return prediction
 
     @property
