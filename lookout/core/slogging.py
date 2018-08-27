@@ -10,6 +10,7 @@ import traceback
 from typing import Union
 
 import xxhash
+import yaml
 
 
 def get_timezone():
@@ -89,7 +90,7 @@ class StructuredHandler(logging.Handler):
         sys.stdout.flush()
 
 
-def setup(level: Union[str, int], structured: bool):
+def setup(level: Union[str, int], structured: bool, config_path: str = None):
     """
     Makes stdout and stderr unicode friendly in case of misconfigured
     environments, initializes the logging, structured logging and
@@ -97,6 +98,9 @@ def setup(level: Union[str, int], structured: bool):
 
     :param level: The global logging level.
     :param structured: Output JSON logs to stdout.
+    :param config_path: Path to a yaml file that configures the level of output of the loggers. \
+                        Root logger level is set through the level argument and will override any \
+                        root configuration found in the conf file.
     :return: None
     """
     if not isinstance(level, int):
@@ -110,10 +114,18 @@ def setup(level: Union[str, int], structured: bool):
 
     sys.stdout, sys.stderr = (ensure_utf8_stream(s)
                               for s in (sys.stdout, sys.stderr))
-    logging.basicConfig(level=level)
+
+    # basicConfig is only called to make sure there is at least one handler for the root logger.
+    # All the output level setting is down right afterwards.
+    logging.basicConfig()
+    if config_path:
+        with open(config_path) as fh:
+            config = yaml.safe_load(fh)
+        for key, val in config.items():
+            logging.getLogger(key).setLevel(logging._nameToLevel.get(val, level))
     root = logging.getLogger()
-    # In some cases root has handlers and basicConfig() is a no-op
     root.setLevel(level)
+
     if not structured:
         if not sys.stdin.closed and sys.stdout.isatty():
             handler = root.handlers[0]

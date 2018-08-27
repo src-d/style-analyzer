@@ -64,7 +64,7 @@ def run_analyzers(args):
     :param args: Parsed command line arguments.
     :return: None
     """
-    slogging.setup(args.log_level, args.log_structured)
+    slogging.setup(args.log_level, args.log_structured, args.log_config_path)
     log = logging.getLogger("run")
     model_repository = create_model_repo_from_args(args)
     log.info("Created %s", model_repository)
@@ -96,7 +96,7 @@ def init_repo(args):
     :param args: Parsed command line arguments.
     :return: None
     """
-    slogging.setup(args.log_level, False)
+    slogging.setup(args.log_level, False, args.log_config_path)
     repo = create_model_repo_from_args(args)
     repo.init()
 
@@ -121,9 +121,11 @@ def add_model_repository_args(parser):
                help="Additional keyword arguments to SQLAlchemy database engine.")
 
 
-def add_log_level_arg(parser):
+def add_logging_args(parser):
     parser.add("--log-level", default="INFO", choices=logging._nameToLevel,
                help="Logging verbosity.")
+    parser.add("--log-config-path",
+               help="Path to the file which sets individual log levels of domains.")
 
 
 def create_parser():
@@ -143,7 +145,7 @@ def create_parser():
     run_parser = add_parser(
         "run", "Launch a new service with the specified (one or more) analyzers.")
     run_parser.set_defaults(handler=run_analyzers)
-    add_log_level_arg(run_parser)
+    add_logging_args(run_parser)
     run_parser.add("--log-structured", action="store_true",
                    help="Enable structured logging (compatible with k8s).")
     run_parser.add("-c", "--config", is_config_file=True,
@@ -160,5 +162,5 @@ def create_parser():
     init_parser = add_parser("init", "Initialize the model repository.")
     init_parser.set_defaults(handler=init_repo)
     add_model_repository_args(init_parser)
-    add_log_level_arg(init_parser)
+    add_logging_args(init_parser)
     return parser
