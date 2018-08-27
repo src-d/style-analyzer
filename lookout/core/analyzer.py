@@ -1,9 +1,17 @@
-from typing import Type  # noqa: F401
+from typing import Type, NamedTuple  # noqa: F401
 
 from modelforge import Model
 
+from lookout.core.api.event_pb2 import ReferencePointer as ApiReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2_grpc import DataStub
+
+# We redefine ReferencePointer because Protocol Buffers message objects suck.
+ReferencePointer = NamedTuple("ReferencePointer", (("url", str), ("ref", str), ("commit", str)))
+ReferencePointer.from_pb = lambda refptr: ReferencePointer(*[f[1] for f in refptr.ListFields()])
+ReferencePointer.to_pb = lambda self: ApiReferencePointer(internal_repository_url=self.url,
+                                                          reference_name=self.ref,
+                                                          hash=self.commit)
 
 
 class AnalyzerModel(Model):
@@ -20,23 +28,20 @@ class AnalyzerModel(Model):
         """
         super().__init__(**kwargs)
         self.name = "<unknown name>"
-        self.url = "<unknown url>"
-        self.commit = "<unknown commit>"
+        self.ptr = ReferencePointer("<unknown url>", "<unknown reference>", "<unknown commit>")
 
-    def construct(self, analyzer: Type["Analyzer"], url: str, commit: str):
+    def construct(self, analyzer: Type["Analyzer"], ptr: ReferencePointer):
         """
         Initialization of the model (__init__ is empty to allow load()).
 
         :param analyzer: Bound type of the `Analyzer`. Not instance!
-        :param url: Git repository on which the model was trained.
-        :param commit: revision of the Git repository on which the model was trained.
+        :param ptr: Git repository state pointer.
         :return: self
         """
         assert isinstance(self, analyzer.model_type)
         self.name = analyzer.__name__
         self.version = [analyzer.version]
-        self.url = url
-        self.commit = commit
+        self.ptr = ptr
         return self
 
     def dump(self) -> str:
@@ -45,7 +50,7 @@ class AnalyzerModel(Model):
 
         :return: summary text of the model.
         """
-        return "%s/%s %s %s" % (self.name, self.version, self.url, self.commit)
+        return "%s/%s %s %s" % (self.name, self.version, self.ptr.url, self.ptr.commit)
 
 
 class Analyzer:
@@ -71,15 +76,15 @@ class Analyzer:
         self.url = url
         self.__dict__.update(config)
 
-    def analyze(self, commit_from: str, commit_to: str, data_request_stub: DataStub,
-                **data) -> [Comment]:
+    def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
+                data_request_stub: DataStub, **data) -> [Comment]:
         """
         This is called on Review events. It must return the list of `Comment`-s - found review
         suggestions.
 
-        :param commit_from: The Git revision of the fork point. Exists in both original and \
-                            forked repositories.
-        :param commit_to: The Git revision to analyze. Exists only in the forked repository.
+        :param ptr_from: The Git revision of the fork point. Exists in both the original and \
+                         the forked repositories.
+        :param ptr_to: The Git revision to analyze. Exists only in the forked repository.
         :param data_request_stub: The channel to the data service in Lookout server to query for \
                                   UASTs, file contents, etc.
         :param data: Extra data passed into the method. Used by the decorators to simplify \
@@ -90,13 +95,12 @@ class Analyzer:
         raise NotImplementedError
 
     @classmethod
-    def train(cls, url: str, commit: str, config: dict, data_request_stub: DataStub,
+    def train(cls, ptr: ReferencePointer, config: dict, data_request_stub: DataStub,
               **data) -> AnalyzerModel:
         """
         Generates a new model on top of the specified source code.
 
-        :param url: Git repository remote.
-        :param commit: Hash to checkout.
+        :param ptr: Git repository state pointer.
         :param config: Configuration of the training of unspecified structure.
         :param data_request_stub: The channel to the data service in Lookout server to query for \
                                   UASTs, file contents, etc.
@@ -107,5 +111,5 @@ class Analyzer:
         raise NotImplementedError
 
     @classmethod
-    def construct_model(cls, url: str, commit: str) -> AnalyzerModel:
-        return cls.model_type().construct(cls, url, commit)
+    def construct_model(cls, ptr: ReferencePointer) -> AnalyzerModel:
+        return cls.model_type().construct(cls, ptr)

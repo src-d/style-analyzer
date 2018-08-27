@@ -2,7 +2,7 @@ import logging
 
 from bblfsh import Node
 
-from lookout.core.analyzer import Analyzer, AnalyzerModel
+from lookout.core.analyzer import Analyzer, AnalyzerModel, ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2_grpc import DataStub
 from lookout.core.data_requests import with_changed_uasts_and_contents, with_uasts_and_contents
@@ -16,8 +16,8 @@ class FormatAnalyzer(Analyzer):
     description = "Source code formatting: whitespace, new lines, quotes, braces."
 
     @with_changed_uasts_and_contents
-    def analyze(self, commit_from: str, commit_to: str, data_request_stub: DataStub,
-                **data) -> [Comment]:
+    def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
+                data_request_stub: DataStub, **data) -> [Comment]:
         changes = data["changes"]
         comments = []
         for change in changes:
@@ -33,9 +33,9 @@ class FormatAnalyzer(Analyzer):
 
     @classmethod
     @with_uasts_and_contents
-    def train(cls, url: str, commit: str, config: dict, data_request_stub: DataStub,
+    def train(cls, ptr: ReferencePointer, config: dict, data_request_stub: DataStub,
               **data) -> AnalyzerModel:
-        cls.log.info("train %s %s %s", url, commit, data)
+        cls.log.info("train %s %s %s", ptr.url, ptr.commit, data)
         files = data["files"]
         for file in files:
             cls.log.info("%s %s %d", file.path, file.language, len(file.uast.children))
@@ -52,7 +52,7 @@ class FormatAnalyzer(Analyzer):
         7. generate the Modelforge model
         """
 
-        return FormatModel().construct(cls, url, commit)
+        return FormatModel().construct(cls, ptr)
 
     @staticmethod
     def count_nodes(uast: Node):

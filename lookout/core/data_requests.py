@@ -1,10 +1,10 @@
 import functools
 import threading
-from typing import Iterable
+from typing import Iterable, Type  # noqa: F401
 
 import grpc
 
-from lookout.core.analyzer import Analyzer, AnalyzerModel
+from lookout.core.analyzer import Analyzer, AnalyzerModel, ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2 import ChangesRequest, FilesRequest, Change, File
 from lookout.core.api.service_data_pb2_grpc import DataStub
@@ -56,11 +56,11 @@ def with_changed_uasts(func):
     :return: The decorated method.
     """
     @functools.wraps(func)
-    def wrapped_with_changed_uasts(self: Analyzer, commit_from: str, commit_to: str,
-                                   data_request_stub: DataStub, **data) -> [Comment]:
-        changes = request_changes(data_request_stub, self.url, commit_from, commit_to,
-                                  contents=False, uast=True)
-        return func(self, commit_from, commit_to, data_request_stub, changes=changes, **data)
+    def wrapped_with_changed_uasts(
+            self: Analyzer, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
+            data_request_stub: DataStub, **data) -> [Comment]:
+        changes = request_changes(data_request_stub, ptr_from, ptr_to, contents=False, uast=True)
+        return func(self, ptr_from, ptr_to, data_request_stub, changes=changes, **data)
 
     return wrapped_with_changed_uasts
 
@@ -76,11 +76,10 @@ def with_changed_uasts_and_contents(func):
     """
     @functools.wraps(func)
     def wrapped_with_changed_uasts_and_contents(
-            self: Analyzer, commit_from: str, commit_to: str,
+            self: Analyzer, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
             data_request_stub: DataStub, **data) -> [Comment]:
-        changes = request_changes(data_request_stub, self.url, commit_from, commit_to,
-                                  contents=True, uast=True)
-        return func(self, commit_from, commit_to, data_request_stub, changes=changes, **data)
+        changes = request_changes(data_request_stub, ptr_from, ptr_to, contents=True, uast=True)
+        return func(self, ptr_from, ptr_to, data_request_stub, changes=changes, **data)
 
     return wrapped_with_changed_uasts_and_contents
 
@@ -95,10 +94,10 @@ def with_uasts(func):
     :return: The decorated method.
     """
     @functools.wraps(func)
-    def wrapped_with_uasts(cls, url: str, commit: str, config: dict,
+    def wrapped_with_uasts(cls: Type[Analyzer], ptr: ReferencePointer, config: dict,
                            data_request_stub: DataStub, **data) -> AnalyzerModel:
-        files = request_files(data_request_stub, url, commit, contents=False, uast=True)
-        return func(cls, url, commit, config, data_request_stub, files=files, **data)
+        files = request_files(data_request_stub, ptr, contents=False, uast=True)
+        return func(cls, ptr, config, data_request_stub, files=files, **data)
 
     return wrapped_with_uasts
 
@@ -113,15 +112,15 @@ def with_uasts_and_contents(func):
     :return: The decorated method.
     """
     @functools.wraps(func)
-    def wrapped_with_uasts_and_contents(cls, url: str, commit: str, config: dict,
+    def wrapped_with_uasts_and_contents(cls: Type[Analyzer], ptr: ReferencePointer, config: dict,
                                         data_request_stub: DataStub, **data) -> AnalyzerModel:
-        files = request_files(data_request_stub, url, commit, contents=True, uast=True)
-        return func(cls, url, commit, config, data_request_stub, files=files, **data)
+        files = request_files(data_request_stub, ptr, contents=True, uast=True)
+        return func(cls, ptr, config, data_request_stub, files=files, **data)
 
     return wrapped_with_uasts_and_contents
 
 
-def request_changes(stub: DataStub, url: str, commit_from: str, commit_to: str,
+def request_changes(stub: DataStub, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
                     contents: bool, uast: bool) -> Iterable[Change]:
     """
     Used by `with_changed_uasts()`.
@@ -129,27 +128,21 @@ def request_changes(stub: DataStub, url: str, commit_from: str, commit_to: str,
     :return: The stream of the gRPC invocation results. In theory, `.result()` would turn this \
              into a synchronous call, but in practice, that function call hangs for some reason.
     """
-    request = ChangesRequest()
-    request.base.internal_repository_url = url
-    request.base.hash = commit_from
-    request.head.internal_repository_url = url
-    request.head.hash = commit_to
+    request = ChangesRequest(base=ptr_from.to_pb(), head=ptr_to.to_pb())
     request.exclude_vendored = True
     request.want_contents = contents
     request.want_uast = uast
     return stub.GetChanges(request)
 
 
-def request_files(stub: DataStub, url: str, commit: str, contents: bool,
-                  uast: bool) -> Iterable[File]:
+def request_files(stub: DataStub, ptr: ReferencePointer, contents: bool, uast: bool
+                  ) -> Iterable[File]:
     """
     Used by `with_uasts()`.
 
     :return: The stream of the gRPC invocation results.
     """
-    request = FilesRequest()
-    request.revision.internal_repository_url = url
-    request.revision.hash = commit
+    request = FilesRequest(revision=ptr.to_pb())
     request.exclude_vendored = True
     request.want_contents = contents
     request.want_uast = uast

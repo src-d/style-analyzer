@@ -1,7 +1,7 @@
 from typing import Type, Tuple
 import unittest
 
-from lookout.core.analyzer import AnalyzerModel, Analyzer
+from lookout.core.analyzer import AnalyzerModel, Analyzer, ReferencePointer
 from lookout.core.api.event_pb2 import ReviewEvent, PushEvent
 from lookout.core.api.service_analyzer_pb2 import Comment, EventResponse
 from lookout.core.api.service_data_pb2_grpc import DataStub
@@ -25,15 +25,15 @@ class FakeAnalyzer(Analyzer):
         super().__init__(model, url, config)
         FakeAnalyzer.instance = self
 
-    def analyze(self, commit_from: str, commit_to: str, data_request_stub: DataStub, **data
-                ) -> [Comment]:
+    def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
+                data_request_stub: DataStub, **data) -> [Comment]:
         comment = Comment()
-        comment.text = "%s|%s" % (commit_from, commit_to)
+        comment.text = "%s|%s" % (ptr_from.commit, ptr_to.commit)
         FakeAnalyzer.stub = data_request_stub
         return [comment]
 
     @classmethod
-    def train(cls, url: str, commit: str, config: dict, data_request_stub: DataStub, **data
+    def train(cls, ptr: ReferencePointer, config: dict, data_request_stub: DataStub, **data
               ) -> AnalyzerModel:
         cls.stub = data_request_stub
         return FakeModel()
@@ -79,8 +79,10 @@ class AnalyzerManagerTests(unittest.TestCase):
         request = ReviewEvent()
         request.configuration.update({"FakeAnalyzer": {"one": "two"}})
         request.commit_revision.base.internal_repository_url = "foo"
+        request.commit_revision.base.reference_name = "refs/heads/master"
         request.commit_revision.base.hash = "00" * 20
         request.commit_revision.head.internal_repository_url = "bar"
+        request.commit_revision.head.reference_name = "refs/heads/master"
         request.commit_revision.head.hash = "ff" * 20
         response = self.manager.process_review_event(request)
         self.assertIsInstance(response, EventResponse)
@@ -96,6 +98,7 @@ class AnalyzerManagerTests(unittest.TestCase):
     def test_process_push_event(self):
         request = PushEvent()
         request.commit_revision.head.internal_repository_url = "wow"
+        request.commit_revision.head.reference_name = "refs/heads/master"
         request.commit_revision.head.hash = "80" * 20
         response = self.manager.process_push_event(request)
         self.assertIsInstance(response, EventResponse)
