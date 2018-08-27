@@ -44,7 +44,7 @@ from typing import Iterable
 
 from bblfsh import Node
 
-from lookout.core.analyzer import Analyzer, AnalyzerModel
+from lookout.core.analyzer import Analyzer, AnalyzerModel, ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2 import Change, File
 from lookout.core.api.service_data_pb2_grpc import DataStub
@@ -69,9 +69,9 @@ class MyAnalyzer(Analyzer):
     _log = logging.getLogger("MyAnalyzer")
     
     @with_changed_uasts_and_contents
-    def analyze(self, commit_from: str, commit_to: str, data_request_stub: DataStub,
-                changes: Iterable[Change]) -> [Comment]:
-        self._log.info("analyze %s %s", commit_from, commit_to)
+    def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
+                data_request_stub: DataStub, changes: Iterable[Change]) -> [Comment]:
+        self._log.info("analyze %s %s", ptr_from.commit, ptr_to.commit)
         comments = []
         for change in changes:
             comment = Comment()
@@ -86,10 +86,10 @@ class MyAnalyzer(Analyzer):
 
     @classmethod
     @with_uasts_and_contents
-    def train(cls, url: str, commit: str, config: dict, data_request_stub: DataStub,
+    def train(cls, ptr: ReferencePointer, config: dict, data_request_stub: DataStub,
               files: Iterable[File]) -> AnalyzerModel:
-        cls._log.info("train %s %s", url, commit)
-        model = cls.construct_model(url, commit)
+        cls._log.info("train %s %s", ptr.url, ptr.commit)
+        model = cls.construct_model(ptr)
         model.node_counts = {}
         for file in files:
             model.node_counts[file.path] = cls.count_nodes(file.uast)

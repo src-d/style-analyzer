@@ -5,6 +5,7 @@ import unittest
 import bblfsh
 
 import lookout
+from lookout.core.analyzer import ReferencePointer
 from lookout.core.api.event_pb2 import PushEvent, ReviewEvent
 from lookout.core.api.service_analyzer_pb2 import EventResponse
 from lookout.core.api.service_data_pb2_grpc import DataStub
@@ -24,6 +25,7 @@ class DataRequestsTests(unittest.TestCase, EventHandlers):
         self.server_thread.start()
         self.data_service = DataService("localhost:10301")
         self.url = "file://" + str(Path(lookout.__file__).parent.absolute())
+        self.ref = "refs/heads/master"
         self.setUpEvent.wait()
 
     def tearDown(self):
@@ -49,7 +51,7 @@ class DataRequestsTests(unittest.TestCase, EventHandlers):
                    self.port)
 
     def test_with_changed_uasts(self):
-        def func(imposter, commit_from: str, commit_to: str,
+        def func(imposter, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
                  data_request_stub: DataStub, **data):
             changes = list(data["changes"])
             self.assertEqual(len(changes), 1)
@@ -65,12 +67,12 @@ class DataRequestsTests(unittest.TestCase, EventHandlers):
 
         func = with_changed_uasts(func)
         func(self,
-             "4984b98b0e2375e9372fbab4eb4c9cd8f0c289c6",
-             "5833b4ba94154cf1ed07f37c32928c7b4411b36b",
+             ReferencePointer(self.url, self.ref, "4984b98b0e2375e9372fbab4eb4c9cd8f0c289c6"),
+             ReferencePointer(self.url, self.ref, "5833b4ba94154cf1ed07f37c32928c7b4411b36b"),
              self.data_service.get())
 
     def test_with_changed_uasts_and_contents(self):
-        def func(imposter, commit_from: str, commit_to: str,
+        def func(imposter, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
                  data_request_stub: DataStub, **data):
             changes = list(data["changes"])
             self.assertEqual(len(changes), 1)
@@ -86,12 +88,12 @@ class DataRequestsTests(unittest.TestCase, EventHandlers):
 
         func = with_changed_uasts_and_contents(func)
         func(self,
-             "4984b98b0e2375e9372fbab4eb4c9cd8f0c289c6",
-             "5833b4ba94154cf1ed07f37c32928c7b4411b36b",
+             ReferencePointer(self.url, self.ref, "4984b98b0e2375e9372fbab4eb4c9cd8f0c289c6"),
+             ReferencePointer(self.url, self.ref, "5833b4ba94154cf1ed07f37c32928c7b4411b36b"),
              self.data_service.get())
 
     def test_with_uasts(self):
-        def func(imposter, url: str, commit: str, config: dict,
+        def func(imposter, ptr: ReferencePointer, config: dict,
                  data_request_stub: DataStub, **data):
             files = list(data["files"])
             self.assertEqual(len(files), 61)
@@ -103,13 +105,12 @@ class DataRequestsTests(unittest.TestCase, EventHandlers):
 
         func = with_uasts(func)
         func(self,
-             self.url,
-             "5833b4ba94154cf1ed07f37c32928c7b4411b36b",
+             ReferencePointer(self.url, self.ref, "5833b4ba94154cf1ed07f37c32928c7b4411b36b"),
              None,
              self.data_service.get())
 
     def test_with_uasts_and_contents(self):
-        def func(imposter, url: str, commit: str, config: dict,
+        def func(imposter, ptr: ReferencePointer, config: dict,
                  data_request_stub: DataStub, **data):
             files = list(data["files"])
             self.assertEqual(len(files), 61)
@@ -122,8 +123,7 @@ class DataRequestsTests(unittest.TestCase, EventHandlers):
 
         func = with_uasts_and_contents(func)
         func(self,
-             self.url,
-             "5833b4ba94154cf1ed07f37c32928c7b4411b36b",
+             ReferencePointer(self.url, self.ref, "5833b4ba94154cf1ed07f37c32928c7b4411b36b"),
              None,
              self.data_service.get())
 
