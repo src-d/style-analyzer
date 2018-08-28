@@ -15,7 +15,7 @@ from lookout.core.data_requests import with_changed_uasts_and_contents, with_uas
 from lookout.style.format.diff import find_new_lines
 from lookout.style.format.features import FeatureExtractor
 from lookout.style.format.model import FormatModel
-from lookout.style.format.rules import TrainableRules
+from lookout.style.format.rules import TopDownGreedyBudget, TrainableRules
 
 
 class FormatAnalyzer(Analyzer):
@@ -29,7 +29,7 @@ class FormatAnalyzer(Analyzer):
                 data_request_stub: DataStub, **data) -> [Comment]:
         comments = []
         changes = list(data["changes"])
-        base_files = self.files_by_language(c.head for c in changes)
+        base_files = self.files_by_language(c.base for c in changes)
         head_files = self.files_by_language(c.head for c in changes)
         for lang, lang_head_files in head_files.items():
             try:
@@ -75,16 +75,16 @@ class FormatAnalyzer(Analyzer):
             "parents_depth": 2,
             "lower_bound_instances": 500,
             "prune_branches_algorithms": ("reduced-error",),
-            "top_down_greedy_budget": TrainableRules.TopDownGreedyBudget(False, .5),
+            "top_down_greedy_budget": TopDownGreedyBudget(False, .5),
             "prune_attributes": False,
             "uncertain_attributes": True,
             "prune_dataset_ratio": .2,
             "n_estimators": 10,
             "random_state": 42,
-            "n_iter": 30
+            "n_iter": 5
         }
         final_config.update(config)
-        cls.log.info("train %s %s %s with config %s", ptr.url, ptr.commit, data,
+        cls.log.info("train %s %s %.50s with config %s", ptr.url, ptr.commit, data,
                      pformat(final_config, width=4096, compact=True))
         files_by_language = cls.files_by_language(data["files"])
         model = FormatModel().construct(cls, ptr)

@@ -159,9 +159,11 @@ class Rules:
         return numpy.nonzero(triggered)[0]
 
 
+TopDownGreedyBudget = NamedTuple("TopDownGreedyBudget", (("absolute", bool),
+                                                         ("value", Union[float, int])))
+
+
 class TrainableRules(BaseEstimator, ClassifierMixin):
-    TopDownGreedyBudget = NamedTuple("TopDownGreedyBudget", (
-        ("absolute", bool), ("value", Union[float, int])))
 
     _log = logging.getLogger("TrainableRules")
 
