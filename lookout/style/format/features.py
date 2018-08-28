@@ -94,7 +94,6 @@ class VirtualNode:
                                        col=node.end_position.col))
 
 
-CLS_NONE = "<none>"
 CLS_SPACE = "<space>"
 CLS_SPACE_INC = "<+space>"
 CLS_SPACE_DEC = "<-space>"
@@ -104,8 +103,9 @@ CLS_TAB_DEC = "<-tab>"
 CLS_NEWLINE = "<newline>"
 CLS_SINGLE_QUOTE = "'"
 CLS_DOUBLE_QUOTE = '"'
-CLASSES = (CLS_NONE, CLS_SPACE, CLS_TAB, CLS_NEWLINE, CLS_SPACE_INC, CLS_SPACE_DEC,
-           CLS_TAB_INC, CLS_TAB_DEC, CLS_SINGLE_QUOTE, CLS_DOUBLE_QUOTE)
+CLS_NOOP = "<noop>"
+CLASSES = (CLS_SPACE, CLS_TAB, CLS_NEWLINE, CLS_SPACE_INC, CLS_SPACE_DEC,
+           CLS_TAB_INC, CLS_TAB_DEC, CLS_SINGLE_QUOTE, CLS_DOUBLE_QUOTE, CLS_NOOP)
 CLASS_INDEX = {cls: i for i, cls in enumerate(CLASSES)}
 
 
@@ -156,6 +156,7 @@ class FeatureExtractor:
                                   extra={"file": file.path, "unhandled": str(e)})
                 continue
             vnodes = self._classify_vnodes(vnodes)
+            vnodes = self._add_noops(vnodes)
             file_lines = set(lines[i]) if lines is not None else None
             parsed_files.append((vnodes, parents, file_lines))
             labels.append([vnode.y for vnode in vnodes if vnode.y and
@@ -287,6 +288,22 @@ class FeatureExtractor:
                             Position(offset + i, lineno, col + i),
                             Position(offset + i + 1, lineno, col + i + 1),
                             y=cls))
+        return result
+
+    @staticmethod
+    def _add_noops(vnodes: Sequence[VirtualNode]) -> List[VirtualNode]:
+        """
+        Add nodes inbetween each node that have CLS_NOOP as label.
+
+        :param vnodes: The sequence of `VirtualNode`-s to augment with noop nodes.
+        :return: The augmented `VirtualNode`-s sequence.
+        """
+        result = [VirtualNode(value="", start=Position(0, 1, 1), end=Position(0, 1, 1),
+                              y=CLASS_INDEX[CLS_NOOP])]
+        for vnode in vnodes:
+            result.append(vnode)
+            result.append(VirtualNode(value="", start=vnode.start, end=vnode.end,
+                                      y=CLASS_INDEX[CLS_NOOP]))
         return result
 
     def _get_role_index(self, vnode: VirtualNode) -> int:

@@ -8,8 +8,8 @@ import numpy
 
 from lookout.core.api.service_data_pb2 import File
 from lookout.style.format.features import (
-    CLASSES, CLS_NEWLINE, CLS_SINGLE_QUOTE, CLS_SPACE, CLS_SPACE_DEC, CLS_SPACE_INC,
-    FeatureExtractor, VirtualNode)
+    CLASS_INDEX, CLASSES, CLS_NEWLINE, CLS_NOOP, CLS_SINGLE_QUOTE, CLS_SPACE, CLS_SPACE_DEC,
+    CLS_SPACE_INC, FeatureExtractor, VirtualNode)
 
 
 class FeaturesTests(unittest.TestCase):
@@ -77,7 +77,6 @@ class FeaturesTests(unittest.TestCase):
              + self.extractor.siblings_window * len(self.extractor.left_siblings_features)
              + self.extractor.siblings_window * len(self.extractor.right_siblings_features)
              + self.extractor.parents_depth * len(self.extractor.parents_features)))
-        # check that no row is full of -1 (no offset errors on instances)
         not_set = X == -1
         unset_rows = numpy.nonzero(numpy.all(not_set, axis=1))[0]
         unset_columns = numpy.nonzero(numpy.all(not_set, axis=0))[0]
@@ -106,6 +105,16 @@ class FeaturesTests(unittest.TestCase):
         self.assertTrue((y1 == y2[:len(y1)]).all())
         self.assertTrue(vn1 == vn2[:len(vn1)])
         self.assertLess(len(y1), len(y2))
+
+    def test_noop_vnodes(self):
+        vnodes, parents = self.extractor._parse_file(self.contents, self.uast)
+        vnodes = self.extractor._classify_vnodes(vnodes)
+        vnodes = self.extractor._add_noops(vnodes)
+        for i, vnode in enumerate(vnodes):
+            if i % 2:
+                self.assertNotEqual(vnode.y, CLASS_INDEX[CLS_NOOP])
+            else:
+                self.assertEqual(vnode.y, CLASS_INDEX[CLS_NOOP])
 
 
 if __name__ == "__main__":
