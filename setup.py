@@ -29,7 +29,7 @@ setup(
         "console_scripts": ["analyzer=lookout.__main__:main"],
     },
     keywords=["machine learning on source code", "babelfish"],
-    install_requires=["sourced-ml>=0.5.1,<0.6",
+    install_requires=["sourced-ml>=0.6.0,<0.7",
                       "modelforge>=0.6.4,<0.7",
                       "xxhash>=0.5.0,<2.0",
                       "stringcase>=1.2.0,<2.0",
