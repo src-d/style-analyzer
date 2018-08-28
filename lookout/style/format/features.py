@@ -5,6 +5,7 @@ from typing import Dict, Iterable, List, Mapping, NamedTuple, Optional, Sequence
 import bblfsh
 import numpy
 
+from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2 import File
 
 Position = NamedTuple("Position", (("offset", int), ("line", int), ("col", int)))
@@ -93,6 +94,25 @@ class VirtualNode:
                                        line=node.end_position.line,
                                        col=node.end_position.col))
 
+    def to_comment(self, correct_y: int) -> Comment:
+        """
+        Writes the comment with regard to the correct node class.
+        :param correct_y: the index of the correct node class.
+        :return: Lookout Comment object.
+        """
+        comment = Comment()
+        comment.line = self.start.line
+        if correct_y == CLASS_INDEX[CLS_NOOP]:
+            comment.text = "format: %s at column %d should be removed" % (
+                CLASSES[self.y], self.start.col)
+        elif self.y == CLASS_INDEX[CLS_NOOP]:
+            comment.text = "format: %s should be inserted at column %d" % (
+                CLASSES[correct_y], self.start.col)
+        else:
+            comment.text = "format: replace %s with %s at column %d" % (
+                CLASSES[self.y], CLASSES[correct_y], self.start.col)
+        return comment
+
 
 CLS_SPACE = "<space>"
 CLS_SPACE_INC = "<+space>"
@@ -132,7 +152,7 @@ class FeatureExtractor:
         self.tokens = importlib.import_module("lookout.style.format.langs.%s.tokens" % language)
         self.roles = importlib.import_module("lookout.style.format.langs.%s.roles" % language)
 
-    def extract_features(self, files: List[File], lines: List[List[int]]=None
+    def extract_features(self, files: Iterable[File], lines: List[List[int]]=None
                          ) -> Tuple[numpy.ndarray, numpy.ndarray, List[VirtualNode]]:
         """
         Given a list of `File`-s, compute the features and labels required for the training of
@@ -293,7 +313,7 @@ class FeatureExtractor:
     @staticmethod
     def _add_noops(vnodes: Sequence[VirtualNode]) -> List[VirtualNode]:
         """
-        Add nodes inbetween each node that have CLS_NOOP as label.
+        Add CLS_NOOP nodes in between each node in the input sequence.
 
         :param vnodes: The sequence of `VirtualNode`-s to augment with noop nodes.
         :return: The augmented `VirtualNode`-s sequence.

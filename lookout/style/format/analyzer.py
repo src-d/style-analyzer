@@ -1,6 +1,7 @@
 from collections import defaultdict
 import logging
 from pprint import pformat
+from typing import Dict, Iterable
 
 from bblfsh import Node
 from skopt import BayesSearchCV
@@ -8,8 +9,10 @@ from skopt.space import Categorical, Integer
 
 from lookout.core.analyzer import Analyzer, AnalyzerModel, ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
+from lookout.core.api.service_data_pb2 import File
 from lookout.core.api.service_data_pb2_grpc import DataStub
 from lookout.core.data_requests import with_changed_uasts_and_contents, with_uasts_and_contents
+from lookout.style.format.diff import find_new_lines
 from lookout.style.format.features import FeatureExtractor
 from lookout.style.format.model import FormatModel
 from lookout.style.format.rules import TrainableRules
@@ -24,17 +27,34 @@ class FormatAnalyzer(Analyzer):
     @with_changed_uasts_and_contents
     def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
                 data_request_stub: DataStub, **data) -> [Comment]:
-        changes = data["changes"]
         comments = []
-        for change in changes:
-            comment = Comment()
-            comment.file = change.head.path
-            comment.text = "%s %d > %d" % (change.head.language,
-                                           self.count_nodes(change.base.uast),
-                                           self.count_nodes(change.head.uast))
-            comment.line = 1
-            comment.confidence = 100
-            comments.append(comment)
+        changes = list(data["changes"])
+        base_files = self.files_by_language(c.head for c in changes)
+        head_files = self.files_by_language(c.head for c in changes)
+        for lang, lang_head_files in head_files.items():
+            try:
+                rules = self.model[lang]
+            except KeyError:
+                self.log.warning("skipped %d written in %s - model does not exist",
+                                 len(lang_head_files), lang)
+                continue
+            for path, file in lang_head_files.items():
+                try:
+                    prev_file = base_files[lang][path]
+                except KeyError:
+                    lines = None
+                else:
+                    lines = find_new_lines(prev_file, file)
+                X, y, vnodes = FeatureExtractor(lang, **getattr(self, "extractor", {})) \
+                    .extract_features([file], lines)
+                y_pred, winners = rules.predict(X, True)
+                assert len(y) == len(y_pred)
+                for yi, y_predi, vnode, winner in zip(y, y_pred, vnodes, winners):
+                    if yi != y_predi:
+                        comment = vnode.to_comment(y_predi)
+                        comment.file = path
+                        comment.confidence = rules.rules[winner].stats.conf
+                        comments.append(comment)
         return comments
 
     @classmethod
@@ -44,11 +64,11 @@ class FormatAnalyzer(Analyzer):
         """
         Train a model given the files available.
 
-        :param url: url of the repository
-        :param commit: hash of the commit that we analyze
-        :param config: configuration dict
-        :param data: data sent by the lookout server
-        :return: a modelforge.Model containing the learned rules, per language.
+        :param ptr: Git repository state pointer.
+        :param config: configuration dict.
+        :param data: contains "files" - the list of files in the pointed state.
+        :param data_request_stub: connection to the Lookout data retrieval service, not used.
+        :return: AnalyzerModel containing the learned rules, per language.
         """
         final_config = {
             "siblings_window": 5,
@@ -66,30 +86,27 @@ class FormatAnalyzer(Analyzer):
         final_config.update(config)
         cls.log.info("train %s %s %s with config %s", ptr.url, ptr.commit, data,
                      pformat(final_config, width=4096, compact=True))
-        files = data["files"]
-        language_to_files = defaultdict(list)
-        for file in files:
-            if not len(file.uast.children):
-                continue
-            if file.language != "JavaScript":
-                continue
-            language_to_files["javascript"].append(file)
-            cls.log.info("%s %s %d", file.path, file.language, len(file.uast.children))
-
+        files_by_language = cls.files_by_language(data["files"])
         model = FormatModel().construct(cls, ptr)
-
-        for language, files in language_to_files.items():
-            cls.log.info("training on %d %s files", len(files), language)
-            fe = FeatureExtractor(language=language,
-                                  siblings_window=final_config["siblings_window"],
-                                  parents_depth=final_config["parents_depth"])
-            X, y, _ = fe.extract_features(files)
+        for language, files in files_by_language.items():
+            language = language.lower()
+            try:
+                fe = FeatureExtractor(language=language,
+                                      siblings_window=final_config["siblings_window"],
+                                      parents_depth=final_config["parents_depth"])
+            except ImportError:
+                cls.log.warning("skipped %d %s files - not supported", len(files), language)
+                continue
+            else:
+                cls.log.info("training on %d %s files", len(files), language)
+            # we sort to make the features reproducible
+            X, y, _ = fe.extract_features(f[1] for f in sorted(files.items()))
             lower_bound_instances = final_config["lower_bound_instances"]
             if X.shape[0] < lower_bound_instances:
-                cls.log.warning("skipped %s: too few samples (%d/%d)", language, X.shape[0],
-                                lower_bound_instances)
+                cls.log.warning("skipped %d %s files: too few samples (%d/%d)",
+                                len(files), language, X.shape[0], lower_bound_instances)
                 continue
-            cls.log.debug("training rules model")
+            cls.log.debug("training the rules model")
             bscv = BayesSearchCV(
                 TrainableRules(
                     prune_branches_algorithms=final_config["prune_branches_algorithms"],
@@ -128,3 +145,17 @@ class FormatAnalyzer(Analyzer):
             count += 1
             stack.extend(node.children)
         return count
+
+    @classmethod
+    def files_by_language(cls, files: Iterable[File]) -> Dict[str, Dict[str, File]]:
+        """
+        Sorts files by programming language and path.
+        :param files: iterable of `File`-s.
+        :return: dictionary with languages as keys and files mapped to paths as values.
+        """
+        result = defaultdict(dict)
+        for file in files:
+            if not len(file.uast.children):
+                continue
+            result[file.language][file.path] = file
+        return result
