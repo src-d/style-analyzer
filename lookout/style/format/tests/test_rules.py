@@ -44,7 +44,7 @@ class RulesTests(unittest.TestCase):
             = load_abalone_data()
 
     def test_predict_unfitted(self):
-        rules = TrainableRules("sklearn.tree.DecisionTreeClassifier", prune_branches=False,
+        rules = TrainableRules("sklearn.tree.DecisionTreeClassifier", prune_branches_algorithms=[],
                                prune_attributes=False)
         with self.assertRaises(NotFittedError):
             rules.predict(self.test_x)
@@ -52,7 +52,7 @@ class RulesTests(unittest.TestCase):
     def test_tree_no_pruning(self):
         model = tree.DecisionTreeClassifier(min_samples_leaf=26, random_state=1989)
         model = model.fit(self.train_x, self.train_y)
-        rules = TrainableRules("sklearn.tree.DecisionTreeClassifier", prune_branches=False,
+        rules = TrainableRules("sklearn.tree.DecisionTreeClassifier", prune_branches_algorithms=[],
                                prune_attributes=False, min_samples_leaf=26, random_state=1989)
         rules.fit(self.train_x, self.train_y)
         tree_score = model.score(self.train_x, self.train_y)
@@ -63,9 +63,9 @@ class RulesTests(unittest.TestCase):
         model = ensemble.RandomForestClassifier(n_estimators=50, min_samples_leaf=26,
                                                 random_state=1989)
         model = model.fit(self.train_x, self.train_y)
-        rules = TrainableRules("sklearn.ensemble.RandomForestClassifier", prune_branches=False,
-                               prune_attributes=False, n_estimators=50, min_samples_leaf=26,
-                               random_state=1989)
+        rules = TrainableRules("sklearn.ensemble.RandomForestClassifier",
+                               prune_branches_algorithms=[], prune_attributes=False,
+                               n_estimators=50, min_samples_leaf=26, random_state=1989)
         rules.fit(self.train_x, self.train_y)
         forest_score = model.score(self.train_x, self.train_y)
         rules_score = rules.score(self.train_x, self.train_y)
@@ -74,7 +74,7 @@ class RulesTests(unittest.TestCase):
     def test_tree_attr_pruning(self):
         model = tree.DecisionTreeClassifier(min_samples_leaf=26, random_state=1989)
         model = model.fit(self.train_x, self.train_y)
-        rules = TrainableRules("sklearn.tree.DecisionTreeClassifier", prune_branches=False,
+        rules = TrainableRules("sklearn.tree.DecisionTreeClassifier", prune_branches_algorithms=[],
                                prune_attributes=True, min_samples_leaf=26, random_state=1989)
         rules.fit(self.train_x, self.train_y)
         tree_score = model.score(self.test_x, self.test_y)
@@ -84,7 +84,7 @@ class RulesTests(unittest.TestCase):
     def test_prune_branches_top_down_greedy(self):
         def test_budget(budget):
             rules = TrainableRules("sklearn.tree.DecisionTreeClassifier",
-                                   prune_branches_algorithm="top-down-greedy", prune_branches=True,
+                                   prune_branches_algorithms=["top-down-greedy"],
                                    prune_attributes=False, top_down_greedy_budget=(False, budget),
                                    random_state=1989)
             rules.fit(self.train_x, self.train_y)
@@ -95,6 +95,7 @@ class RulesTests(unittest.TestCase):
 
     def test_reduced_error_prune(self):
         LEAF = _tree.TREE_LEAF
+        UNDEFINED = _tree.TREE_UNDEFINED
 
         class FakeFeature:
             def __getitem__(self, item):
@@ -150,13 +151,15 @@ class RulesTests(unittest.TestCase):
         pruned_model = TrainableRules._prune_reduced_error(
             model, FakeX, numpy.array([1, 1, 1, 0, 0, 1]))
         self.assertEqual(list(pruned_model.tree_.children_left),
-                         [1, 2, LEAF, LEAF, LEAF, LEAF, LEAF, LEAF, LEAF, LEAF, LEAF])
+                         [1, 2, LEAF, LEAF, UNDEFINED, UNDEFINED, UNDEFINED, UNDEFINED, UNDEFINED,
+                          UNDEFINED, LEAF])
         self.assertEqual(list(pruned_model.tree_.children_right),
-                         [10, 3, LEAF, LEAF, LEAF, LEAF, LEAF, LEAF, LEAF, LEAF, LEAF])
+                         [10, 3, LEAF, LEAF, UNDEFINED, UNDEFINED, UNDEFINED, UNDEFINED, UNDEFINED,
+                          UNDEFINED, LEAF])
 
     def test_rules_estimator(self):
-        estimator = TrainableRules("sklearn.tree.DecisionTreeClassifier", prune_branches=False,
-                                   prune_attributes=False)
+        estimator = TrainableRules("sklearn.tree.DecisionTreeClassifier",
+                                   prune_branches_algorithms=[], prune_attributes=False)
         scores = model_selection.cross_val_score(estimator, self.x, self.y)
         score = sum(scores) / len(scores)
         self.assertGreater(score, .5)

@@ -31,10 +31,12 @@ class IntegrationTests(unittest.TestCase):
         train_X, test_X, train_y, test_y = \
             model_selection.train_test_split(X, y, random_state=1989)
 
-        model = tree.DecisionTreeClassifier(min_samples_leaf=26, random_state=1989)
+        model = tree.DecisionTreeClassifier(min_samples_leaf=26, random_state=1989, max_depth=None,
+                                            max_features="auto", min_samples_split=2)
         model.fit(train_X, train_y)
-        rules = TrainableRules("sklearn.tree.DecisionTreeClassifier", prune_branches=False,
-                               prune_attributes=False, min_samples_leaf=26, random_state=1989)
+        rules = TrainableRules("sklearn.tree.DecisionTreeClassifier", prune_branches_algorithms=[],
+                               prune_attributes=False, min_samples_leaf=26, random_state=1989,
+                               max_depth=None, max_features="auto", min_samples_split=2)
         rules.fit(train_X, train_y)
         model_score_train = model.score(train_X, train_y)
         model_score_test = model.score(test_X, test_y)
