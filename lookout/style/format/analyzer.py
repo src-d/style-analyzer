@@ -83,7 +83,7 @@ class FormatAnalyzer(Analyzer):
             fe = FeatureExtractor(language=language,
                                   siblings_window=final_config["siblings_window"],
                                   parents_depth=final_config["parents_depth"])
-            X, y = fe.extract_features(files)
+            X, y, _ = fe.extract_features(files)
             lower_bound_instances = final_config["lower_bound_instances"]
             if X.shape[0] < lower_bound_instances:
                 cls.log.warning("skipped %s: too few samples (%d/%d)", language, X.shape[0],
