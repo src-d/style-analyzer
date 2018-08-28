@@ -66,24 +66,22 @@ class Rules:
     def __len__(self):
         return len(self._rules)
 
-    def predict(self, X: numpy.ndarray, return_rules_infos: bool = False
-                ) -> Union[numpy.ndarray, Tuple[numpy.ndarray, numpy.ndarray, numpy.ndarray]]:
+    def predict(self, X: numpy.ndarray, return_winner_indices=False
+                ) -> Union[numpy.ndarray, Tuple[numpy.ndarray, numpy.ndarray]]:
         """
         Evaluates the rules against the given features.
 
         :param X: input features.
-        :param return_rules_infos: whether to return additional infos about the rules used during
-                                   prediction (index and confidence)
-        :return: array of the same length as X with predictions or tuple of three arrays of same
-                 length as X containing (predictions, indices, confidences).
+        :param return_winner_indices: whether to return the winning rule index for each sample.
+        :return: array of the same length as X with predictions or tuple of two arrays of the same\
+                 length as X containing (predictions, winner rule indices).
         """
         self._log.debug("predicting %d samples using %d rules", len(X), len(self._rules))
         rules = self._rules
         _compute_triggered = self._compute_triggered
-        prediction = numpy.zeros(len(X), dtype=int)
-        if return_rules_infos:
-            indices = numpy.zeros(len(X), dtype=int)
-            confidences = numpy.zeros(len(X), dtype=float)
+        prediction = numpy.zeros(len(X), dtype=numpy.int32)
+        if return_winner_indices:
+            winner_indices = numpy.zeros(len(X), dtype=numpy.int32)
         for xi, x in enumerate(X):
             ris = _compute_triggered(self._compiled, rules, x)
             if len(ris) == 0:
@@ -97,11 +95,10 @@ class Rules:
             else:
                 winner_index = ris[0]
             prediction[xi] = rules[winner_index].stats.cls
-            if return_rules_infos:
-                indices[xi] = winner_index
-                confidences[xi] = rules[winner_index].stats.conf
-        if return_rules_infos:
-            return prediction, indices, confidences
+            if return_winner_indices:
+                winner_indices[xi] = winner_index
+        if return_winner_indices:
+            return prediction, winner_indices
         return prediction
 
     @property
