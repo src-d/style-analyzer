@@ -40,6 +40,13 @@ class VirtualNode:
             self.value, tuple(self.start), tuple(self.end),
             id(self.node) if self.node is not None else "None")
 
+    def __eq__(self, other: "VirtualNode") -> bool:
+        return self.value == other.value and \
+               self.start == other.start and \
+               self.end == other.end and \
+               self.node == other.node and \
+               self.y == other.y
+
     @staticmethod
     def from_node(node: bblfsh.Node, file: str) -> Iterable["VirtualNode"]:
         """
@@ -126,7 +133,7 @@ class FeatureExtractor:
         self.roles = importlib.import_module("lookout.style.format.langs.%s.roles" % language)
 
     def extract_features(self, files: List[File], lines: List[List[int]]=None
-                         ) -> Tuple[numpy.ndarray, numpy.ndarray]:
+                         ) -> Tuple[numpy.ndarray, numpy.ndarray, List[VirtualNode]]:
         """
         Given a list of `File`-s, compute the features and labels required for the training of
         downstream models.
@@ -134,7 +141,8 @@ class FeatureExtractor:
         :param files: the list of `File`-s (see service_data.proto) of the same language.
         :param lines: the list of enabled line numbers per file. The lines which are not \
                       mentioned will not be extracted.
-        :return: tuple of numpy.ndarray (2 and 1 dimensional respectively): features and labels.
+        :return: tuple of numpy.ndarray (2 and 1 dimensional respectively): features and labels \
+                 and the corresponding `VirtualNode`-s.
         """
         parsed_files = []
         labels = []
@@ -161,10 +169,11 @@ class FeatureExtractor:
              + self.siblings_window * len(self.right_siblings_features)
              + self.parents_depth * len(self.parents_features)),
             -1)
+        vn = [None] * y.shape[0]
         offset = 0
         for (vnodes, parents, file_lines), partial_labels in zip(parsed_files, labels):
-            offset = self._inplace_write_vnodes_features(vnodes, parents, file_lines, offset, X)
-        return X, y
+            offset = self._inplace_write_vnode_features(vnodes, parents, file_lines, offset, X, vn)
+        return X, y, vn
 
     def _classify_vnodes(self, nodes: Iterable[VirtualNode]) -> List[VirtualNode]:
         """
@@ -289,7 +298,7 @@ class FeatureExtractor:
         return role_index
 
     def _get_self_features(self, vnode: VirtualNode) -> Sequence[int]:
-        return (vnode.start.line, vnode.end.line, vnode.start.col, vnode.end.col)
+        return vnode.start.line, vnode.end.line, vnode.start.col, vnode.end.col
 
     def _get_left_sibling_features(self, left_sibling_vnode: VirtualNode, vnode: VirtualNode
                                    ) -> Sequence[int]:
@@ -352,17 +361,18 @@ class FeatureExtractor:
         X[row, col:col + len(features)] = features
         return len(features)
 
-    def _inplace_write_vnodes_features(
+    def _inplace_write_vnode_features(
             self, vnodes: Sequence[VirtualNode], parents: Mapping[int, bblfsh.Node],
-            lines: Set[int], index_offset: int, X: numpy.ndarray) -> int:
+            lines: Set[int], index_offset: int, X: numpy.ndarray, vn: List[VirtualNode]) -> int:
         """
         Given a sequence of `VirtualNode`-s and relevant info, compute the input matrix and label
         vector.
 
-        :param vnodes: sequence of `VirtualNode`-s
+        :param vnodes: input sequence of `VirtualNode`s
         :param parents: dictionnary of node id to parent node
         :param index_offset: at which index in the input ndarrays we should start writing
-        :param X: features matrix
+        :param X: features matrix, row per sample
+        :param vn: list of the corresponding `VirtualNode`s, the length is the same as `X.shape[0]`
         :return: the new offset
         """
         closest_left_node_id = None
@@ -412,6 +422,7 @@ class FeatureExtractor:
                 col_offset += self._inplace_write_features(
                     self._get_parent_features(parent_vnode), position, col_offset, X)
 
+            vn[position] = vnode
             position += 1
         return position
 

@@ -9,7 +9,7 @@ import numpy
 from lookout.core.api.service_data_pb2 import File
 from lookout.style.format.features import (
     CLASSES, CLS_NEWLINE, CLS_SINGLE_QUOTE, CLS_SPACE, CLS_SPACE_DEC, CLS_SPACE_INC,
-    FeatureExtractor)
+    FeatureExtractor, VirtualNode)
 
 
 class FeaturesTests(unittest.TestCase):
@@ -66,8 +66,11 @@ class FeaturesTests(unittest.TestCase):
         files = [file, file]
         self.check_X_y(*self.extractor.extract_features(files))
 
-    def check_X_y(self, X, y):
+    def check_X_y(self, X, y, vnodes):
         self.assertEqual(X.shape[0], y.shape[0])
+        self.assertEqual(X.shape[0], len(vnodes))
+        for vn in vnodes:
+            self.assertIsInstance(vn, VirtualNode)
         self.assertEqual(
             X.shape[1],
             (len(self.extractor.self_features)
@@ -95,12 +98,13 @@ class FeaturesTests(unittest.TestCase):
                     uast=self.uast)
         files = [file]
 
-        X1, y1 = self.extractor.extract_features(
+        X1, y1, vn1 = self.extractor.extract_features(
             files, [list(range(1, self.contents.count("\n") // 2 + 1))] * 2)
-        self.check_X_y(X1, y1)
-        X2, y2 = self.extractor.extract_features(files)
+        self.check_X_y(X1, y1, vn1)
+        X2, y2, vn2 = self.extractor.extract_features(files)
         self.assertTrue((X1 == X2[:len(X1)]).all())
         self.assertTrue((y1 == y2[:len(y1)]).all())
+        self.assertTrue(vn1 == vn2[:len(vn1)])
         self.assertLess(len(y1), len(y2))
 
 
