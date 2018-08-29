@@ -1,7 +1,9 @@
+from collections import defaultdict
+import logging
 import lzma
 from pathlib import Path
 import tarfile
-from typing import NamedTuple, Sequence
+from typing import NamedTuple, Dict, Optional, Iterable
 import unittest
 
 import bblfsh
@@ -9,70 +11,76 @@ import bblfsh
 from lookout.core.analyzer import ReferencePointer
 from lookout.core.api.service_data_pb2 import File
 from lookout.style.format.analyzer import FormatAnalyzer
-
+from lookout.style.format.model import FormatModel
 
 Change = NamedTuple("Change", [("base", File), ("head", File)])
 
 
 class FakeDataStub:
-    def __init__(self, files: Sequence[File] = [], changes: Sequence[Change] = []):
+    def __init__(self, files: Optional[Iterable[File]], changes: Optional[Iterable[Change]]):
         self.files = files
         self.changes = changes
 
-    def GetFiles(self, request):
+    def GetFiles(self, _):
         return self.files
 
-    def GetChanges(self, request):
+    def GetChanges(self, _):
         return self.changes
 
 
 class AnalyzerTests(unittest.TestCase):
-
     @staticmethod
-    def get_files_from_tar(tar_path, bblfsh_client):
-        files = {}
+    def get_files_from_tar(tar_path: str) -> Dict[str, File]:
+        files = defaultdict(lambda: [None, None])
         with tarfile.open(tar_path) as tar:
             for i, member in enumerate(tar):
-                if i > 10:
-                    break
                 name = member.name
+                if name == ".":
+                    continue
                 file = tar.extractfile(member)
-                if file is None:
-                    continue
-                bytes_content = file.read()
-                res = bblfsh_client.parse('', language="javascript", contents=bytes_content)
-                if res.status != 0:
-                    continue
-                files[name] = File(path=name, content=bytes_content, uast=res.uast,
-                                   language="JavaScript")
+                uast = True if name.endswith(".uast") else False
+                content = file.read()
+                if uast:
+                    name = name[:-5]
+                    content = bblfsh.Node.FromString(content)
+                files[name][uast] = content
+        for key, (content, uast) in files.items():
+            files[key] = File(path=key, content=content, uast=uast, language="JavaScript")
         return files
 
     @classmethod
     def setUpClass(cls):
+        logging.basicConfig(level=logging.INFO)
         base = Path(__file__).parent
         # str() is needed for Python 3.5
         with lzma.open(str(base / "benchmark.uast.xz")) as fin:
             cls.uast = bblfsh.Node.FromString(fin.read())
-        cls.base_files = []
-        client = bblfsh.BblfshClient("0.0.0.0:9432")
-        cls.base_files = cls.get_files_from_tar(str(base / "freecodecamp-base.tar.xz"), client)
-        cls.head_files = cls.get_files_from_tar(str(base / "freecodecamp-head.tar.xz"), client)
+        cls.base_files = cls.get_files_from_tar(str(base / "freecodecamp-base.tar.xz"))
+        cls.head_files = cls.get_files_from_tar(str(base / "freecodecamp-head.tar.xz"))
 
     def test_files_by_language(self):
-        file_stats = {"js": 2, "python": 5, "ruby": 7}
+        file_stats = {"js": 2, "Python": 5, "ruby": 7}
         files = []
         for language, n_files in file_stats.items():
             for i in range(n_files):
                 files.append(File(language=language, uast=self.uast, path=str(i)))
-        result = FormatAnalyzer.files_by_language(files)
-        self.assertEqual(file_stats, {k: len(v) for k, v in result.items()})
+        result = FormatAnalyzer._files_by_language(files)
+        self.assertEqual({"js": 2, "python": 5, "ruby": 7}, {k: len(v) for k, v in result.items()})
         return result
 
     def test_train(self):
-        datastub = FakeDataStub(files=self.base_files.values())
+        datastub = FakeDataStub(files=self.base_files.values(), changes=None)
         ptr = ReferencePointer("https://youtu.be/dQw4w9WgXcQ", "refs/heads/master", "somecommit")
         config = {"n_iter": 1}
-        FormatAnalyzer.train(ptr, config, datastub)
+        model1 = FormatAnalyzer.train(ptr, config, datastub)
+        self.assertIsInstance(model1, FormatModel)
+        self.assertIn("javascript", model1, str(model1))
+        datastub = FakeDataStub(files=self.base_files.values(), changes=None)
+        ptr = ReferencePointer("https://youtu.be/dQw4w9WgXcQ", "refs/heads/master", "somecommit")
+        config = {"n_iter": 1}
+        model2 = FormatAnalyzer.train(ptr, config, datastub)
+        self.assertEqual(model1["javascript"].rules, model2["javascript"].rules)
+        self.assertGreater(len(model1["javascript"]), 10)
 
     def test_analyze(self):
         common = self.base_files.keys() & self.head_files.keys()
@@ -83,7 +91,8 @@ class AnalyzerTests(unittest.TestCase):
         config = {"n_iter": 1}
         model = FormatAnalyzer.train(ptr, config, datastub)
         analyzer = FormatAnalyzer(model, ptr.url, {})
-        analyzer.analyze(ptr, ptr, datastub)
+        comments = analyzer.analyze(ptr, ptr, datastub)
+        self.assertGreater(len(comments), 0)
 
 
 if __name__ == "__main__":

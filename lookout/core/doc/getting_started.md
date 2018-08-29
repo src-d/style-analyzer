@@ -40,7 +40,7 @@ Create `my_analyzer.py`:
 
 ```python
 import logging
-from typing import Iterable
+from typing import Iterable, Dict, Any
 
 from bblfsh import Node
 
@@ -86,7 +86,7 @@ class MyAnalyzer(Analyzer):
 
     @classmethod
     @with_uasts_and_contents
-    def train(cls, ptr: ReferencePointer, config: dict, data_request_stub: DataStub,
+    def train(cls, ptr: ReferencePointer, config: Dict[str, Any], data_request_stub: DataStub,
               files: Iterable[File]) -> AnalyzerModel:
         cls._log.info("train %s %s", ptr.url, ptr.commit)
         model = cls.construct_model(ptr)
