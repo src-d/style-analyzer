@@ -11,7 +11,7 @@ class SloggingTests(unittest.TestCase):
     def test_structured_logging(self):
         logging.basicConfig()
         handler_backup = logging.getLogger().handlers[0]
-        slogging.setup("INFO", True)
+        slogging.setup("INFO", True, "logging.yaml")
         backup = sys.stdout
         sys.stdout = buffer = io.StringIO()
         try:
