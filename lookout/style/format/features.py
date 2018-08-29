@@ -322,7 +322,7 @@ class FeatureExtractor:
                               y=CLASS_INDEX[CLS_NOOP])]
         for vnode in vnodes:
             result.append(vnode)
-            result.append(VirtualNode(value="", start=vnode.start, end=vnode.end,
+            result.append(VirtualNode(value="", start=vnode.end, end=vnode.end,
                                       y=CLASS_INDEX[CLS_NOOP]))
         return result
 
@@ -332,6 +332,8 @@ class FeatureExtractor:
             role = vnode.node.internal_type
             if role in self.roles.ROLE_INDEX:
                 role_index = self.roles.ROLE_INDEX[role]
+        elif vnode.value in self.tokens.RESERVED_INDEX:
+            role_index = len(self.roles.ROLE_INDEX) + self.tokens.RESERVED_INDEX[vnode.value]
         return role_index
 
     def _get_self_features(self, vnode: VirtualNode) -> Sequence[int]:
