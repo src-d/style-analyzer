@@ -12,8 +12,8 @@ def find_new_lines(before: File, after: File) -> List[int]:
     :param after: the new contents of the file.
     :return: list of line numbers new to `after`.
     """
-    matcher = SequenceMatcher(a=before.content.decode("utf-8", "replace"),
-                              b=after.content.decode("utf-8", "replace"))
+    matcher = SequenceMatcher(a=before.content.decode("utf-8", "replace").splitlines(),
+                              b=after.content.decode("utf-8", "replace").splitlines())
     result = []
     for action, _, _, j1, j2 in matcher.get_opcodes():
         if action in ("equal", "delete"):

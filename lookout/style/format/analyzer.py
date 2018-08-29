@@ -52,7 +52,7 @@ class FormatAnalyzer(Analyzer):
                     if yi != y_predi:
                         comment = vnode.to_comment(y_predi)
                         comment.file = path
-                        comment.confidence = rules.rules[winner].stats.conf
+                        comment.confidence = int(round(rules.rules[winner].stats.conf * 100))
                         comments.append(comment)
         return comments
 

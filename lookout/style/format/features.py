@@ -407,6 +407,7 @@ class FeatureExtractor:
 
         :param vnodes: input sequence of `VirtualNode`s
         :param parents: dictionnary of node id to parent node
+        :param lines: indices of lines to consider. 1-based.
         :param index_offset: at which index in the input ndarrays we should start writing
         :param X: features matrix, row per sample
         :param vn: list of the corresponding `VirtualNode`s, the length is the same as `X.shape[0]`
