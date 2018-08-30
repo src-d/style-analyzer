@@ -123,6 +123,10 @@ RESERVED = [
     "'",
     '"',
     "`",
+    "${"
 ]
+
+# The longest keywords should come first for the regex below to be usable with finditer
+RESERVED.sort(reverse=True)
 
 PARSER = re.compile("|".join(re.escape(i) for i in RESERVED) + r"|\s+")
