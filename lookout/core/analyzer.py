@@ -1,4 +1,4 @@
-from typing import Type, NamedTuple  # noqa: F401
+from typing import Type, NamedTuple, Any, Dict  # noqa: F401
 
 from modelforge import Model
 
@@ -66,7 +66,7 @@ class Analyzer:
     version = None  # type: str
     model_type = None  # type: Type[AnalyzerModel]
 
-    def __init__(self, model: AnalyzerModel, url: str, config: dict):
+    def __init__(self, model: AnalyzerModel, url: str, config: Dict[str, Any]):
         """
         :param model: The instance of the model loaded from the repository or freshly trained.
         :param url: The analyzed project's Git remote.
@@ -95,7 +95,7 @@ class Analyzer:
         raise NotImplementedError
 
     @classmethod
-    def train(cls, ptr: ReferencePointer, config: dict, data_request_stub: DataStub,
+    def train(cls, ptr: ReferencePointer, config: Dict[str, Any], data_request_stub: DataStub,
               **data) -> AnalyzerModel:
         """
         Generates a new model on top of the specified source code.

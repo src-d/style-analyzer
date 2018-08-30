@@ -110,7 +110,9 @@ class Rules:
         return self._origin
 
     @property
-    def avg_rule_len(self):
+    def avg_rule_len(self) -> float:
+        if not self._rules:
+            return 0
         return sum(len(r.attrs) for r in self._rules) / len(self._rules)
 
     @classmethod
@@ -159,9 +161,11 @@ class Rules:
         return numpy.nonzero(triggered)[0]
 
 
+TopDownGreedyBudget = NamedTuple("TopDownGreedyBudget", (("absolute", bool),
+                                                         ("value", Union[float, int])))
+
+
 class TrainableRules(BaseEstimator, ClassifierMixin):
-    TopDownGreedyBudget = NamedTuple("TopDownGreedyBudget", (
-        ("absolute", bool), ("value", Union[float, int])))
 
     _log = logging.getLogger("TrainableRules")
 
@@ -279,13 +283,15 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
     def base_model_name(self, value: Union[str, Type[DecisionTreeClassifier],
                                            Type[RandomForestClassifier]]):
         if isinstance(value, str):
+            self._base_model_name = value
             base_model_module_name, base_model_class_name = value.rsplit(".", 1)
             base_model_module = importlib.import_module(base_model_module_name)
             value = getattr(base_model_module, base_model_class_name)
+        else:
+            self._base_model_name = "%s.%s" % (value.__module__, value.__name__)
         if not issubclass(value, (DecisionTreeClassifier, RandomForestClassifier)):
             raise TypeError("%s base model type is not allowed" % value)
         self._base_model_class = value
-        self._base_model_name = "%s.%s" % (value.__module__, value.__name__)
 
     @property
     def fitted(self):
@@ -423,8 +429,8 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
                                numpy.sum(y_predicted_leaf2 == y[data_leaf2_index])) \
                     / X.shape[0]
 
-                if score_delta / init_score < max_score_drop or \
-                        score_delta / current_score < step_score_drop:
+                if init_score != 0 and score_delta / init_score < max_score_drop or \
+                        current_score != 0 and score_delta / current_score < step_score_drop:
                     checked.add(parent)
                     continue
                 else:
