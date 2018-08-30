@@ -118,3 +118,5 @@ ROLES = [
 ]
 
 ROLE_INDEX = {r: i for i, r in enumerate(ROLES)}
+
+EXCEPTION_ROLES = ("RegExpLiteral", "TemplateLiteral", "ArrayExpression", "ArrayPattern")

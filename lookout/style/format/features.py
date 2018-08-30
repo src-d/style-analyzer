@@ -464,6 +464,37 @@ class FeatureExtractor:
             position += 1
         return position
 
+    @staticmethod
+    def _filter_overlapping_nodes(nodes: Sequence[bblfsh.Node]) -> Iterable[bblfsh.Node]:
+        """
+        Filters overlapping nodes.
+        Overlapping nodes come primarily from the fake tokens created for exception types during
+        file parsing. This function discards nodes that are between the start and end position of
+        a previous node.
+
+        :param nodes: the sequence of nodes to filter.
+        :return: the filtered sequence of nodes as an interator.
+        """
+        def check_overlap(n1: bblfsh.Node, n2: bblfsh.Node) -> bool:
+            return (n1.start_position.offset <= n2.start_position.offset
+                    and n1.end_position.offset > n2.start_position.offset)
+
+        curr_n = 0
+        next_n = 1
+        stop = False
+        while not stop:
+            if curr_n >= len(nodes):
+                break
+            yield nodes[curr_n]
+            if next_n >= len(nodes):
+                break
+            while check_overlap(nodes[curr_n], nodes[next_n]):
+                next_n += 1
+                if next_n >= len(nodes):
+                    stop = True
+                    break
+            curr_n = next_n
+
     def _parse_file(self, contents: str, root: bblfsh.Node) -> \
             Tuple[List[VirtualNode], Dict[int, bblfsh.Node]]:
         """
@@ -494,6 +525,8 @@ class FeatureExtractor:
             for child in node.children:
                 parents[id(child)] = node
             queue.extend(node.children)
+            if node.internal_type in self.roles.EXCEPTION_ROLES:
+                node.token = contents[node.start_position.offset:node.end_position.offset]
             if node.token or node.start_position and node.end_position and not node.children:
                 node_tokens.append(node)
         node_tokens.sort(key=lambda n: n.start_position.offset)
@@ -507,7 +540,7 @@ class FeatureExtractor:
         pos = 0
         parser = self.tokens.PARSER
         searchsorted = numpy.searchsorted
-        for node in node_tokens:
+        for node in self._filter_overlapping_nodes(node_tokens):
             if node.start_position.offset > pos:
                 sumlen = 0
                 diff = contents[pos:node.start_position.offset]
