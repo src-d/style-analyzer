@@ -30,7 +30,6 @@ setup(
     },
     keywords=["machine learning on source code", "babelfish"],
     install_requires=["sourced-ml>=0.6.0,<0.7",
-                      "modelforge>=0.6.4,<0.7",
                       "xxhash>=0.5.0,<2.0",
                       "stringcase>=1.2.0,<2.0",
                       "sqlalchemy>=1.0.0,<2.0",
