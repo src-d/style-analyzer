@@ -10,5 +10,4 @@ humanfriendly==4.16.1
 psycopg2-binary==2.7.5
 scikit-learn==0.19.2
 tqdm==4.11.2
-modelforge==0.7.0
 scikit-optimize==0.5.2
