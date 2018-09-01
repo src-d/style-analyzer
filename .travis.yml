@@ -14,8 +14,7 @@ stages:
     # require any tag name to deploy
     if: tag =~ .*
 _install: &_install
-  - pip install --upgrade pip cython
-  - pip install -r requirements.txt codecov
+  - pip install --upgrade pip cython codecov
   - pip install -e .[test]
 _coverage: &_coverage
   - SCRIPT="coverage run --concurrency=multiprocessing -m unittest discover && coverage combine"

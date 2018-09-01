@@ -6,7 +6,7 @@ RUN apt-get update && \
       python3 python3-dev python3-distutils && \
     wget -O - https://bootstrap.pypa.io/get-pip.py | python3 && \
     pip3 install --no-cache-dir sourced-ml && \
-    pip3 uninstall -y pyspark sourced-engine && \
+    pip3 uninstall -y pyspark && \
     apt-get remove -y python3-dev libxml2-dev libsnappy-dev gcc g++ wget && \
     apt-get remove -y .*-doc .*-man >/dev/null && \
     apt-get autoremove -y && \
@@ -30,5 +30,8 @@ COPY lookout/style lookout/style/
 COPY lookout/__init__.py lookout/__init__.py
 COPY lookout/__main__.py lookout/__main__.py
 COPY setup.py setup.py
-RUN pip3 install -e . && rm -rf /usr/local/lib/python3.6/dist-packages/sourced/engine/ /usr/local/lib/python3.6/dist-packages/pyspark/
+COPY requirements.txt requirements.txt
+RUN pip3 install -r requirements.txt && \
+    pip3 install -e . && \
+    rm -rf /usr/local/lib/python3.6/dist-packages/pyspark/
 ENTRYPOINT ["analyzer"]
