@@ -101,7 +101,8 @@ class DataRequestsTests(unittest.TestCase, EventHandlers):
                 self.assertEqual(file.content, b"")
                 self.assertEqual(type(file.uast).__module__, bblfsh.Node.__module__)
                 self.assertTrue(file.path)
-                self.assertIn(file.language, ("Python", ""))
+                self.assertIn(file.language, ("Python", "YAML", "Dockerfile", "Markdown",
+                                              "Jupyter Notebook", "Shell", "Text", ""))
 
         func = with_uasts(func)
         func(self,
@@ -119,7 +120,8 @@ class DataRequestsTests(unittest.TestCase, EventHandlers):
                     self.assertGreater(len(file.content), 0, file.path)
                 self.assertEqual(type(file.uast).__module__, bblfsh.Node.__module__)
                 self.assertTrue(file.path)
-                self.assertIn(file.language, ("Python", ""))
+                self.assertIn(file.language, ("Python", "YAML", "Dockerfile", "Markdown",
+                                              "Jupyter Notebook", "Shell", "Text", ""))
 
         func = with_uasts_and_contents(func)
         func(self,

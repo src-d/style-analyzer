@@ -17,7 +17,7 @@ def fetch():
     try:
         buffer = io.BytesIO()
         with urlopen("https://github.com/src-d/lookout/releases/download/"
-                     "v0.1.0/lookout_sdk_v0.1.0_linux_amd64.tar.gz") as response:
+                     "v0.1.3/lookout_sdk_v0.1.3_linux_amd64.tar.gz") as response:
             copyfileobj(response, buffer)
         buffer.seek(0)
         with tarfile.open(fileobj=buffer, mode="r:gz") as tar:
