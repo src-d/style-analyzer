@@ -43,9 +43,9 @@ class FormatAnalyzer(Analyzer):
                 except KeyError:
                     lines = None
                 else:
-                    lines = find_new_lines(prev_file, file)
+                    lines = [find_new_lines(prev_file, file)]
                 X, y, vnodes = FeatureExtractor(lang, **getattr(self, "extractor", {})) \
-                    .extract_features([file], [lines])
+                    .extract_features([file], lines)
                 y_pred, winners = rules.predict(X, True)
                 assert len(y) == len(y_pred)
                 for yi, y_predi, vnode, winner in zip(y, y_pred, vnodes, winners):
