@@ -332,9 +332,8 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         Each rule is a branch in the tree.
 
         :param tree: input decision tree.
-        :param offset: offset to use to create rules ID (useful to create unique IDs when using \
-                       random forest).
-        :param class_mapping: mapping to apply to the rules classes. Useful for random forests.
+        :param offset: offset for the rules' identifiers - used when there are several trees.
+        :param class_mapping: mapping for rules' classes - used when there are several trees.
         :return: list of extracted rules.
         """
         tree_ = tree.tree_
