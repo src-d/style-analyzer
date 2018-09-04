@@ -3,8 +3,8 @@ from copy import deepcopy
 import functools
 import importlib
 import logging
-from typing import Any, Dict, Iterable, List, Mapping, NamedTuple, Sequence, Set, Tuple, Union, \
-    Type
+from typing import (Any, Dict, Iterable, List, Mapping, NamedTuple, Optional, Sequence, Set, Tuple,
+                    Union, Type)
 
 import numpy
 from numpy import count_nonzero
@@ -250,7 +250,8 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
                     estimator = self._prune_reduced_error(estimator, X_prune, y_prune)
                     new += (count_nonzero(estimator.tree_.children_left == Tree.TREE_LEAF)
                             + count_nonzero(estimator.tree_.children_right == Tree.TREE_LEAF))
-                rules_partial, leaf2rule_partial = self._tree_to_rules(estimator, offset=offset)
+                rules_partial, leaf2rule_partial = self._tree_to_rules(
+                    estimator, offset=offset, class_mapping=base_model.classes_)
                 offset += len(rules_partial)
                 leaf2rule.append(leaf2rule_partial)
                 rules.extend(rules_partial)
@@ -323,13 +324,16 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         return self._rules
 
     @classmethod
-    def _tree_to_rules(cls, tree: DecisionTreeClassifier, offset: int = 0
+    def _tree_to_rules(cls, tree: DecisionTreeClassifier, offset: int = 0,
+                       class_mapping: Optional[numpy.ndarray] = None
                        ) -> Tuple[List[Rule], Mapping[int, int]]:
         """
         Converts the sklearn's decision tree to the set of rules.
         Each rule is a branch in the tree.
 
         :param tree: input decision tree.
+        :param offset: offset for the rules' identifiers - used when there are several trees.
+        :param class_mapping: mapping for rules' classes - used when there are several trees.
         :return: list of extracted rules.
         """
         tree_ = tree.tree_
@@ -351,7 +355,10 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
                 # why -0.5? See the papers mentioned in _prune_attributes()
                 conf = (freqs.max() - 0.5) / freqs.sum()
                 leaf2rule[node] = len(rules) + offset
-                rules.append(Rule(path, RuleStats(tree.classes_[numpy.argmax(freqs)], conf)))
+                prediction = int(tree.classes_[numpy.argmax(freqs)])
+                if class_mapping is not None:
+                    prediction = class_mapping[prediction]
+                rules.append(Rule(path, RuleStats(prediction, conf)))
         return rules, leaf2rule
 
     @classmethod
