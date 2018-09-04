@@ -11,7 +11,7 @@ Code style analyzer.
 
 1. Download [`lookout`](https://github.com/src-d/lookout/releases) binary.
 2. Install the deps `sudo pip3 install -e .`
-3. Write the configuration file `lookout.yaml`:
+3. Write the configuration file `config.yml`:
 
 ```yaml
 server: 0.0.0.0:2000
@@ -19,7 +19,7 @@ db: sqlite:////tmp/lookout.sqlite
 fs: /tmp
 ```
 
-4. Run the analyzer `python3 -m lookout run lookout.style.format -c lookout.yaml`
+4. Run the analyzer `python3 -m lookout run lookout.style.format -c config.yml`
 5. File a fake pull request `./lookout review -v ipv4://localhost:2000`
 
 ### API Documentation
