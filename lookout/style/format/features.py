@@ -131,7 +131,7 @@ CLASS_INDEX = {cls: i for i, cls in enumerate(CLASSES)}
 
 class FeatureExtractor:
 
-    self_features = ["start_line", "end_line", "start_col", "end_col"]
+    self_features = ["start_line", "start_col"]
     left_siblings_features = ["start_line_diff", "end_line_diff", "start_col_diff", "end_col_diff",
                               "role_id"]
     right_siblings_features = ["role_id"]
@@ -337,7 +337,7 @@ class FeatureExtractor:
         return role_index
 
     def _get_self_features(self, vnode: VirtualNode) -> Sequence[int]:
-        return vnode.start.line, vnode.end.line, vnode.start.col, vnode.end.col
+        return vnode.start.line, vnode.start.col
 
     def _get_left_sibling_features(self, left_sibling_vnode: VirtualNode, vnode: VirtualNode
                                    ) -> Sequence[int]:
