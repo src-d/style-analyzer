@@ -57,6 +57,7 @@ class AnalyzerTests(unittest.TestCase):
             cls.uast = bblfsh.Node.FromString(fin.read())
         cls.base_files = cls.get_files_from_tar(str(base / "freecodecamp-base.tar.xz"))
         cls.head_files = cls.get_files_from_tar(str(base / "freecodecamp-head.tar.xz"))
+        cls.ptr = ReferencePointer("someurl", "someref", "somecommit")
 
     def test_files_by_language(self):
         file_stats = {"js": 2, "Python": 5, "ruby": 7}
@@ -70,15 +71,13 @@ class AnalyzerTests(unittest.TestCase):
 
     def test_train(self):
         datastub = FakeDataStub(files=self.base_files.values(), changes=None)
-        ptr = ReferencePointer("https://youtu.be/dQw4w9WgXcQ", "refs/heads/master", "somecommit")
         config = {"n_iter": 1}
-        model1 = FormatAnalyzer.train(ptr, config, datastub)
+        model1 = FormatAnalyzer.train(self.ptr, config, datastub)
         self.assertIsInstance(model1, FormatModel)
         self.assertIn("javascript", model1, str(model1))
         datastub = FakeDataStub(files=self.base_files.values(), changes=None)
-        ptr = ReferencePointer("https://youtu.be/dQw4w9WgXcQ", "refs/heads/master", "somecommit")
         config = {"n_iter": 1}
-        model2 = FormatAnalyzer.train(ptr, config, datastub)
+        model2 = FormatAnalyzer.train(self.ptr, config, datastub)
         self.assertEqual(model1["javascript"].rules, model2["javascript"].rules)
         self.assertGreater(len(model1["javascript"]), 10)
 
@@ -87,11 +86,10 @@ class AnalyzerTests(unittest.TestCase):
         datastub = FakeDataStub(files=self.base_files.values(),
                                 changes=[Change(base=self.base_files[k], head=self.head_files[k])
                                          for k in common])
-        ptr = ReferencePointer("https://youtu.be/dQw4w9WgXcQ", "refs/heads/master", "somecommit")
         config = {"n_iter": 1}
-        model = FormatAnalyzer.train(ptr, config, datastub)
-        analyzer = FormatAnalyzer(model, ptr.url, {})
-        comments = analyzer.analyze(ptr, ptr, datastub)
+        model = FormatAnalyzer.train(self.ptr, config, datastub)
+        analyzer = FormatAnalyzer(model, self.ptr.url, {})
+        comments = analyzer.analyze(self.ptr, self.ptr, datastub)
         self.assertGreater(len(comments), 0)
 
 
