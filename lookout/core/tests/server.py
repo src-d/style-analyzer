@@ -30,9 +30,9 @@ def fetch():
         raise e from None
 
 
-def run(cmd: str, fr: str, to: str, port):
-    subprocess.run([str(file), cmd, "-v", "ipv4://localhost:%s" % port, "--from", fr, "--to", to],
-                   stdout=sys.stdout, stderr=sys.stderr, check=True)
+def run(cmd: str, fr: str, to: str, port, git_dir="."):
+    subprocess.run([str(file), cmd, "-v", "ipv4://localhost:%s" % port, "--from", fr, "--to", to,
+                    "--git-dir", git_dir], stdout=sys.stdout, stderr=sys.stderr, check=True)
 
 
 def find_port(attempts=100) -> int:
