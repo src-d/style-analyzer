@@ -46,6 +46,7 @@ class FormatAnalyzer(Analyzer):
                     lines = [find_new_lines(prev_file, file)]
                 X, y, vnodes = FeatureExtractor(lang, **getattr(self, "extractor", {})) \
                     .extract_features([file], lines)
+                self.log.debug("predicting values for %d samples", len(y))
                 y_pred, winners = rules.predict(X, True)
                 assert len(y) == len(y_pred)
                 for yi, y_predi, vnode, winner in zip(y, y_pred, vnodes, winners):

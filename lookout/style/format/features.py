@@ -26,8 +26,8 @@ class VirtualNode:
         :param node: corresponding UAST node (if exists).
         """
         self.value = value
-        assert start.line >= 1 and start.col >= 1
-        assert end.line >= 1 and end.col >= 1
+        assert start.line >= 1 and start.col >= 1, "start line and column are 1-based like UASTs"
+        assert end.line >= 1 and end.col >= 1, "end line and column are 1-based like UASTs"
         self.start = start
         self.end = end
         self.node = node
@@ -57,7 +57,6 @@ class VirtualNode:
         :param file: the file contents.
         :return: new VirtualNode-s
         """
-
         outer_token = file[node.start_position.offset:node.end_position.offset]
         if not node.token:
             yield VirtualNode(outer_token,
@@ -172,8 +171,7 @@ class FeatureExtractor:
             try:
                 vnodes, parents = self._parse_file(contents, uast)
             except AssertionError as e:
-                self._log.warning("could not parse file %s, skipped it", file.path,
-                                  extra={"file": file.path, "unhandled": str(e)})
+                self._log.warning("could not parse file %s, skipping", file.path)
                 continue
             vnodes = self._classify_vnodes(vnodes)
             vnodes = self._add_noops(vnodes)
