@@ -9,7 +9,7 @@ import numpy
 from lookout.core.api.service_data_pb2 import File
 from lookout.style.format.features import (
     CLASS_INDEX, CLASSES, CLS_NEWLINE, CLS_NOOP, CLS_SINGLE_QUOTE, CLS_SPACE, CLS_SPACE_DEC,
-    CLS_SPACE_INC, FeatureExtractor, VirtualNode)
+    CLS_SPACE_INC, FeatureExtractor, VirtualNode, FeatureType)
 from lookout.style.format.langs.javascript.roles import ROLE_INDEX
 from lookout.style.format.langs.javascript.tokens import RESERVED
 
@@ -73,12 +73,7 @@ class FeaturesTests(unittest.TestCase):
         self.assertEqual(X.shape[0], len(vnodes))
         for vn in vnodes:
             self.assertIsInstance(vn, VirtualNode)
-        self.assertEqual(
-            X.shape[1],
-            (len(self.extractor.self_features)
-             + self.extractor.siblings_window * len(self.extractor.left_siblings_features)
-             + self.extractor.siblings_window * len(self.extractor.right_siblings_features)
-             + self.extractor.parents_depth * len(self.extractor.parents_features)))
+        self.assertEqual(X.shape[1], self.extractor.count_features(FeatureType.all))
         not_set = X == -1
         unset_rows = numpy.nonzero(numpy.all(not_set, axis=1))[0]
         unset_columns = numpy.nonzero(numpy.all(not_set, axis=0))[0]
@@ -128,8 +123,9 @@ class FeaturesTests(unittest.TestCase):
         # last columns are only roles
         last_columns = self.extractor.parents_depth + self.extractor.siblings_window
         self.assertGreater(numpy.count_nonzero(X[:, -last_columns:] > len(ROLE_INDEX)), 0)
-        col_role_left_sibling = (
-            len(self.extractor.self_features) + len(self.extractor.left_siblings_features) - 1)
+        col_role_left_sibling = (self.extractor.count_features(FeatureType.node) +
+                                 self.extractor.count_features(FeatureType.left_siblings)
+                                 - 1)
 
         def get_ext_role(role_index):
             return RESERVED[role_index - len(ROLE_INDEX)]
