@@ -487,13 +487,12 @@ class SymSpell:
         return self._edits(key, 0, s)
 
     def _hash(self, s):
-        l = len(s)
-        l_mask = l
+        l_mask = len(s)
         if l_mask > 3:
             l_mask = 3
 
         hs = 2166136261
-        for i in range(l):
+        for i in range(len(s)):
             hs ^= ord(s[i])
             hs *= 16777619
         hs &= self._compact_mask
