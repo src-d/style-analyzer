@@ -42,7 +42,7 @@ class FeaturesTests(unittest.TestCase):
 
     def test_classify_vnodes(self):
         nodes, _ = self.extractor._parse_file(self.contents, self.uast)
-        nodes = self.extractor._classify_vnodes(nodes)
+        nodes = list(self.extractor._classify_vnodes(nodes))
         text = "".join(n.value for n in nodes)
         self.assertEqual(text, self.contents)
         cls_counts = defaultdict(int)

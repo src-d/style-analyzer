@@ -194,7 +194,7 @@ class FeatureExtractor:
             offset = self._inplace_write_vnode_features(vnodes, parents, file_lines, offset, X, vn)
         return X, y, vn
 
-    def _classify_vnodes(self, nodes: Iterable[VirtualNode]) -> List[VirtualNode]:
+    def _classify_vnodes(self, nodes: Iterable[VirtualNode]) -> Iterable[VirtualNode]:
         """
         This function fills "y" attribute in the VirtualNode-s from _parse_file().
         It is the index of the corresponding class to predict.
@@ -204,17 +204,16 @@ class FeatureExtractor:
         :return: new list of VirtualNodes, the size is different from the original.
         """
         indentation = []
-        result = []
         for node in nodes:
             if node.node is not None:
-                result.append(node)
+                yield node
                 continue
             if not node.value.isspace():
                 for cls in (CLS_SINGLE_QUOTE, CLS_DOUBLE_QUOTE):
                     if node.value == cls:
                         node.y = CLASS_INDEX[cls]
                         break
-                result.append(node)
+                yield node
                 continue
             lines = node.value.split("\r\n")
             if len(lines) > 1:
@@ -230,11 +229,11 @@ class FeatureExtractor:
                     else:
                         cls = CLASS_INDEX[CLS_SPACE]
                     offset, line, col = node.start
-                    result.append(VirtualNode(
+                    yield VirtualNode(
                         char,
                         Position(offset + i, line, col + i),
                         Position(offset + i + 1, line, col + i + 1),
-                        y=cls))
+                        y=cls)
                 continue
             line_offset = 0
             for i, line in enumerate(lines):
@@ -244,11 +243,11 @@ class FeatureExtractor:
                     start_offset = node.start.offset + line_offset
                     start_col = node.start.col if i == 0 else 1
                     lineno = node.start.line + i
-                    result.append(VirtualNode(
+                    yield VirtualNode(
                         newline,
                         Position(start_offset, lineno, start_col),
                         Position(start_offset + len(newline), lineno, start_col + len(newline)),
-                        y=CLASS_INDEX[CLS_NEWLINE]))
+                        y=CLASS_INDEX[CLS_NEWLINE])
                     line_offset += len(line) + len(sep)
                     continue
                 my_indent = list(line)
@@ -259,10 +258,10 @@ class FeatureExtractor:
                 except ValueError:
                     if my_indent:
                         # mixed tabs and spaces, do not classify
-                        result.append(VirtualNode(
+                        yield VirtualNode(
                             line,
                             Position(offset - len(line), lineno, col - len(line)),
-                            node.end))
+                            node.end)
                         continue
                     # indentation decrease
                     offset -= len(line)
@@ -272,23 +271,23 @@ class FeatureExtractor:
                             cls = CLASS_INDEX[CLS_TAB_DEC]
                         else:
                             cls = CLASS_INDEX[CLS_SPACE_DEC]
-                        result.append(VirtualNode(
+                        yield VirtualNode(
                             "",
                             Position(offset, lineno, col),
                             Position(offset, lineno, col),
-                            y=cls))
+                            y=cls)
                     indentation = indentation[:len(line)]
-                    result.append(VirtualNode(
+                    yield VirtualNode(
                         "".join(indentation),
                         Position(offset, lineno, col),
-                        node.end))
+                        node.end)
                 else:
-                    result.append(VirtualNode(
+                    yield VirtualNode(
                         "".join(indentation),
                         Position(offset - len(line), lineno, col - len(line)),
                         Position(offset - len(line) + len(indentation),
                                  lineno,
-                                 col - len(line) + len(indentation))))
+                                 col - len(line) + len(indentation)))
                     offset += - len(line) + len(indentation)
                     col += - len(line) + len(indentation)
                     if not my_indent:
@@ -301,12 +300,11 @@ class FeatureExtractor:
                             cls = CLASS_INDEX[CLS_TAB_INC]
                         else:
                             cls = CLASS_INDEX[CLS_SPACE_INC]
-                        result.append(VirtualNode(
+                        yield VirtualNode(
                             char,
                             Position(offset + i, lineno, col + i),
                             Position(offset + i + 1, lineno, col + i + 1),
-                            y=cls))
-        return result
+                            y=cls)
 
     @staticmethod
     def _add_noops(vnodes: Sequence[VirtualNode]) -> List[VirtualNode]:
