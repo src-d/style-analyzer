@@ -11,3 +11,6 @@ psycopg2-binary==2.7.5
 scikit-learn==0.19.2
 tqdm==4.11.2
 scikit-optimize==0.5.2
+keras==2.2.2
+xgboost==0.72.1
+git+https://github.com/facebookresearch/fastText
