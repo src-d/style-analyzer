@@ -10,7 +10,7 @@ from lookout.style.format.features import FeatureExtractor
 from lookout.style.format.rules import TrainableRules
 
 
-class IntegrationTests(unittest.TestCase):
+class RulesIntegrationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         base = Path(__file__).parent
