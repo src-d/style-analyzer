@@ -236,75 +236,74 @@ class FeatureExtractor:
                         y=cls)
                 continue
             line_offset = 0
-            for i, line in enumerate(lines):
-                if i < len(lines) - 1:
-                    # `line` contains trailing whitespaces, we add it to the newline node
-                    newline = line + sep
-                    start_offset = node.start.offset + line_offset
-                    start_col = node.start.col if i == 0 else 1
-                    lineno = node.start.line + i
+            for i, line in enumerate(lines[:-1]):
+                # `line` contains trailing whitespaces, we add it to the newline node
+                newline = line + sep
+                start_offset = node.start.offset + line_offset
+                start_col = node.start.col if i == 0 else 1
+                lineno = node.start.line + i
+                yield VirtualNode(
+                    newline,
+                    Position(start_offset, lineno, start_col),
+                    Position(start_offset + len(newline), lineno, start_col + len(newline)),
+                    y=CLASS_INDEX[CLS_NEWLINE])
+                line_offset += len(line) + len(sep)
+            line = lines[-1]
+            my_indent = list(line)
+            offset, lineno, col = node.end
+            try:
+                for ws in indentation:
+                    my_indent.remove(ws)
+            except ValueError:
+                if my_indent:
+                    # mixed tabs and spaces, do not classify
                     yield VirtualNode(
-                        newline,
-                        Position(start_offset, lineno, start_col),
-                        Position(start_offset + len(newline), lineno, start_col + len(newline)),
-                        y=CLASS_INDEX[CLS_NEWLINE])
-                    line_offset += len(line) + len(sep)
-                    continue
-                my_indent = list(line)
-                offset, lineno, col = node.end
-                try:
-                    for ws in indentation:
-                        my_indent.remove(ws)
-                except ValueError:
-                    if my_indent:
-                        # mixed tabs and spaces, do not classify
-                        yield VirtualNode(
-                            line,
-                            Position(offset - len(line), lineno, col - len(line)),
-                            node.end)
-                        continue
-                    # indentation decrease
-                    offset -= len(line)
-                    col -= len(line)
-                    for char in indentation[len(line):]:
-                        if char == "\t":
-                            cls = CLASS_INDEX[CLS_TAB_DEC]
-                        else:
-                            cls = CLASS_INDEX[CLS_SPACE_DEC]
-                        yield VirtualNode(
-                            "",
-                            Position(offset, lineno, col),
-                            Position(offset, lineno, col),
-                            y=cls)
-                    indentation = indentation[:len(line)]
-                    yield VirtualNode(
-                        "".join(indentation),
-                        Position(offset, lineno, col),
-                        node.end)
-                else:
-                    yield VirtualNode(
-                        "".join(indentation),
+                        line,
                         Position(offset - len(line), lineno, col - len(line)),
-                        Position(offset - len(line) + len(indentation),
-                                 lineno,
-                                 col - len(line) + len(indentation)))
-                    offset += - len(line) + len(indentation)
-                    col += - len(line) + len(indentation)
-                    if not my_indent:
-                        # indentation is the same
-                        continue
-                    # indentation increase
-                    for i, char in enumerate(my_indent):
-                        indentation.append(char)
-                        if char == "\t":
-                            cls = CLASS_INDEX[CLS_TAB_INC]
-                        else:
-                            cls = CLASS_INDEX[CLS_SPACE_INC]
-                        yield VirtualNode(
-                            char,
-                            Position(offset + i, lineno, col + i),
-                            Position(offset + i + 1, lineno, col + i + 1),
-                            y=cls)
+                        node.end)
+                    continue
+                # indentation decrease
+                offset -= len(line)
+                col -= len(line)
+                for char in indentation[len(line):]:
+                    if char == "\t":
+                        cls = CLASS_INDEX[CLS_TAB_DEC]
+                    else:
+                        cls = CLASS_INDEX[CLS_SPACE_DEC]
+                    yield VirtualNode(
+                        "",
+                        Position(offset, lineno, col),
+                        Position(offset, lineno, col),
+                        y=cls)
+                indentation = indentation[:len(line)]
+                yield VirtualNode(
+                    "".join(indentation),
+                    Position(offset, lineno, col),
+                    node.end)
+            else:
+                yield VirtualNode(
+                    "".join(indentation),
+                    Position(offset - len(line), lineno, col - len(line)),
+                    Position(offset - len(line) + len(indentation),
+                             lineno,
+                             col - len(line) + len(indentation)))
+                offset += - len(line) + len(indentation)
+                col += - len(line) + len(indentation)
+                if not my_indent:
+                    # indentation is the same
+                    continue
+                # indentation increase
+                for i, char in enumerate(my_indent):
+                    indentation.append(char)
+                    if char == "\t":
+                        cls = CLASS_INDEX[CLS_TAB_INC]
+                    else:
+                        cls = CLASS_INDEX[CLS_SPACE_INC]
+                    yield VirtualNode(
+                        char,
+                        Position(offset + i, lineno, col + i),
+                        Position(offset + i + 1, lineno, col + i + 1),
+                        y=cls)
 
     @staticmethod
     def _add_noops(vnodes: Sequence[VirtualNode]) -> List[VirtualNode]:
