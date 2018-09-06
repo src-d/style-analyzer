@@ -1,10 +1,11 @@
-from typing import Type, NamedTuple, Any, Dict  # noqa: F401
+from typing import NamedTuple, Any, Dict  # noqa: F401
 
 from modelforge import Model
 
 from lookout.core.api.event_pb2 import ReferencePointer as ApiReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2_grpc import DataStub
+from lookout.core.ports import Type
 
 # We redefine ReferencePointer because Protocol Buffers message objects suck.
 ReferencePointer = NamedTuple("ReferencePointer", (("url", str), ("ref", str), ("commit", str)))

@@ -3,7 +3,7 @@ from datetime import datetime
 import logging
 import os
 import threading
-from typing import Tuple, Type
+from typing import Tuple
 
 import cachetools
 from pympler.asizeof import asizeof
@@ -15,6 +15,7 @@ from sqlalchemy_utils import database_exists, create_database
 
 from lookout.core.analyzer import AnalyzerModel
 from lookout.core.model_repository import ModelRepository
+from lookout.core.ports import Type
 
 Base = declarative_base()
 

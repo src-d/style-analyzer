@@ -1,5 +1,5 @@
 import logging
-from typing import Iterable, Type, Sequence
+from typing import Iterable, Sequence
 
 from lookout.core.analyzer import Analyzer, ReferencePointer
 from lookout.core.api.event_pb2 import ReviewEvent, PushEvent
@@ -7,6 +7,7 @@ from lookout.core.api.service_analyzer_pb2 import EventResponse
 from lookout.core.data_requests import DataService
 from lookout.core.event_listener import EventHandlers
 from lookout.core.model_repository import ModelRepository
+from lookout.core.ports import Type
 
 
 class AnalyzerManager(EventHandlers):

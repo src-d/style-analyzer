@@ -1,6 +1,6 @@
 import functools
 import threading
-from typing import Iterable, Type  # noqa: F401
+from typing import Iterable  # noqa: F401
 
 import grpc
 
@@ -8,6 +8,7 @@ from lookout.core.analyzer import Analyzer, AnalyzerModel, ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2 import ChangesRequest, FilesRequest, Change, File
 from lookout.core.api.service_data_pb2_grpc import DataStub
+from lookout.core.ports import Type
 
 
 class DataService:
