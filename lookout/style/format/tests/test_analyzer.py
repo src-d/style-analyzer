@@ -51,6 +51,7 @@ class AnalyzerTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         logging.basicConfig(level=logging.INFO)
+        logging.getLogger("FormatAnalyzer").setLevel(logging.DEBUG)
         base = Path(__file__).parent
         # str() is needed for Python 3.5
         with lzma.open(str(base / "benchmark.uast.xz")) as fin:
