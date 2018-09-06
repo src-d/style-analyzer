@@ -209,10 +209,10 @@ class FeatureExtractor:
                 yield node
                 continue
             if not node.value.isspace():
-                for cls in (CLS_SINGLE_QUOTE, CLS_DOUBLE_QUOTE):
-                    if node.value == cls:
-                        node.y = CLASS_INDEX[cls]
-                        break
+                if node.value == "'":
+                    node.y = CLASS_INDEX[CLS_SINGLE_QUOTE]
+                elif node.value == '"':
+                    node.y = CLASS_INDEX[CLS_DOUBLE_QUOTE]
                 yield node
                 continue
             lines = node.value.split("\r\n")
@@ -228,11 +228,11 @@ class FeatureExtractor:
                         cls = CLASS_INDEX[CLS_TAB]
                     else:
                         cls = CLASS_INDEX[CLS_SPACE]
-                    offset, line, col = node.start
+                    offset, lineno, col = node.start
                     yield VirtualNode(
                         char,
-                        Position(offset + i, line, col + i),
-                        Position(offset + i + 1, line, col + i + 1),
+                        Position(offset + i, lineno, col + i),
+                        Position(offset + i + 1, lineno, col + i + 1),
                         y=cls)
                 continue
             line_offset = 0
