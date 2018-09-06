@@ -28,6 +28,8 @@ class VirtualNode:
         self.value = value
         assert start.line >= 1 and start.col >= 1, "start line and column are 1-based like UASTs"
         assert end.line >= 1 and end.col >= 1, "end line and column are 1-based like UASTs"
+        assert (y in [CLASS_INDEX[CLS_NOOP], CLASS_INDEX[CLS_TAB_DEC], CLASS_INDEX[CLS_SPACE_DEC]]
+                or start.offset != end.offset)
         self.start = start
         self.end = end
         self.node = node
@@ -84,7 +86,7 @@ class VirtualNode:
                                    line=node.end_position.line,
                                    col=node.start_position.col + end_offset),
                           node=node)
-        if end_offset:
+        if end_pos < node.end_position.offset:
             yield VirtualNode(outer_token[end_offset:],
                               Position(offset=end_pos,
                                        line=node.end_position.line,
@@ -276,17 +278,19 @@ class FeatureExtractor:
                         Position(offset, lineno, col),
                         y=cls)
                 indentation = indentation[:len(line)]
-                yield VirtualNode(
-                    "".join(indentation),
-                    Position(offset, lineno, col),
-                    node.end)
+                if indentation:
+                    yield VirtualNode(
+                        "".join(indentation),
+                        Position(offset, lineno, col),
+                        node.end)
             else:
-                yield VirtualNode(
-                    "".join(indentation),
-                    Position(offset - len(line), lineno, col - len(line)),
-                    Position(offset - len(line) + len(indentation),
-                             lineno,
-                             col - len(line) + len(indentation)))
+                if indentation:
+                    yield VirtualNode(
+                        "".join(indentation),
+                        Position(offset - len(line), lineno, col - len(line)),
+                        Position(offset - len(line) + len(indentation),
+                                 lineno,
+                                 col - len(line) + len(indentation)))
                 offset += - len(line) + len(indentation)
                 col += - len(line) + len(indentation)
                 if not my_indent:
