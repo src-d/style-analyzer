@@ -26,7 +26,7 @@ class FeaturesTests(unittest.TestCase):
         cls.extractor = FeatureExtractor("javascript", parents_depth=2, siblings_window=5)
 
     def test_parse_file(self):
-        nodes, parents = self.extractor._parse_file(self.contents, self.uast)
+        nodes, parents = self.extractor._parse_file(self.contents, self.uast, "test_file")
         text = []
         offset = line = col = 0
         for n in nodes:
@@ -41,8 +41,8 @@ class FeaturesTests(unittest.TestCase):
         self.assertEqual("".join(text), self.contents)
 
     def test_classify_vnodes(self):
-        nodes, _ = self.extractor._parse_file(self.contents, self.uast)
-        nodes = list(self.extractor._classify_vnodes(nodes))
+        nodes, _ = self.extractor._parse_file(self.contents, self.uast, "test_file")
+        nodes = list(self.extractor._classify_vnodes(nodes, "test_file"))
         text = "".join(n.value for n in nodes)
         self.assertEqual(text, self.contents)
         cls_counts = defaultdict(int)
@@ -104,9 +104,9 @@ class FeaturesTests(unittest.TestCase):
         self.assertLess(len(y1), len(y2))
 
     def test_noop_vnodes(self):
-        vnodes, parents = self.extractor._parse_file(self.contents, self.uast)
-        vnodes = self.extractor._classify_vnodes(vnodes)
-        vnodes = self.extractor._add_noops(vnodes)
+        vnodes, parents = self.extractor._parse_file(self.contents, self.uast, "test_file")
+        vnodes = self.extractor._classify_vnodes(vnodes, "test_file")
+        vnodes = self.extractor._add_noops(vnodes, "test_file")
         for i, vnode in enumerate(vnodes):
             if i % 2:
                 self.assertNotEqual(vnode.y, CLASS_INDEX[CLS_NOOP])
