@@ -436,24 +436,42 @@ class FeatureExtractor:
                         break
                     current_ancestor = parents[current_ancestor_id]
 
-            col_offset = 0
+            # First we define the ranges into which we find siblings when the current node is NOOP.
+            # If the current node is NOOP, then its direct neighbours are interesting (read
+            # non-NOOP) nodes.
+            start_left = i - 1
+            end_left = start_left - self.siblings_window * 2
+            start_right = i + 1
+            end_right = start_right + self.siblings_window * 2
+            # For non-NOOP nodes, the first interesting nodes is further from the current node
+            # since there is a NOOP node in-between.
+            if vnode.y != CLASS_INDEX[CLS_NOOP]:
+                start_left -= 1
+                end_left -= 1
+                start_right += 1
+                end_right += 1
+            # We go two by two to avoid NOOP nodes.
+            left_siblings = vnodes[max(start_left, 0):max(end_left, 0):-2]
+            right_siblings = vnodes[start_right:end_right:2]
 
+            col_offset = 0
             # 1. write features of the current node
             col_offset += self._inplace_write_features(self._get_self_features(vnode),
                                                        position, col_offset, X)
-            # 2. account for the possible lack of siblings by adjusting offset and write features
-            # of the left siblings of the current node
-            col_offset += abs(min(i - self.siblings_window, 0)) * len(self.left_siblings_features)
-            for left_vnode in vnodes[max(0, i - self.siblings_window):i]:
+            # 2. write features of the left siblings of the current node and account for the
+            # possible lack of siblings by adjusting offset
+            for left_vnode in left_siblings:
                 col_offset += self._inplace_write_features(
                     self._get_left_sibling_features(left_vnode, vnode), position, col_offset, X)
+            col_offset += ((self.siblings_window - len(left_siblings))
+                           * len(self.left_siblings_features))
 
             # 3. write features of the right siblings of the current node and account for the
             # possible lack of siblings by adjusting offset
-            for right_vnode in vnodes[i + 1:i + 1 + self.siblings_window]:
+            for right_vnode in right_siblings:
                 col_offset += self._inplace_write_features(
                     self._get_right_sibling_features(right_vnode), position, col_offset, X)
-            col_offset += (max(i + self.siblings_window - len(vnodes) + 1, 0)
+            col_offset += ((self.siblings_window - len(right_siblings))
                            * len(self.right_siblings_features))
 
             # 4. write features of the parents of the current node

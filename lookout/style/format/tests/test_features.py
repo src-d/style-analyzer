@@ -129,21 +129,18 @@ class FeaturesTests(unittest.TestCase):
         last_columns = self.extractor.parents_depth + self.extractor.siblings_window
         self.assertGreater(numpy.count_nonzero(X[:, -last_columns:] > len(ROLE_INDEX)), 0)
         col_role_left_sibling = (
-            len(self.extractor.self_features)
-            + self.extractor.siblings_window * len(self.extractor.left_siblings_features)
-            - 1)
+            len(self.extractor.self_features) + len(self.extractor.left_siblings_features) - 1)
 
         def get_ext_role(role_index):
             return RESERVED[role_index - len(ROLE_INDEX)]
 
         for i, (x, vn) in enumerate(zip(X, vns)):
-            start, end = vn.start.offset, vn.end.offset
-            if start < 100:
+            start = vn.start.offset
+            # Don't test the first two nodes, they might not have a left sibling
+            if i < 2:
                 continue
             role_index_left = x[col_role_left_sibling]
             if role_index_left >= len(ROLE_INDEX):
-                self.assertEqual(start, end)
-                self.assertEqual(vn.y, CLASS_INDEX[CLS_NOOP])
                 role_left = get_ext_role(role_index_left)
                 self.assertEqual(self.contents[start - len(role_left):start], role_left)
 
