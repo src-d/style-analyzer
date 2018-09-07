@@ -4,7 +4,7 @@ import functools
 import importlib
 import logging
 from typing import (Any, Dict, Iterable, List, Mapping, NamedTuple, Optional, Sequence, Set, Tuple,
-                    Union, Type)
+                    Union)
 
 import numpy
 from numpy import count_nonzero
@@ -15,6 +15,8 @@ from sklearn.exceptions import NotFittedError
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
 from sklearn.tree import _tree as Tree, DecisionTreeClassifier
+
+from lookout.core.ports import Type
 
 RuleAttribute = NamedTuple(
     "RuleAttribute", (("feature", int), ("cmp", bool), ("threshold", float)))
