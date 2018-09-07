@@ -1,6 +1,6 @@
 import functools
 import threading
-from typing import Iterable  # noqa: F401
+from typing import Iterable
 
 import grpc
 
