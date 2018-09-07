@@ -1,3 +1,5 @@
+from collections import OrderedDict
+import enum
 import importlib
 import logging
 from typing import Dict, Iterable, List, Mapping, NamedTuple, Optional, Sequence, Tuple, Set
@@ -12,6 +14,18 @@ Position = NamedTuple("Position", (("offset", int), ("line", int), ("col", int))
 """
 `line` and `col` are 1-based to match UAST!
 """
+
+FeaturesGroup = NamedTuple("FeatureGroup", (("names", Sequence[str]), ("amount", Optional[int])))
+# In case your feature group repeats several times you can specify the repetitions number
+
+
+@enum.unique
+class FeatureType(enum.Enum):
+    all = 0  # reserved for all possible features
+    node = 1
+    parents = 2
+    left_siblings = 3
+    right_siblings = 4
 
 
 class VirtualNode:
@@ -131,13 +145,6 @@ CLASS_INDEX = {cls: i for i, cls in enumerate(CLASSES)}
 
 
 class FeatureExtractor:
-
-    self_features = ["start_line", "start_col"]
-    left_siblings_features = ["start_line_diff", "end_line_diff", "start_col_diff", "end_col_diff",
-                              "role_id"]
-    right_siblings_features = ["role_id"]
-    parents_features = ["role_id"]
-
     _log = logging.getLogger("FeaturesExtractor")
 
     def __init__(self, language: str, siblings_window: int = 5, parents_depth: int = 2):
@@ -152,6 +159,54 @@ class FeatureExtractor:
         language = language.lower()
         self.tokens = importlib.import_module("lookout.style.format.langs.%s.tokens" % language)
         self.roles = importlib.import_module("lookout.style.format.langs.%s.roles" % language)
+
+        # Order is important and should be consistent with _inplace_write_vnode_features function
+        # where features generation happens.
+        self._feature_layout = OrderedDict([
+            (FeatureType.node,
+             FeaturesGroup(("start_line", "start_col"), None)),
+            (FeatureType.left_siblings,
+             FeaturesGroup(("start_line_diff", "end_line_diff", "start_col_diff", "end_col_diff",
+                            "role_id"), siblings_window)),
+            (FeatureType.right_siblings,
+             FeaturesGroup(("role_id", ), siblings_window)),
+            (FeatureType.parents,
+             FeaturesGroup(("role_id", ), parents_depth)),
+        ])
+        self._init_feature_names(self.feature_layout)
+
+    @property
+    def feature_layout(self):
+        return self._feature_layout
+
+    @property
+    def feature_names(self) -> Tuple[str]:
+        return self._feature_names
+
+    @property
+    def feature2index(self) -> Dict[str, int]:
+        return self._feature2index
+
+    def count_features(self, feature_type: FeatureType) -> int:
+        """
+        Returns the number of features belonging to a specific type.
+        `FeatureType.all` returns the overall number of features.
+        """
+        if feature_type == FeatureType.all:
+            return len(self.feature_names)
+        return len(self._feature_layout[feature_type].names)
+
+    def _init_feature_names(self, feature_layout):
+        names = []
+        for key, features_group in feature_layout.items():
+            if features_group.amount is None:
+                names.extend("%s_%s" % (key.name, name) for name in features_group.names)
+            else:
+                names.extend("%s_%d_%s" % (key.name, i + 1, name)
+                             for i in range(features_group.amount)
+                             for name in features_group.names)
+        self._feature_names = tuple(names)
+        self._feature2index = {name: i for i, name in enumerate(self.feature_names)}
 
     def extract_features(self, files: Iterable[File], lines: List[List[int]]=None
                          ) -> Tuple[numpy.ndarray, numpy.ndarray, List[VirtualNode]]:
@@ -183,20 +238,15 @@ class FeatureExtractor:
                            (vnode.start.line in file_lines if file_lines is not None else True)])
 
         y = numpy.concatenate(labels)
-        X = numpy.full(
-            (y.shape[0],
-             len(self.self_features)
-             + self.siblings_window * len(self.left_siblings_features)
-             + self.siblings_window * len(self.right_siblings_features)
-             + self.parents_depth * len(self.parents_features)),
-            -1)
+        X = numpy.full((y.shape[0], self.count_features(FeatureType.all)), -1)
         vn = [None] * y.shape[0]
         offset = 0
         for (vnodes, parents, file_lines), partial_labels in zip(parsed_files, labels):
             offset = self._inplace_write_vnode_features(vnodes, parents, file_lines, offset, X, vn)
         return X, y, vn
 
-    def _classify_vnodes(self, nodes: Iterable[VirtualNode]) -> Iterable[VirtualNode]:
+    @staticmethod
+    def _classify_vnodes(nodes: Iterable[VirtualNode]) -> Iterable[VirtualNode]:
         """
         This function fills "y" attribute in the VirtualNode-s from _parse_file().
         It is the index of the corresponding class to predict.
@@ -458,13 +508,12 @@ class FeatureExtractor:
             # 1. write features of the current node
             col_offset += self._inplace_write_features(self._get_self_features(vnode),
                                                        position, col_offset, X)
-            # 2. write features of the left siblings of the current node and account for the
-            # possible lack of siblings by adjusting offset
+
             for left_vnode in left_siblings:
                 col_offset += self._inplace_write_features(
                     self._get_left_sibling_features(left_vnode, vnode), position, col_offset, X)
             col_offset += ((self.siblings_window - len(left_siblings))
-                           * len(self.left_siblings_features))
+                           * self.count_features(FeatureType.left_siblings))
 
             # 3. write features of the right siblings of the current node and account for the
             # possible lack of siblings by adjusting offset
@@ -472,7 +521,7 @@ class FeatureExtractor:
                 col_offset += self._inplace_write_features(
                     self._get_right_sibling_features(right_vnode), position, col_offset, X)
             col_offset += ((self.siblings_window - len(right_siblings))
-                           * len(self.right_siblings_features))
+                           * self.count_features(FeatureType.right_siblings))
 
             # 4. write features of the parents of the current node
             for parent_vnode in parents_list:
