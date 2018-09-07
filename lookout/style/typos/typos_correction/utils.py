@@ -1,28 +1,23 @@
-import itertools
 from itertools import chain
 
 import numpy
 import pandas
 
 
-def concatenate_ones(matrix):
+def concatenate_ones(matrix: numpy.ndarray) -> numpy.ndarray:
     return numpy.concatenate((matrix, numpy.ones((matrix.shape[0], 1))), axis=1)
 
 
 def collect_embeddings(fasttext, tokens) -> numpy.ndarray:
-    vecs = []
-    for token in tokens:
-        vecs.append(fasttext.get_word_vector(token))
-    vecs = numpy.array(vecs)
-    return vecs
+    return numpy.array([fasttext.get_word_vector(token) for token in tokens])
 
 
-def read_frequencies(file) -> dict:
+def read_frequencies(file: str) -> dict:
     """
-    Read token frequencies from file.
-    :param file: path to file containing tokens with frequencies.
-                Every line has a format "token count"
-    :return: dict of tokens frequencies
+    Read token frequencies from the file.
+    :param file: Path to the file containing tokens with frequencies.
+                Every line has format "token count"
+    :return: Dictionary of tokens frequencies
     """
     frequencies = {}
     with open(file, "r") as f:
@@ -32,49 +27,54 @@ def read_frequencies(file) -> dict:
     return frequencies
 
 
-def read_vocabulary(file) -> list:
+def read_vocabulary(file: str) -> list:
     """
-    Read tokens from frequencies file
-    :param file: path to file containing tokens with frequencies.
-                Every line has a format "token count"
-    :return: list of tokens of vocabulary
+    Read vocabulary tokens from the frequencies file
+    :param file: Path to the file containing tokens with frequencies.
+                Every line has format "token count"
+    :return: List of tokens from the vocabulary
     """
-    tokens = []
     with open(file, "r") as f:
-        for line in f:
-            split = line.split()
-            tokens.append(split[0])
+        tokens = [line.split()[0] for line in f]
     return tokens
 
 
-def join_lists(lists) -> list:
-    return list(chain.from_iterable([l for l in lists]))
-
-
-def flatten(dataframe: pandas.DataFrame, column: str, new_column: str,
+def flatten(data: pandas.DataFrame, column: str, new_column: str,
             apply_function=lambda x: x) -> pandas.DataFrame:
     """
-    Flatten dataframe on 'column' with extracted elements put to 'new_column'
+    Flatten dataframe on "column" with extracted elements put to "new_column"
     """
-    other_columns = list(dataframe.columns)
-    flat_other = numpy.repeat(dataframe.loc[:, other_columns].values,
-                              repeats=numpy.array(dataframe[column].apply(
-                                  lambda x: len(apply_function(x))).tolist()),
-                              axis=0)
-    flat_column = list(itertools.chain.from_iterable(dataframe[column].apply(
-        apply_function).tolist()))
-    result = pandas.DataFrame(flat_other, columns=other_columns)
+    flat_column = data[column].apply(apply_function).tolist()
+    flat_values = numpy.repeat(data.values,
+                               repeats=numpy.array(list(map(lambda x: len(x), flat_column))),
+                               axis=0)
+    flat_column = list(chain.from_iterable(flat_column))
+    result = pandas.DataFrame(flat_values, columns=data.columns)
     result[new_column] = flat_column
-    return result
+    return result.infer_objects()
 
 
-def flatten_data(data: pandas.DataFrame, new_column_name="identifier"):
-    apply_function = (lambda x: x) if isinstance(data.token_split[0], list) \
+def flatten_data(data: pandas.DataFrame, new_column_name="identifier") -> pandas.DataFrame:
+    """
+    Flatten identifiers data in column "token_split"
+    :param data: DataFrame containing column "token_split" with splitted identifiers
+        either as strings or as lists of tokens
+    :param new_column_name: Name of column to put tokens from splits to
+    :return:
+    """
+    apply_function = (lambda x: x) if isinstance(data.token_split.tolist()[0], list) \
         else (lambda x: str(x).split())
-    return flatten(data, 'token_split', new_column_name, apply_function=apply_function)
+    return flatten(data, "token_split", new_column_name, apply_function=apply_function)
 
 
 def add_context_info(data: pandas.DataFrame) -> pandas.DataFrame:
+    """
+    Split context of identifier on before and after part
+    :param data: DataFrame. Column "token_split" will be used for
+        creating context info if present
+    :return: Provided data with added columns "before" and "after", containing lists
+        of corresponding contexts tokens
+    """
     if "before" in data.columns and "after" in data.columns:
         return data
 
@@ -101,26 +101,27 @@ def add_context_info(data: pandas.DataFrame) -> pandas.DataFrame:
     data["before"] = before
     data["after"] = after
 
-    return data
+    return data.infer_objects()
 
 
-def rank_candidates(candidates, pred_proba, n_candidates=None, return_all=True):
+def rank_candidates(candidates: pandas.DataFrame, pred_proba: list, n_candidates: int = None,
+                    return_all: bool = True):
     """
-    Suggest typos corrections base on candidates
-    and correctness probabilities.
-
-    candidates: dataframe with columns "id", "typo", "candidate"
-                and indexed by range(len(pred_proba)).
-
-    Returns suggestions: {id : [(candidate, correct_prob)]},
-                         candidates are sorted
-                         by correct_prob in a descending order.
+    Rank candidates for typos correction based on correctness probabilities.
+    :param candidates: Dataframe with columns "id", "typo", "candidate"
+        and indexed by range(len(pred_proba))
+    :param pred_proba: Array of probabilities of correctness of every candidate
+    :param n_candidates: Number of most probably correct candidates to return for each typo
+    :param return_all: False to return corrections only for
+        corrected in the first candidate typos
+    :return: Dictionary {id : [[candidate, correct_prob]]}, candidates are sorted
+        by correct_prob in a descending order.
     """
     suggestions = {}
     corrections = []
     for i in range(len(pred_proba)):
         index = candidates.loc[i, "id"]
-        corrections.append((candidates.loc[i, "candidate"], pred_proba[i]))
+        corrections.append([candidates.loc[i, "candidate"], pred_proba[i]])
 
         if i < len(pred_proba) - 1 and candidates.loc[i + 1, "id"] == index:
             continue
@@ -131,42 +132,49 @@ def rank_candidates(candidates, pred_proba, n_candidates=None, return_all=True):
             suggestions[index] = (corrections if n_candidates is None
                                   else corrections[:n_candidates])
         elif return_all:
-            suggestions[index] = [(typo, 1.0)]
-
+            suggestions[index] = [[typo, 1.0]]
         corrections = []
 
     return suggestions
 
 
-def filter_suggestions(typos: pandas.DataFrame, suggestions: dict,
-                       n_candidates: int=1, return_all: bool=False) -> dict:
-    corrections = {}
-    for index, row in typos.iterrows():
-        if return_all or suggestions[index][0][0] != row['typo']:
-            corrections[index] = suggestions[index][:n_candidates]
-
-    return corrections
+def filter_suggestions(typos: pandas.DataFrame, suggestions: dict, n_candidates: int=1,
+                       return_all: bool=False) -> dict:
+    """
+    Filter corrections suggestions
+    :param typos: DataFrame, containing column "typo"
+    :param suggestions: Dictionary of suggestions, keys correspond with typos.index
+    :param n_candidates: Number of most probably correct candidates to return for each typo
+    :param return_all: False to return corrections only for
+        corrected in the first candidate typos
+    :return: Dictionary of filtered suggestions
+    """
+    return {index: suggestions[index][:n_candidates] for index, row in typos.iterrows()
+            if return_all or suggestions[index][0][0] != row["typo"]}
 
 
 def suggestions_to_df(typos: pandas.DataFrame, suggestions: dict) -> pandas.DataFrame:
-    suggestions_array = []
-    index = []
-    for index in suggestions.keys():
-        correction = [(suggestion[0], suggestion[1]) for suggestion in suggestions[index]]
-        index.append(index)
-        suggestions_array.append([typos.loc[index, 'typo'], correction])
+    """
+    Convert suggestions from dictionary to pandas.DataFrame
+    :param typos: DataFrame containing column "typo"
+    :param suggestions: Dictionary of suggestions, keys correspond with typos.index
+    :return: DataFrame with columns "typo", "suggestions", indexed by typos.index
+    """
+    suggestions_array = [[index, typos.loc[index, "typo"], corrections]
+                         for index, corrections in suggestions.items()]
+    return pandas.DataFrame(suggestions_array, columns=["id", "typo", "suggestions"],
+                            index=typos.index).infer_objects()
 
-    return pandas.DataFrame(suggestions_array, columns=['typo', 'suggestions'], index=index)
 
-
-def suggestions_to_flat_df(typos: pandas.DataFrame, suggestions: dict) \
-        -> pandas.DataFrame:
-    suggestions_df = suggestions_to_df(typos, suggestions)
-    flat_df = flatten(suggestions_df, "suggestions", "suggestion")
-    flat_df = flat_df.drop(columns=['suggestions'])
-    flat_df["candidate"] = [suggestion[0]
-                            for suggestion in flat_df.suggestion]
-    flat_df["proba"] = [suggestion[1]
-                        for suggestion in flat_df.suggestion]
-    flat_df = flat_df.drop(columns=["suggestion"])
-    return flat_df
+def suggestions_to_flat_df(typos: pandas.DataFrame, suggestions: dict) -> pandas.DataFrame:
+    """
+    Convert suggestions from dictionary to pandas.DataFrame, flattened by suggestions column
+    :param typos: DataFrame containing column "typo"
+    :param suggestions: Dictionary of suggestions, keys correspond with typos.index
+    :return: DataFrame with columns "typo", "candidate", "proba", indexed by typos.index
+    """
+    flat_df = flatten(suggestions_to_df(typos, suggestions), "suggestions", "suggestion")
+    flat_df["candidate"] = [suggestion[0] for suggestion in flat_df.suggestion]
+    flat_df["proba"] = [suggestion[1] for suggestion in flat_df.suggestion]
+    flat_df = flat_df.drop(columns=["suggestions", "suggestion"])
+    return flat_df.infer_objects()
