@@ -443,8 +443,8 @@ class FeatureExtractor:
             end_left = start_left - self.siblings_window * 2
             start_right = i + 1
             end_right = start_right + self.siblings_window * 2
-            # For non-NOOP nodes, the first interesting nodes is further from the current node
-            # since there is a NOOP node in-between.
+            # For non-NOOP nodes, the first interesting nodes are further from the current node
+            # since there are NOOP nodes in-between.
             if vnode.y != CLASS_INDEX[CLS_NOOP]:
                 start_left -= 1
                 end_left -= 1
