@@ -42,8 +42,6 @@ class VirtualNode:
         self.value = value
         assert start.line >= 1 and start.col >= 1, "start line and column are 1-based like UASTs"
         assert end.line >= 1 and end.col >= 1, "end line and column are 1-based like UASTs"
-        assert (y in [CLASS_INDEX[CLS_NOOP], CLASS_INDEX[CLS_TAB_DEC], CLASS_INDEX[CLS_SPACE_DEC]]
-                or start.offset != end.offset)
         self.start = start
         self.end = end
         self.node = node
