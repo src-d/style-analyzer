@@ -30,7 +30,7 @@ class FeatureType(enum.Enum):
 
 class VirtualNode:
     def __init__(self,  value: str, start: Position, end: Position,
-                 *, node: bblfsh.Node = None, y: int = None):
+                 *, node: bblfsh.Node = None, y: int = None, path: str = None):
         """
         This represents either a real UAST node or an imaginary token.
 
@@ -38,6 +38,7 @@ class VirtualNode:
         :param start: starting position of the token (0-based).
         :param end: ending position of the token (0-based).
         :param node: corresponding UAST node (if exists).
+        :param path: path to related file. Useful for debugging.
         """
         self.value = value
         assert start.line >= 1 and start.col >= 1, "start line and column are 1-based like UASTs"
@@ -46,29 +47,32 @@ class VirtualNode:
         self.end = end
         self.node = node
         self.y = y
+        self.path = path
 
     def __str__(self):
         return self.value
 
     def __repr__(self):
-        return "VirtualNode(\"%s\", start=%s, end=%s, node=%s)" % (
+        return "VirtualNode(\"%s\", start=%s, end=%s, node=%s, path=\"%s\")" % (
             self.value, tuple(self.start), tuple(self.end),
-            id(self.node) if self.node is not None else "None")
+            id(self.node) if self.node is not None else "None", self.path)
 
     def __eq__(self, other: "VirtualNode") -> bool:
         return self.value == other.value and \
                self.start == other.start and \
                self.end == other.end and \
                self.node == other.node and \
-               self.y == other.y
+               self.y == other.y and \
+               self.path == other.path
 
     @staticmethod
-    def from_node(node: bblfsh.Node, file: str) -> Iterable["VirtualNode"]:
+    def from_node(node: bblfsh.Node, file: str, path: str) -> Iterable["VirtualNode"]:
         """
         Initializes the VirtualNode from a UAST node. Takes into account prefixes and suffixes.
 
         :param node: UAST node
-        :param file: the file contents.
+        :param file: the file contents
+        :param path: the file path
         :return: new VirtualNode-s
         """
         outer_token = file[node.start_position.offset:node.end_position.offset]
@@ -76,7 +80,7 @@ class VirtualNode:
             yield VirtualNode(outer_token,
                               Position(*[f[1] for f in node.start_position.ListFields()]),
                               Position(*[f[1] for f in node.end_position.ListFields()]),
-                              node=node)
+                              node=node, path=path)
             return
         start_offset = outer_token.find(node.token)
         start_pos = node.start_position.offset + start_offset
@@ -87,7 +91,8 @@ class VirtualNode:
                                        col=node.start_position.col),
                               Position(offset=start_pos,
                                        line=node.start_position.line,
-                                       col=node.start_position.col + start_offset))
+                                       col=node.start_position.col + start_offset),
+                              path=path)
         end_offset = start_offset + len(node.token)
         end_pos = start_pos + len(node.token)
         yield VirtualNode(node.token,
@@ -97,7 +102,7 @@ class VirtualNode:
                           Position(offset=end_pos,
                                    line=node.end_position.line,
                                    col=node.start_position.col + end_offset),
-                          node=node)
+                          node=node, path=path)
         if end_pos < node.end_position.offset:
             yield VirtualNode(outer_token[end_offset:],
                               Position(offset=end_pos,
@@ -105,7 +110,8 @@ class VirtualNode:
                                        col=node.start_position.col + end_offset),
                               Position(offset=node.end_position.offset,
                                        line=node.end_position.line,
-                                       col=node.end_position.col))
+                                       col=node.end_position.col),
+                              path=path)
 
     def to_comment(self, correct_y: int) -> Comment:
         """
@@ -224,12 +230,13 @@ class FeatureExtractor:
             contents = file.content.decode("utf-8", "replace")
             uast = file.uast
             try:
-                vnodes, parents = self._parse_file(contents, uast)
+                vnodes, parents = self._parse_file(contents, uast, file.path)
             except AssertionError as e:
-                self._log.warning("could not parse file %s, skipping", file.path)
+                self._log.warning("could not parse file %s with error \"%s\', skipping",
+                                  file.path, e)
                 continue
-            vnodes = self._classify_vnodes(vnodes)
-            vnodes = self._add_noops(vnodes)
+            vnodes = self._classify_vnodes(vnodes, file.path)
+            vnodes = self._add_noops(vnodes, file.path)
             file_lines = set(lines[i]) if lines is not None else None
             parsed_files.append((vnodes, parents, file_lines))
             labels.append([vnode.y for vnode in vnodes if vnode.y and
@@ -243,14 +250,14 @@ class FeatureExtractor:
             offset = self._inplace_write_vnode_features(vnodes, parents, file_lines, offset, X, vn)
         return X, y, vn
 
-    @staticmethod
-    def _classify_vnodes(nodes: Iterable[VirtualNode]) -> Iterable[VirtualNode]:
+    def _classify_vnodes(self, nodes: Iterable[VirtualNode], path: str) -> Iterable[VirtualNode]:
         """
         This function fills "y" attribute in the VirtualNode-s from _parse_file().
         It is the index of the corresponding class to predict.
         We detect indentation changes so several whitespace nodes are merged together.
 
         :param nodes: sequence of VirtualNodes.
+        :param path: path to file.
         :return: new list of VirtualNodes, the size is different from the original.
         """
         indentation = []
@@ -283,7 +290,7 @@ class FeatureExtractor:
                         char,
                         Position(offset + i, lineno, col + i),
                         Position(offset + i + 1, lineno, col + i + 1),
-                        y=cls)
+                        y=cls, path=path)
                 continue
             line_offset = 0
             for i, line in enumerate(lines[:-1]):
@@ -296,7 +303,7 @@ class FeatureExtractor:
                     newline,
                     Position(start_offset, lineno, start_col),
                     Position(start_offset + len(newline), lineno, start_col + len(newline)),
-                    y=CLASS_INDEX[CLS_NEWLINE])
+                    y=CLASS_INDEX[CLS_NEWLINE], path=path)
                 line_offset += len(line) + len(sep)
             line = lines[-1]
             my_indent = list(line)
@@ -310,7 +317,7 @@ class FeatureExtractor:
                     yield VirtualNode(
                         line,
                         Position(offset - len(line), lineno, col - len(line)),
-                        node.end)
+                        node.end, path=path)
                     continue
                 # indentation decrease
                 offset -= len(line)
@@ -324,13 +331,13 @@ class FeatureExtractor:
                         "",
                         Position(offset, lineno, col),
                         Position(offset, lineno, col),
-                        y=cls)
+                        y=cls, path=path)
                 indentation = indentation[:len(line)]
                 if indentation:
                     yield VirtualNode(
                         "".join(indentation),
                         Position(offset, lineno, col),
-                        node.end)
+                        node.end, path=path)
             else:
                 if indentation:
                     yield VirtualNode(
@@ -338,7 +345,8 @@ class FeatureExtractor:
                         Position(offset - len(line), lineno, col - len(line)),
                         Position(offset - len(line) + len(indentation),
                                  lineno,
-                                 col - len(line) + len(indentation)))
+                                 col - len(line) + len(indentation)),
+                        path=path)
                 offset += - len(line) + len(indentation)
                 col += - len(line) + len(indentation)
                 if not my_indent:
@@ -355,22 +363,23 @@ class FeatureExtractor:
                         char,
                         Position(offset + i, lineno, col + i),
                         Position(offset + i + 1, lineno, col + i + 1),
-                        y=cls)
+                        y=cls, path=path)
 
     @staticmethod
-    def _add_noops(vnodes: Sequence[VirtualNode]) -> List[VirtualNode]:
+    def _add_noops(vnodes: Sequence[VirtualNode], path: str) -> List[VirtualNode]:
         """
         Add CLS_NOOP nodes in between each node in the input sequence.
 
         :param vnodes: The sequence of `VirtualNode`-s to augment with noop nodes.
+        :param path: path to file.
         :return: The augmented `VirtualNode`-s sequence.
         """
         result = [VirtualNode(value="", start=Position(0, 1, 1), end=Position(0, 1, 1),
-                              y=CLASS_INDEX[CLS_NOOP])]
+                              y=CLASS_INDEX[CLS_NOOP], path=path)]
         for vnode in vnodes:
             result.append(vnode)
             result.append(VirtualNode(value="", start=vnode.end, end=vnode.end,
-                                      y=CLASS_INDEX[CLS_NOOP]))
+                                      y=CLASS_INDEX[CLS_NOOP], path=path))
         return result
 
     def _get_role_index(self, vnode: VirtualNode) -> int:
@@ -530,7 +539,7 @@ class FeatureExtractor:
             position += 1
         return position
 
-    def _parse_file(self, contents: str, root: bblfsh.Node) -> \
+    def _parse_file(self, contents: str, root: bblfsh.Node, path: str) -> \
             Tuple[List[VirtualNode], Dict[int, bblfsh.Node]]:
         """
         Given the source text and the corresponding UAST this function compiles the list of
@@ -586,11 +595,11 @@ class FeatureExtractor:
                         positions.append(Position(offset, line, col))
                     token = match.group()
                     sumlen += len(token)
-                    result.append(VirtualNode(token, *positions))
+                    result.append(VirtualNode(token, *positions, path=path))
                 assert sumlen == node.start_position.offset - pos, \
                     "missed some imaginary tokens: \"%s\"" % diff
             if node is sentinel:
                 break
-            result.extend(VirtualNode.from_node(node, contents))
+            result.extend(VirtualNode.from_node(node, contents, path))
             pos = node.end_position.offset
         return result, parents
