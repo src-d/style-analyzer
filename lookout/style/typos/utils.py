@@ -4,10 +4,6 @@ import numpy
 import pandas
 
 
-def concatenate_ones(matrix: numpy.ndarray) -> numpy.ndarray:
-    return numpy.concatenate((matrix, numpy.ones((matrix.shape[0], 1))), axis=1)
-
-
 def collect_embeddings(fasttext, tokens) -> numpy.ndarray:
     return numpy.array([fasttext.get_word_vector(token) for token in tokens])
 
