@@ -5,8 +5,9 @@ import pandas
 import numpy
 from pandas.util.testing import assert_frame_equal
 
-from lookout.style.typos.utils import (flatten_data, add_context_info, rank_candidates, filter_suggestions,
-                   suggestions_to_df, suggestions_to_flat_df)
+from lookout.style.typos.utils import (flatten_data, add_context_info, rank_candidates,
+                                       filter_suggestions, suggestions_to_df,
+                                       suggestions_to_flat_df)
 
 TEST_DATA_PATH = "lookout/style/typos/tests"
 
