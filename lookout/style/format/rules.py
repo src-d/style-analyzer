@@ -8,6 +8,7 @@ from typing import (Any, Dict, Iterable, List, Mapping, NamedTuple, Optional, Se
 
 import numpy
 from numpy import count_nonzero
+from scipy import sparse
 from scipy.stats import fisher_exact
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.ensemble import RandomForestClassifier
@@ -78,12 +79,12 @@ class Rules:
         :return: array of the same length as X with predictions or tuple of two arrays of the same\
                  length as X containing (predictions, winner rule indices).
         """
-        self._log.debug("predicting %d samples using %d rules", len(X), len(self._rules))
+        self._log.debug("predicting %d samples using %d rules", X.shape[0], len(self._rules))
         rules = self._rules
         _compute_triggered = self._compute_triggered
-        prediction = numpy.zeros(len(X), dtype=numpy.int32)
+        prediction = numpy.zeros(X.shape[0], dtype=numpy.int32)
         if return_winner_indices:
-            winner_indices = numpy.zeros(len(X), dtype=numpy.int32)
+            winner_indices = numpy.zeros(X.shape[0], dtype=numpy.int32)
         for xi, x in enumerate(X):
             ris = _compute_triggered(self._compiled, rules, x)
             if len(ris) == 0:
@@ -142,11 +143,11 @@ class Rules:
 
     @classmethod
     def _compute_triggered(cls, compiled_rules: CompiledRulesType,
-                           rules: Sequence[Rule], x: numpy.ndarray
+                           rules: Sequence[Rule], x: Union[numpy.ndarray, sparse.csr_matrix]
                            ) -> numpy.ndarray:
         searchsorted = numpy.searchsorted
         triggered = numpy.full(len(rules), 0xff, dtype=numpy.int8)
-        for i, v in enumerate(x):
+        for i, v in enumerate(x.T):
             try:
                 vals, arules = compiled_rules[i]
             except KeyError:

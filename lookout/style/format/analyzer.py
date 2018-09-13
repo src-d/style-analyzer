@@ -80,7 +80,9 @@ class FormatAnalyzer(Analyzer):
             try:
                 fe = FeatureExtractor(language=language,
                                       siblings_window=config["siblings_window"],
-                                      parents_depth=config["parents_depth"])
+                                      parents_depth=config["parents_depth"],
+                                      roles_preprocess=config["roles_preprocess"],
+                                      n_buckets=config["n_buckets"])
             except ImportError:
                 cls.log.warning("skipped %d %s files - not supported", len(files), language)
                 continue
@@ -141,6 +143,8 @@ class FormatAnalyzer(Analyzer):
     @classmethod
     def _load_train_config(cls, config: Dict[str, Any]):
         final_config = {
+            "roles_preprocess": "identity",
+            "n_buckets": None,
             "siblings_window": 5,
             "parents_depth": 2,
             "lower_bound_instances": 500,
