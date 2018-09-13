@@ -1,11 +1,12 @@
 from itertools import chain
 
+from gensim.models.fasttext import FastText
 import numpy
 import pandas
 
 
-def collect_embeddings(fasttext, tokens) -> numpy.ndarray:
-    return numpy.array([fasttext.get_word_vector(token) for token in tokens])
+def collect_embeddings(fasttext: FastText, tokens) -> numpy.ndarray:
+    return numpy.array([fasttext.wv[token] for token in tokens])
 
 
 def read_frequencies(file: str) -> dict:
@@ -25,10 +26,10 @@ def read_frequencies(file: str) -> dict:
 
 def read_vocabulary(file: str) -> list:
     """
-    Read vocabulary tokens from the frequencies file
-    :param file: Path to the file containing tokens with frequencies.
-                Every line has format "token count"
-    :return: List of tokens from the vocabulary
+    Read vocabulary tokens from the text file
+    :param file: Text file used to generate vocabulary of corrections candidates.
+            First token in every line split is added to the vocabulary
+    :return: List of tokens of the vocabulary
     """
     with open(file, "r") as f:
         tokens = [line.split()[0] for line in f]
