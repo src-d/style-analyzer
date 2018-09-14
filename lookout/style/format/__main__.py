@@ -1,13 +1,20 @@
-import argparse
+"""Utilities to check the quality of a model on a given dataset and to visualize its errors."""
+from argparse import ArgumentParser
 import sys
+from typing import Any
 
 from lookout.core.cmdline import ArgumentDefaultsHelpFormatterNoNone
 from lookout.style.format.quality_report import quality_report
 from lookout.style.format.visualization import visualize
 
 
-def create_parser():
-    parser = argparse.ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatterNoNone)
+def create_parser() -> ArgumentParser:
+    """
+    Create a parser for the lookout.style.format utility.
+
+    :return: an ArgumentParser with an handler defined in the handler attribute.
+    """
+    parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatterNoNone)
     subparsers = parser.add_subparsers(help="Commands")
 
     def add_parser(name, help):
@@ -43,7 +50,8 @@ def create_parser():
     return parser
 
 
-def main():
+def main() -> Any:
+    """Entry point of the utility."""
     parser = create_parser()
     args = parser.parse_args()
     try:

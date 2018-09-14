@@ -42,8 +42,10 @@ class FormatAnalyzer(Analyzer):
         """
         comments = []
         changes = list(data["changes"])
-        base_files = self._files_by_language(c.base for c in changes)
-        head_files = self._files_by_language(c.head for c in changes)
+        base_files = self._files_by_language(self._filter_files((c.base for c in changes),
+                                                                self.config["line_length_limit"]))
+        head_files = self._files_by_language(self._filter_files((c.head for c in changes),
+                                                                self.config["line_length_limit"]))
         for lang, lang_head_files in head_files.items():
             try:
                 rules = self.model[lang]
@@ -90,7 +92,8 @@ class FormatAnalyzer(Analyzer):
         config = cls._load_config(config)
         cls.log.info("train %s %s %s", ptr.url, ptr.commit,
                      pformat(config, width=4096, compact=True))
-        files_by_language = cls._files_by_language(data["files"])
+        files_by_language = cls._files_by_language(cls._filter_files(data["files"],
+                                                                     config["line_length_limit"]))
         model = FormatModel().construct(cls, ptr)
         for language, files in files_by_language.items():
             language = language.lower()
@@ -170,10 +173,24 @@ class FormatAnalyzer(Analyzer):
             "n_estimators": 10,
             "random_state": 42,
             "n_iter": 5,
-            "debug_parsing": False
+            "debug_parsing": False,
+            "line_length_limit": 500
         }
         final_config.update(config)
         # the incoming value can be a list from ASDF
         final_config["top_down_greedy_budget"] = TopDownGreedyBudget(
             *final_config["top_down_greedy_budget"])
         return final_config
+
+    @classmethod
+    def _filter_files(cls, files: Iterable[File], line_length_limit: int) -> Iterable[File]:
+        """
+        Filter files based on their maximum line length.
+
+        :param files: Files to filter.
+        :param line_length_limit: Maximum line length to accept a file.
+        :return: Files filtered.
+        """
+        for file in files:
+            if len(max(file.content.splitlines(), key=len, default=b"")) <= line_length_limit:
+                yield file

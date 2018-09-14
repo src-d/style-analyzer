@@ -1,27 +1,34 @@
+"""Facilities to report the quality of a given model on a given dataset."""
 from collections import Counter
 import glob
-import os
+from typing import Iterable
 
 from bblfsh import BblfshClient
 from bblfsh.client import NonUTF8ContentException
 import numpy
-from sklearn.metrics import classification_report,confusion_matrix
+from sklearn.metrics import classification_report, confusion_matrix
 from tqdm import tqdm
 
 from lookout.core.api.service_data_pb2 import File
 from lookout.style.format.features import FeatureExtractor, CLASSES
+from lookout.style.format.files_filtering import filter_filepaths
 from lookout.style.format.model import FormatModel
 
 
-def prepare_files(folder, client, language):
+def prepare_files(folder: str, client: BblfshClient, language: str) -> Iterable[File]:
+    """
+    Prepare the given folder for analysis by extracting UASTs and creating the gRPC wrappers.
+
+    :param folder: Path to the folder to analyze.
+    :param client: Babelfish client. Babelfish server should be started accordingly.
+    :param language: Language to consider. Will discard the other languages
+    """
     files = []
 
     # collect filenames with full path
     filenames = glob.glob(folder, recursive=True)
 
-    for file in tqdm(filenames):
-        if not os.path.isfile(file):
-            continue
+    for file in tqdm(filter_filepaths(filenames)):
         try:
             res = client.parse(file)
         except NonUTF8ContentException:
@@ -36,8 +43,9 @@ def prepare_files(folder, client, language):
     return files
 
 
-def quality_report(input_pattern: str, bblfsh: str, language: str, n_files: int,
-                   model: str) -> None:
+def quality_report(input_pattern: str, bblfsh: str, language: str, n_files: int, model: str
+                   ) -> None:
+    """Print several different reports for a given model on a given dataset."""
     client = BblfshClient(bblfsh)
     files = prepare_files(input_pattern, client, language)
     print("Number of files: %s" % (len(files)))

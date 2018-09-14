@@ -93,6 +93,15 @@ class AnalyzerTests(unittest.TestCase):
         comments = analyzer.analyze(self.ptr, self.ptr, datastub)
         self.assertGreater(len(comments), 0)
 
+    def test_file_filtering(self):
+        datastub = FakeDataStub(files=self.base_files.values(), changes=None)
+        config = {"n_iter": 1, "line_length_limit": 0}
+        model_trained = FormatAnalyzer.train(self.ptr, config, datastub)
+        self.assertEqual(len(model_trained._rules_by_lang), 0)
+        config = {"n_iter": 1, "line_length_limit": 500}
+        model_trained = FormatAnalyzer.train(self.ptr, config, datastub)
+        self.assertGreater(len(model_trained._rules_by_lang), 0)
+
 
 if __name__ == "__main__":
     unittest.main()
