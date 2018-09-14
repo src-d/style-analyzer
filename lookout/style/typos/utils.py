@@ -6,15 +6,15 @@ import numpy
 import pandas
 
 
-ID_COLUMN = "id"
-TYPO_COLUMN = "typo"
-CANDIDATE_COLUMN = "candidate"
-PROBABILITY_COLUMN = "proba"
-SUGGESTIONS_COLUMN = "suggestions"
-CORRECT_TOKEN_COLUMN = "identifier"
-SPLIT_COLUMN = "token_split"
-BEFORE_COLUMN = "before"
 AFTER_COLUMN = "after"
+BEFORE_COLUMN = "before"
+CANDIDATE_COLUMN = "candidate"
+CORRECT_TOKEN_COLUMN = "identifier"
+ID_COLUMN = "id"
+PROBABILITY_COLUMN = "proba"
+SPLIT_COLUMN = "token_split"
+SUGGESTIONS_COLUMN = "suggestions"
+TYPO_COLUMN = "typo"
 
 
 def collect_embeddings(fasttext: FastText, tokens: Iterable[str]) -> numpy.ndarray:
