@@ -79,7 +79,7 @@ class RankCandidatesTest(unittest.TestCase):
 
     def test_rank_candidates(self):
         candidates = pandas.read_csv(join(TEST_DATA_PATH, "test_data_candidates.csv"))
-        proba = numpy.load(join(TEST_DATA_PATH, "test_data_candidates_proba.pkl")_
+        proba = numpy.load(join(TEST_DATA_PATH, "test_data_candidates_proba.pkl"))
         self.assertEqual(rank_candidates(candidates, proba, n_candidates=3), self.suggestions)
 
         proba = numpy.array([1.0, 0.9, 0.05, 0.01, 0.3, 0.98], dtype=float)

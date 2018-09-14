@@ -6,6 +6,17 @@ import numpy
 import pandas
 
 
+ID_COLUMN = "id"
+TYPO_COLUMN = "typo"
+CANDIDATE_COLUMN = "candidate"
+PROBABILITY_COLUMN = "proba"
+SUGGESTIONS_COLUMN = "suggestions"
+CORRECT_TOKEN_COLUMN = "identifier"
+SPLIT_COLUMN = "token_split"
+BEFORE_COLUMN = "before"
+AFTER_COLUMN = "after"
+
+
 def collect_embeddings(fasttext: FastText, tokens: Iterable[str]) -> numpy.ndarray:
     return numpy.array([fasttext.wv[token] for token in tokens])
 
@@ -41,6 +52,11 @@ def flatten(data: pandas.DataFrame, column: str, new_column: str,
             apply_function=lambda x: x) -> pandas.DataFrame:
     """
     Flatten dataframe on "column" with extracted elements put to "new_column".
+    :param data: DataFrame to flatten
+    :param column: Column to expand
+    :param new_column: Column to populate with elements from flattened column
+    :param apply_function: Function used to expand every element of flattened column
+    :return: Flattened DataFrame
     """
     flat_column = data[column].apply(apply_function).tolist()
     flat_values = numpy.repeat(data.values,
@@ -52,39 +68,39 @@ def flatten(data: pandas.DataFrame, column: str, new_column: str,
     return result.infer_objects()
 
 
-def flatten_data(data: pandas.DataFrame, new_column_name="identifier") -> pandas.DataFrame:
+def flatten_data(data: pandas.DataFrame, new_column_name=TYPO_COLUMN) -> pandas.DataFrame:
     """
-    Flatten identifiers data in column "token_split".
-    :param data: DataFrame containing column "token_split" with splitted identifiers
+    Flatten identifiers data in column SPLIT_COLUMN.
+    :param data: DataFrame containing column SPLIT_COLUMN with splitted identifiers
                  either as strings or as lists of tokens.
     :param new_column_name: Name of column to put tokens from splits to.
-    :return:
+    :return: Flattened DataFrame
     """
-    apply_function = (lambda x: x) if isinstance(data.token_split.tolist()[0], list) \
+    apply_function = (lambda x: x) if isinstance(data[SPLIT_COLUMN].tolist()[0], list) \
         else (lambda x: str(x).split())
-    return flatten(data, "token_split", new_column_name, apply_function=apply_function)
+    return flatten(data, SPLIT_COLUMN, new_column_name, apply_function=apply_function)
 
 
 def add_context_info(data: pandas.DataFrame) -> pandas.DataFrame:
     """
     Split context of identifier on before and after part.
-    :param data: DataFrame. Column "token_split" will be used for
+    :param data: DataFrame. Column SPLIT_COLUMN will be used for
                  creating context info if present.
-    :return: Provided data with added columns "before" and "after", containing lists
+    :return: Provided data with added columns BEFORE_COLUMN and AFTER_COLUMN, containing lists
              of corresponding contexts tokens.
     """
-    if "before" in data.columns and "after" in data.columns:
+    if BEFORE_COLUMN in data.columns and AFTER_COLUMN in data.columns:
         return data
 
-    tokens = list(data.typo)
+    tokens = list(data[TYPO_COLUMN])
 
-    if "token_split" in data.columns:
-        token_split = list(data.token_split)
+    if SPLIT_COLUMN in data.columns:
+        token_split = list(data[SPLIT_COLUMN])
         before = []
         after = []
 
         for row_number in range(len(data)):
-            if "token_split" in data.columns:
+            if SPLIT_COLUMN in data.columns:
                 split = token_split[row_number]
                 if isinstance(split, str):
                     split = split.split()
@@ -96,8 +112,8 @@ def add_context_info(data: pandas.DataFrame) -> pandas.DataFrame:
         before = [[] for _ in range(len(data))]
         after = [[] for _ in range(len(data))]
 
-    data["before"] = before
-    data["after"] = after
+    data[BEFORE_COLUMN] = before
+    data[AFTER_COLUMN] = after
 
     return data.infer_objects()
 
@@ -107,7 +123,7 @@ def rank_candidates(candidates: pandas.DataFrame, pred_proba: List[float],
                     ) -> Dict[int, List[Tuple[str, float]]]:
     """
     Rank candidates for typos correction based on correctness probabilities.
-    :param candidates: Dataframe with columns "id", "typo", "candidate"
+    :param candidates: Dataframe with columns ID_COLUMN, TYPO_COLUMN, "candidate"
                        and indexed by range(len(pred_proba)).
     :param pred_proba: Array of probabilities of correctness of every candidate.
     :param n_candidates: Number of most probably correct candidates to return for each typo.
@@ -119,14 +135,14 @@ def rank_candidates(candidates: pandas.DataFrame, pred_proba: List[float],
     suggestions = {}
     corrections = []
     for i in range(len(pred_proba)):
-        index = candidates.loc[i, "id"]
-        corrections.append((candidates.loc[i, "candidate"], pred_proba[i]))
+        index = candidates.loc[i, ID_COLUMN]
+        corrections.append((candidates.loc[i, CANDIDATE_COLUMN], pred_proba[i]))
 
-        if i < len(pred_proba) - 1 and candidates.loc[i + 1, "id"] == index:
+        if i < len(pred_proba) - 1 and candidates.loc[i + 1, ID_COLUMN] == index:
             continue
 
         corrections = list(sorted(corrections, key=lambda x: -x[1]))
-        typo = candidates.loc[i, "typo"]
+        typo = candidates.loc[i, TYPO_COLUMN]
         if corrections[0][0] != typo:
             suggestions[index] = (corrections if n_candidates is None
                                   else corrections[:n_candidates])
@@ -142,7 +158,7 @@ def filter_suggestions(typos: pandas.DataFrame, suggestions: Dict[int, List[Tupl
                        ) -> Dict[int, List[Tuple[str, float]]]:
     """
     Filter corrections suggestions.
-    :param typos: DataFrame, containing column "typo".
+    :param typos: DataFrame, containing column TYPO_COLUMN.
     :param suggestions: Dictionary of suggestions, keys correspond with typos.index.
     :param n_candidates: Number of most probably correct candidates to return for each typo.
     :param return_all: False to return corrections only for typos corrected in the
@@ -150,33 +166,35 @@ def filter_suggestions(typos: pandas.DataFrame, suggestions: Dict[int, List[Tupl
     :return: Dictionary of filtered suggestions.
     """
     return {index: suggestions[index][:n_candidates] for index, row in typos.iterrows()
-            if return_all or suggestions[index][0][0] != row["typo"]}
+            if return_all or suggestions[index][0][0] != row[TYPO_COLUMN]}
 
 
 def suggestions_to_df(typos: pandas.DataFrame, suggestions: Dict[int, List[Tuple[str, float]]]
                       ) -> pandas.DataFrame:
     """
     Convert suggestions from dictionary to pandas.DataFrame.
-    :param typos: DataFrame containing column "typo".
+    :param typos: DataFrame containing column TYPO_COLUMN.
     :param suggestions: Dictionary of suggestions, keys correspond with typos.index.
-    :return: DataFrame with columns "typo", "suggestions", indexed by typos.index.
+    :return: DataFrame with columns TYPO_COLUMN, SUGGESTIONS_COLUMN, indexed by typos.index.
     """
-    suggestions_array = [[index, typos.loc[index, "typo"], corrections]
+    suggestions_array = [[index, typos.loc[index, TYPO_COLUMN], corrections]
                          for index, corrections in suggestions.items()]
-    return pandas.DataFrame(suggestions_array, columns=["id", "typo", "suggestions"],
+    return pandas.DataFrame(suggestions_array,
+                            columns=[ID_COLUMN, TYPO_COLUMN, SUGGESTIONS_COLUMN],
                             index=typos.index).infer_objects()
 
 
-def suggestions_to_flat_df(typos: pandas.DataFrame, suggestions: Dict[int, List[Tuple[str, float]]]
-                           ) -> pandas.DataFrame:
+def suggestions_to_flat_df(typos: pandas.DataFrame,
+                           suggestions: Dict[int, List[Tuple[str, float]]]) -> pandas.DataFrame:
     """
     Convert suggestions from dictionary to pandas.DataFrame, flattened by suggestions column.
-    :param typos: DataFrame containing column "typo".
+    :param typos: DataFrame containing column TYPO_COLUMN.
     :param suggestions: Dictionary of suggestions, keys correspond with typos.index.
-    :return: DataFrame with columns "typo", "candidate", "proba", indexed by typos.index.
+    :return: DataFrame with columns TYPO_COLUMN, CANDIDATE_COLUMN, PROBABILITY_COLUMN,
+             indexed by typos.index.
     """
-    flat_df = flatten(suggestions_to_df(typos, suggestions), "suggestions", "suggestion")
-    flat_df["candidate"] = [suggestion[0] for suggestion in flat_df.suggestion]
-    flat_df["proba"] = [suggestion[1] for suggestion in flat_df.suggestion]
-    flat_df = flat_df.drop(columns=["suggestions", "suggestion"])
+    flat_df = flatten(suggestions_to_df(typos, suggestions), SUGGESTIONS_COLUMN, "suggestion")
+    flat_df[CANDIDATE_COLUMN] = [suggestion[0] for suggestion in flat_df.suggestion]
+    flat_df[PROBABILITY_COLUMN] = [suggestion[1] for suggestion in flat_df.suggestion]
+    flat_df = flat_df.drop(columns=[SUGGESTIONS_COLUMN, "suggestion"])
     return flat_df.infer_objects()
