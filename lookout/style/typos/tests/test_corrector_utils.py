@@ -1,4 +1,5 @@
 from os.path import join
+import pathlib
 import pickle
 import unittest
 
@@ -9,7 +10,7 @@ from pandas.util.testing import assert_frame_equal
 from lookout.style.typos.utils import (add_context_info, filter_suggestions, flatten_data,
                                        rank_candidates, suggestions_to_df, suggestions_to_flat_df)
 
-TEST_DATA_PATH = "lookout/style/typos/tests/"
+TEST_DATA_PATH = str(pathlib.Path(__file__).parent)
 
 
 class DataTransformationsTest(unittest.TestCase):
