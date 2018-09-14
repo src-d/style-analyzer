@@ -8,10 +8,10 @@ import pandas
 from pandas.util.testing import assert_frame_equal
 
 from lookout.style.typos.utils import (add_context_info, filter_suggestions, flatten_data,
-                                       rank_candidates, suggestions_to_df, suggestions_to_flat_df,
-                                       AFTER_COLUMN, BEFORE_COLUMN, CANDIDATE_COLUMN, ID_COLUMN,
-                                       PROBABILITY_COLUMN, SPLIT_COLUMN, SUGGESTIONS_COLUMN,
-                                       TYPO_COLUMN)
+                   rank_candidates, suggestions_to_df, suggestions_to_flat_df,
+                   AFTER_COLUMN, BEFORE_COLUMN, CANDIDATE_COLUMN, ID_COLUMN,
+                   PROBABILITY_COLUMN, SPLIT_COLUMN, SUGGESTIONS_COLUMN,
+                   TYPO_COLUMN)
 
 
 TEST_DATA_PATH = str(pathlib.Path(__file__).parent)
@@ -73,27 +73,27 @@ class RankCandidatesTest(unittest.TestCase):
                                                   [2, "tokem", "taken"],
                                                   [2, "tokem", "token"]],
                                                  columns=[ID_COLUMN, TYPO_COLUMN, CANDIDATE_COLUMN])
-        cls.custom_suggestions = {0: [["get", 1.0]],
-                                  1: [["get", 0.9],
-                                      ["gpt", 0.05]],
-                                  2: [["token", 0.98],
-                                      ["taken", 0.3],
-                                      ["tokem", 0.01]]}
-        cls.custom_filtered_suggestions = {1: [["get", 0.9],
-                                               ["gpt", 0.05]],
-                                           2: [["token", 0.98],
-                                               ["taken", 0.3]]}
+        cls.custom_suggestions = {0: [("get", 1.0)],
+                                  1: [("get", 0.9),
+                                      ("gpt", 0.05)],
+                                  2: [("token", 0.98),
+                                      ("taken", 0.3),
+                                      ("tokem", 0.01)]}
+        cls.custom_filtered_suggestions = {1: [("get", 0.9),
+                                               ("gpt", 0.05)],
+                                           2: [("token", 0.98),
+                                               ("taken", 0.3)]}
 
     def test_rank_candidates(self):
         candidates = pandas.read_csv(join(TEST_DATA_PATH, "test_data_candidates.csv"),
                                      index_col=0).infer_objects()
         proba = numpy.load(join(TEST_DATA_PATH, "test_data_candidates_proba.pkl"))
-        self.assertEqual(rank_candidates(candidates, proba, n_candidates=3), self.suggestions)
+        self.assertDictEqual(rank_candidates(candidates, proba, n_candidates=3), self.suggestions)
 
         proba = numpy.array([1.0, 0.9, 0.05, 0.01, 0.3, 0.98], dtype=float)
-        self.assertEqual(rank_candidates(self.custom_candidates, proba, n_candidates=3),
+        self.assertDictEqual(rank_candidates(self.custom_candidates, proba, n_candidates=3),
                          self.custom_suggestions)
-        self.assertEqual(rank_candidates(self.custom_candidates, proba, n_candidates=2,
+        self.assertDictEqual(rank_candidates(self.custom_candidates, proba, n_candidates=2,
                                          return_all=False),
                          self.custom_filtered_suggestions)
 
