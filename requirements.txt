@@ -16,3 +16,4 @@ numpy==1.14.2
 pandas==0.22.0
 gensim==3.5.0
 keras==2.1.5
+google-compute-engine>=2.8.3

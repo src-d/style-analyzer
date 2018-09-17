@@ -46,6 +46,7 @@ setup(
                       "pandas>=0.22,<1.0",
                       "gensim>=3.5.0,<4.0",
                       "keras>=2.0,<3.0",
+                      "google-compute-engine>=2.8.3",
                       ] + typing,
     extras_require={
         "tf": ["tensorflow>=1.0,<2.0"],
