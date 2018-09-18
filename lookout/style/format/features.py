@@ -171,9 +171,9 @@ class FeatureExtractor:
              FeaturesGroup(("start_line", "start_col"), None)),
             (FeatureType.left_siblings,
              FeaturesGroup(("start_line_diff", "end_line_diff", "start_col_diff", "end_col_diff",
-                            "role_id"), siblings_window)),
+                            "length", "role_id"), siblings_window)),
             (FeatureType.right_siblings,
-             FeaturesGroup(("role_id", ), siblings_window)),
+             FeaturesGroup(("length", "role_id"), siblings_window)),
             (FeatureType.parents,
              FeaturesGroup(("role_id", ), parents_depth)),
         ])
@@ -401,10 +401,13 @@ class FeatureExtractor:
                 abs(left_sibling_vnode.end.line - vnode.end.line),
                 left_sibling_vnode.start.col - vnode.start.col,
                 left_sibling_vnode.end.col - vnode.end.col,
+                left_sibling_vnode.end.offset - left_sibling_vnode.start.offset,
                 self._get_role_index(left_sibling_vnode))
 
     def _get_right_sibling_features(self, right_sibling_vnode: VirtualNode) -> Sequence[int]:
-        return self._get_role_index(right_sibling_vnode),
+        return (right_sibling_vnode.end.offset - right_sibling_vnode.start.offset,
+                self._get_role_index(right_sibling_vnode))
+
 
     def _get_parent_features(self, parent_node: bblfsh.Node) -> Sequence[int]:
         return self.roles.ROLE_INDEX.get(parent_node.internal_type, -1),
