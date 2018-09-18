@@ -151,7 +151,7 @@ CLASS_INDEX = {cls: i for i, cls in enumerate(CLASSES)}
 class FeatureExtractor:
     _log = logging.getLogger("FeaturesExtractor")
 
-    def __init__(self, language: str, siblings_window: int = 5, parents_depth: int = 2):
+    def __init__(self, language: str, *, siblings_window: int = 5, parents_depth: int = 2):
         """
         Construct a `FeatureExtractor`.
 

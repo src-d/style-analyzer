@@ -93,7 +93,7 @@ class AnalyzerManagerTests(unittest.TestCase):
         self.assertEqual(response.comments[0].text, "%s|%s" % ("00" * 20, "ff" * 20))
         self.assertEqual(self.model_repository.get_calls,
                          [("FakeAnalyzer/1", FakeModel, "foo")] * 2)
-        self.assertEqual(FakeAnalyzer.instance.one, "two")
+        self.assertEqual(FakeAnalyzer.instance.config["one"], "two")
         self.assertEqual(FakeAnalyzer.stub, "XXX")
 
     def test_process_push_event(self):
