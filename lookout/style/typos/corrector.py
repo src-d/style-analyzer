@@ -6,8 +6,9 @@ import pandas
 from tqdm import tqdm
 
 from lookout.style.typos.generation import (CandidatesGenerator, get_candidates_features,
-                                             get_candidates_tokens)
+                                            get_candidates_tokens)
 from lookout.style.typos.ranking import CandidatesRanker
+from lookout.style.typos.utils import CORRECT_TOKEN_COLUMN
 
 
 class TyposCorrector(Model):
@@ -71,7 +72,7 @@ class TyposCorrector(Model):
         if candidates is None:
             candidates = self.generator.generate_candidates(typos, self.threads_number,
                                                             self.nn_file, save_candidates_file)
-        self.ranker.fit(typos, get_candidates_tokens(candidates),
+        self.ranker.fit(typos[CORRECT_TOKEN_COLUMN], get_candidates_tokens(candidates),
                         get_candidates_features(candidates))
 
     def train_on_file(self, typos_file: str, candidates_file: str = None,
@@ -156,7 +157,7 @@ class TyposCorrector(Model):
 
         return dict(list(chain.from_iterable(all_suggestions)))
 
-    def dump(self):
+    def dump(self) -> str:
         return ("Candidates and features generator parameters:\n%s"
                 "XGBoost classifier is used for ranking candidates" %
                 str(self.finder))
