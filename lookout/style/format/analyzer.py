@@ -59,7 +59,8 @@ class FormatAnalyzer(Analyzer):
                     lines = [find_new_lines(prev_file, file)]
                 X, y, vnodes = FeatureExtractor(language=lang,
                                                 siblings_window=self.config["siblings_window"],
-                                                parents_depth=self.config["parents_depth"]) \
+                                                parents_depth=self.config["parents_depth"],
+                                                debug_parsing=self.config["debug_parsing"]) \
                     .extract_features([file], lines)
                 self.log.debug("predicting values for %d samples", len(y))
                 y_pred, winners = rules.predict(X, True)
@@ -95,7 +96,8 @@ class FormatAnalyzer(Analyzer):
             try:
                 fe = FeatureExtractor(language=language,
                                       siblings_window=config["siblings_window"],
-                                      parents_depth=config["parents_depth"])
+                                      parents_depth=config["parents_depth"],
+                                      debug_parsing=config["debug_parsing"])
             except ImportError:
                 cls.log.warning("skipped %d %s files - not supported", len(files), language)
                 continue
@@ -166,7 +168,8 @@ class FormatAnalyzer(Analyzer):
             "prune_dataset_ratio": .2,
             "n_estimators": 10,
             "random_state": 42,
-            "n_iter": 5
+            "n_iter": 5,
+            "debug_parsing": False
         }
         final_config.update(config)
         # the incoming value can be a list from ASDF
