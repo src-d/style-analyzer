@@ -53,8 +53,10 @@ class AnalyzerManager(EventHandlers):
         for analyzer in self._analyzers:
             try:
                 mycfg = dict(request.configuration[analyzer.__name__])
+                self._log.info("%s config: %s", analyzer.__name__, mycfg)
             except (KeyError, ValueError):
                 mycfg = {}
+                self._log.debug("no config was provided for %s", analyzer.__name__)
             model, cache_miss = self._model_repository.get(
                 self._model_id(analyzer), analyzer.model_type, base_ptr.url)
             if cache_miss:

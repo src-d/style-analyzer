@@ -1,7 +1,7 @@
 from collections import defaultdict
 import logging
 from pprint import pformat
-from typing import Dict, Iterable, Any
+from typing import Any, Dict, Iterable, List, Mapping
 
 from skopt import BayesSearchCV
 from skopt.space import Categorical, Integer
@@ -23,9 +23,22 @@ class FormatAnalyzer(Analyzer):
     version = "1"
     description = "Source code formatting: whitespace, new lines, quotes, braces."
 
+    def __init__(self, model: AnalyzerModel, url: str, config: Mapping[str, Any]) -> None:
+        super().__init__(model, url, config)
+        self.config = self._load_config(self.config)
+
     @with_changed_uasts_and_contents
     def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
-                data_request_stub: DataStub, **data) -> [Comment]:
+                data_request_stub: DataStub, **data) -> List[Comment]:
+        """
+        Analyze a set of changes from one revision to another.
+
+        :param ptr_from: Git repository state pointer to the base revision.
+        :param ptr_to: Git repository state pointer to the head revision.
+        :param data_request_stub: Connection to the Lookout data retrieval service, not used.
+        :param data: Contains "changes" - the list of changes in the pointed state.
+        :return: List of comments.
+        """
         comments = []
         changes = list(data["changes"])
         base_files = self._files_by_language(c.base for c in changes)
@@ -44,7 +57,9 @@ class FormatAnalyzer(Analyzer):
                     lines = None
                 else:
                     lines = [find_new_lines(prev_file, file)]
-                X, y, vnodes = FeatureExtractor(lang, **getattr(self, "extractor", {})) \
+                X, y, vnodes = FeatureExtractor(language=lang,
+                                                siblings_window=self.config["siblings_window"],
+                                                parents_depth=self.config["parents_depth"]) \
                     .extract_features([file], lines)
                 self.log.debug("predicting values for %d samples", len(y))
                 y_pred, winners = rules.predict(X, True)
@@ -59,7 +74,7 @@ class FormatAnalyzer(Analyzer):
 
     @classmethod
     @with_uasts_and_contents
-    def train(cls, ptr: ReferencePointer, config: Dict[str, Any], data_request_stub: DataStub,
+    def train(cls, ptr: ReferencePointer, config: Mapping[str, Any], data_request_stub: DataStub,
               **data) -> AnalyzerModel:
         """
         Train a model given the files available.
@@ -70,7 +85,7 @@ class FormatAnalyzer(Analyzer):
         :param data_request_stub: connection to the Lookout data retrieval service, not used.
         :return: AnalyzerModel containing the learned rules, per language.
         """
-        config = cls._load_train_config(config)
+        config = cls._load_config(config)
         cls.log.info("train %s %s %s", ptr.url, ptr.commit,
                      pformat(config, width=4096, compact=True))
         files_by_language = cls._files_by_language(data["files"])
@@ -139,7 +154,7 @@ class FormatAnalyzer(Analyzer):
         return result
 
     @classmethod
-    def _load_train_config(cls, config: Dict[str, Any]):
+    def _load_config(cls, config: Mapping[str, Any]):
         final_config = {
             "siblings_window": 5,
             "parents_depth": 2,

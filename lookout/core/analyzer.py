@@ -1,4 +1,4 @@
-from typing import NamedTuple, Any, Dict
+from typing import Any, Dict, Mapping, NamedTuple
 
 from modelforge import Model
 
@@ -67,7 +67,7 @@ class Analyzer:
     version = None  # type: str
     model_type = None  # type: Type[AnalyzerModel]
 
-    def __init__(self, model: AnalyzerModel, url: str, config: Dict[str, Any]):
+    def __init__(self, model: AnalyzerModel, url: str, config: Mapping[str, Any]):
         """
         :param model: The instance of the model loaded from the repository or freshly trained.
         :param url: The analyzed project's Git remote.
@@ -75,7 +75,7 @@ class Analyzer:
         """
         self.model = model
         self.url = url
-        self.__dict__.update(config)
+        self.config = config
 
     def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
                 data_request_stub: DataStub, **data) -> [Comment]:
