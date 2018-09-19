@@ -20,6 +20,7 @@ from lookout.style.format.rules import TopDownGreedyBudget, TrainableRules
 class FormatAnalyzer(Analyzer):
     log = logging.getLogger("FormatAnalyzer")
     model_type = FormatModel
+    name = "style.format.analyzer.FormatAnalyzer"
     version = "1"
     description = "Source code formatting: whitespace, new lines, quotes, braces."
 

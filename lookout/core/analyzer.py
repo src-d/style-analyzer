@@ -40,7 +40,7 @@ class AnalyzerModel(Model):
         :return: self
         """
         assert isinstance(self, analyzer.model_type)
-        self.name = analyzer.__name__
+        self.name = analyzer.name
         self.version = [analyzer.version]
         self.ptr = ptr
         return self
@@ -66,6 +66,7 @@ class Analyzer:
     """
     version = None  # type: str
     model_type = None  # type: Type[AnalyzerModel]
+    name = None  # type: str
 
     def __init__(self, model: AnalyzerModel, url: str, config: Mapping[str, Any]):
         """

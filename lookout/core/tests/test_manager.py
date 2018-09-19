@@ -21,6 +21,7 @@ class FakeModel(AnalyzerModel):
 class FakeAnalyzer(Analyzer):
     version = "1"
     model_type = FakeModel
+    name = "fake.analyzer.FakeAnalyzer"
 
     def __init__(self, model: AnalyzerModel, url: str, config: dict):
         super().__init__(model, url, config)
@@ -78,7 +79,7 @@ class AnalyzerManagerTests(unittest.TestCase):
 
     def test_process_review_event(self):
         request = ReviewEvent()
-        request.configuration.update({"FakeAnalyzer": {"one": "two"}})
+        request.configuration.update({"fake.analyzer.FakeAnalyzer": {"one": "two"}})
         request.commit_revision.base.internal_repository_url = "foo"
         request.commit_revision.base.reference_name = "refs/heads/master"
         request.commit_revision.base.hash = "00" * 20
@@ -87,12 +88,13 @@ class AnalyzerManagerTests(unittest.TestCase):
         request.commit_revision.head.hash = "ff" * 20
         response = self.manager.process_review_event(request)
         self.assertIsInstance(response, EventResponse)
-        self.assertEqual(response.analyzer_version, "FakeAnalyzer/1 FakeAnalyzer/1")
+        self.assertEqual(response.analyzer_version, "fake.analyzer.FakeAnalyzer/1 "
+                                                    "fake.analyzer.FakeAnalyzer/1")
         self.assertEqual(len(response.comments), 2)
         self.assertEqual(*response.comments)
         self.assertEqual(response.comments[0].text, "%s|%s" % ("00" * 20, "ff" * 20))
         self.assertEqual(self.model_repository.get_calls,
-                         [("FakeAnalyzer/1", FakeModel, "foo")] * 2)
+                         [("fake.analyzer.FakeAnalyzer/1", FakeModel, "foo")] * 2)
         self.assertEqual(FakeAnalyzer.instance.config["one"], "two")
         self.assertEqual(FakeAnalyzer.stub, "XXX")
 
@@ -103,12 +105,15 @@ class AnalyzerManagerTests(unittest.TestCase):
         request.commit_revision.head.hash = "80" * 20
         response = self.manager.process_push_event(request)
         self.assertIsInstance(response, EventResponse)
-        self.assertEqual(response.analyzer_version, "FakeAnalyzer/1 FakeAnalyzer/1")
+        self.assertEqual(response.analyzer_version, "fake.analyzer.FakeAnalyzer/1 "
+                                                    "fake.analyzer.FakeAnalyzer/1")
         self.assertEqual(len(response.comments), 0)
         self.assertEqual(len(self.model_repository.set_calls), 2)
-        self.assertEqual(self.model_repository.set_calls[0][:2], ("FakeAnalyzer/1", "wow"))
+        self.assertEqual(self.model_repository.set_calls[0][:2],
+                         ("fake.analyzer.FakeAnalyzer/1", "wow"))
         self.assertIsInstance(self.model_repository.set_calls[0][2], FakeModel)
-        self.assertEqual(self.model_repository.set_calls[1][:2], ("FakeAnalyzer/1", "wow"))
+        self.assertEqual(self.model_repository.set_calls[1][:2],
+                         ("fake.analyzer.FakeAnalyzer/1", "wow"))
         self.assertIsInstance(self.model_repository.set_calls[1][2], FakeModel)
         self.assertEqual(FakeAnalyzer.stub, "XXX")
 

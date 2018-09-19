@@ -52,23 +52,23 @@ class AnalyzerManager(EventHandlers):
         comments = []
         for analyzer in self._analyzers:
             try:
-                mycfg = dict(request.configuration[analyzer.__name__])
-                self._log.info("%s config: %s", analyzer.__name__, mycfg)
+                mycfg = dict(request.configuration[analyzer.name])
+                self._log.info("%s config: %s", analyzer.name, mycfg)
             except (KeyError, ValueError):
                 mycfg = {}
-                self._log.debug("no config was provided for %s", analyzer.__name__)
+                self._log.debug("no config was provided for %s", analyzer.name)
             model, cache_miss = self._model_repository.get(
                 self._model_id(analyzer), analyzer.model_type, base_ptr.url)
             if cache_miss:
-                self._log.info("cache miss: %s", analyzer.__name__)
+                self._log.info("cache miss: %s", analyzer.name)
             if model is None:
-                self._log.info("training: %s", analyzer.__name__)
+                self._log.info("training: %s", analyzer.name)
                 model = analyzer.train(base_ptr, mycfg, self._data_service.get())
                 self._model_repository.set(self._model_id(analyzer), base_ptr.url, model)
-            self._log.debug("running %s", analyzer.__name__)
+            self._log.debug("running %s", analyzer.name)
             results = analyzer(model, head_ptr.url, mycfg).analyze(
                 base_ptr, head_ptr, self._data_service.get())
-            self._log.info("%s: %d comments", analyzer.__name__, len(results))
+            self._log.info("%s: %d comments", analyzer.name, len(results))
             comments.extend(results)
         response.comments.extend(comments)
         return response
@@ -76,9 +76,9 @@ class AnalyzerManager(EventHandlers):
     def process_push_event(self, request: PushEvent) -> EventResponse:
         ptr = ReferencePointer.from_pb(request.commit_revision.head)
         for analyzer in self._analyzers:
-            self._log.debug("training %s", analyzer.__name__)
+            self._log.debug("training %s", analyzer.name)
             try:
-                mycfg = dict(request.configuration[analyzer.__name__])
+                mycfg = dict(request.configuration[analyzer.name])
             except (KeyError, ValueError):
                 mycfg = {}
             model = analyzer.train(ptr, mycfg, self._data_service.get())
@@ -102,4 +102,4 @@ class AnalyzerManager(EventHandlers):
 
     @staticmethod
     def _model_id(analyzer: Type[Analyzer]) -> str:
-        return "%s/%s" % (analyzer.__name__, analyzer.version)
+        return "%s/%s" % (analyzer.name, analyzer.version)
