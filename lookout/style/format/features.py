@@ -6,6 +6,12 @@ from typing import Dict, Iterable, List, Mapping, NamedTuple, Optional, Sequence
 
 import bblfsh
 import numpy
+from scipy.sparse import coo_matrix
+from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.feature_extraction import FeatureHasher
+from sklearn.preprocessing.data import _transform_selected
+from sklearn.utils.validation import check_array
 
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2 import File
@@ -29,7 +35,7 @@ class FeatureType(enum.Enum):
 
 
 class VirtualNode:
-    def __init__(self,  value: str, start: Position, end: Position,
+    def __init__(self, value: str, start: Position, end: Position,
                  *, node: bblfsh.Node = None, y: int = None, path: str = None):
         """
         This represents either a real UAST node or an imaginary token.
@@ -133,6 +139,151 @@ class VirtualNode:
         return comment
 
 
+class HashingEncoder(BaseEstimator, TransformerMixin):
+    """
+    Wrapper for sklearn.feature_extraction.FeatureHasher class to work with regular ndarray
+    """
+    def __init__(self, n_features: int, categorical_features: List[int], n_values: int):
+        """
+        :param n_features: Features number. It equal to encoding dimension.
+        :param n_values: Maximum number of values per feature.
+        :param categorical_features: indexes or columns with categorical features to transform.
+        """
+        self.categorical_features = categorical_features
+        self.n_features = n_features
+        self.n_values = n_values
+        self.hashes = FeatureHasher(self.n_features, input_type="string").fit_transform([
+            str(i) for i in range(self.n_values)]).toarray()
+
+    def fit(self, X: numpy.ndarray, y=None) -> "BucketsEncoder":
+        """
+        Fit HashingEncoder to X.
+        :param X: array-like, shape [n_samples, n_feature] Input array of type int.
+        :return: self
+        """
+        self.fit_transform(X)
+        return self
+
+
+    def transform(self, X):
+        """
+        Transform X using hashing encoding.
+
+        :param X: array-like, shape [n_samples, n_features]
+        :return: A 2-d array, dtype=int. Transformed input.
+        """
+        return _transform_selected(X, self._fit_transform,
+                                   self.categorical_features, copy=True)
+
+    def fit_transform(self, X: numpy.ndarray, y=None):
+        """
+        Fit HashingEncoder to X, then transform X.
+        Equivalent to self.fit(X).transform(X).
+        :param X: array-like, shape [n_samples, n_feature]
+        :return:
+        """
+        return _transform_selected(X, self._fit_transform,
+                                   self.categorical_features, copy=True)
+
+    def _fit_transform(self, X: numpy.ndarray):
+        """Assumes X contains only categorical features."""
+        X = check_array(X, dtype=numpy.int)
+        if numpy.any(X < 0):
+            raise ValueError("X needs to contain only non-negative integers.")
+
+        new_X = [self.hashes[X[:, i]] for i in range(X.shape[1])]
+        self.n_values_ = self.n_values
+        return numpy.concatenate(new_X, axis=1)
+
+
+class BucketsEncoder(BaseEstimator, TransformerMixin):
+    """
+    Encodes categorical features to a buckets form. Example:
+    Feature vector: [0, 1, 2, 3, 4, 5, 6, 7, 8].
+    Encoded feature vector for 3 buckets (if distinct is True):
+    [[1, 0, 0],
+     [2, 0, 0],
+     [3, 0, 0],
+     [0, 1, 0],
+     [0, 2, 0],
+     [0, 3, 0],
+     [0, 0, 1],
+     [0, 0, 2],
+     [0, 0, 3]]
+    Encoded feature vector for 3 buckets (if distinct is False):
+    [[1, 0, 0],
+     [1, 0, 0],
+     [1, 0, 0],
+     [0, 1, 0],
+     [0, 1, 0],
+     [0, 1, 0],
+     [0, 0, 1],
+     [0, 0, 1],
+     [0, 0, 1]]
+    """
+    def __init__(self, n_buckets: int, categorical_features: List[int],
+                 n_values: int, distinct: bool = True):
+        """
+        :param n_buckets: Buckets number. It equal to encoding dimension.
+        :param n_values: Maximum number of values per feature.
+        :param categorical_features: indexes or columns with categorical features to transform.
+        :param distinct: distinct or not categorical values in the same bucket.
+        """
+        self.categorical_features = categorical_features
+        self.n_buckets = n_buckets
+        self.n_values = n_values
+        self.distinct = distinct
+
+    def fit(self, X: numpy.ndarray, y=None) -> "BucketsEncoder":
+        """
+        Fit BucketsEncoder to X.
+        :param X: array-like, shape [n_samples, n_feature] Input array of type int.
+        :return: self
+        """
+        self.fit_transform(X)
+        return self
+
+    def transform(self, X):
+        """
+        Transform X using buckets encoding.
+
+        :param X: array-like, shape [n_samples, n_features]
+        :return: A 2-d array, dtype=int. Transformed input.
+        """
+        return _transform_selected(X, self._fit_transform,
+                                   self.categorical_features, copy=True)
+
+    def fit_transform(self, X: numpy.ndarray, y=None):
+        """
+        Fit BucketsEncoder to X, then transform X.
+        Equivalent to self.fit(X).transform(X).
+        :param X: array-like, shape [n_samples, n_feature]
+        :return:
+        """
+        return _transform_selected(X, self._fit_transform,
+                                   self.categorical_features, copy=True)
+
+    def _fit_transform(self, X: numpy.ndarray):
+        """Assumes X contains only categorical features."""
+        X = check_array(X, dtype=numpy.int)
+        if numpy.any(X < 0):
+            raise ValueError("X needs to contain only non-negative integers.")
+
+        new_x_max_val = numpy.ceil(self.n_values / self.n_buckets)
+        new_X_val = X % new_x_max_val
+        new_X_indx = X // new_x_max_val
+        new_X = numpy.zeros((X.shape[0], X.shape[1] * self.n_buckets), dtype=numpy.int32)
+
+        for i in range(new_X.shape[1]):
+            index = new_X_indx[:, i // self.n_buckets] == i % self.n_buckets
+            if self.distinct:
+                new_X[index, i] = 1 + new_X_val[index, i // self.n_buckets]
+            else:
+                new_X[index, i] = 1
+        self.n_values_ = self.n_values
+        return new_X
+
+
 CLS_SPACE = "<space>"
 CLS_SPACE_INC = "<+space>"
 CLS_SPACE_DEC = "<-space>"
@@ -151,12 +302,20 @@ CLASS_INDEX = {cls: i for i, cls in enumerate(CLASSES)}
 class FeatureExtractor:
     _log = logging.getLogger("FeaturesExtractor")
 
-    def __init__(self, language: str, siblings_window: int = 5, parents_depth: int = 2):
+    def __init__(self, language: str, siblings_window: int = 5, parents_depth: int = 2,
+                 roles_preprocess: str = "identity", n_buckets: Optional[int] = None):
         """
         Construct a `FeatureExtractor`.
 
         :param parents_depth: how many parents to use for each node.
         :param siblings_window: how many siblings to use for each node (both left and right).
+        :param roles_preprocess: how to encode Roles features:
+            "identity" keeps label encoding,
+            "onehot" converts roles to its one-hot encoding representation.
+            "bucket" use buckets encoding.
+            "hashing" to use hashing trick.
+        :param n_buckets: Output dimension for buckets encoding or hashing trick if you choose
+            one of them.
         """
         self.siblings_window = siblings_window
         self.parents_depth = parents_depth
@@ -175,9 +334,37 @@ class FeatureExtractor:
             (FeatureType.right_siblings,
              FeaturesGroup(("length", "role_id"), siblings_window)),
             (FeatureType.parents,
-             FeaturesGroup(("role_id", ), parents_depth)),
+             FeaturesGroup(("role_id",), parents_depth)),
         ])
         self._init_feature_names(self.feature_layout)
+        self.roles_preprocess = roles_preprocess
+        if roles_preprocess == "onehot":
+            self.roles_encoder = OneHotEncoder(
+                n_values=self.roles_number,
+                categorical_features=[i for i, name in enumerate(self.feature_names)
+                                      if "role" in name])
+        elif roles_preprocess == "buckets":
+            if n_buckets is None:
+                raise ValueError("For roles_preprocess=buckets n_buckets argument should be "
+                                 "specified.")
+            self.roles_encoder = BucketsEncoder(
+                n_buckets=n_buckets,
+                n_values=self.roles_number,
+                categorical_features=[i for i, name in enumerate(self.feature_names)
+                                      if "role" in name], )
+        elif roles_preprocess == "hashing":
+            if n_buckets is None:
+                raise ValueError("For roles_preprocess=hashing n_buckets argument should be "
+                                 "specified.")
+            self.roles_encoder = HashingEncoder(
+                n_features=n_buckets,
+                n_values=self.roles_number,
+                categorical_features=[i for i, name in enumerate(self.feature_names)
+                                      if "role" in name],)
+
+    @property
+    def roles_number(self):
+        return len(self.roles.ROLE_INDEX) + len(self.tokens.RESERVED_INDEX) + 1
 
     @property
     def feature_layout(self):
@@ -212,7 +399,7 @@ class FeatureExtractor:
         self._feature_names = tuple(names)
         self._feature2index = {name: i for i, name in enumerate(self.feature_names)}
 
-    def extract_features(self, files: Iterable[File], lines: List[List[int]]=None
+    def extract_features(self, files: Iterable[File], lines: List[List[int]] = None
                          ) -> Tuple[numpy.ndarray, numpy.ndarray, List[VirtualNode]]:
         """
         Given a list of `File`-s, compute the features and labels required for the training of
@@ -248,9 +435,28 @@ class FeatureExtractor:
         offset = 0
         for (vnodes, parents, file_lines), partial_labels in zip(parsed_files, labels):
             offset = self._inplace_write_vnode_features(vnodes, parents, file_lines, offset, X, vn)
+        if self.roles_preprocess != "identity":
+            X = self.encode_roles(X)
+        self._log.info("Features number: %d" % X.shape[1])
         return X, y, vn
 
-    def _classify_vnodes(self, nodes: Iterable[VirtualNode], path: str) -> Iterable[VirtualNode]:
+    def encode_roles(self, X: numpy.ndarray) -> coo_matrix:
+        """
+        Encodes all roles features in data matrix X to its one hot encoding representation.
+        Fits the model if it is unfitted.
+        :param X: Data matrix.
+        :return: New sparse data matrix.
+        """
+        # It is not possible to have negative values to run OneHotEncoder, so here is dirty hack
+        X += 1
+
+        if hasattr(self.roles_encoder, "n_values_"):
+            # one hot encoder model has been fitted already
+            return self.roles_encoder.transform(X)
+        return self.roles_encoder.fit_transform(X)
+
+    @staticmethod
+    def _classify_vnodes(nodes: Iterable[VirtualNode], path: str) -> Iterable[VirtualNode]:
         """
         This function fills "y" attribute in the VirtualNode-s from _parse_file().
         It is the index of the corresponding class to predict.
