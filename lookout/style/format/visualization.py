@@ -1,10 +1,11 @@
+"""Utilities to visualize the errors made on a file."""
 from collections import namedtuple
 import os
 
 from bblfsh import BblfshClient
 
 from lookout.core.api.service_data_pb2 import File
-from lookout.style.format.features import FeatureExtractor, CLASSES
+from lookout.style.format.features import CLASSES, FeatureExtractor
 from lookout.style.format.model import FormatModel
 
 RED = "\033[41m"
@@ -15,7 +16,14 @@ ENDC = '\033[m'
 Misprediction = namedtuple("Misprediction", ["y", "pred", "node"])
 
 
-def prepare_file(filename, client, language):
+def prepare_file(filename: str, client: BblfshClient, language: str) -> File:
+    """
+    Prepare the given file for analysis by extracting UAST and creating the gRPC wrapper.
+
+    :param filename: Path to the filename to analyze.
+    :param client: Babelfish client. Babelfish server should be started accordingly.
+    :param language: Language to consider. Will discard the other languages
+    """
     assert os.path.isfile(filename), "\"%s\" should be a file" % filename
     res = client.parse(filename, language)
     assert res.status == 0, "Parse returned status %s for file %s" % (res.status, filename)
@@ -29,6 +37,7 @@ def prepare_file(filename, client, language):
 
 
 def visualize(input_filename: str, bblfsh: str, language: str, model: str) -> None:
+    """Visualize the errors made on a single file."""
     client = BblfshClient(bblfsh)
     file = prepare_file(input_filename, client, language)
 

@@ -8,6 +8,7 @@ from lookout.core.analyzer import Analyzer, AnalyzerModel, ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2 import ChangesRequest, FilesRequest, Change, File
 from lookout.core.api.service_data_pb2_grpc import DataStub
+from lookout.core.garbage_exclusion import GARBAGE_PATTERN
 from lookout.core.ports import Type
 
 
@@ -130,6 +131,7 @@ def request_changes(stub: DataStub, ptr_from: ReferencePointer, ptr_to: Referenc
              into a synchronous call, but in practice, that function call hangs for some reason.
     """
     request = ChangesRequest(base=ptr_from.to_pb(), head=ptr_to.to_pb())
+    request.exclude_pattern = GARBAGE_PATTERN
     request.exclude_vendored = True
     request.want_contents = contents
     request.want_uast = uast
@@ -144,6 +146,7 @@ def request_files(stub: DataStub, ptr: ReferencePointer, contents: bool, uast: b
     :return: The stream of the gRPC invocation results.
     """
     request = FilesRequest(revision=ptr.to_pb())
+    request.exclude_pattern = GARBAGE_PATTERN
     request.exclude_vendored = True
     request.want_contents = contents
     request.want_uast = uast
