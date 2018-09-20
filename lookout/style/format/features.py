@@ -2,7 +2,8 @@ from collections import OrderedDict
 import enum
 import importlib
 import logging
-from typing import Dict, Iterable, List, Mapping, NamedTuple, Optional, Sequence, Tuple, Set
+from typing import (Callable, Dict, Iterable, List, Mapping, NamedTuple, Optional, Sequence, Set,
+                    Tuple)
 
 import bblfsh
 import numpy
@@ -66,13 +67,16 @@ class VirtualNode:
                self.path == other.path
 
     @staticmethod
-    def from_node(node: bblfsh.Node, file: str, path: str) -> Iterable["VirtualNode"]:
+    def from_node(node: bblfsh.Node, file: str, path: str,
+                  token_unwrappers: Mapping[str, Callable[[str], Tuple[str, str]]]
+                  ) -> Iterable["VirtualNode"]:
         """
         Initializes the VirtualNode from a UAST node. Takes into account prefixes and suffixes.
 
         :param node: UAST node
         :param file: the file contents
         :param path: the file path
+        :param token_unwrappers: mapping from bblfsh internal types to functions to unwrap tokens
         :return: new VirtualNode-s
         """
         outer_token = file[node.start_position.offset:node.end_position.offset]
@@ -82,7 +86,16 @@ class VirtualNode:
                               Position(*[f[1] for f in node.end_position.ListFields()]),
                               node=node, path=path)
             return
-        start_offset = outer_token.find(node.token)
+        node_token = node.token
+        if node.internal_type in token_unwrappers:
+            node_token, outer_token = token_unwrappers[node.internal_type](outer_token)
+        start_offset = outer_token.find(node_token)
+        assert start_offset >= 0, (
+            "Couldn't find the token in the specified position:\nNode role: %s\nParsed form: “%s”"
+            "\nRaw form: “%s”\nStart position: %d, %d, %d\nEnd position: %d, %d, %d" % (
+                node.internal_type, node_token, outer_token, node.start_position.offset,
+                node.start_position.line, node.start_position.col, node.end_position.offset,
+                node.end_position.line, node.end_position.col))
         start_pos = node.start_position.offset + start_offset
         if start_offset:
             yield VirtualNode(outer_token[:start_offset],
@@ -93,9 +106,9 @@ class VirtualNode:
                                        line=node.start_position.line,
                                        col=node.start_position.col + start_offset),
                               path=path)
-        end_offset = start_offset + len(node.token)
-        end_pos = start_pos + len(node.token)
-        yield VirtualNode(node.token,
+        end_offset = start_offset + len(node_token)
+        end_pos = start_pos + len(node_token)
+        yield VirtualNode(node_token,
                           Position(offset=start_pos,
                                    line=node.start_position.line,
                                    col=node.start_position.col + start_offset),
@@ -163,6 +176,12 @@ class FeatureExtractor:
         language = language.lower()
         self.tokens = importlib.import_module("lookout.style.format.langs.%s.tokens" % language)
         self.roles = importlib.import_module("lookout.style.format.langs.%s.roles" % language)
+        try:
+            self.token_unwrappers = importlib.import_module(
+                "lookout.style.format.langs.%s.token_unwrappers" % language).TOKEN_UNWRAPPERS
+        except ImportError:
+            # It's normal for some languages not to have a token_unwrappers module.
+            self.token_unwrappers = {}
 
         # Order is important and should be consistent with _inplace_write_vnode_features function
         # where features generation happens.
@@ -572,7 +591,8 @@ class FeatureExtractor:
             for child in node.children:
                 parents[id(child)] = node
             queue.extend(node.children)
-            if node.token or node.start_position and node.end_position and not node.children:
+            if (node.token or node.start_position and node.end_position
+                    and node.start_position != node.end_position and not node.children):
                 node_tokens.append(node)
         node_tokens.sort(key=lambda n: n.start_position.offset)
         sentinel = bblfsh.Node()
@@ -603,6 +623,6 @@ class FeatureExtractor:
                     "missed some imaginary tokens: \"%s\"" % diff
             if node is sentinel:
                 break
-            result.extend(VirtualNode.from_node(node, contents, path))
+            result.extend(VirtualNode.from_node(node, contents, path, self.token_unwrappers))
             pos = node.end_position.offset
         return result, parents
