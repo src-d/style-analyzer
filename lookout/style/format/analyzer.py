@@ -1,11 +1,13 @@
 from collections import defaultdict
 import logging
 from pprint import pformat
+import threading
 from typing import Any, Dict, Iterable, List, Mapping
 
 from skopt import BayesSearchCV
 from skopt.space import Categorical, Integer
 
+from lookout.core import slogging
 from lookout.core.analyzer import Analyzer, AnalyzerModel, ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2 import File
@@ -115,6 +117,9 @@ class FormatAnalyzer(Analyzer):
                                 len(files), language, X.shape[0], lower_bound_instances)
                 continue
             cls.log.debug("training the rules model")
+            if not slogging.logs_are_structured:
+                # workaround the check in joblib - everything still works without it
+                threading._MainThread = threading.Thread
             bscv = BayesSearchCV(
                 TrainableRules(
                     prune_branches_algorithms=config["prune_branches_algorithms"],
