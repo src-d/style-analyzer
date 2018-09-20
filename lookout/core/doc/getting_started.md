@@ -65,9 +65,10 @@ class MyModel(AnalyzerModel):
 class MyAnalyzer(Analyzer):
     model_type = MyModel
     version = "1"
+    name = "my_analyzer.MyAnalyzer"
     description = "Reports the changes in UAST node counts."
     _log = logging.getLogger("MyAnalyzer")
-    
+
     @with_changed_uasts_and_contents
     def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
                 data_request_stub: DataStub, changes: Iterable[Change]) -> [Comment]:
@@ -128,7 +129,7 @@ lookout push ipv4://localhost:2000 --git-dir /tmp/go-git \
     --to 4397264e391b45a8eac147cc7373189d55c640cc
 ```
 
-You should have `/tmp/tmp/go-git/MyAnalyzer_1.asdf`.
+You should have `/tmp/tmp/go-git/my_analyzer.MyAnalyzer_1.asdf`.
 
 Run the model:
 
