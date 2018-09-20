@@ -44,6 +44,7 @@ class VirtualNode:
         self.value = value
         assert start.line >= 1 and start.col >= 1, "start line and column are 1-based like UASTs"
         assert end.line >= 1 and end.col >= 1, "end line and column are 1-based like UASTs"
+        assert y in EMPTY_CLS or start.offset < end.offset, "illegal empty node"
         self.start = start
         self.end = end
         self.node = node
@@ -159,12 +160,15 @@ CLS_NOOP = "<noop>"
 CLASSES = (CLS_SPACE, CLS_TAB, CLS_NEWLINE, CLS_SPACE_INC, CLS_SPACE_DEC,
            CLS_TAB_INC, CLS_TAB_DEC, CLS_SINGLE_QUOTE, CLS_DOUBLE_QUOTE, CLS_NOOP)
 CLASS_INDEX = {cls: i for i, cls in enumerate(CLASSES)}
+EMPTY_CLS = frozenset([CLASS_INDEX[CLS_TAB_DEC], CLASS_INDEX[CLS_SPACE_DEC],
+                       CLASS_INDEX[CLS_NOOP]])
 
 
 class FeatureExtractor:
     _log = logging.getLogger("FeaturesExtractor")
 
-    def __init__(self, language: str, *, siblings_window: int = 5, parents_depth: int = 2):
+    def __init__(self, language: str, *, siblings_window: int = 5, parents_depth: int = 2,
+                 debug_parsing: bool = False):
         """
         Construct a `FeatureExtractor`.
 
@@ -173,6 +177,7 @@ class FeatureExtractor:
         """
         self.siblings_window = siblings_window
         self.parents_depth = parents_depth
+        self.debug_parsing = debug_parsing
         language = language.lower()
         self.tokens = importlib.import_module("lookout.style.format.langs.%s.tokens" % language)
         self.roles = importlib.import_module("lookout.style.format.langs.%s.roles" % language)
@@ -251,8 +256,12 @@ class FeatureExtractor:
             try:
                 vnodes, parents = self._parse_file(contents, uast, file.path)
             except AssertionError as e:
-                self._log.warning("could not parse file %s with error \"%s\', skipping",
+                self._log.warning("could not parse file %s with error '%s', skipping",
                                   file.path, e)
+                if True:
+                    import traceback
+                    traceback.print_exc()
+                    input("Press Enter to continue…")
                 continue
             vnodes = self._classify_vnodes(vnodes, file.path)
             vnodes = self._add_noops(vnodes, file.path)
