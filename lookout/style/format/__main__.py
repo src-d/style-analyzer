@@ -8,7 +8,7 @@ from lookout.style.format.visualization import visualize
 
 def create_parser():
     parser = argparse.ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatterNoNone)
-    subparsers = parser.add_subparsers(help="Commands", dest="command")
+    subparsers = parser.add_subparsers(help="Commands")
 
     def add_parser(name, help):
         return subparsers.add_parser(
@@ -17,7 +17,7 @@ def create_parser():
     # Evaluation
     eval_parser = add_parser("eval", "Evaluate trained model on given dataset.")
     eval_parser.set_defaults(handler=quality_report)
-    eval_parser.add_argument("-i", "--input", required=True, type=str,
+    eval_parser.add_argument("-i", "--input-pattern", required=True, type=str,
                              help="Path to folder with source code - "
                                   "should be in a format compatible with glob (ends with**/* "
                                   "and surrounded by quotes. Ex: `path/**/*`).")
@@ -33,8 +33,8 @@ def create_parser():
     # Visualization
     vis_parser = add_parser("vis", "Visualize mispredictions of the model on the given file.")
     vis_parser.set_defaults(handler=visualize)
-    vis_parser.add_argument("-i", "--input", required=True, help="Path to folder with source "
-                                                                 "code.")
+    vis_parser.add_argument("-i", "--input-filename", required=True,
+                            help="Path to file to analyze.")
     vis_parser.add_argument("--bblfsh", default="0.0.0.0:9432",
                             help="Babelfish server's address.")
     vis_parser.add_argument("-l", "--language", default="javascript",
@@ -48,12 +48,13 @@ def main():
     args = parser.parse_args()
     try:
         handler = args.handler
+        delattr(args, "handler")
     except AttributeError:
         def print_usage(_):
             parser.print_usage()
 
         handler = print_usage
-    return handler(args)
+    return handler(**vars(args))
 
 
 if __name__ == "__main__":

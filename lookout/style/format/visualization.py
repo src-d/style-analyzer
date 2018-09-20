@@ -1,7 +1,7 @@
 from collections import namedtuple
 import os
 
-import bblfsh
+from bblfsh import BblfshClient
 
 from lookout.core.api.service_data_pb2 import File
 from lookout.style.format.features import FeatureExtractor, CLASSES
@@ -28,15 +28,15 @@ def prepare_file(filename, client, language):
     return File(content=content, uast=res.uast, path=filename)
 
 
-def visualize(args):
-    client = bblfsh.BblfshClient(args.bblfsh)
-    file = prepare_file(args.input, client, args.language)
+def visualize(input_filename: str, bblfsh: str, language: str, model: str) -> None:
+    client = BblfshClient(bblfsh)
+    file = prepare_file(input_filename, client, language)
 
-    fe = FeatureExtractor(language=args.language)
+    fe = FeatureExtractor(language=language)
     X, y, nodes = fe.extract_features([file])
 
-    analyzer = FormatModel().load(args.model)
-    rules = analyzer._rules_by_lang[args.language]
+    analyzer = FormatModel().load(model)
+    rules = analyzer._rules_by_lang[language]
     y_pred = rules.predict(X)
 
     mispred = []
