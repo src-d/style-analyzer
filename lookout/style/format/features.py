@@ -258,7 +258,7 @@ class FeatureExtractor:
             except AssertionError as e:
                 self._log.warning("could not parse file %s with error '%s', skipping",
                                   file.path, e)
-                if True:
+                if self.debug_parsing:
                     import traceback
                     traceback.print_exc()
                     input("Press Enter to continue…")
