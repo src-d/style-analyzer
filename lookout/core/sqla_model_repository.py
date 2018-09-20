@@ -98,7 +98,7 @@ class SQLAlchemyModelRepository(ModelRepository):
     def set(self, model_id: str, url: str, model: AnalyzerModel):
         path = self.store_model(model, model_id, url)
         with self._sessionmaker() as session:
-            session.add(Model(analyzer=model_id, repository=url, path=path))
+            session.merge(Model(analyzer=model_id, repository=url, path=path))
             session.commit()
         self._log.debug("set %s with %s", model_id, url)
 

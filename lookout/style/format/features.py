@@ -580,6 +580,7 @@ class FeatureExtractor:
 
         :param contents: source file text
         :param root: UAST root node
+        :param path: path to the file, used for debugging
         :return: list of `VirtualNode`-s and the parents.
         """
         # build the line mapping
