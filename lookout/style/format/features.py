@@ -436,7 +436,6 @@ class FeatureExtractor:
         return (right_sibling_vnode.end.offset - right_sibling_vnode.start.offset,
                 self._get_role_index(right_sibling_vnode))
 
-
     def _get_parent_features(self, parent_node: bblfsh.Node) -> Sequence[int]:
         return self.roles.ROLE_INDEX.get(parent_node.internal_type, -1),
 
