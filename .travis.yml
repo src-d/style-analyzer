@@ -10,6 +10,8 @@ addons:
     packages:
       - libsnappy-dev
 cache: pip
+before_cache:
+  - chown -R travis:travis $HOME/.cache/pip
 stages:
   - test
   - name: deploy
