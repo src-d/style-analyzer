@@ -4,7 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 import logging
 import multiprocessing
-import pandas as pd
+import pandas
 from pathlib import Path
 import re
 import sys
@@ -35,10 +35,10 @@ def parse_args():
     # 2. "glob"-style filtering
     #
     # Use find | xargs instead.
-    parser.add_argument("-i", "--input", nargs="+", help="Paths to the sample files.")
+    parser.add_argument("input", nargs="+", help="Paths to the sample files.")
     parser.add_argument("--parquet", action="store_true", default=False,
-                        help="Use parquet files as input. "
-                             "Should contain next columns: 'path', 'content', 'uast'")
+                        help="Set the input format to parquet, Must have columns: "
+                             "'path', 'content', 'uast'")
     languages = ["java", "python", "go", "javascript", "typescript", "ruby", "bash", "php"]
     parser.add_argument("-l", "--language", choices=languages, default="",
                         help="The programming languages to analyse.")
@@ -58,16 +58,17 @@ def extract_node_token(file: str, node: bblfsh.Node) -> str:
     return file[spos.offset:epos.offset].lower()
 
 
-def analyze_uast(path: str, content: str, root: bblfsh.Node, roles: dict, uast_roles: dict, reserved: set):
+def analyze_uast(path: str, content: str, root: bblfsh.Node, internal_types: dict, roles: dict,
+                 reserved: set):
     # walk the tree: collect nodes with assigned tokens and build the parents map
     node_tokens = []
     parents = {}
     queue = [root]
     while queue:
         node = queue.pop()
-        roles[node.internal_type] += 1
+        internal_types[node.internal_type] += 1
         for role in node.roles:
-            uast_roles[role] += 1
+            roles[role] += 1
         for child in node.children:
             parents[id(child)] = node
         queue.extend(node.children)
@@ -179,44 +180,41 @@ def main():
             log.exception("Parsing %s", path)
             errors = True
 
-    def analyze_parquet_row(row: pd.Series, filepath):
+    def analyze_parquet_row(row: pandas.Series, filepath):
         nonlocal errors
         if errors:
             return
         nonlocal language
-        if not language:
-            log.warning("language must be specified for parquet files handling")
-            errors = True
-            return
         try:
             path = "%s:%s" % (filepath, row.path)
-            analyze_uast(path, row.content.decode(), bblfsh.Node.FromString(row.uast),
+            analyze_uast(path, row.content.decode(errors="ignore"),
+                         bblfsh.Node.FromString(row.uast),
                          roles, uast_roles, reserved)
-        except UnicodeDecodeError as e:
-            log.warning(e)
         except DecodeError as e:
             log.warning(e)
         except:  # noqa: E722
             log.exception("Parsing %s", row.path)
             errors = True
-
-    if args.parquet:
-        with progress:
-            for filepath in inputs:
-                try:
-                    data = pd.read_parquet(filepath)
-                except:
-                    log.warning("Bad parquet file %s", filepath)
-                analyze = partial(analyze_parquet_row, filepath=filepath)
-                for index, row in data.iterrows():
-                    pool.submit(analyze, row)
-                progress.update(1)
+    try:
+        if args.parquet:
+            if language == "":
+                raise ValueError("Language must be specified for parquet files handling.")
+            with progress:
+                for filepath in inputs:
+                    try:
+                        data = pandas.read_parquet(filepath)
+                    except:  # noqa: E722
+                        log.warning("Bad parquet file %s", filepath)
+                    analyze = partial(analyze_parquet_row, filepath=filepath)
+                    for index, row in data.iterrows():
+                        pool.submit(analyze, row)
+                    progress.update(1)
+        else:
+            with progress:
+                for filepath in inputs:
+                    pool.submit(analyze_code_file, filepath)
+    finally:
         pool.shutdown()
-    else:
-        with progress:
-            for filepath in inputs:
-                pool.submit(analyze_code_file, filepath)
-            pool.shutdown()
     if errors:
         return 1
     reserved.discard("")
