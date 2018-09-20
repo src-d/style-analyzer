@@ -138,7 +138,15 @@ class FormatAnalyzer(Analyzer):
                 n_jobs=-1,
                 n_iter=config["n_iter"],
                 random_state=config["random_state"])
-            bscv.fit(X, y)
+            if not slogging.logs_are_structured:
+                # fool the check in joblib - everything still works without it
+                # this trick allows to run parallel bscv.fit()
+                from unittest.mock import patch
+                with patch("threading._MainThread", threading.Thread):
+                    cls.log.debug("patched joblib")
+                    bscv.fit(X, y)
+            else:
+                bscv.fit(X, y)
             cls.log.debug("score of the best estimator found: %.3f", bscv.best_score_)
             cls.log.debug("params of the best estimator found: %s", str(bscv.best_params_))
             cls.log.debug("training the model with complete data")
