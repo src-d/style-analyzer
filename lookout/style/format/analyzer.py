@@ -137,9 +137,12 @@ class FormatAnalyzer(Analyzer):
             cls.log.debug("score of the best estimator found: %.3f", bscv.best_score_)
             cls.log.debug("params of the best estimator found: %s", str(bscv.best_params_))
             cls.log.debug("training the model with complete data")
-            trainable_rules = TrainableRules(prune_branches_algorithms=["reduced-error"],
-                                             prune_attributes=True, random_state=42,
-                                             uncertain_attributes=True, **bscv.best_params_)
+            trainable_rules = TrainableRules(
+                prune_branches_algorithms=config["prune_branches_algorithms"],
+                prune_attributes=config["prune_attributes"],
+                random_state=config["random_state"],
+                uncertain_attributes=config["uncertain_attributes"], **bscv.best_params_
+            )
             trainable_rules.fit(X, y)
             model[language] = trainable_rules.rules
         cls.log.info("trained %s", model)
