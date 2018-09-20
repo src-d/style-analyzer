@@ -13,6 +13,9 @@ import xxhash
 import yaml
 
 
+logs_are_structured = False
+
+
 def get_timezone():
     dt = datetime.datetime.now(datetime.timezone.utc).astimezone()
     tzstr = dt.strftime("%z")
@@ -103,6 +106,9 @@ def setup(level: Union[str, int], structured: bool, config_path: str = None):
                         root configuration found in the conf file.
     :return: None
     """
+    global logs_are_structured
+    logs_are_structured = structured
+
     if not isinstance(level, int):
         level = logging._nameToLevel[level]
 
