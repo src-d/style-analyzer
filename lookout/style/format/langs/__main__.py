@@ -1,14 +1,19 @@
 import argparse
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 import logging
 import multiprocessing
+import pandas as pd
 from pathlib import Path
 import re
 import sys
 import threading
 
 import bblfsh
+from google.protobuf.message import DecodeError
 from jinja2 import Template
+from sourced.ml.cmd.args import ArgumentDefaultsHelpFormatterNoNone, handle_input_arg
 from tqdm import tqdm
 
 from lookout.core import slogging
@@ -16,7 +21,10 @@ from lookout.core import slogging
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Generates a new language description for the "
-                                                 "format analyser based on the sample files.")
+                                                 "format analyser based on the sample files.",
+                                     formatter_class=ArgumentDefaultsHelpFormatterNoNone)
+    parser.add_argument("--log-level", default="INFO", choices=logging._nameToLevel,
+                        help="Logging verbosity.")
     parser.add_argument("--bblfsh", default="0.0.0.0:9432", help="Babelfish server's address.")
     parser.add_argument("-j", "--threads", type=int, default=multiprocessing.cpu_count() * 2,
                         help="Number of parsing workers.")
@@ -27,7 +35,13 @@ def parse_args():
     # 2. "glob"-style filtering
     #
     # Use find | xargs instead.
-    parser.add_argument("input", nargs="+", help="Paths to the sample files.")
+    parser.add_argument("-i", "--input", nargs="+", help="Paths to the sample files.")
+    parser.add_argument("--parquet", action="store_true", default=False,
+                        help="Use parquet files as input. "
+                             "Should contain next columns: 'path', 'content', 'uast'")
+    languages = ["java", "python", "go", "javascript", "typescript", "ruby", "bash", "php"]
+    parser.add_argument("-l", "--language", choices=languages, default="",
+                        help="The programming languages to analyse.")
     return parser.parse_args()
 
 
@@ -44,15 +58,16 @@ def extract_node_token(file: str, node: bblfsh.Node) -> str:
     return file[spos.offset:epos.offset].lower()
 
 
-def analyze_uast(path: str, root: bblfsh.Node, roles: set, reserved: set):
-    contents = Path(path).read_text()
-
+def analyze_uast(path: str, content: str, root: bblfsh.Node, roles: dict, uast_roles: dict, reserved: set):
     # walk the tree: collect nodes with assigned tokens and build the parents map
     node_tokens = []
     parents = {}
     queue = [root]
     while queue:
         node = queue.pop()
+        roles[node.internal_type] += 1
+        for role in node.roles:
+            uast_roles[role] += 1
         for child in node.children:
             parents[id(child)] = node
         queue.extend(node.children)
@@ -60,8 +75,8 @@ def analyze_uast(path: str, root: bblfsh.Node, roles: set, reserved: set):
             node_tokens.append(node)
     node_tokens.sort(key=lambda n: n.start_position.offset)
     sentinel = bblfsh.Node()
-    sentinel.start_position.offset = len(contents)
-    sentinel.start_position.line = contents.count("\n")
+    sentinel.start_position.offset = len(content)
+    sentinel.start_position.line = content.count("\n")
     node_tokens.append(sentinel)
 
     # scan `node_tokens` and analyze the gaps and the token prefixes and suffixes
@@ -76,15 +91,14 @@ def analyze_uast(path: str, root: bblfsh.Node, roles: set, reserved: set):
 
     for node in node_tokens:
         token = node.token if node.token else \
-            contents[node.start_position.offset:node.end_position.offset]
+            content[node.start_position.offset:node.end_position.offset]
         if node.start_position.offset > pos:
-            diff = contents[pos:node.start_position.offset]
+            diff = content[pos:node.start_position.offset]
             parts = ws.split(diff)
             for part in parts:
                 if len(part) >= 8:
+                    log.debug("Skipping weird part in code: %s. Path: %s", diff, path)
                     continue
-                # for keyword in alpha.finditer(part):
-                #    reserved.add(keyword.group())
                 for nonalpha in alpha.split(part):
                     for char in nonalpha:
                         if ccheck(char):
@@ -94,7 +108,7 @@ def analyze_uast(path: str, root: bblfsh.Node, roles: set, reserved: set):
         pos = node.end_position.offset
         if IDENTIFIER not in node.roles:
             continue
-        outer = contents[node.start_position.offset:node.end_position.offset]
+        outer = content[node.start_position.offset:node.end_position.offset]
         if outer == token:
             continue
         pos = outer.find(token)
@@ -112,13 +126,14 @@ def analyze_uast(path: str, root: bblfsh.Node, roles: set, reserved: set):
                     reserved.add(char)
 
 
-def generate_files(outdir: str, roles: set, reserved: set):
+def generate_files(outdir: str, roles: dict, uast_roles: dict, reserved: set):
     env = dict(trim_blocks=True, lstrip_blocks=True)
     base = Path(__file__).parent
     outdir = Path(outdir)
     outdir.mkdir(exist_ok=True)
     (outdir / "roles.py").write_text(
-        Template((base / "roles.py.jinja2").read_text(), **env).render(roles=roles))
+        Template((base / "roles.py.jinja2").read_text(), **env).render(roles=roles,
+                                                                       uast_roles=uast_roles))
     (outdir / "tokens.py").write_text(
         Template((base / "tokens.py.jinja2").read_text(), **env).render(reserved=reserved))
     (outdir / "__init__.py").touch()
@@ -126,18 +141,20 @@ def generate_files(outdir: str, roles: set, reserved: set):
 
 def main():
     args = parse_args()
-    slogging.setup("INFO", False)
+    slogging.setup(args.log_level, False)
     clients = threading.local()
     pool = ThreadPoolExecutor(max_workers=args.threads)
     log = logging.getLogger("main")
     log.info("Will parse %d files", len(args.input))
-    roles = set()
+    roles = defaultdict(int)
+    uast_roles = defaultdict(int)
     reserved = set()
-    language = ""
-    progress = tqdm(total=len(args.input))
+    language = args.language
+    inputs = list(handle_input_arg(args.input))
+    progress = tqdm(total=len(inputs))
     errors = False
 
-    def analyze_file(path: str):
+    def analyze_code_file(path: str):
         nonlocal errors
         if errors:
             return
@@ -155,22 +172,59 @@ def main():
                 log.warning("dropped %s - language mismatch %s != %s",
                             path, language, response.language)
                 return
-            analyze_uast(path, response.uast, roles, reserved)
+            content = Path(path).read_text()
+            analyze_uast(path, content, response.uast, roles, uast_roles, reserved)
             progress.update(1)
         except:  # noqa: E722
             log.exception("Parsing %s", path)
             errors = True
 
-    with progress:
-        for file in args.input:
-            pool.submit(analyze_file, file)
+    def analyze_parquet_row(row: pd.Series, filepath):
+        nonlocal errors
+        if errors:
+            return
+        nonlocal language
+        if not language:
+            log.warning("language must be specified for parquet files handling")
+            errors = True
+            return
+        try:
+            path = "%s:%s" % (filepath, row.path)
+            analyze_uast(path, row.content.decode(), bblfsh.Node.FromString(row.uast),
+                         roles, uast_roles, reserved)
+        except UnicodeDecodeError as e:
+            log.warning(e)
+        except DecodeError as e:
+            log.warning(e)
+        except:  # noqa: E722
+            log.exception("Parsing %s", row.path)
+            errors = True
+
+    if args.parquet:
+        with progress:
+            for filepath in inputs:
+                try:
+                    data = pd.read_parquet(filepath)
+                except:
+                    log.warning("Bad parquet file %s", filepath)
+                analyze = partial(analyze_parquet_row, filepath=filepath)
+                for index, row in data.iterrows():
+                    pool.submit(analyze, row)
+                progress.update(1)
         pool.shutdown()
+    else:
+        with progress:
+            for filepath in inputs:
+                pool.submit(analyze_code_file, filepath)
+            pool.shutdown()
     if errors:
         return 1
     reserved.discard("")
     log.info("Internal roles: %d", len(roles))
+    log.info("UAST roles: %d", len(uast_roles))
     log.info("Reserved: %d", len(reserved))
-    generate_files(args.output, roles, reserved)
+    uast_roles = {bblfsh.role_name(role_id): n for role_id, n in uast_roles.items()}
+    generate_files(args.output, roles, uast_roles, reserved)
 
 
 if __name__ == "__main__":

@@ -1,7 +1,16 @@
-ROLES = [
-{% for role in roles | sort %}
-    "{{ role }}",
+ROLES_FREQ = {
+{% for role, n in roles.items() | sort %}
+    "{{ role }}": {{ n }},
 {% endfor %}
-]
+}
 
+UAST_ROLES_FREQ = {
+{% for role, n in uast_roles.items() | sort %}
+    "{{ role }}": {{ n }},
+{% endfor %}
+}
+
+ROLES = sorted(ROLES_FREQ)
+UAST_ROLES = sorted(UAST_ROLES_FREQ)
 ROLE_INDEX = {r: i for i, r in enumerate(ROLES)}
+UAST_ROLE_INDEX = {r: i for i, r in enumerate(UAST_ROLES)}
