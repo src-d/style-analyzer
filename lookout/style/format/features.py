@@ -267,7 +267,7 @@ class FeatureExtractor:
             vnodes = self._add_noops(vnodes, file.path)
             file_lines = set(lines[i]) if lines is not None else None
             parsed_files.append((vnodes, parents, file_lines))
-            labels.append([vnode.y for vnode in vnodes if vnode.y and
+            labels.append([vnode.y for vnode in vnodes if vnode.y is not None and
                            (vnode.start.line in file_lines if file_lines is not None else True)])
 
         y = numpy.concatenate(labels)
@@ -507,7 +507,7 @@ class FeatureExtractor:
         for i, vnode in enumerate(vnodes):
             if vnode.node:
                 closest_left_node_id = id(vnode.node)
-            if not vnode.y or (lines is not None and vnode.start.line not in lines):
+            if vnode.y is None or (lines is not None and vnode.start.line not in lines):
                 continue
             if self.parents_depth:
                 parent = self._find_parent(i, vnodes, parents, closest_left_node_id)

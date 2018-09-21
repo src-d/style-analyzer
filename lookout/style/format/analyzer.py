@@ -94,8 +94,8 @@ class FormatAnalyzer(Analyzer):
         config = cls._load_config(config)
         cls.log.info("train %s %s %s", ptr.url, ptr.commit,
                      pformat(config, width=4096, compact=True))
-        files_by_language = cls._files_by_language(cls._filter_files(data["files"],
-                                                                     config["line_length_limit"]))
+        files_by_language = cls._files_by_language(
+            cls._filter_files(data["files"], config["line_length_limit"]))
         model = FormatModel().construct(cls, ptr)
         for language, files in files_by_language.items():
             language = language.lower()
@@ -207,6 +207,13 @@ class FormatAnalyzer(Analyzer):
         :param line_length_limit: Maximum line length to accept a file.
         :return: Files filtered.
         """
+        excluded = total = 0
         for file in files:
             if len(max(file.content.splitlines(), key=len, default=b"")) <= line_length_limit:
+                total += 1
                 yield file
+            else:
+                excluded += 1
+        if excluded > 0:
+            cls.log.debug("excluded %d/%d files by max line length %d",
+                          excluded, total, line_length_limit)
