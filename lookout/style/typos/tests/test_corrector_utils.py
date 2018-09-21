@@ -8,10 +8,10 @@ import pandas
 from pandas.util.testing import assert_frame_equal
 
 from lookout.style.typos.utils import (add_context_info, filter_suggestions, flatten_data,
-                   rank_candidates, suggestions_to_df, suggestions_to_flat_df,
-                   AFTER_COLUMN, BEFORE_COLUMN, CANDIDATE_COLUMN, ID_COLUMN,
-                   PROBABILITY_COLUMN, SPLIT_COLUMN, SUGGESTIONS_COLUMN,
-                   TYPO_COLUMN)
+                                       rank_candidates, suggestions_to_df, suggestions_to_flat_df,
+                                       AFTER_COLUMN, BEFORE_COLUMN, CANDIDATE_COLUMN, ID_COLUMN,
+                                       PROBABILITY_COLUMN, SPLIT_COLUMN, SUGGESTIONS_COLUMN,
+                                       TYPO_COLUMN)
 
 
 TEST_DATA_PATH = str(pathlib.Path(__file__).parent)
@@ -72,7 +72,8 @@ class RankCandidatesTest(unittest.TestCase):
                                                   [2, "tokem", "tokem"],
                                                   [2, "tokem", "taken"],
                                                   [2, "tokem", "token"]],
-                                                 columns=[ID_COLUMN, TYPO_COLUMN, CANDIDATE_COLUMN])
+                                                 columns=[ID_COLUMN, TYPO_COLUMN,
+                                                          CANDIDATE_COLUMN])
         cls.custom_suggestions = {0: [("get", 1.0)],
                                   1: [("get", 0.9),
                                       ("gpt", 0.05)],
@@ -92,13 +93,14 @@ class RankCandidatesTest(unittest.TestCase):
 
         proba = numpy.array([1.0, 0.9, 0.05, 0.01, 0.3, 0.98], dtype=float)
         self.assertDictEqual(rank_candidates(self.custom_candidates, proba, n_candidates=3),
-                         self.custom_suggestions)
+                             self.custom_suggestions)
         self.assertDictEqual(rank_candidates(self.custom_candidates, proba, n_candidates=2,
-                                         return_all=False),
-                         self.custom_filtered_suggestions)
+                                             return_all=False),
+                             self.custom_filtered_suggestions)
 
     def test_filter_suggestions(self):
-        with open(join(TEST_DATA_PATH, "test_data_candidates_filtered_suggestions.pkl"), "br") as f:
+        with open(join(TEST_DATA_PATH, "test_data_candidates_filtered_suggestions.pkl"),
+                  "br") as f:
             filtered_suggestions = pickle.load(f)
         self.assertEqual(filter_suggestions(self.data, self.suggestions,
                                             n_candidates=2, return_all=False),
@@ -121,7 +123,8 @@ class RankCandidatesTest(unittest.TestCase):
                                                   [2, "tokem", [["token", 0.98],
                                                                 ["taken", 0.3],
                                                                 ["tokem", 0.01]]]],
-                                                 columns=[ID_COLUMN, TYPO_COLUMN, SUGGESTIONS_COLUMN],
+                                                 columns=[ID_COLUMN, TYPO_COLUMN,
+                                                          SUGGESTIONS_COLUMN],
                                                  index=[0, 1, 2])
         assert_frame_equal(suggestions_to_df(self.custom_data, self.custom_suggestions),
                            custom_suggestions_df)
