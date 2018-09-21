@@ -21,7 +21,10 @@ _install: &_install
   - pip install --upgrade pip cython codecov
   - pip install -e .[test]
 _coverage: &_coverage
-  - SCRIPT="coverage run --concurrency=multiprocessing -m unittest discover && coverage combine"
+  - SCRIPT="coverage run --concurrency=multiprocessing -m unittest discover
+            && coverage combine
+            && git clone --single-branch --depth 1 git://github.com/facebook/react
+            && find react -name '*.js' | xargs python3 -m lookout.style.format.langs -o /tmp/test"
 _deploy: &_deploy
   provider: script
   script: twine upload dist/*py3-none-any* -u $PYPI_LOGIN -p $PYPI_PASS

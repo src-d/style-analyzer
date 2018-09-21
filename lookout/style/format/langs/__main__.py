@@ -148,13 +148,14 @@ def main():
     clients = threading.local()
     pool = ThreadPoolExecutor(max_workers=args.threads)
     log = logging.getLogger("main")
-    log.info("Will parse %d files", len(args.input))
+    log.info("Will parse %d files in %d threads", len(args.input), args.threads)
     internal_types = defaultdict(int)
     roles = defaultdict(int)
     reserved = set()
     language = args.parquet_language
     inputs = list(handle_input_arg(args.input))
     progress = tqdm(total=len(inputs))
+    progress_lock = threading.Lock()
     errors = False
 
     def analyze_code_file(path: str):
@@ -177,10 +178,13 @@ def main():
                 return
             content = Path(path).read_text()
             analyze_uast(path, content, response.uast, internal_types, roles, reserved)
-            progress.update(1)
         except:  # noqa: E722
             log.exception("Parsing %s", path)
             errors = True
+        finally:
+            with progress_lock:
+                progress.disable = False  # this is needed, do not remove
+                progress.update(1)
 
     def analyze_parquet_row(row: pandas.Series, filepath):
         nonlocal errors
@@ -197,6 +201,10 @@ def main():
         except:  # noqa: E722
             log.exception("Parsing %s", row.path)
             errors = True
+        finally:
+            with progress_lock:
+                progress.disable = False  # this is needed, do not remove
+                progress.update(1)
     try:
         if args.parquet:
             if not language:
@@ -207,9 +215,11 @@ def main():
                         data = pandas.read_parquet(filepath)
                     except:  # noqa: E722
                         log.warning("Bad parquet file %s", filepath)
-                    analyze = partial(analyze_parquet_row, filepath=filepath)
-                    for index, row in data.iterrows():
-                        pool.submit(analyze, row)
+                    else:
+                        analyze = partial(analyze_parquet_row, filepath=filepath)
+                        for index, row in data.iterrows():
+                            progress.total += 1
+                            pool.submit(analyze, row)
                     progress.update(1)
         else:
             with progress:
