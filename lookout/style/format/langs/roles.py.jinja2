@@ -1,16 +1,21 @@
+{% set max_role_len = [roles.keys() | map("length") | max, iternal_types.keys() | map("length") | max] | max %}
+{% set sum_roles = roles.values() | sum %}
+{% set sum_types = iternal_types.values() | sum %}
 INTERNAL_TYPES_FREQ = {
-{% for role, n in iternal_types.items() | sort %}
-    "{{ role }}": {{ n }},
+{% for type, n in iternal_types.items() | sort(true,attribute="1") %}
+    {{ '%-*s' | format(max_role_len + 4, '"%s":' | format(type)) }} {{
+       "%.5E" | format(n / sum_types) }},
 {% endfor %}
 }
 
 ROLES_FREQ = {
-{% for role, n in roles.items() | sort %}
-    "{{ role }}": {{ n }},
+{% for role, n in roles.items() | sort(true, attribute="1") %}
+    {{ '%-*s' | format(max_role_len + 4, '"%s":' | format(role)) }} {{
+       "%.5E" | format(n / sum_types) }},
 {% endfor %}
 }
 
 INTERNAL_TYPES = sorted(INTERNAL_TYPES_FREQ)
-ROLES = sorted(ROLES_FREQ)
 INTERNAL_TYPES_INDEX = {r: i for i, r in enumerate(INTERNAL_TYPES)}
+ROLES = sorted(ROLES_FREQ)
 ROLE_INDEX = {r: i for i, r in enumerate(ROLES)}
