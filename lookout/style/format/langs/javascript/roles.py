@@ -1,4 +1,4 @@
-ROLES_FREQ = {
+INTERNAL_TYPES_FREQ = {
     "AnyTypeAnnotation": 94980,
     "ArrayExpression": 20789218,
     "ArrayPattern": 18304,
@@ -152,7 +152,7 @@ ROLES_FREQ = {
     "YieldExpression": 25487,
 }
 
-UAST_ROLES_FREQ = {
+ROLES_FREQ = {
     "ADD": 20369170,
     "AND": 15407074,
     "ARGS_LIST": 17784,
@@ -243,7 +243,7 @@ UAST_ROLES_FREQ = {
     "XOR": 123067,
 }
 
+INTERNAL_TYPES = sorted(INTERNAL_TYPES_FREQ)
 ROLES = sorted(ROLES_FREQ)
-UAST_ROLES = sorted(UAST_ROLES_FREQ)
-ROLE_INDEX = {r: i for i, r in enumerate(ROLES)}
-UAST_ROLE_INDEX = {r: i for i, r in enumerate(UAST_ROLES)}
+ROLE_INDEX = {r: i for i, r in enumerate(INTERNAL_TYPES)}
+INTERNAL_TYPES_INDEX = {r: i for i, r in enumerate(INTERNAL_TYPES)}

@@ -10,7 +10,7 @@ from lookout.core.api.service_data_pb2 import File
 from lookout.style.format.features import (
     CLASS_INDEX, CLASSES, CLS_NEWLINE, CLS_NOOP, CLS_SINGLE_QUOTE, CLS_SPACE, CLS_SPACE_DEC,
     CLS_SPACE_INC, FeatureExtractor, VirtualNode, FeatureType)
-from lookout.style.format.langs.javascript.roles import ROLE_INDEX
+from lookout.style.format.langs.javascript.roles import INTERNAL_TYPES_INDEX
 from lookout.style.format.langs.javascript.tokens import RESERVED
 
 
@@ -122,13 +122,13 @@ class FeaturesTests(unittest.TestCase):
         X, _, vns = self.extractor.extract_features([file])
         # last columns are only roles
         last_columns = self.extractor.parents_depth + self.extractor.siblings_window
-        self.assertGreater(numpy.count_nonzero(X[:, -last_columns:] > len(ROLE_INDEX)), 0)
+        self.assertGreater(numpy.count_nonzero(X[:, -last_columns:] > len(INTERNAL_TYPES_INDEX)), 0)
         col_role_left_sibling = (self.extractor.count_features(FeatureType.node) +
                                  self.extractor.count_features(FeatureType.left_siblings)
                                  - 1)
 
         def get_ext_role(role_index):
-            return RESERVED[role_index - len(ROLE_INDEX)]
+            return RESERVED[role_index - len(INTERNAL_TYPES_INDEX)]
 
         for i, (x, vn) in enumerate(zip(X, vns)):
             start = vn.start.offset
@@ -136,7 +136,7 @@ class FeaturesTests(unittest.TestCase):
             if i < 2:
                 continue
             role_index_left = x[col_role_left_sibling]
-            if role_index_left >= len(ROLE_INDEX):
+            if role_index_left >= len(INTERNAL_TYPES_INDEX):
                 role_left = get_ext_role(role_index_left)
                 self.assertEqual(self.contents[start - len(role_left):start], role_left)
 

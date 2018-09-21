@@ -414,10 +414,10 @@ class FeatureExtractor:
         role_index = -1
         if vnode.node:
             role = vnode.node.internal_type
-            if role in self.roles.ROLE_INDEX:
-                role_index = self.roles.ROLE_INDEX[role]
+            if role in self.roles.INTERNAL_TYPES_INDEX:
+                role_index = self.roles.INTERNAL_TYPES_INDEX[role]
         elif vnode.value in self.tokens.RESERVED_INDEX:
-            role_index = len(self.roles.ROLE_INDEX) + self.tokens.RESERVED_INDEX[vnode.value]
+            role_index = len(self.roles.INTERNAL_TYPES_INDEX) + self.tokens.RESERVED_INDEX[vnode.value]
         return role_index
 
     def _get_self_features(self, vnode: VirtualNode) -> Sequence[int]:
@@ -438,7 +438,7 @@ class FeatureExtractor:
 
 
     def _get_parent_features(self, parent_node: bblfsh.Node) -> Sequence[int]:
-        return self.roles.ROLE_INDEX.get(parent_node.internal_type, -1),
+        return self.roles.INTERNAL_TYPES_INDEX.get(parent_node.internal_type, -1),
 
     @staticmethod
     def _find_parent(vnode_index: int, vnodes: Sequence[VirtualNode],

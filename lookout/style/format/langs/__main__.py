@@ -127,14 +127,14 @@ def analyze_uast(path: str, content: str, root: bblfsh.Node, internal_types: dic
                     reserved.add(char)
 
 
-def generate_files(outdir: str, roles: dict, uast_roles: dict, reserved: set):
+def generate_files(outdir: str, iternal_types: dict, roles: dict, reserved: set):
     env = dict(trim_blocks=True, lstrip_blocks=True)
     base = Path(__file__).parent
     outdir = Path(outdir)
     outdir.mkdir(exist_ok=True)
     (outdir / "roles.py").write_text(
-        Template((base / "roles.py.jinja2").read_text(), **env).render(roles=roles,
-                                                                       uast_roles=uast_roles))
+        Template((base / "roles.py.jinja2").read_text(), **env).render(iternal_types=iternal_types,
+                                                                       roles=roles))
     (outdir / "tokens.py").write_text(
         Template((base / "tokens.py.jinja2").read_text(), **env).render(reserved=reserved))
     (outdir / "__init__.py").touch()
