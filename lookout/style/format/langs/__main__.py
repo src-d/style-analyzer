@@ -35,13 +35,16 @@ def parse_args():
     # 2. "glob"-style filtering
     #
     # Use find | xargs instead.
-    parser.add_argument("input", nargs="+", help="Paths to the sample files.")
+    parser.add_argument("input", nargs="+", help="Paths to the sample files. "
+                                                 "Use - to read from stdin.")
     parser.add_argument("--parquet", action="store_true", default=False,
                         help="Set the input format to parquet, Must have columns: "
                              "'path', 'content', 'uast'")
     languages = ["java", "python", "go", "javascript", "typescript", "ruby", "bash", "php"]
-    parser.add_argument("-l", "--language", choices=languages, default="",
-                        help="The programming languages to analyse.")
+    parser.add_argument("--parquet-language", choices=languages, default="",
+                        help="The programming language to analyse. Use only with --parquet flag."
+                             "In other case use xargs or find to filter commands files in a "
+                             "UNIX way.")
     return parser.parse_args()
 
 
@@ -210,6 +213,8 @@ def main():
                         pool.submit(analyze, row)
                     progress.update(1)
         else:
+            if language != "":
+                raise ValueError("Language can not be specified for non-parquet files handling.")
             with progress:
                 for filepath in inputs:
                     pool.submit(analyze_code_file, filepath)
