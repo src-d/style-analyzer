@@ -220,7 +220,7 @@ def main():
     if errors:
         return 1
     reserved.discard("")
-    log.info("Internal roles: %d", len(internal_types))
+    log.info("Internal types: %d", len(internal_types))
     log.info("UAST roles: %d", len(roles))
     log.info("Reserved: %d", len(reserved))
 
