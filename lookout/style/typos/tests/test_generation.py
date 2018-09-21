@@ -15,7 +15,7 @@ from lookout.style.typos.utils import (collect_embeddings, CANDIDATE_COLUMN, COR
 
 TEST_DATA_PATH = str(pathlib.Path(__file__).parent)
 FASTTEXT_DUMP_FILE = "lookout/style/typos/id_vecs_10.bin"
-VOCABULARY_FILE = "lookout/style/typos/16k_vocabulary.csv"
+VOCABULARY_FILE = "lookout/style/"
 FREQUENCIES_FILE = "lookout/style/typos/frequencies.csv"
 
 
