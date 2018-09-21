@@ -11,6 +11,7 @@ import numpy
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2 import File
 
+
 Position = NamedTuple("Position", (("offset", int), ("line", int), ("col", int)))
 """
 `line` and `col` are 1-based to match UAST!
@@ -195,9 +196,11 @@ class FeatureExtractor:
              FeaturesGroup(("start_line", "start_col"), None)),
             (FeatureType.left_siblings,
              FeaturesGroup(("start_line_diff", "end_line_diff", "start_col_diff", "end_col_diff",
-                            "length", "role_id"), siblings_window)),
+                            "length", "internal_type_id", "keyword_id", *self.roles.ROLES),
+                           siblings_window)),
             (FeatureType.right_siblings,
-             FeaturesGroup(("length", "role_id"), siblings_window)),
+             FeaturesGroup(("length", "internal_type_id", "keyword_id", *self.roles.ROLES),
+                           siblings_window)),
             (FeatureType.parents,
              FeaturesGroup(("role_id", ), parents_depth)),
         ])
@@ -276,6 +279,7 @@ class FeatureExtractor:
         offset = 0
         for (vnodes, parents, file_lines), partial_labels in zip(parsed_files, labels):
             offset = self._inplace_write_vnode_features(vnodes, parents, file_lines, offset, X, vn)
+        self._log.debug("Features shape: %s" % (X.shape,))
         return X, y, vn
 
     def _classify_vnodes(self, nodes: Iterable[VirtualNode], path: str) -> Iterable[VirtualNode]:
@@ -410,16 +414,27 @@ class FeatureExtractor:
                                       y=CLASS_INDEX[CLS_NOOP], path=path))
         return result
 
-    def _get_role_index(self, vnode: VirtualNode) -> int:
+    def _get_internal_type_index(self, vnode: VirtualNode) -> int:
         role_index = -1
         if vnode.node:
             role = vnode.node.internal_type
             if role in self.roles.INTERNAL_TYPES_INDEX:
                 role_index = self.roles.INTERNAL_TYPES_INDEX[role]
-        elif vnode.value in self.tokens.RESERVED_INDEX:
-            role_index = len(self.roles.INTERNAL_TYPES_INDEX) + \
-                         self.tokens.RESERVED_INDEX[vnode.value]
         return role_index
+
+    def _get_keyword_index(self, vnode: VirtualNode) -> int:
+        keyword_index = -1
+        if not vnode.node and vnode.value in self.tokens.RESERVED_INDEX:
+            keyword_index = self.tokens.RESERVED_INDEX[vnode.value]
+        return keyword_index
+
+    def _get_role_indices(self, vnode: VirtualNode) -> Sequence[int]:
+        role_indices = [0] * len(self.roles.ROLES)
+        if vnode.node:
+            for role_id in vnode.node.roles:
+                role = bblfsh.role_name(role_id)
+                self.roles.ROLES_INDEX[role] += 1
+        return role_indices
 
     def _get_self_features(self, vnode: VirtualNode) -> Sequence[int]:
         return vnode.start.line, vnode.start.col
@@ -431,11 +446,15 @@ class FeatureExtractor:
                 left_sibling_vnode.start.col - vnode.start.col,
                 left_sibling_vnode.end.col - vnode.end.col,
                 left_sibling_vnode.end.offset - left_sibling_vnode.start.offset,
-                self._get_role_index(left_sibling_vnode))
+                self._get_internal_type_index(left_sibling_vnode),
+                self._get_keyword_index(left_sibling_vnode),
+                *self._get_role_indices(left_sibling_vnode))
 
     def _get_right_sibling_features(self, right_sibling_vnode: VirtualNode) -> Sequence[int]:
         return (right_sibling_vnode.end.offset - right_sibling_vnode.start.offset,
-                self._get_role_index(right_sibling_vnode))
+                self._get_internal_type_index(right_sibling_vnode),
+                self._get_keyword_index(right_sibling_vnode),
+                *self._get_role_indices(right_sibling_vnode))
 
     def _get_parent_features(self, parent_node: bblfsh.Node) -> Sequence[int]:
         return self.roles.INTERNAL_TYPES_INDEX.get(parent_node.internal_type, -1),
