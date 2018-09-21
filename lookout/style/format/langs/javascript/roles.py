@@ -246,4 +246,4 @@ ROLES_FREQ = {
 INTERNAL_TYPES = sorted(INTERNAL_TYPES_FREQ)
 INTERNAL_TYPES_INDEX = {r:  i for i, r in enumerate(INTERNAL_TYPES)}
 ROLES = sorted(ROLES_FREQ)
-ROLE_INDEX = {r:  i for i, r in enumerate(ROLES)}
+ROLES_INDEX = {r:  i for i, r in enumerate(ROLES)}
