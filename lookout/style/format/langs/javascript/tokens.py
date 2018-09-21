@@ -123,7 +123,8 @@ RESERVED = [
     "'",
     '"',
     "`",
-    "${"
+    "${",
+    "\\",
 ]
 
 # The longest keywords should come first for the regex below to be usable with finditer

@@ -1,7 +1,16 @@
-ROLES = [
-{% for role in roles | sort %}
-    "{{ role }}",
+INTERNAL_TYPES_FREQ = {
+{% for role, n in iternal_types.items() | sort %}
+    "{{ role }}": {{ n }},
 {% endfor %}
-]
+}
 
+ROLES_FREQ = {
+{% for role, n in roles.items() | sort %}
+    "{{ role }}": {{ n }},
+{% endfor %}
+}
+
+INTERNAL_TYPES = sorted(INTERNAL_TYPES_FREQ)
+ROLES = sorted(ROLES_FREQ)
+INTERNAL_TYPES_INDEX = {r: i for i, r in enumerate(INTERNAL_TYPES)}
 ROLE_INDEX = {r: i for i, r in enumerate(ROLES)}
