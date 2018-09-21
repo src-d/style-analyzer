@@ -122,7 +122,8 @@ class FeaturesTests(unittest.TestCase):
         X, _, vns = self.extractor.extract_features([file])
         # last columns are only roles
         last_columns = self.extractor.parents_depth + self.extractor.siblings_window
-        self.assertGreater(numpy.count_nonzero(X[:, -last_columns:] > len(INTERNAL_TYPES_INDEX)), 0)
+        self.assertGreater(numpy.count_nonzero(X[:, -last_columns:] >
+                                               len(INTERNAL_TYPES_INDEX)), 0)
         col_role_left_sibling = (self.extractor.count_features(FeatureType.node) +
                                  self.extractor.count_features(FeatureType.left_siblings)
                                  - 1)
