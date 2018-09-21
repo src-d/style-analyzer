@@ -149,8 +149,8 @@ def main():
     pool = ThreadPoolExecutor(max_workers=args.threads)
     log = logging.getLogger("main")
     log.info("Will parse %d files", len(args.input))
+    internal_types = defaultdict(int)
     roles = defaultdict(int)
-    uast_roles = defaultdict(int)
     reserved = set()
     language = args.parquet_language
     inputs = list(handle_input_arg(args.input))
@@ -176,7 +176,7 @@ def main():
                             path, language, response.language)
                 return
             content = Path(path).read_text()
-            analyze_uast(path, content, response.uast, roles, uast_roles, reserved)
+            analyze_uast(path, content, response.uast, internal_types, roles, reserved)
             progress.update(1)
         except:  # noqa: E722
             log.exception("Parsing %s", path)
@@ -191,7 +191,7 @@ def main():
             path = "%s:%s" % (filepath, row.path)
             analyze_uast(path, row.content.decode(errors="ignore"),
                          bblfsh.Node.FromString(row.uast),
-                         roles, uast_roles, reserved)
+                         internal_types, roles, reserved)
         except DecodeError as e:
             log.warning(e)
         except:  # noqa: E722
@@ -220,11 +220,12 @@ def main():
     if errors:
         return 1
     reserved.discard("")
-    log.info("Internal roles: %d", len(roles))
-    log.info("UAST roles: %d", len(uast_roles))
+    log.info("Internal roles: %d", len(internal_types))
+    log.info("UAST roles: %d", len(roles))
     log.info("Reserved: %d", len(reserved))
-    uast_roles = {bblfsh.role_name(role_id): n for role_id, n in uast_roles.items()}
-    generate_files(args.output, roles, uast_roles, reserved)
+
+    roles = {bblfsh.role_name(role_id): n for role_id, n in roles.items()}
+    generate_files(args.output, internal_types, roles, reserved)
 
 
 if __name__ == "__main__":
