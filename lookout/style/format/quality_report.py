@@ -39,7 +39,8 @@ def prepare_files(folder: str, client: BblfshClient, language: str) -> Iterable[
             path = file
             with open(file) as f:
                 content = f.read().encode("utf-8")
-            files.append(File(content=content, uast=uast, path=path))
+            files.append(File(content=content, uast=uast, path=path,
+                              language=res.language.lower()))
     return files
 
 
