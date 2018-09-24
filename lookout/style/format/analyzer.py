@@ -97,6 +97,15 @@ class FormatAnalyzer(Analyzer):
         files_by_language = cls._files_by_language(
             cls._filter_files(data["files"], config["line_length_limit"]))
         model = FormatModel().construct(cls, ptr)
+        trainable_rules_config = {
+            "prune_branches_algorithms": config["prune_branches_algorithms"],
+            "prune_attributes": config["prune_attributes"],
+            "top_down_greedy_budget": config["top_down_greedy_budget"],
+            "uncertain_attributes": config["uncertain_attributes"],
+            "prune_dataset_ratio": config["prune_dataset_ratio"],
+            "n_estimators": config["n_estimators"],
+            "random_state": config["random_state"],
+        }
         for language, files in files_by_language.items():
             language = language.lower()
             try:
@@ -121,14 +130,7 @@ class FormatAnalyzer(Analyzer):
                 # workaround the check in joblib - everything still works without it
                 threading._MainThread = threading.Thread
             bscv = BayesSearchCV(
-                TrainableRules(
-                    prune_branches_algorithms=config["prune_branches_algorithms"],
-                    prune_attributes=config["prune_attributes"],
-                    top_down_greedy_budget=config["top_down_greedy_budget"],
-                    uncertain_attributes=config["uncertain_attributes"],
-                    prune_dataset_ratio=config["prune_dataset_ratio"],
-                    n_estimators=config["n_estimators"],
-                    random_state=config["random_state"]),
+                TrainableRules(**trainable_rules_config),
                 {"base_model_name": Categorical(["sklearn.ensemble.RandomForestClassifier",
                                                  "sklearn.tree.DecisionTreeClassifier"]),
                  "max_depth": Categorical([None, 5, 10]),
@@ -150,15 +152,8 @@ class FormatAnalyzer(Analyzer):
             cls.log.debug("score of the best estimator found: %.3f", bscv.best_score_)
             cls.log.debug("params of the best estimator found: %s", str(bscv.best_params_))
             cls.log.debug("training the model with complete data")
-            trainable_rules = TrainableRules(
-                prune_branches_algorithms=config["prune_branches_algorithms"],
-                prune_attributes=config["prune_attributes"],
-                top_down_greedy_budget=config["top_down_greedy_budget"],
-                uncertain_attributes=config["uncertain_attributes"],
-                prune_dataset_ratio=config["prune_dataset_ratio"],
-                n_estimators=config["n_estimators"],
-                random_state=config["random_state"], **bscv.best_params_
-            )
+            trainable_rules_config.update(bscv.best_params_)
+            trainable_rules = TrainableRules(**trainable_rules_config)
             trainable_rules.fit(X, y)
             model[language] = trainable_rules.rules
         cls.log.info("trained %s", model)
