@@ -20,7 +20,7 @@ TEST_DATA_PATH = str(pathlib.Path(__file__).parent)
 class DataTransformationsTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.data = pandas.read_csv(join(TEST_DATA_PATH, "test_data.csv"),
+        cls.data = pandas.read_csv(join(TEST_DATA_PATH, "test_data.csv.xz"),
                                    index_col=0).infer_objects()
         cls.custom_data = pandas.DataFrame([[["get", "tokens", "num"]],
                                             [["use", "class"]]], columns=[SPLIT_COLUMN])
@@ -32,13 +32,13 @@ class DataTransformationsTest(unittest.TestCase):
                                                 columns=[SPLIT_COLUMN, TYPO_COLUMN])
 
     def test_flatten_data(self):
-        flat_data = pandas.read_csv(join(TEST_DATA_PATH, "test_flatten_data.csv"),
+        flat_data = pandas.read_csv(join(TEST_DATA_PATH, "test_flatten_data.csv.xz"),
                                     index_col=0).infer_objects()
         assert_frame_equal(flatten_data(self.data, "token"), flat_data)
         assert_frame_equal(flatten_data(self.custom_data, TYPO_COLUMN), self.flat_custom_data)
 
     def test_add_context_info(self):
-        context_added = pandas.read_csv(join(TEST_DATA_PATH, "test_add_context_info.csv"),
+        context_added = pandas.read_csv(join(TEST_DATA_PATH, "test_add_context_info.csv.xz"),
                                         index_col=0).infer_objects()
         context_added[AFTER_COLUMN] = pandas.eval(context_added[AFTER_COLUMN])
         context_added[BEFORE_COLUMN] = pandas.eval(context_added[BEFORE_COLUMN])
@@ -57,7 +57,7 @@ class DataTransformationsTest(unittest.TestCase):
 class RankCandidatesTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.data = pandas.read_csv(join(TEST_DATA_PATH, "test_data.csv"),
+        cls.data = pandas.read_csv(join(TEST_DATA_PATH, "test_data.csv.xz"),
                                    index_col=0).infer_objects()
         with open(join(TEST_DATA_PATH, "test_data_candidates_suggestions.pkl"), "br") as f:
             cls.suggestions = pickle.load(f)
@@ -86,7 +86,7 @@ class RankCandidatesTest(unittest.TestCase):
                                                ("taken", 0.3)]}
 
     def test_rank_candidates(self):
-        candidates = pandas.read_csv(join(TEST_DATA_PATH, "test_data_candidates.csv"),
+        candidates = pandas.read_csv(join(TEST_DATA_PATH, "test_data_candidates.csv.xz"),
                                      index_col=0).infer_objects()
         proba = numpy.load(join(TEST_DATA_PATH, "test_data_candidates_proba.pkl"))
         self.assertDictEqual(rank_candidates(candidates, proba, n_candidates=3), self.suggestions)
@@ -112,7 +112,7 @@ class RankCandidatesTest(unittest.TestCase):
 
     def test_suggestions_to_df(self):
         suggestions_df = pandas.read_csv(join(TEST_DATA_PATH,
-                                         "test_data_candidates_suggestions_df.csv"),
+                                         "test_data_candidates_suggestions_df.csv.xz"),
                                          index_col=0).infer_objects()
         suggestions_df.suggestions = pandas.eval(suggestions_df.suggestions)
         assert_frame_equal(suggestions_to_df(self.data, self.suggestions), suggestions_df)
@@ -131,7 +131,7 @@ class RankCandidatesTest(unittest.TestCase):
 
     def test_suggestions_to_flat_df(self):
         suggestions_flat_df = pandas.read_csv(join(TEST_DATA_PATH,
-                                              "test_data_candidates_suggestions_flat_df.csv"),
+                                              "test_data_candidates_suggestions_flat_df.csv.xz"),
                                               index_col=0).infer_objects()
         assert_frame_equal(suggestions_to_flat_df(self.data, self.suggestions),
                            suggestions_flat_df)

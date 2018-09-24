@@ -1,4 +1,5 @@
 from itertools import chain
+import lzma
 from typing import Dict, Iterable, List, Tuple
 
 from gensim.models.fasttext import FastText
@@ -29,7 +30,7 @@ def read_frequencies(file: str) -> Dict[str, int]:
     :return: Dictionary of tokens frequencies.
     """
     frequencies = {}
-    with open(file, "r") as f:
+    with lzma.open(file, "rt") as f:
         for line in f:
             split = line.split()
             frequencies[split[0]] = int(split[1])
@@ -43,7 +44,7 @@ def read_vocabulary(file: str) -> List[str]:
                  First token in every line split is added to the vocabulary.
     :return: List of tokens of the vocabulary.
     """
-    with open(file, "r") as f:
+    with lzma.open(file, "rt") as f:
         tokens = [line.split()[0] for line in f]
     return tokens
 
