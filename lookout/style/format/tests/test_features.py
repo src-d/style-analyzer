@@ -116,6 +116,7 @@ class FeaturesTests(unittest.TestCase):
                 self.assertEqual(vnode.start.col, vnode.end.col)
                 self.assertEqual(vnode.start.line, vnode.end.line)
 
+    @unittest.skip("More general tests should be added")
     def test_extended_roles(self):
         file = File(content=bytes(self.contents, 'utf-8'),
                     uast=self.uast)
