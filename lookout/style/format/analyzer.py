@@ -153,8 +153,11 @@ class FormatAnalyzer(Analyzer):
             trainable_rules = TrainableRules(
                 prune_branches_algorithms=config["prune_branches_algorithms"],
                 prune_attributes=config["prune_attributes"],
-                random_state=config["random_state"],
-                uncertain_attributes=config["uncertain_attributes"], **bscv.best_params_
+                top_down_greedy_budget=config["top_down_greedy_budget"],
+                uncertain_attributes=config["uncertain_attributes"],
+                prune_dataset_ratio=config["prune_dataset_ratio"],
+                n_estimators=config["n_estimators"],
+                random_state=config["random_state"], **bscv.best_params_
             )
             trainable_rules.fit(X, y)
             model[language] = trainable_rules.rules
