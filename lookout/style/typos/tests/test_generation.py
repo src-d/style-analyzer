@@ -45,7 +45,7 @@ class CandidatesSplitTest(unittest.TestCase):
 class GeneratorTest(unittest.TestCase):
     def test_generate_candidates(self):
         generator = CandidatesGenerator()
-        generator.construct(VOCABULARY_FILE, FREQUENCIES_FILE, FASTTEXT_DUMP_FILE,
+        generator.construct(VOCABULARY_FILE, VOCABULARY_FILE, FASTTEXT_DUMP_FILE,
                             neighbors_number=3, taken_for_distance=3, max_distance=3, radius=3)
 
         data = pandas.read_csv(str(TEST_DATA_PATH / "test_data.csv"),
