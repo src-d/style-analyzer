@@ -44,9 +44,14 @@ def prepare_files(folder: str, client: BblfshClient, language: str) -> Iterable[
     return files
 
 
-def quality_report(input_pattern: str, bblfsh: str, language: str, n_files: int, model: str
+def quality_report(input_pattern: str, bblfsh: str, language: str, n_files: int, model_path: str
                    ) -> None:
     """Print several different reports for a given model on a given dataset."""
+    model = FormatModel().load(model_path)
+    rules = model[language]
+    print("Model parameters: %s" % rules.origin)
+    print("Stats about rules: %s" % rules)
+
     client = BblfshClient(bblfsh)
     files = prepare_files(input_pattern, client, language)
     print("Number of files: %s" % (len(files)))
@@ -54,8 +59,6 @@ def quality_report(input_pattern: str, bblfsh: str, language: str, n_files: int,
     fe = FeatureExtractor(language=language)
     X, y, nodes = fe.extract_features(files)
 
-    analyzer = FormatModel().load(model)
-    rules = analyzer._rules_by_lang[language]
     y_pred = rules.predict(X)
 
     target_names = [CLASSES[cls_ind] for cls_ind in numpy.unique(y)]
