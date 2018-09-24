@@ -7,12 +7,12 @@ from lookout.core.analyzer import Analyzer, AnalyzerModel, ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2_grpc import DataStub
 from lookout.core.data_requests import with_changed_uasts_and_contents, with_uasts_and_contents
-from lookout.style.typos.model import IdentifiersTyposModel
+from lookout.style.typos.model import IdTyposModel
 
 
-class IdentifiersTyposAnalyzer(Analyzer):
-    log = logging.getLogger("IdentifiersTyposAnalyzer")
-    model_type = IdentifiersTyposModel
+class IdTyposAnalyzer(Analyzer):
+    log = logging.getLogger("IdTyposAnalyzer")
+    model_type = IdTyposModel
     version = "1"
     description = "Correcting typos in identifiers."
 
@@ -66,5 +66,5 @@ class IdentifiersTyposAnalyzer(Analyzer):
         files = data["files"]
         for file in files:
             cls.log.info("%s %s %d", file.path, file.language, len(file.uast.children))
-        model = IdentifiersTyposModel().construct(cls, ptr)
+        model = IdTyposModel().construct(cls, ptr)
         return model.train()

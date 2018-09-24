@@ -13,7 +13,7 @@ from lookout.style.typos.utils import flattify_data, SPLIT_COLUMN, TYPO_COLUMN
 NODE_ID_COLUMN = "node_id"
 
 
-class IdentifiersTyposModel(AnalyzerModel):
+class IdTyposModel(AnalyzerModel):
     NAME = "typos"
     VENDOR = "source{d}"
 
