@@ -122,12 +122,9 @@ class FeaturesTests(unittest.TestCase):
                     uast=self.uast)
         X, _, vns = self.extractor.extract_features([file])
         # last columns are only roles
-        last_columns = self.extractor.parents_depth + self.extractor.siblings_window
-        self.assertGreater(numpy.count_nonzero(X[:, -last_columns:] >
+        role_columns = [i for i, name in enumerate(self.extractor.feature_names) if "role" in name]
+        self.assertGreater(numpy.count_nonzero(X[:, role_columns] >
                                                len(INTERNAL_TYPES_INDEX)), 0)
-        col_role_left_sibling = (self.extractor.count_features(FeatureType.node) +
-                                 self.extractor.count_features(FeatureType.left_siblings)
-                                 - 1)
 
         def get_ext_role(role_index):
             return RESERVED[role_index - len(INTERNAL_TYPES_INDEX)]
@@ -137,9 +134,9 @@ class FeaturesTests(unittest.TestCase):
             # Don't test the first two nodes, they might not have a left sibling
             if i < 2:
                 continue
-            role_index_left = x[col_role_left_sibling]
-            if role_index_left >= len(INTERNAL_TYPES_INDEX):
-                role_left = get_ext_role(role_index_left)
+            role_index = x[self.extractor.feature2index["left_siblings_1_role_id"]]
+            if role_index >= len(INTERNAL_TYPES_INDEX):
+                role_left = get_ext_role(role_index)
                 self.assertEqual(self.contents[start - len(role_left):start], role_left)
 
 
