@@ -43,8 +43,8 @@ class CandidatesRanker:
             features: numpy.ndarray, val_part: float = 0.1) -> None:
         """
         Train booster on the given data.
-        :param identifiers: Series containing column right corrections and indexed in correspondence
-                            with typos from which candidates were generated.
+        :param identifiers: Series containing column right corrections and indexed in
+                            correspondence with typos from which candidates were generated.
         :param candidates: DataFrame containing information about candidates for correction.
                            Columns are [ID_COLUMN, TYPO_COLUMN, CANDIDATE_COLUMN].
         :param features: Matrix of features for candidates.
