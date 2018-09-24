@@ -4,13 +4,12 @@ import unittest
 
 import pandas
 
-from corrector import TyposCorrector
-from utils import CORRECT_TOKEN_COLUMN, SPLIT_COLUMN, TYPO_COLUMN
+from lookout.style.typos.corrector import TyposCorrector
+from lookout.style.typos.utils import CORRECT_TOKEN_COLUMN, SPLIT_COLUMN, TYPO_COLUMN
 
 
 TEST_DATA_PATH = str(pathlib.Path(__file__).parent)
 FASTTEXT_DUMP_FILE = "lookout/style/typos/id_vecs_10.bin"
-NN_DUMP_FILE = "lookout/style/typos/nn_prediction_10.h5"
 VOCABULARY_FILE = "lookout/style/typos/16k_vocabulary.csv"
 FREQUENCIES_FILE = "lookout/style/typos/frequencies.csv"
 
@@ -20,7 +19,7 @@ class TyposCorrectorTest(unittest.TestCase):
     def setUpClass(cls):
         cls.data = pandas.read_csv(join(TEST_DATA_PATH, "test_data.csv"),
                                    index_col=0).infer_objects()
-        cls.corrector = TyposCorrector(nn_file=NN_DUMP_FILE)
+        cls.corrector = TyposCorrector()
         cls.corrector.create_model(VOCABULARY_FILE, FREQUENCIES_FILE, FASTTEXT_DUMP_FILE)
 
     def test_corrector_on_df(self):

@@ -1,5 +1,5 @@
 from itertools import chain
-from typing import Dict, List, Tuple
+from typing import Dict, Iterable, List, Tuple
 
 from modelforge import Model
 import pandas
@@ -20,10 +20,10 @@ class TyposCorrector(Model):
 
     DEFAULT_THREADS_NUMBER = 16
 
-    DEFAULT_RADIUS = 4
-    DEFAULT_MAX_DISTANCE = 3
-    DEFAULT_NEIGHBORS_NUMBER = 20
-    DEFAULT_TAKEN_FOR_DISTANCE = 10
+    DEFAULT_RADIUS = 3
+    DEFAULT_MAX_DISTANCE = 2
+    DEFAULT_NEIGHBORS_NUMBER = 0
+    DEFAULT_TAKEN_FOR_DISTANCE = 20
 
     DEFAULT_TRAIN_ROUNDS = 4000
     DEFAULT_EARLY_STOPPING = 200
@@ -37,11 +37,10 @@ class TyposCorrector(Model):
                            "alpha": 1,
                            "eval_metric": ["auc", "error"]}
 
-    def __init__(self, threads_number: int = DEFAULT_THREADS_NUMBER, nn_file: str = None):
+    def __init__(self, threads_number: int = DEFAULT_THREADS_NUMBER):
         super().__init__()
         self.generator = CandidatesGenerator()
         self.ranker = CandidatesRanker()
-        self.nn_file = nn_file
         self.threads_number = threads_number
         self.set_ranker_params()
 
@@ -71,7 +70,7 @@ class TyposCorrector(Model):
         """
         if candidates is None:
             candidates = self.generator.generate_candidates(typos, self.threads_number,
-                                                            self.nn_file, save_candidates_file)
+                                                            save_candidates_file)
         self.ranker.fit(typos[CORRECT_TOKEN_COLUMN], get_candidates_tokens(candidates),
                         get_candidates_features(candidates))
 
@@ -92,6 +91,9 @@ class TyposCorrector(Model):
             candidates = pandas.read_pickle(candidates_file)
         self.train(typos, candidates, save_candidates_file)
 
+    def suggest_strings(self, strings: Iterable[str]):
+        typos = pandas.DataFrame()
+
     def suggest(self, typos: pandas.DataFrame, candidates: pandas.DataFrame = None,
                 save_candidates_file: str = None, n_candidates: int = 3,
                 return_all: bool = True) -> Dict[int, List[Tuple[str, float]]]:
@@ -108,7 +110,7 @@ class TyposCorrector(Model):
         """
         if candidates is None:
             candidates = self.generator.generate_candidates(typos, self.threads_number,
-                                                            self.nn_file, save_candidates_file)
+                                                            save_candidates_file)
         return self.ranker.rank(get_candidates_tokens(candidates),
                                 get_candidates_features(candidates), n_candidates, return_all)
 
