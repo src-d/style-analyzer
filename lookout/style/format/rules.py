@@ -190,16 +190,16 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         :param uncertain_attributes: indicates whether to **retain** parts of rules with low \
                                      certainty (see "Generating Production Rules From Decision \
                                      Trees" by J.R. Quinlan).
-        :param prune_base_model: indicates whether to prune base_model via reduced error pruning \
-                                 algorithm. Available for DecisionTreeClassifier model only.
         """
         super().__init__()
+
         self.base_model_name = base_model_name
         self.prune_branches_algorithms = prune_branches_algorithms
         self.top_down_greedy_budget = top_down_greedy_budget
         self.prune_attributes = prune_attributes
         self.uncertain_attributes = uncertain_attributes
         self.prune_dataset_ratio = prune_dataset_ratio
+        # Parameters for base_model must be named the same as in the base_model class
         self.n_estimators = n_estimators
         self.max_features = max_features
         self.max_depth = max_depth
@@ -217,11 +217,9 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         :param y: input labels - the same length as X.
         :return: self
         """
-        base_model = self._base_model_class(max_depth=self.max_depth,
-                                            max_features=self.max_features,
-                                            min_samples_leaf=self.min_samples_leaf,
-                                            min_samples_split=self.min_samples_split,
-                                            random_state=self.random_state)
+        models_params = {name: val for name, val in self.get_params().items()
+                         if name in self._base_param_names}
+        base_model = self._base_model_class(**models_params)
 
         if self.prune_branches_algorithms or self.prune_attributes:
             X_train, X_prune, y_train, y_prune = train_test_split(
@@ -295,6 +293,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         if not issubclass(value, (DecisionTreeClassifier, RandomForestClassifier)):
             raise TypeError("%s base model type is not allowed" % value)
         self._base_model_class = value
+        self._base_param_names = set(self._base_model_class().get_params())
 
     @property
     def fitted(self):
