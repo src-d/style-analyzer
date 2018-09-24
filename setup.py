@@ -26,7 +26,8 @@ setup(
     packages=find_packages(exclude=("lookout.style.format.tests",)),
     namespace_packages=["lookout"],
     entry_points={
-        "console_scripts": ["analyzer=lookout.__main__:main"],
+        "console_scripts": ["analyzer=lookout.__main__:main",
+                            "format-analyzer=lookout.style.format.debug.__main__:main"],
     },
     keywords=["machine learning on source code", "babelfish"],
     install_requires=["sourced-ml>=0.6.0,<0.7",

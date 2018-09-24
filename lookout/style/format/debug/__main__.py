@@ -4,8 +4,10 @@ import sys
 from typing import Any
 
 from lookout.core.cmdline import ArgumentDefaultsHelpFormatterNoNone
-from lookout.style.format.quality_report import quality_report
-from lookout.style.format.visualization import visualize
+from lookout.core.slogging import setup
+from lookout.style.format.debug.quality_report import quality_report
+from lookout.style.format.debug.train import train
+from lookout.style.format.debug.visualization import visualize
 
 
 def create_parser() -> ArgumentParser:
@@ -20,6 +22,23 @@ def create_parser() -> ArgumentParser:
     def add_parser(name, help):
         return subparsers.add_parser(
             name, help=help, formatter_class=ArgumentDefaultsHelpFormatterNoNone)
+
+    # Training
+    training_parser = add_parser("train", "Train a FormatModel for debugging purposes.")
+    training_parser.set_defaults(handler=train)
+    training_parser.add_argument("training_dir",
+                                 help="Path to the directory containing the files to train from.")
+    training_parser.add_argument("output_path",
+                                 help="Path to the model to write.")
+    training_parser.add_argument("--bblfsh",
+                                 default="0.0.0.0:9432",
+                                 help="Address of the babelfish server.")
+    training_parser.add_argument("--language",
+                                 default="javascript",
+                                 help="Language to filter on.")
+    training_parser.add_argument("--config",
+                                 help="Path to a YAML file containing config to apply during "
+                                      "training.")
 
     # Evaluation
     eval_parser = add_parser("eval", "Evaluate trained model on given dataset.")
@@ -54,6 +73,7 @@ def main() -> Any:
     """Entry point of the utility."""
     parser = create_parser()
     args = parser.parse_args()
+    setup("DEBUG", False)
     try:
         handler = args.handler
         delattr(args, "handler")
