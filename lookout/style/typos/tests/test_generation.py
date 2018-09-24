@@ -13,10 +13,10 @@ from lookout.style.typos.utils import (CANDIDATE_COLUMN, CORRECT_TOKEN_COLUMN,
                                        ID_COLUMN, SPLIT_COLUMN, TYPO_COLUMN)
 
 
-TEST_DATA_PATH = str(pathlib.Path(__file__).parent)
-FASTTEXT_DUMP_FILE = "lookout/style/typos/id_vecs_10.bin"
-VOCABULARY_FILE = "lookout/style/typos/16k_vocabulary.csv"
-FREQUENCIES_FILE = "lookout/style/typos/frequencies.csv"
+TEST_DATA_PATH = pathlib.Path(__file__).parent
+FASTTEXT_DUMP_FILE = str(TEST_DATA_PATH / "id_vecs_10.bin")
+VOCABULARY_FILE = str(TEST_DATA_PATH / "test_frequencies.csv.xz")
+FREQUENCIES_FILE = str(TEST_DATA_PATH / "frequencies.csv")
 
 
 class CandidatesSplitTest(unittest.TestCase):
@@ -48,7 +48,7 @@ class GeneratorTest(unittest.TestCase):
         generator.construct(VOCABULARY_FILE, FREQUENCIES_FILE, FASTTEXT_DUMP_FILE,
                             neighbors_number=3, taken_for_distance=3, max_distance=3, radius=3)
 
-        data = pandas.read_csv(join(TEST_DATA_PATH, "test_data.csv"),
+        data = pandas.read_csv(str(TEST_DATA_PATH / "test_data.csv"),
                                index_col=0).infer_objects()
         custom_data = pandas.DataFrame([[["get", "tokens", "num"], "tokens", "tokens"],
                                         [["gwt", "tokens"], "gwt", "get"],
