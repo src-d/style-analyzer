@@ -91,9 +91,6 @@ class TyposCorrector(Model):
             candidates = pandas.read_pickle(candidates_file)
         self.train(typos, candidates, save_candidates_file)
 
-    def suggest_strings(self, strings: Iterable[str]):
-        typos = pandas.DataFrame()
-
     def suggest(self, typos: pandas.DataFrame, candidates: pandas.DataFrame = None,
                 save_candidates_file: str = None, n_candidates: int = 3,
                 return_all: bool = True) -> Dict[int, List[Tuple[str, float]]]:
