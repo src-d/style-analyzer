@@ -9,13 +9,13 @@ from pandas.util.testing import assert_frame_equal
 
 from lookout.style.typos.generation import (get_candidates_tokens, get_candidates_features,
                                             CandidatesGenerator)
-from lookout.style.typos.utils import (collect_embeddings, CANDIDATE_COLUMN, CORRECT_TOKEN_COLUMN,
+from lookout.style.typos.utils import (CANDIDATE_COLUMN, CORRECT_TOKEN_COLUMN,
                                        ID_COLUMN, SPLIT_COLUMN, TYPO_COLUMN)
 
 
 TEST_DATA_PATH = str(pathlib.Path(__file__).parent)
 FASTTEXT_DUMP_FILE = "lookout/style/typos/id_vecs_10.bin"
-VOCABULARY_FILE = "lookout/style/"
+VOCABULARY_FILE = "lookout/style/typos/16k_vocabulary.csv"
 FREQUENCIES_FILE = "lookout/style/typos/frequencies.csv"
 
 

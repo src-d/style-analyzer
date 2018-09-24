@@ -11,8 +11,8 @@ from scipy.spatial.distance import cosine
 from tqdm import tqdm
 
 from lookout.style.typos.symspell import EditDistance, SymSpell
-from lookout.style.typos.utils import (add_context_info, collect_embeddings, read_frequencies,
-                                       read_vocabulary, CANDIDATE_COLUMN, ID_COLUMN, TYPO_COLUMN)
+from lookout.style.typos.utils import (add_context_info, read_frequencies, read_vocabulary,
+                                       CANDIDATE_COLUMN, ID_COLUMN, TYPO_COLUMN)
 
 
 TypoInfo = NamedTuple("TypoInfo", [("index", int),
@@ -158,7 +158,8 @@ class CandidatesGenerator:
                                                   self.neighbors_number)
                 candidate_tokens.extend(context_neighbors)
 
-        candidate_tokens = set([candidate for candidate in candidate_tokens if candidate in self.tokens])
+        candidate_tokens = set([candidate for candidate in candidate_tokens
+                                if candidate in self.tokens])
         if not len(candidate_tokens):
             candidate_tokens.add(typo_info.typo)
         return candidate_tokens
