@@ -1,5 +1,5 @@
 from itertools import chain
-from typing import Dict, Iterable, List, Tuple
+from typing import Dict, List, Tuple
 
 from modelforge import Model
 import pandas
