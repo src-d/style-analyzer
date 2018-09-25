@@ -31,8 +31,8 @@ class CandidatesGenerator:
     """
     DEFAULT_RADIUS = 3
     DEFAULT_MAX_DISTANCE = 2
-    DEFAULT_NEIGHBORS_NUMBER = 10
-    DEFAULT_TAKEN_FOR_DISTANCE = 5
+    DEFAULT_NEIGHBORS_NUMBER = 0
+    DEFAULT_TAKEN_FOR_DISTANCE = 20
 
     def __init__(self):
         self.checker = None
