@@ -66,8 +66,8 @@ class CandidatesRanker:
         edge = int(features.shape[0] * (1 - val_part))
         dtrain = xgb.DMatrix(features[:edge, :], label=labels[:edge])
         dval = xgb.DMatrix(features[edge:, :], label=labels[edge:])
-        self.boost_param["scale_pos_weight"] = \
-            float(1.0 * (edge - numpy.sum(labels[:edge])) / numpy.sum(labels[:edge]))
+        self.boost_param["scale_pos_weight"] = float(
+            1.0 * (edge - numpy.sum(labels[:edge])) / numpy.sum(labels[:edge]))
         evallist = [(dtrain, "train"), (dval, "validation")]
         self.bst = xgb.train(self.boost_param, dtrain, self.train_rounds, evallist,
                              early_stopping_rounds=self.early_stopping)

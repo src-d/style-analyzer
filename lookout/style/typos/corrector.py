@@ -35,7 +35,7 @@ class TyposCorrector(Model):
                            "subsample": 0.5,
                            "colsample_bytree": 0.5,
                            "alpha": 1,
-                           "eval_metric": ["auc", "error"]}
+                           "eval_metric": ["error"]}
 
     def __init__(self, threads_number: int = DEFAULT_THREADS_NUMBER):
         super().__init__()
