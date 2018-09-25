@@ -15,16 +15,16 @@ class CandidatesRanker:
     """
     DEFAULT_TRAIN_ROUNDS = 4000
     DEFAULT_EARLY_STOPPING = 200
-    DEFAULT_BOOST_PARAM = {'max_depth': 6,
-                           'eta': 0.03,
-                           'min_child_weight': 2,
-                           'silent': 1,
-                           'objective': 'binary:logistic',
-                           'nthread': 16,
-                           'subsample': 0.5,
-                           'colsample_bytree': 0.5,
-                           'alpha': 1,
-                           'eval_metric': ['auc', 'error']}
+    DEFAULT_BOOST_PARAM = {"max_depth": 6,
+                           "eta": 0.03,
+                           "min_child_weight": 2,
+                           "silent": 1,
+                           "objective": "binary:logistic",
+                           "nthread": 16,
+                           "subsample": 0.5,
+                           "colsample_bytree": 0.5,
+                           "alpha": 1,
+                           "eval_metric": ["error"]}
 
     def __init__(self):
         self.train_rounds = self.DEFAULT_TRAIN_ROUNDS
@@ -57,10 +57,10 @@ class CandidatesRanker:
         dtrain = xgb.DMatrix(features[:edge, :], label=labels[:edge])
         dval = xgb.DMatrix(features[edge:, :], label=labels[edge:])
 
-        self.boost_param['scale_pos_weight'] = (1.0 * (edge - numpy.sum(labels[:edge])) /
+        self.boost_param["scale_pos_weight"] = (1.0 * (edge - numpy.sum(labels[:edge])) /
                                                 numpy.sum(labels[:edge]))
 
-        evallist = [(dtrain, 'train'), (dval, 'validation')]
+        evallist = [(dtrain, "train"), (dval, "validation")]
         self.bst = xgb.train(self.boost_param, dtrain, self.train_rounds, evallist,
                              early_stopping_rounds=self.early_stopping)
 
