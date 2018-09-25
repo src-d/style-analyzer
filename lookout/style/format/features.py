@@ -433,7 +433,7 @@ class FeatureExtractor:
         if vnode.node:
             for role_id in vnode.node.roles:
                 role = bblfsh.role_name(role_id)
-                self.roles.ROLES_INDEX[role] += 1
+                role_indices[self.roles.ROLES_INDEX[role]] += 1
         return role_indices
 
     def _get_self_features(self, vnode: VirtualNode) -> Sequence[int]:
