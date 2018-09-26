@@ -39,7 +39,7 @@ setup(
                       "configargparse>=0.13,<2.0",
                       "humanfriendly>=4.0,<5.0",
                       "psycopg2-binary>=2.7,<3.0",
-                      "scikit-learn>=0.19,<2.0",
+                      "scikit-learn>=0.19,<0.20",
                       "tqdm>=4.0,<5.0",
                       "scikit-optimize>=0.5,<2.0",
                       ] + typing,
