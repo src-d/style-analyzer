@@ -36,16 +36,19 @@ def prepare_file(filename: str, client: BblfshClient, language: str) -> File:
     return File(content=content, uast=res.uast, path=filename)
 
 
-def visualize(input_filename: str, bblfsh: str, language: str, model: str) -> None:
+def visualize(input_filename: str, bblfsh: str, language: str, model_path: str) -> None:
     """Visualize the errors made on a single file."""
+    model = FormatModel().load(model_path)
+    rules = model[language]
+    print("Model parameters: %s" % rules.origin)
+    print("Stats about rules: %s" % rules)
+
     client = BblfshClient(bblfsh)
     file = prepare_file(input_filename, client, language)
 
     fe = FeatureExtractor(language=language)
     X, y, nodes = fe.extract_features([file])
 
-    analyzer = FormatModel().load(model)
-    rules = analyzer._rules_by_lang[language]
     y_pred = rules.predict(X)
 
     mispred = []
@@ -70,9 +73,9 @@ def visualize(input_filename: str, bblfsh: str, language: str, model: str) -> No
 
         new_content += GREEN + CLASSES[wrong.y] + RED + CLASSES[wrong.pred] + ENDC
 
-        if i == len(mispred) - 1 and end != len(old_content):
-            new_content += old_content[end:]
+        if i == len(mispred) - 1:
+            if end != len(old_content):
+                new_content += old_content[end:]
         else:
             new_content += old_content[end:mispred[i + 1].node.start.offset]
-
     print("Visualization:\n" + new_content)
