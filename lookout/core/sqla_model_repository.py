@@ -58,6 +58,7 @@ class SQLAlchemyModelRepository(ModelRepository):
             self._log.warning("created a new database at %s", db_endpoint)
         self._engine = create_engine(
             db_endpoint, **(engine_kwargs if engine_kwargs is not None else {}))
+        must_initialize |= not self._engine.has_table(Model.__tablename__)
         if must_initialize:
             Model.metadata.create_all(self._engine)
         self._sessionmaker = ContextSessionMaker(sessionmaker(bind=self._engine))
