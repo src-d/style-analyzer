@@ -59,9 +59,18 @@ class FormatAnalyzer(Analyzer):
                     lines = None
                 else:
                     lines = [find_new_lines(prev_file, file)]
-                X, y, vnodes = FeatureExtractor(language=lang,
-                                                **rules.origin_config["feature_extractor"]) \
+                res = FeatureExtractor(language=lang,
+                                       **rules.origin_config["feature_extractor"]) \
                     .extract_features([file], lines)
+                if res is None:
+                    comment = Comment()
+                    comment.file = file.path
+                    comment.confidence = 1.
+                    comment.line = 1
+                    comment.text = "Failed to parse this file"
+                    continue
+                else:
+                    X, y, vnodes = res
                 self.log.debug("predicting values for %d samples", len(y))
                 y_pred, winners = rules.predict(X, True)
                 assert len(y) == len(y_pred)

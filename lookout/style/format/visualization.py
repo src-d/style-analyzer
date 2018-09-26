@@ -47,7 +47,12 @@ def visualize(input_filename: str, bblfsh: str, language: str, model_path: str) 
     file = prepare_file(input_filename, client, language)
 
     fe = FeatureExtractor(language=language)
-    X, y, nodes = fe.extract_features([file])
+    res = fe.extract_features([file])
+
+    if res is None:
+        print("Failed to parse files, aborting visualization...")
+        return
+    X, y, nodes = res
 
     y_pred = rules.predict(X)
 

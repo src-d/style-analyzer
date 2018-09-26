@@ -241,7 +241,7 @@ class FeatureExtractor:
         self._feature2index = {name: i for i, name in enumerate(self.feature_names)}
 
     def extract_features(self, files: Iterable[File], lines: List[List[int]]=None
-                         ) -> Tuple[numpy.ndarray, numpy.ndarray, List[VirtualNode]]:
+                         ) -> Optional[Tuple[numpy.ndarray, numpy.ndarray, List[VirtualNode]]]:
         """
         Given a list of `File`-s, compute the features and labels required for the training of
         downstream models.
@@ -250,7 +250,7 @@ class FeatureExtractor:
         :param lines: the list of enabled line numbers per file. The lines which are not \
                       mentioned will not be extracted.
         :return: tuple of numpy.ndarray (2 and 1 dimensional respectively): features and labels \
-                 and the corresponding `VirtualNode`-s.
+                 and the corresponding `VirtualNode`-s or None in case not extracting features.
         """
         parsed_files = []
         labels = []
@@ -273,6 +273,10 @@ class FeatureExtractor:
             parsed_files.append((vnodes, parents, file_lines))
             labels.append([vnode.y for vnode in vnodes if vnode.y is not None and
                            (vnode.start.line in file_lines if file_lines is not None else True)])
+
+        if not labels:
+            # nothing was extracted
+            return None
 
         y = numpy.concatenate(labels)
         X = numpy.zeros((y.shape[0], self.count_features(FeatureType.all)), dtype=numpy.uint8)
