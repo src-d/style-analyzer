@@ -3,7 +3,7 @@ from datetime import datetime
 import logging
 import os
 import threading
-from typing import Tuple
+from typing import Tuple, Optional
 
 import cachetools
 from pympler.asizeof import asizeof
@@ -77,7 +77,7 @@ class SQLAlchemyModelRepository(ModelRepository):
         return "SQLAlchemyModelRepository(db=%s, fs=%s)" % (self._engine.url, self.fs_root)
 
     def get(self, model_id: str, model_type: Type[AnalyzerModel],
-            url: str) -> Tuple[AnalyzerModel, bool]:
+            url: str) -> Tuple[Optional[AnalyzerModel], bool]:
         cache_key = self.cache_key(model_id, model_type, url)
         with self._cache_lock:
             model = self._cache.get(cache_key)
