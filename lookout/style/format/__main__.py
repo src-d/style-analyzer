@@ -35,7 +35,8 @@ def create_parser() -> ArgumentParser:
     eval_parser.add_argument("-n", "--n-files", default=0, type=int,
                              help="How many files with most mispredictions to show. "
                                   "If n <= 0 show all.")
-    eval_parser.add_argument("-m", "--model", required=True, help="Path to saved FormatModel.")
+    eval_parser.add_argument("-m", "--model-path", required=True,
+                             help="Path to saved FormatModel.")
 
     # Visualization
     vis_parser = add_parser("vis", "Visualize mispredictions of the model on the given file.")
@@ -46,7 +47,7 @@ def create_parser() -> ArgumentParser:
                             help="Babelfish server's address.")
     vis_parser.add_argument("-l", "--language", default="javascript",
                             help="Programming language to use.")
-    vis_parser.add_argument("-m", "--model", required=True, help="Path to saved FormatModel.")
+    vis_parser.add_argument("-m", "--model-path", required=True, help="Path to saved FormatModel.")
     return parser
 
 
