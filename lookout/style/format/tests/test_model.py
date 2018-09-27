@@ -10,9 +10,16 @@ from lookout.style.format.tests.test_rules import load_abalone_data
 class FormatModelTests(unittest.TestCase):
     def setUp(self):
         (self.train_x, self.test_x, self.train_y, self.test_y), _, _ = load_abalone_data()
-        trainer = TrainableRules("sklearn.tree.DecisionTreeClassifier",
-                                 prune_branches_algorithms=[], prune_attributes=False,
-                                 min_samples_leaf=26, random_state=1989)
+        self.config = {
+            "trainable_rules": {
+                "base_model_name": "sklearn.tree.DecisionTreeClassifier",
+                "prune_branches_algorithms": [],
+                "prune_attributes": False,
+                "min_samples_leaf": 26,
+                "random_state": 1989,
+            }
+        }
+        trainer = TrainableRules(**self.config["trainable_rules"], origin_config=self.config)
         trainer.fit(self.test_x, self.test_y)
         self.rules = trainer.rules
         self.fm = FormatModel().load(os.path.join(os.path.dirname(__file__), "format-model.asdf"))
@@ -28,9 +35,11 @@ class FormatModelTests(unittest.TestCase):
             fm2 = FormatModel().load(f.name)
             self.assertEqual(fm1.languages, fm2.languages)
             for lang in fm1.languages:
-                # clean None values in fm1 to match asdf cleaning:
-                fm1[lang]._origin = {k: v for k, v in fm1[lang]._origin.items() if v is not None}
-                self.assertEqual(fm1[lang].origin, fm2[lang].origin)
+                # clean None values in fm1 to match asdf cleaning:`
+                self.assertEqual(fm1[lang]._origin_config.keys(), fm2[lang]._origin_config.keys())
+                c = {k: v for k, v in fm1[lang].origin_config["trainable_rules"].items()
+                     if v is not None}
+                self.assertEqual(c, fm2[lang].origin_config["trainable_rules"])
                 for rule1, rule2 in zip(fm1[lang].rules, fm2[lang].rules):
                     self.assertEqual(rule1.stats[0], rule2.stats[0])
                     self.assertAlmostEqual(rule1.stats[1], rule2.stats[1])
@@ -43,16 +52,16 @@ class FormatModelTests(unittest.TestCase):
         fm = FormatModel()
         self.assertEqual(fm.dump(), "<unknown name>/[1, 0, 0] <unknown url> <unknown commit>")
 
-        DUMP = """<unknown name>/[1, 0, 2] <unknown url> <unknown commit>
+        DUMP = """<unknown name>/[1, 0, 1] <unknown url> <unknown commit>
 
 # js
-85 rules, avg.len. 4.9
+31 rules, avg.len. 5.1
 
 # js2
-85 rules, avg.len. 4.9
+31 rules, avg.len. 5.1
 
 # js3
-85 rules, avg.len. 4.9"""
+31 rules, avg.len. 5.1"""
         self.assertEqual(self.fm.dump(), DUMP)
 
     def test_len(self):

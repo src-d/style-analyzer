@@ -1,4 +1,4 @@
-from typing import Any, Dict, Mapping, NamedTuple
+from typing import Any, List, Mapping, NamedTuple
 
 from modelforge import Model
 
@@ -79,7 +79,7 @@ class Analyzer:
         self.config = config
 
     def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
-                data_request_stub: DataStub, **data) -> [Comment]:
+                data_request_stub: DataStub, **data) -> List[Comment]:
         """
         This is called on Review events. It must return the list of `Comment`-s - found review
         suggestions.
@@ -97,8 +97,8 @@ class Analyzer:
         raise NotImplementedError
 
     @classmethod
-    def train(cls, ptr: ReferencePointer, config: Dict[str, Any], data_request_stub: DataStub,
-              **data) -> AnalyzerModel:
+    def train(cls, ptr: ReferencePointer, config: Mapping[str, Any],
+              data_request_stub: DataStub, **data) -> AnalyzerModel:
         """
         Generates a new model on top of the specified source code.
 

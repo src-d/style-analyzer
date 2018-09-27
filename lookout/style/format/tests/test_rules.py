@@ -44,7 +44,8 @@ class RulesTests(unittest.TestCase):
             = load_abalone_data()
 
     def test_predict_unfitted(self):
-        rules = TrainableRules("sklearn.tree.DecisionTreeClassifier", prune_branches_algorithms=[],
+        rules = TrainableRules(base_model_name="sklearn.tree.DecisionTreeClassifier",
+                               prune_branches_algorithms=[],
                                prune_attributes=False)
         with self.assertRaises(NotFittedError):
             rules.predict(self.test_x)
@@ -52,7 +53,8 @@ class RulesTests(unittest.TestCase):
     def test_tree_no_pruning(self):
         model = tree.DecisionTreeClassifier(min_samples_leaf=26, random_state=1989)
         model = model.fit(self.train_x, self.train_y)
-        rules = TrainableRules("sklearn.tree.DecisionTreeClassifier", prune_branches_algorithms=[],
+        rules = TrainableRules(base_model_name="sklearn.tree.DecisionTreeClassifier",
+                               prune_branches_algorithms=[],
                                prune_attributes=False, min_samples_leaf=26, random_state=1989)
         rules.fit(self.train_x, self.train_y)
         tree_score = model.score(self.train_x, self.train_y)
@@ -63,7 +65,7 @@ class RulesTests(unittest.TestCase):
         model = ensemble.RandomForestClassifier(n_estimators=50, min_samples_leaf=26,
                                                 random_state=1989)
         model = model.fit(self.train_x, self.train_y)
-        rules = TrainableRules("sklearn.ensemble.RandomForestClassifier",
+        rules = TrainableRules(base_model_name="sklearn.ensemble.RandomForestClassifier",
                                prune_branches_algorithms=[], prune_attributes=False,
                                n_estimators=50, min_samples_leaf=26, random_state=1989)
         rules.fit(self.train_x, self.train_y)
@@ -74,7 +76,8 @@ class RulesTests(unittest.TestCase):
     def test_tree_attr_pruning(self):
         model = tree.DecisionTreeClassifier(min_samples_leaf=26, random_state=1989)
         model = model.fit(self.train_x, self.train_y)
-        rules = TrainableRules("sklearn.tree.DecisionTreeClassifier", prune_branches_algorithms=[],
+        rules = TrainableRules(base_model_name="sklearn.tree.DecisionTreeClassifier",
+                               prune_branches_algorithms=[],
                                prune_attributes=True, min_samples_leaf=26, random_state=1989)
         rules.fit(self.train_x, self.train_y)
         tree_score = model.score(self.test_x, self.test_y)
@@ -83,7 +86,7 @@ class RulesTests(unittest.TestCase):
 
     def test_prune_branches_top_down_greedy(self):
         def test_budget(budget):
-            rules = TrainableRules("sklearn.tree.DecisionTreeClassifier",
+            rules = TrainableRules(base_model_name="sklearn.tree.DecisionTreeClassifier",
                                    prune_branches_algorithms=["top-down-greedy"],
                                    prune_attributes=False, top_down_greedy_budget=(False, budget),
                                    random_state=1989)
@@ -158,14 +161,15 @@ class RulesTests(unittest.TestCase):
                           UNDEFINED, LEAF])
 
     def test_rules_estimator(self):
-        estimator = TrainableRules("sklearn.tree.DecisionTreeClassifier",
+        estimator = TrainableRules(base_model_name="sklearn.tree.DecisionTreeClassifier",
                                    prune_branches_algorithms=[], prune_attributes=False)
         scores = model_selection.cross_val_score(estimator, self.x, self.y)
         score = sum(scores) / len(scores)
         self.assertGreater(score, .5)
 
     def test_predict_winner_indices(self):
-        rules = TrainableRules("sklearn.tree.DecisionTreeClassifier", prune_branches_algorithms=[],
+        rules = TrainableRules(base_model_name="sklearn.tree.DecisionTreeClassifier",
+                               prune_branches_algorithms=[],
                                prune_attributes=False, min_samples_leaf=26, random_state=1989)
         rules.fit(self.train_x, self.train_y)
         pred_y, winners = rules.rules.predict(self.train_x, return_winner_indices=True)

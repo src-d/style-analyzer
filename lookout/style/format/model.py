@@ -14,6 +14,10 @@ class FormatModel(AnalyzerModel):
     It is required to store all the Rules for different programming languages in a single model,
     named after each language.
     Note that Rules must be fitted and Rules.base_model is not saved.
+
+    Developer note:
+    Each Rules must provide enough information to reproduce it bit-to-bit in form of a
+    configuration dictionary. Model is simple and must remain simple.
     """
     NAME = "code-format"
     VENDOR = "source{d}"
@@ -23,7 +27,7 @@ class FormatModel(AnalyzerModel):
         self._rules_by_lang = {}  # type: Dict[str, Rules]
 
     @property
-    def languages(self):
+    def languages(self) -> List[str]:
         return sorted(self._rules_by_lang)
 
     def dump(self) -> str:
@@ -37,18 +41,19 @@ class FormatModel(AnalyzerModel):
         languages = self.languages
         return dict(
             languages=languages,
-            paramss=[self[lang].origin for lang in languages],
+            origin_configs=[self[lang].origin_config for lang in languages],
             ruless=[self._disassemble_rules(self[lang].rules) for lang in languages],
         )
 
     def _load_tree(self, tree: dict) -> None:
-        for name, params, rules in zip(tree["languages"], tree["paramss"], tree["ruless"]):
-            self[name] = Rules(self._assemble_rules(rules), params)
+        for lang, origin_config, rules in zip(
+                tree["languages"], tree["origin_configs"], tree["ruless"]):
+            self[lang] = Rules(self._assemble_rules(rules), origin_config)
 
     def __len__(self) -> int:
         return len(self._rules_by_lang)
 
-    def __getitem__(self, lang: str) -> "Rules":
+    def __getitem__(self, lang: str) -> Rules:
         """
         Get the Rules estimator by its language.
         :param lang: Estimator language.
@@ -56,7 +61,7 @@ class FormatModel(AnalyzerModel):
         """
         return self._rules_by_lang[lang]
 
-    def __setitem__(self, lang: str, rules: "Rules"):
+    def __setitem__(self, lang: str, rules: Rules):
         """
         Set a new Rules estimator to the model by its language.
         """
@@ -65,8 +70,8 @@ class FormatModel(AnalyzerModel):
     def __iter__(self):
         yield from self._rules_by_lang.__iter__()
 
-    def __contains__(self, item):
-        return item in self._rules_by_lang
+    def __contains__(self, lang: str) -> bool:
+        return lang in self._rules_by_lang
 
     @staticmethod
     def _assemble_rules(rules_tree: dict) -> List[Rule]:
