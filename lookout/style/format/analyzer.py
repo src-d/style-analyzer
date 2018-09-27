@@ -1,4 +1,4 @@
-from collections import defaultdict
+from collections import defaultdict, ChainMap
 import logging
 from pprint import pformat
 import threading
@@ -8,7 +8,7 @@ from skopt import BayesSearchCV
 from skopt.space import Categorical, Integer
 
 from lookout.core import slogging
-from lookout.core.analyzer import Analyzer, AnalyzerModel, ReferencePointer
+from lookout.core.analyzer import Analyzer, ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2 import File
 from lookout.core.api.service_data_pb2_grpc import DataStub
@@ -16,7 +16,7 @@ from lookout.core.data_requests import with_changed_uasts_and_contents, with_uas
 from lookout.style.format.diff import find_new_lines
 from lookout.style.format.features import FeatureExtractor
 from lookout.style.format.model import FormatModel
-from lookout.style.format.rules import TopDownGreedyBudget, TrainableRules
+from lookout.style.format.rules import TrainableRules
 
 
 class FormatAnalyzer(Analyzer):
@@ -26,9 +26,8 @@ class FormatAnalyzer(Analyzer):
     version = "1"
     description = "Source code formatting: whitespace, new lines, quotes, braces."
 
-    def __init__(self, model: AnalyzerModel, url: str, config: Mapping[str, Any]) -> None:
+    def __init__(self, model: FormatModel, url: str, config: Mapping[str, Any]) -> None:
         super().__init__(model, url, config)
-        self.config = self._load_config(self.config)
 
     @with_changed_uasts_and_contents
     def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
@@ -44,28 +43,24 @@ class FormatAnalyzer(Analyzer):
         """
         comments = []
         changes = list(data["changes"])
-        base_files = self._files_by_language(self._filter_files((c.base for c in changes),
-                                                                self.config["line_length_limit"]))
-        head_files = self._files_by_language(self._filter_files((c.head for c in changes),
-                                                                self.config["line_length_limit"]))
-        for lang, lang_head_files in head_files.items():
-            try:
-                rules = self.model[lang]
-            except KeyError:
-                self.log.warning("skipped %d written in %s - model does not exist",
-                                 len(lang_head_files), lang)
+        base_files_by_lang = self._files_by_language(c.base for c in changes)
+        head_files_by_lang = self._files_by_language(c.head for c in changes)
+        for lang, head_files in head_files_by_lang.items():
+            if lang not in self.model:
+                self.log.warning("skipped %d written in %s. Rules for %s do not exist in model",
+                                 len(head_files), lang, lang)
                 continue
-            for path, file in lang_head_files.items():
+            rules = self.model[lang]
+            for file in self._filter_files(head_files,
+                                           rules.origin_config["line_length_limit"]):
                 try:
-                    prev_file = base_files[lang][path]
+                    prev_file = base_files_by_lang[lang][file.path]
                 except KeyError:
                     lines = None
                 else:
                     lines = [find_new_lines(prev_file, file)]
                 X, y, vnodes = FeatureExtractor(language=lang,
-                                                siblings_window=self.config["siblings_window"],
-                                                parents_depth=self.config["parents_depth"],
-                                                debug_parsing=self.config["debug_parsing"]) \
+                                                **rules.origin_config["feature_extractor"]) \
                     .extract_features([file], lines)
                 self.log.debug("predicting values for %d samples", len(y))
                 y_pred, winners = rules.predict(X, True)
@@ -73,7 +68,7 @@ class FormatAnalyzer(Analyzer):
                 for yi, y_predi, vnode, winner in zip(y, y_pred, vnodes, winners):
                     if yi != y_predi:
                         comment = vnode.to_comment(y_predi)
-                        comment.file = path
+                        comment.file = file.path
                         comment.confidence = int(round(rules.rules[winner].stats.conf * 100))
                         comments.append(comment)
         return comments
@@ -81,7 +76,7 @@ class FormatAnalyzer(Analyzer):
     @classmethod
     @with_uasts_and_contents
     def train(cls, ptr: ReferencePointer, config: Mapping[str, Any], data_request_stub: DataStub,
-              **data) -> AnalyzerModel:
+              **data) -> FormatModel:
         """
         Train a model given the files available.
 
@@ -91,27 +86,27 @@ class FormatAnalyzer(Analyzer):
         :param data_request_stub: connection to the Lookout data retrieval service, not used.
         :return: AnalyzerModel containing the learned rules, per language.
         """
-        config = cls._load_config(config)
         cls.log.info("train %s %s %s", ptr.url, ptr.commit,
                      pformat(config, width=4096, compact=True))
-        files_by_language = cls._files_by_language(
-            cls._filter_files(data["files"], config["line_length_limit"]))
+        files_by_language = cls._files_by_language(data["files"])
         model = FormatModel().construct(cls, ptr)
+        config = cls._load_config(config)
         for language, files in files_by_language.items():
-            language = language.lower()
+            lang_config = ChainMap(config.get(language, {}), config["global"])
+            files = list(cls._filter_files(files, lang_config["line_length_limit"]))
+            if len(files) == 0:
+                cls.log.info("Zero files after filtering, %s language is skipped.", language)
+                continue
             try:
-                fe = FeatureExtractor(language=language,
-                                      siblings_window=config["siblings_window"],
-                                      parents_depth=config["parents_depth"],
-                                      debug_parsing=config["debug_parsing"])
+                fe = FeatureExtractor(language=language, **lang_config["feature_extractor"])
             except ImportError:
                 cls.log.warning("skipped %d %s files - not supported", len(files), language)
                 continue
             else:
                 cls.log.info("training on %d %s files", len(files), language)
             # we sort to make the features reproducible
-            X, y, _ = fe.extract_features(f[1] for f in sorted(files.items()))
-            lower_bound_instances = config["lower_bound_instances"]
+            X, y, _ = fe.extract_features(sorted(files, key=lambda x: x.path))
+            lower_bound_instances = lang_config["lower_bound_instances"]
             if X.shape[0] < lower_bound_instances:
                 cls.log.warning("skipped %d %s files: too few samples (%d/%d)",
                                 len(files), language, X.shape[0], lower_bound_instances)
@@ -121,14 +116,7 @@ class FormatAnalyzer(Analyzer):
                 # workaround the check in joblib - everything still works without it
                 threading._MainThread = threading.Thread
             bscv = BayesSearchCV(
-                TrainableRules(
-                    prune_branches_algorithms=config["prune_branches_algorithms"],
-                    prune_attributes=config["prune_attributes"],
-                    top_down_greedy_budget=config["top_down_greedy_budget"],
-                    uncertain_attributes=config["uncertain_attributes"],
-                    prune_dataset_ratio=config["prune_dataset_ratio"],
-                    n_estimators=config["n_estimators"],
-                    random_state=config["random_state"]),
+                TrainableRules(**lang_config["trainable_rules"], origin_config=lang_config),
                 {"base_model_name": Categorical(["sklearn.ensemble.RandomForestClassifier",
                                                  "sklearn.tree.DecisionTreeClassifier"]),
                  "max_depth": Categorical([None, 5, 10]),
@@ -136,8 +124,8 @@ class FormatAnalyzer(Analyzer):
                  "min_samples_split": Integer(2, 20),
                  "min_samples_leaf": Integer(1, 20)},
                 n_jobs=-1,
-                n_iter=config["n_iter"],
-                random_state=config["random_state"])
+                n_iter=lang_config["n_iter"],
+                random_state=lang_config["trainable_rules"]["random_state"])
             if not slogging.logs_are_structured:
                 # fool the check in joblib - everything still works without it
                 # this trick allows to run parallel bscv.fit()
@@ -150,12 +138,9 @@ class FormatAnalyzer(Analyzer):
             cls.log.debug("score of the best estimator found: %.3f", bscv.best_score_)
             cls.log.debug("params of the best estimator found: %s", str(bscv.best_params_))
             cls.log.debug("training the model with complete data")
-            trainable_rules = TrainableRules(
-                prune_branches_algorithms=config["prune_branches_algorithms"],
-                prune_attributes=config["prune_attributes"],
-                random_state=config["random_state"],
-                uncertain_attributes=config["uncertain_attributes"], **bscv.best_params_
-            )
+            lang_config["trainable_rules"].update(bscv.best_params_)
+            trainable_rules = TrainableRules(**lang_config["trainable_rules"],
+                                             origin_config=lang_config)
             trainable_rules.fit(X, y)
             model[language] = trainable_rules.rules
         cls.log.info("trained %s", model)
@@ -177,29 +162,43 @@ class FormatAnalyzer(Analyzer):
 
     @classmethod
     def _load_config(cls, config: Mapping[str, Any]):
+        def recursive_update(mapping, other):
+            for key, value in other.items():
+                if isinstance(value, dict):
+                    recursive_update(mapping.setdefault(key, {}), value)
+                else:
+                    mapping[key] = value
+
         final_config = {
-            "siblings_window": 5,
-            "parents_depth": 2,
-            "lower_bound_instances": 500,
-            "prune_branches_algorithms": ["reduced-error"],
-            "top_down_greedy_budget": [False, .5],
-            "prune_attributes": False,
-            "uncertain_attributes": True,
-            "prune_dataset_ratio": .2,
-            "n_estimators": 10,
-            "random_state": 42,
-            "n_iter": 5,
-            "debug_parsing": False,
-            "line_length_limit": 500
+            "global": {
+                "feature_extractor": {
+                    "siblings_window": 5,
+                    "parents_depth": 2,
+                    "debug_parsing": False,
+                },
+                "trainable_rules": {
+                    "prune_branches_algorithms": ["reduced-error"],
+                    "top_down_greedy_budget": [False, .5],
+                    "prune_attributes": False,
+                    "uncertain_attributes": True,
+                    "prune_dataset_ratio": .2,
+                    "n_estimators": 10,
+                    "random_state": 42,
+                },
+                "n_iter": 5,
+                "line_length_limit": 500,
+                "lower_bound_instances": 500,
+            },
+            "javascript": {
+                # The same structure here
+            },
         }
-        final_config.update(config)
-        # the incoming value can be a list from ASDF
-        final_config["top_down_greedy_budget"] = TopDownGreedyBudget(
-            *final_config["top_down_greedy_budget"])
+        recursive_update(final_config, config)
         return final_config
 
     @classmethod
-    def _filter_files(cls, files: Iterable[File], line_length_limit: int) -> Iterable[File]:
+    def _filter_files(cls, files: Dict[str, File], line_length_limit: int
+                      ) -> Iterable[File]:
         """
         Filter files based on their maximum line length.
 
@@ -208,7 +207,7 @@ class FormatAnalyzer(Analyzer):
         :return: Files filtered.
         """
         excluded = total = 0
-        for file in files:
+        for filename, file in files.items():
             if len(max(file.content.splitlines(), key=len, default=b"")) <= line_length_limit:
                 total += 1
                 yield file

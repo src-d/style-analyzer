@@ -72,12 +72,12 @@ class AnalyzerTests(unittest.TestCase):
 
     def test_train(self):
         datastub = FakeDataStub(files=self.base_files.values(), changes=None)
-        config = {"n_iter": 1}
+        config = {"global": {"n_iter": 1}}
         model1 = FormatAnalyzer.train(self.ptr, config, datastub)
         self.assertIsInstance(model1, FormatModel)
         self.assertIn("javascript", model1, str(model1))
         datastub = FakeDataStub(files=self.base_files.values(), changes=None)
-        config = {"n_iter": 1}
+        config = {"global": {"n_iter": 1}}
         model2 = FormatAnalyzer.train(self.ptr, config, datastub)
         self.assertEqual(model1["javascript"].rules, model2["javascript"].rules)
         self.assertGreater(len(model1["javascript"]), 10)
@@ -87,7 +87,7 @@ class AnalyzerTests(unittest.TestCase):
         datastub = FakeDataStub(files=self.base_files.values(),
                                 changes=[Change(base=self.base_files[k], head=self.head_files[k])
                                          for k in common])
-        config = {"n_iter": 1}
+        config = {"global": {"n_iter": 1}}
         model = FormatAnalyzer.train(self.ptr, config, datastub)
         analyzer = FormatAnalyzer(model, self.ptr.url, {})
         comments = analyzer.analyze(self.ptr, self.ptr, datastub)
@@ -95,10 +95,10 @@ class AnalyzerTests(unittest.TestCase):
 
     def test_file_filtering(self):
         datastub = FakeDataStub(files=self.base_files.values(), changes=None)
-        config = {"n_iter": 1, "line_length_limit": 0}
+        config = {"global": {"n_iter": 1, "line_length_limit": 0}}
         model_trained = FormatAnalyzer.train(self.ptr, config, datastub)
         self.assertEqual(len(model_trained._rules_by_lang), 0)
-        config = {"n_iter": 1, "line_length_limit": 500}
+        config = {"global": {"n_iter": 1, "line_length_limit": 500}}
         model_trained = FormatAnalyzer.train(self.ptr, config, datastub)
         self.assertGreater(len(model_trained._rules_by_lang), 0)
 

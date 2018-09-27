@@ -34,7 +34,8 @@ class RulesIntegrationTests(unittest.TestCase):
         model = tree.DecisionTreeClassifier(min_samples_leaf=26, random_state=1989, max_depth=None,
                                             max_features="auto", min_samples_split=2)
         model.fit(train_X, train_y)
-        rules = TrainableRules("sklearn.tree.DecisionTreeClassifier", prune_branches_algorithms=[],
+        rules = TrainableRules(base_model_name="sklearn.tree.DecisionTreeClassifier",
+                               prune_branches_algorithms=[],
                                prune_attributes=False, min_samples_leaf=26, random_state=1989,
                                max_depth=None, max_features="auto", min_samples_split=2)
         rules.fit(train_X, train_y)

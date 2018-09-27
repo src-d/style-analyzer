@@ -49,18 +49,18 @@ class Rules:
 
     _log = logging.getLogger("Rules")
 
-    def __init__(self, rules: List[Rule], origin: Mapping[str, Any]):
+    def __init__(self, rules: List[Rule], origin_config: Mapping[str, Any]):
         """
         Initializes the rules so that it is possible to call predict() afterwards.
 
         :param rules: the list of rules to assign.
-        :param origin: the dictionary of parameters used to train the rules.
+        :param origin_config: all parameters that are used for the model training.
         """
         super().__init__()
         assert rules is not None, "rules may not be None"
         self._rules = rules
         self._compiled = self._compile(rules)
-        self._origin = origin
+        self._origin_config = origin_config
 
     def __str__(self):
         return "%d rules, avg.len. %.1f" % (len(self._rules), self.avg_rule_len)
@@ -108,8 +108,8 @@ class Rules:
         return self._rules
 
     @property
-    def origin(self) -> Mapping[str, Any]:
-        return self._origin
+    def origin_config(self) -> Mapping[str, Any]:
+        return self._origin_config
 
     @property
     def avg_rule_len(self) -> float:
@@ -171,12 +171,12 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
 
     _log = logging.getLogger("TrainableRules")
 
-    def __init__(self, base_model_name: str = "sklearn.tree.DecisionTreeClassifier",
+    def __init__(self, *, base_model_name: str = "sklearn.tree.DecisionTreeClassifier",
                  prune_branches_algorithms=("reduced-error", "top-down-greedy"),
                  top_down_greedy_budget=TopDownGreedyBudget(False, 1.0), prune_attributes=True,
                  uncertain_attributes=True, prune_dataset_ratio=.2, n_estimators=10,
                  max_depth=None, max_features=None, min_samples_leaf=1, min_samples_split=2,
-                 random_state=42):
+                 random_state=42, origin_config=None):
         """
         Initializes a new instance of Rules class.
 
@@ -190,16 +190,17 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         :param uncertain_attributes: indicates whether to **retain** parts of rules with low \
                                      certainty (see "Generating Production Rules From Decision \
                                      Trees" by J.R. Quinlan).
-        :param prune_base_model: indicates whether to prune base_model via reduced error pruning \
-                                 algorithm. Available for DecisionTreeClassifier model only.
+        :param origin_config: all parameters that are used for the model training.
         """
         super().__init__()
+
         self.base_model_name = base_model_name
         self.prune_branches_algorithms = prune_branches_algorithms
-        self.top_down_greedy_budget = top_down_greedy_budget
+        self.top_down_greedy_budget = TopDownGreedyBudget(*top_down_greedy_budget)
         self.prune_attributes = prune_attributes
         self.uncertain_attributes = uncertain_attributes
         self.prune_dataset_ratio = prune_dataset_ratio
+        # Parameters for base_model must be named the same as in the base_model class
         self.n_estimators = n_estimators
         self.max_features = max_features
         self.max_depth = max_depth
@@ -207,6 +208,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         self.min_samples_split = min_samples_split
         self.random_state = random_state
         self._rules = None  # type: Rules
+        self._origin_config = origin_config
 
     def fit(self, X: numpy.ndarray, y: numpy.ndarray) -> "TrainableRules":
         """
@@ -217,11 +219,9 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         :param y: input labels - the same length as X.
         :return: self
         """
-        base_model = self._base_model_class(max_depth=self.max_depth,
-                                            max_features=self.max_features,
-                                            min_samples_leaf=self.min_samples_leaf,
-                                            min_samples_split=self.min_samples_split,
-                                            random_state=self.random_state)
+        models_params = {name: val for name, val in self.get_params().items()
+                         if name in self._base_param_names}
+        base_model = self._base_model_class(**models_params)
 
         if self.prune_branches_algorithms or self.prune_attributes:
             X_train, X_prune, y_train, y_prune = train_test_split(
@@ -275,7 +275,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
             old = count_attrs()
             rules = self._prune_attributes(rules, X_prune, y_prune, not self.uncertain_attributes)
             self._log.debug("pruned %d/%d attributes", old - count_attrs(), old)
-        self._rules = Rules(rules, self._sanitize_params(self.get_params(False)))
+        self._rules = Rules(rules, self._origin_config)
         return self
 
     @property
@@ -295,6 +295,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         if not issubclass(value, (DecisionTreeClassifier, RandomForestClassifier)):
             raise TypeError("%s base model type is not allowed" % value)
         self._base_model_class = value
+        self._base_param_names = set(self._base_model_class().get_params())
 
     @property
     def fitted(self):
@@ -589,3 +590,9 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
                 v = list(v)
             sanitized[k] = v
         return sanitized
+
+    @classmethod
+    def _get_param_names(cls):
+        names = super()._get_param_names()
+        names.remove("origin_config")
+        return names
