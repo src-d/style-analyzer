@@ -2,8 +2,8 @@ import unittest
 
 import pandas
 
-from lookout.typos.model import IdentifiersTyposModel, NODE_ID_COLUMN
-from lookout.typos.utils import SPLIT_COLUMN, TYPO_COLUMN
+from lookout.style.typos.model import IdentifiersTyposModel, NODE_ID_COLUMN
+from lookout.style.typos.utils import SPLIT_COLUMN, TYPO_COLUMN
 
 
 class IdentifiersTyposModelTest(unittest.TestCase):

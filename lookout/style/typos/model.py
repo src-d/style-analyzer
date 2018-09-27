@@ -1,4 +1,5 @@
 from collections import defaultdict
+from pathlib import Path
 from typing import Dict, List, Tuple
 
 import modelforge
@@ -21,7 +22,7 @@ class IdTyposModel(AnalyzerModel):
     DEFAULT_CONFIDENCE_THRESHOLD = 0
 
     corrector = TyposCorrector(threads_number=4)
-    corrector.load("lookout/style/typos/id_corrector.asdf")
+    corrector.load(str(Path(__file__).parent / "small_corrector.asdf"))
 
     def __init__(self, confidence_threshold: float = DEFAULT_CONFIDENCE_THRESHOLD,
                  n_candidates: int = DEFAULT_N_CANDIDATES):
