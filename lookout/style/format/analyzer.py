@@ -92,7 +92,7 @@ class FormatAnalyzer(Analyzer):
         model = FormatModel().construct(cls, ptr)
         config = cls._load_config(config)
         for language, files in files_by_language.items():
-            lang_config = ChainMap(config.get(language, {}), config["global"])
+            lang_config = dict(ChainMap(config.get(language, {}), config["global"]))
             files = list(cls._filter_files(files, lang_config["line_length_limit"]))
             if len(files) == 0:
                 cls.log.info("Zero files after filtering, %s language is skipped.", language)
