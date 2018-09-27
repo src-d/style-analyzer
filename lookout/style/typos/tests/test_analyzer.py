@@ -35,11 +35,11 @@ class AnalyzerTests(unittest.TestCase):
         # str() is needed for Python 3.5
         client = bblfsh.BblfshClient("0.0.0.0:9432")
         with lzma.open(str(base / "test_base_file.py.xz")) as fin:
-            uast = client.parse(contents=fin.read()).uast
+            uast = client.parse("test_base_file.py", contents=fin.read()).uast
             cls.base_files = [File(path="test_base_file.py", content=fin.read(), uast=uast,
                                    language="Python")]
         with lzma.open(str(base / "test_head_file.py.xz")) as fin:
-            uast = client.parse(contents=fin.read()).uast
+            uast = client.parse("test_head_file.py", contents=fin.read()).uast
             cls.head_files = [File(path="test_head_file.py", content=fin.read(), uast=uast,
                                    language="Python")]
         cls.ptr = ReferencePointer("someurl", "someref", "somecommit")
@@ -51,8 +51,7 @@ class AnalyzerTests(unittest.TestCase):
 
     def test_analyze(self):
         datastub = FakeDataStub(files=self.base_files,
-                                changes=[Change(base=self.base_files[i], head=self.head_files[i])
-                                         for i in range()])
+                                changes=[Change(base=self.base_files[0], head=self.head_files[0])])
         model = IdTyposAnalyzer.train(self.ptr, {}, datastub)
         analyzer = IdTyposAnalyzer(model, self.ptr.url, {})
         comments = analyzer.analyze(self.ptr, self.ptr, datastub)

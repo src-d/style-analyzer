@@ -8,7 +8,7 @@ from sourced.ml.algorithms import TokenParser
 
 from lookout.core.analyzer import AnalyzerModel
 from lookout.style.typos.corrector import TyposCorrector
-from lookout.style.typos.utils import flattify_data, SPLIT_COLUMN, TYPO_COLUMN
+from lookout.style.typos.utils import flatten_data, SPLIT_COLUMN, TYPO_COLUMN
 
 
 NODE_ID_COLUMN = "node_id"
@@ -46,9 +46,9 @@ class IdTyposModel(AnalyzerModel):
         test_df = pandas.DataFrame(columns=[NODE_ID_COLUMN, SPLIT_COLUMN])
         test_df[NODE_ID_COLUMN] = range(len(identifiers))
         test_df[SPLIT_COLUMN] = splits
-        test_df = flattify_data(test_df, new_column_name=TYPO_COLUMN)
+        test_df = flatten_data(test_df, new_column_name=TYPO_COLUMN)
 
-        suggestions = self.checker.suggest(test_df, n_candidates=3, return_all=False)
+        suggestions = self.corrector.suggest(test_df, n_candidates=3, return_all=False)
         suggestions = self.filter_suggestions(test_df, suggestions)
         return self.group_by_node_id(test_df, suggestions)
 

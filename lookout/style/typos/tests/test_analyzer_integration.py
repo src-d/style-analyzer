@@ -15,8 +15,6 @@ from lookout.core.event_listener import EventListener
 from lookout.core.tests.server import find_port, run as launch_server
 
 
-@unittest.skipUnless(os.getenv("LONG_TESTS", False),
-                     "Time-consuming tests are skipped by default.")
 class AnalyzerIntegrationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
