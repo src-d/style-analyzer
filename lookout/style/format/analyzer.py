@@ -132,7 +132,7 @@ class FormatAnalyzer(Analyzer):
                  "max_features": Categorical([None, "auto"]),
                  "min_samples_split": Integer(2, 20),
                  "min_samples_leaf": Integer(1, 20)},
-                n_jobs=-1,
+                n_jobs=lang_config["n_jobs"],
                 n_iter=lang_config["n_iter"],
                 random_state=lang_config["trainable_rules"]["random_state"])
             if not slogging.logs_are_structured:
@@ -194,6 +194,7 @@ class FormatAnalyzer(Analyzer):
                     "n_estimators": 10,
                     "random_state": 42,
                 },
+                "n_jobs": -1,
                 "n_iter": 5,
                 "line_length_limit": 500,
                 "lower_bound_instances": 500,
