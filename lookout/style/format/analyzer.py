@@ -135,7 +135,7 @@ class FormatAnalyzer(Analyzer):
                     bscv.fit(X, y)
             else:
                 bscv.fit(X, y)
-            cls.log.debug("score of the best estimator found: %.3f", bscv.best_score_)
+            cls.log.debug("score of the best estimator found: %.6f", bscv.best_score_)
             cls.log.debug("params of the best estimator found: %s", str(bscv.best_params_))
             cls.log.debug("training the model with complete data")
             lang_config["trainable_rules"].update(bscv.best_params_)
