@@ -43,18 +43,18 @@ class FormatAnalyzer(Analyzer):
         """
         comments = []
         changes = list(data["changes"])
-        base_files = self._files_by_language((c.base for c in changes))
-        head_files = self._files_by_language((c.head for c in changes))
-        for lang, lang_head_files in head_files.items():
+        base_files_by_lang = self._files_by_language(c.base for c in changes)
+        head_files_by_lang = self._files_by_language(c.head for c in changes)
+        for lang, head_files in head_files_by_lang.items():
             if lang not in self.model:
-                self.log.warning("skipped %d written in %s. Rules for %s does not exist in model",
-                                 len(lang_head_files), lang, lang)
+                self.log.warning("skipped %d written in %s. Rules for %s do not exist in model",
+                                 len(head_files), lang, lang)
                 continue
             rules = self.model[lang]
-            for file in self._filter_files(lang_head_files,
+            for file in self._filter_files(head_files,
                                            rules.origin_config["line_length_limit"]):
                 try:
-                    prev_file = base_files[lang][file.path]
+                    prev_file = base_files_by_lang[lang][file.path]
                 except KeyError:
                     lines = None
                 else:
@@ -162,14 +162,14 @@ class FormatAnalyzer(Analyzer):
 
     @classmethod
     def _load_config(cls, config: Mapping[str, Any]):
-        def merge(default_config, config):
-            for key, value in config.items():
+        def recursive_update(mapping, other):
+            for key, value in other.items():
                 if isinstance(value, dict):
-                    merge(default_config.setdefault(key, {}), value)
+                    recursive_update(mapping.setdefault(key, {}), value)
                 else:
-                    default_config[key] = value
+                    mapping[key] = value
 
-        config_ = {
+        final_config = {
             "global": {
                 "feature_extractor": {
                     "siblings_window": 5,
@@ -193,8 +193,8 @@ class FormatAnalyzer(Analyzer):
                 # The same structure here
             },
         }
-        merge(config_, config)
-        return config_
+        recursive_update(final_config, config)
+        return final_config
 
     @classmethod
     def _filter_files(cls, files: Dict[str, File], line_length_limit: int
