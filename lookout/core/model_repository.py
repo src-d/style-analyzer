@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, Optional
 
 from lookout.core.analyzer import AnalyzerModel
 from lookout.core.ports import Type
@@ -9,7 +9,7 @@ class ModelRepository:
     Interface to retrieve and update the ML models. Injected into `AnalyzerManager`.
     """
     def get(self, model_id: str, model_type: Type[AnalyzerModel],
-            url: str) -> Tuple[AnalyzerModel, bool]:
+            url: str) -> Tuple[Optional[AnalyzerModel], bool]:
         """
         Returns the model for the specified key (`model_id`) and the repository (`url`).
         `model_type` is used to return the correct class instance.
@@ -18,7 +18,7 @@ class ModelRepository:
         :param model_type: Class of the model to return the instance of.
         :param url: Git repository remote.
         :return: an `AnalyzerModel` instance and the boolean which indicates whether \
-                 the cache miss happened.
+                 the cache miss happened. Return None in case no models were found.
         """
         raise NotImplementedError
 
