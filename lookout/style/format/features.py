@@ -145,6 +145,7 @@ class VirtualNode:
         else:
             comment.text = "format: replace %s with %s at column %d" % (
                 CLASSES[self.y], CLASSES[correct_y], self.start.col)
+        comment.text = comment.text.replace("<", "`").replace(">", "`")
         return comment
 
 
