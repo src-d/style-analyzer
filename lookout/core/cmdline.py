@@ -3,6 +3,8 @@ import importlib
 import json
 import logging
 import pkgutil
+import sys  # noqa: F401
+from unittest.mock import patch
 
 import configargparse
 import humanfriendly
@@ -121,6 +123,17 @@ def add_model_repository_args(parser):
                help="Additional keyword arguments to SQLAlchemy database engine.")
 
 
+def tool(args) -> None:
+    """
+    Invoke the tooling of an analyzer.
+
+    :param args: Parsed command line arguments.
+    :return: None
+    """
+    with patch("sys.argv", [args.analyzer] + args.args):
+        importlib.import_module(args.analyzer).run_cmdline_tool()
+
+
 def add_logging_args(parser):
     parser.add("--log-level", default="INFO", choices=logging._nameToLevel,
                help="Logging verbosity.")
@@ -163,4 +176,9 @@ def create_parser():
     init_parser.set_defaults(handler=init_repo)
     add_model_repository_args(init_parser)
     add_logging_args(init_parser)
+
+    tool_parser = add_parser("tool", "Invoke the tooling of a given analyzer.")
+    tool_parser.set_defaults(handler=tool)
+    tool_parser.add("analyzer", help="Fully qualified package name with an analyzer.")
+    tool_parser.add("args", nargs=argparse.REMAINDER)
     return parser
