@@ -8,6 +8,7 @@ from typing import (Any, Dict, Iterable, List, Mapping, NamedTuple, Optional, Se
 
 import numpy
 from numpy import count_nonzero
+from scipy.sparse import csr_matrix
 from scipy.stats import fisher_exact
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.ensemble import RandomForestClassifier
@@ -228,7 +229,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
                 X, y, test_size=self.prune_dataset_ratio, random_state=42)
         else:
             X_train, y_train = X, y
-        base_model.fit(X_train, y_train)
+        base_model.fit(csr_matrix(X_train), y_train)
 
         if isinstance(base_model, DecisionTreeClassifier):
             if "reduced-error" in self.prune_branches_algorithms:

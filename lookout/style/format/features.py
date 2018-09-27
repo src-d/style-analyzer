@@ -275,7 +275,7 @@ class FeatureExtractor:
                            (vnode.start.line in file_lines if file_lines is not None else True)])
 
         y = numpy.concatenate(labels)
-        X = numpy.full((y.shape[0], self.count_features(FeatureType.all)), -1)
+        X = numpy.zeros((y.shape[0], self.count_features(FeatureType.all)), dtype=numpy.uint8)
         vn = [None] * y.shape[0]
         offset = 0
         for (vnodes, parents, file_lines), partial_labels in zip(parsed_files, labels):
@@ -416,17 +416,17 @@ class FeatureExtractor:
         return result
 
     def _get_internal_type_index(self, vnode: VirtualNode) -> int:
-        role_index = -1
+        role_index = 0
         if vnode.node:
             role = vnode.node.internal_type
             if role in self.roles.INTERNAL_TYPES_INDEX:
-                role_index = self.roles.INTERNAL_TYPES_INDEX[role]
+                role_index = self.roles.INTERNAL_TYPES_INDEX[role] + 1
         return role_index
 
     def _get_keyword_index(self, vnode: VirtualNode) -> int:
-        keyword_index = -1
+        keyword_index = 0
         if not vnode.node and vnode.value in self.tokens.RESERVED_INDEX:
-            keyword_index = self.tokens.RESERVED_INDEX[vnode.value]
+            keyword_index = self.tokens.RESERVED_INDEX[vnode.value] + 1
         return keyword_index
 
     def _get_role_indices(self, vnode: VirtualNode) -> Sequence[int]:
@@ -495,8 +495,7 @@ class FeatureExtractor:
     def _inplace_write_features(features: Sequence[int], row: int, col: int, X: numpy.ndarray
                                 ) -> int:
         """
-        Write features in X at the given location (row, col) and return the number of features
-        written.
+        Write features starting at X[row, col] and return the number of features written.
 
         :param features: the features
         :param row: the row where we should write
@@ -504,7 +503,7 @@ class FeatureExtractor:
         :param X: the feature matrix
         :return: the number of features written
         """
-        X[row, col:col + len(features)] = features
+        X[row, col:col + len(features)] = [min(0xff, feature) for feature in features]
         return len(features)
 
     def _inplace_write_vnode_features(
