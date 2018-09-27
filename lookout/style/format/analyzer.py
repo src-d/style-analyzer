@@ -59,9 +59,8 @@ class FormatAnalyzer(Analyzer):
                     lines = None
                 else:
                     lines = [find_new_lines(prev_file, file)]
-                res = FeatureExtractor(language=lang,
-                                       **rules.origin_config["feature_extractor"]) \
-                    .extract_features([file], lines)
+                fe = FeatureExtractor(language=lang, **rules.origin_config["feature_extractor"])
+                res = fe.extract_features([file], lines)
                 if res is None:
                     comment = Comment()
                     comment.file = file.path
@@ -69,8 +68,8 @@ class FormatAnalyzer(Analyzer):
                     comment.line = 1
                     comment.text = "Failed to parse this file"
                     continue
-                else:
-                    X, y, vnodes = res
+                X, y, vnodes = res
+                X, _ = fe.select_features(X, y)
                 self.log.debug("predicting values for %d samples", len(y))
                 y_pred, winners = rules.predict(X, True)
                 assert len(y) == len(y_pred)
@@ -116,6 +115,8 @@ class FormatAnalyzer(Analyzer):
                 cls.log.info("training on %d %s files", len(files), language)
             # we sort to make the features reproducible
             X, y, _ = fe.extract_features(sorted(files, key=lambda x: x.path))
+            X, selected_features = fe.select_features(X, y)
+            lang_config["feature_extractor"]["selected_features"] = selected_features
             lower_bound_instances = lang_config["lower_bound_instances"]
             if X.shape[0] < lower_bound_instances:
                 cls.log.warning("skipped %d %s files: too few samples (%d/%d)",
@@ -185,6 +186,8 @@ class FormatAnalyzer(Analyzer):
                     "siblings_window": 5,
                     "parents_depth": 2,
                     "debug_parsing": False,
+                    "select_features_number": 500,
+                    "remove_empty_features": True,
                 },
                 "trainable_rules": {
                     "prune_branches_algorithms": ["reduced-error"],

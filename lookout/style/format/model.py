@@ -1,3 +1,4 @@
+from copy import deepcopy
 import io
 from itertools import islice
 from typing import Dict, List, Iterable  # noqa: F401
@@ -48,7 +49,7 @@ class FormatModel(AnalyzerModel):
     def _load_tree(self, tree: dict) -> None:
         for lang, origin_config, rules in zip(
                 tree["languages"], tree["origin_configs"], tree["ruless"]):
-            self[lang] = Rules(self._assemble_rules(rules), origin_config)
+            self[lang] = Rules(self._assemble_rules(rules), deepcopy(origin_config))
 
     def __len__(self) -> int:
         return len(self._rules_by_lang)

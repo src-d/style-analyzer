@@ -7,6 +7,7 @@ from typing import (Callable, Dict, Iterable, List, Mapping, NamedTuple, Optiona
 
 import bblfsh
 import numpy
+from sklearn.feature_selection import SelectKBest, VarianceThreshold
 
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2 import File
@@ -170,7 +171,8 @@ class FeatureExtractor:
     _log = logging.getLogger("FeaturesExtractor")
 
     def __init__(self, language: str, *, siblings_window: int = 5, parents_depth: int = 2,
-                 debug_parsing: bool = False):
+                 select_features_number: Optional[int] = None, remove_empty_features: bool = True,
+                 selected_features: Optional[numpy.ndarray] = None, debug_parsing: bool = False):
         """
         Construct a `FeatureExtractor`.
 
@@ -179,6 +181,9 @@ class FeatureExtractor:
         """
         self.siblings_window = siblings_window
         self.parents_depth = parents_depth
+        self.select_features_number = select_features_number
+        self.remove_empty_features = remove_empty_features
+        self.selected_features = selected_features
         self.debug_parsing = debug_parsing
         language = language.lower()
         self.tokens = importlib.import_module("lookout.style.format.langs.%s.tokens" % language)
@@ -286,6 +291,39 @@ class FeatureExtractor:
             offset = self._inplace_write_vnode_features(vnodes, parents, file_lines, offset, X, vn)
         self._log.debug("Features shape: %s" % (X.shape,))
         return X, y, vn
+
+    def select_features(self, X: numpy.ndarray, y: numpy.ndarray) -> Tuple[numpy.ndarray,
+                                                                           numpy.ndarray]:
+        """
+        Select the most useful features based on sklearn's univariate feature selection.
+
+        :param X: Numpy 2-dimensional array of features to select.
+        :param y: Numpy 1-dimensional array of labels.
+        :return: Tuple of numpy arrays: X with only the selected features (columns) kept and an \
+                                        array of the indices of the kept features for later \
+                                        reapplication.
+        """
+        if self.selected_features is not None:
+            selected_features = self.selected_features
+            X = X[:, selected_features]
+        else:
+            selected_features = None
+            if self.remove_empty_features:
+                feature_selector = VarianceThreshold()
+                X = feature_selector.fit_transform(X)
+                selected_features = feature_selector.get_support(indices=True)
+            if self.select_features_number and self.select_features_number < X.shape[1]:
+                feature_selector = SelectKBest(k=self.select_features_number)
+                X = feature_selector.fit_transform(X, y)
+                if selected_features is not None:
+                    selected_features = selected_features[feature_selector.get_support(
+                        indices=True)]
+                else:
+                    selected_features = feature_selector.get_support(indices=True)
+        self._log.debug("Features shape after selection: %s" % (X.shape,))
+        if selected_features is None:
+            selected_features = numpy.arange(X.shape[1])
+        return X, selected_features
 
     def _classify_vnodes(self, nodes: Iterable[VirtualNode], path: str) -> Iterable[VirtualNode]:
         """

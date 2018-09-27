@@ -9,9 +9,7 @@ import numpy
 from lookout.core.api.service_data_pb2 import File
 from lookout.style.format.features import (
     CLASS_INDEX, CLASSES, CLS_NEWLINE, CLS_NOOP, CLS_SINGLE_QUOTE, CLS_SPACE, CLS_SPACE_DEC,
-    CLS_SPACE_INC, FeatureExtractor, VirtualNode, FeatureType)
-from lookout.style.format.langs.javascript.roles import INTERNAL_TYPES_INDEX
-from lookout.style.format.langs.javascript.tokens import RESERVED
+    CLS_SPACE_INC, FeatureExtractor, FeatureType, VirtualNode)
 
 
 class FeaturesTests(unittest.TestCase):
@@ -127,31 +125,6 @@ class FeaturesTests(unittest.TestCase):
                 self.assertEqual(vnode.start.offset, vnode.end.offset)
                 self.assertEqual(vnode.start.col, vnode.end.col)
                 self.assertEqual(vnode.start.line, vnode.end.line)
-
-    @unittest.skip("More general tests should be added")
-    def test_extended_roles(self):
-        file = File(content=bytes(self.contents, 'utf-8'),
-                    uast=self.uast)
-        res = self.extractor.extract_features([file])
-        self.assertIsNotNone(res, "Failed to parse files.")
-        X, _, vns = res
-        # last columns are only roles
-        role_columns = [i for i, name in enumerate(self.extractor.feature_names) if "role" in name]
-        self.assertGreater(numpy.count_nonzero(X[:, role_columns] >
-                                               len(INTERNAL_TYPES_INDEX)), 0)
-
-        def get_ext_role(role_index):
-            return RESERVED[role_index - len(INTERNAL_TYPES_INDEX)]
-
-        for i, (x, vn) in enumerate(zip(X, vns)):
-            start = vn.start.offset
-            # Don't test the first two nodes, they might not have a left sibling
-            if i < 2:
-                continue
-            role_index = x[self.extractor.feature2index["left_siblings_1_role_id"]]
-            if role_index >= len(INTERNAL_TYPES_INDEX):
-                role_left = get_ext_role(role_index)
-                self.assertEqual(self.contents[start - len(role_left):start], role_left)
 
 
 if __name__ == "__main__":
