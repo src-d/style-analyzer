@@ -74,6 +74,7 @@ class FormatAnalyzer(Analyzer):
                 self.log.debug("predicting values for %d samples", len(y))
                 y_pred, winners = rules.predict(X, True)
                 assert len(y) == len(y_pred)
+
                 for yi, y_predi, vnode, winner in zip(y, y_pred, vnodes, winners):
                     if yi != y_predi:
                         comment = vnode.to_comment(y_predi)
