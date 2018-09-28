@@ -25,6 +25,15 @@ class FeaturesTests(unittest.TestCase):
             cls.uast = bblfsh.Node.FromString(fin.read())
         cls.extractor = FeatureExtractor("javascript", parents_depth=2, siblings_window=5)
 
+    def test_parse_file_exact_match(self):
+        test_js_code_filepath = Path(__file__).parent / "for_parse_test.js.xz"
+        with lzma.open(str(test_js_code_filepath), mode="rt") as f:
+            code = f.read()
+        uast = bblfsh.BblfshClient("0.0.0.0:9432").parse(
+            filename="", language="javascript", contents=code.encode()).uast
+        nodes, parents = self.extractor._parse_file(code, uast, test_js_code_filepath)
+        self.assertEqual("".join(n.value for n in nodes), code)
+
     def test_parse_file(self):
         nodes, parents = self.extractor._parse_file(self.contents, self.uast, "test_file")
         text = []
