@@ -639,6 +639,8 @@ class FeatureExtractor:
         parser = self.tokens.PARSER
         searchsorted = numpy.searchsorted
         for node in node_tokens:
+            if node.start_position.offset < pos:
+                continue
             if node.start_position.offset > pos:
                 sumlen = 0
                 diff = contents[pos:node.start_position.offset]
