@@ -27,7 +27,9 @@ class RulesIntegrationTests(unittest.TestCase):
                                          siblings_window=5)
 
     def test_integration(self):
-        X, y, _ = self.extractor.extract_features(self.files)
+        res = self.extractor.extract_features(self.files)
+        self.assertIsNotNone(res, "Failed to parse files.")
+        X, y, _ = res
         train_X, test_X, train_y, test_y = \
             model_selection.train_test_split(X, y, random_state=1989)
 

@@ -66,7 +66,10 @@ class FeaturesTests(unittest.TestCase):
         file = File(content=bytes(self.contents, 'utf-8'),
                     uast=self.uast)
         files = [file, file]
-        self.check_X_y(*self.extractor.extract_features(files))
+
+        res = self.extractor.extract_features(files)
+        self.assertIsNotNone(res, "Failed to parse files.")
+        self.check_X_y(*res)
 
     def check_X_y(self, X, y, vnodes):
         self.assertEqual(X.shape[0], y.shape[0])
@@ -120,7 +123,9 @@ class FeaturesTests(unittest.TestCase):
     def test_extended_roles(self):
         file = File(content=bytes(self.contents, 'utf-8'),
                     uast=self.uast)
-        X, _, vns = self.extractor.extract_features([file])
+        res = self.extractor.extract_features([file])
+        self.assertIsNotNone(res, "Failed to parse files.")
+        X, _, vns = res
         # last columns are only roles
         role_columns = [i for i, name in enumerate(self.extractor.feature_names) if "role" in name]
         self.assertGreater(numpy.count_nonzero(X[:, role_columns] >
