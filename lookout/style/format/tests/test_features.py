@@ -22,6 +22,8 @@ class FeaturesTests(unittest.TestCase):
         with lzma.open(str(base / "benchmark.uast.xz")) as fin:
             cls.uast = bblfsh.Node.FromString(fin.read())
         cls.extractor = FeatureExtractor("javascript", parents_depth=2, siblings_window=5)
+        cls.extractor_noops = FeatureExtractor("javascript", parents_depth=2, siblings_window=5,
+                                               insert_noops=True)
 
     def test_parse_file_exact_match(self):
         test_js_code_filepath = Path(__file__).parent / "for_parse_test.js.xz"
@@ -114,9 +116,9 @@ class FeaturesTests(unittest.TestCase):
         self.assertLess(len(y1), len(y2))
 
     def test_noop_vnodes(self):
-        vnodes, parents = self.extractor._parse_file(self.contents, self.uast, "test_file")
-        vnodes = self.extractor._classify_vnodes(vnodes, "test_file")
-        vnodes = self.extractor._add_noops(vnodes, "test_file")
+        vnodes, parents = self.extractor_noops._parse_file(self.contents, self.uast, "test_file")
+        vnodes = self.extractor_noops._classify_vnodes(vnodes, "test_file")
+        vnodes = self.extractor_noops._add_noops(vnodes, "test_file")
         for i, vnode in enumerate(vnodes):
             if i % 2:
                 self.assertNotEqual(vnode.y, CLASS_INDEX[CLS_NOOP])

@@ -188,6 +188,7 @@ class FormatAnalyzer(Analyzer):
                     "debug_parsing": False,
                     "select_features_number": 500,
                     "remove_empty_features": True,
+                    "insert_noops": False,
                 },
                 "trainable_rules": {
                     "prune_branches_algorithms": ["reduced-error"],
