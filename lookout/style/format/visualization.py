@@ -10,10 +10,11 @@ from lookout.style.format.model import FormatModel
 
 RED = "\033[41m"
 GREEN = "\033[42m"
-ENDC = '\033[m'
+BLUE = "\033[94m"
+ENDC = "\033[m"
 
 
-Misprediction = namedtuple("Misprediction", ["y", "pred", "node"])
+Misprediction = namedtuple("Misprediction", ["y", "pred", "node", "rule"])
 
 
 def prepare_file(filename: str, client: BblfshClient, language: str) -> File:
@@ -40,7 +41,7 @@ def visualize(input_filename: str, bblfsh: str, language: str, model_path: str) 
     """Visualize the errors made on a single file."""
     model = FormatModel().load(model_path)
     rules = model[language]
-    print("Model parameters: %s" % rules.origin)
+    print("Model parameters: %s" % rules.origin_config)
     print("Stats about rules: %s" % rules)
 
     client = BblfshClient(bblfsh)
@@ -54,12 +55,12 @@ def visualize(input_filename: str, bblfsh: str, language: str, model_path: str) 
         return
     X, y, nodes = res
 
-    y_pred = rules.predict(X)
+    y_pred, winner = rules.predict(X, True)
 
     mispred = []
-    for gt, pred, node in zip(y, y_pred, nodes):
+    for gt, pred, node, rule in zip(y, y_pred, nodes, winner):
         if gt != pred:
-            mispred.append(Misprediction(gt, pred, node))
+            mispred.append(Misprediction(gt, pred, node, rule))
     print("Errors: %s out of %s mispredicted" % (len(mispred), len(nodes)))
 
     mispred = sorted(mispred, key=lambda r: r.node.start.offset)
@@ -75,8 +76,8 @@ def visualize(input_filename: str, bblfsh: str, language: str, model_path: str) 
 
         if i == 0 and start != 0:
             new_content += old_content[:start]
-
-        new_content += GREEN + CLASSES[wrong.y] + RED + CLASSES[wrong.pred] + ENDC
+        new_content += GREEN + CLASSES[wrong.y] + RED + CLASSES[wrong.pred] + BLUE + \
+            "<rule%s>" % wrong.rule + ENDC
 
         if i == len(mispred) - 1:
             if end != len(old_content):
