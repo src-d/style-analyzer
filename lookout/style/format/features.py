@@ -8,6 +8,7 @@ from typing import (Callable, Dict, Iterable, List, Mapping, NamedTuple, Optiona
 import bblfsh
 import numpy
 from sklearn.feature_selection import SelectKBest, VarianceThreshold
+from sourced.ml.utils import bblfsh_roles
 
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2 import File
@@ -136,22 +137,18 @@ class VirtualNode:
     def to_comment(self, correct_y: int) -> Comment:
         """
         Writes the comment with regard to the correct node class.
-        :param correct_y: the index of the correct node class.
-        :return: Lookout Comment object.
+        :param correct_y: The index of the correct node class.
+        :return: String comment.
         """
-        comment = Comment()
-        comment.line = self.start.line
         if correct_y == CLASS_INDEX[CLS_NOOP]:
-            comment.text = "format: %s at column %d should be removed" % (
+            return "`%s` at column %d should be removed." % (
                 CLASSES[self.y], self.start.col)
         elif self.y == CLASS_INDEX[CLS_NOOP]:
-            comment.text = "format: %s should be inserted at column %d" % (
+            return "`%s` should be inserted at column %d." % (
                 CLASSES[correct_y], self.start.col)
         else:
-            comment.text = "format: replace %s with %s at column %d" % (
+            return "Replace `%s` with `%s` at column %d." % (
                 CLASSES[self.y], CLASSES[correct_y], self.start.col)
-        comment.text = comment.text.replace("<", "`").replace(">", "`")
-        return comment
 
 
 CLS_SPACE = "<space>"
@@ -199,21 +196,17 @@ class FeatureExtractor:
             # It's normal for some languages not to have a token_unwrappers module.
             self.token_unwrappers = {}
 
-        # Order is important and should be consistent with _inplace_write_vnode_features function
-        # where features generation happens.
+        def prefix(prefix, l):
+            return [prefix+x for x in l]
+
         self._feature_layout = OrderedDict([
-            (FeatureType.node,
-             FeaturesGroup(("start_line", "start_col"), None)),
             (FeatureType.left,
-             FeaturesGroup(("start_line_diff", "end_line_diff", "start_col_diff", "end_col_diff",
-                            "length", "internal_type_id", "keyword_id", *self.roles.ROLES),
+             FeaturesGroup(("role_is_expression", "role_is_identifier",
+                            "y_is_None", *prefix("y_is_", CLASSES),
+                            "reserved_is_None", *prefix("reserved_is_", self.tokens.RESERVED)),
                            siblings_window)),
-            (FeatureType.right,
-             FeaturesGroup(("length", "internal_type_id", "keyword_id", *self.roles.ROLES),
-                           siblings_window)),
-            (FeatureType.parents,
-             FeaturesGroup(("role_id", ), parents_depth)),
         ])
+
         self._init_feature_names(self.feature_layout)
 
     @property
@@ -223,6 +216,10 @@ class FeatureExtractor:
     @property
     def feature_names(self) -> Tuple[str]:
         return self._feature_names
+
+    @property
+    def selected_feature_names(self) -> Sequence[str]:
+        return [self._feature_names[x] for x in self.selected_features]
 
     @property
     def feature2index(self) -> Dict[str, int]:
@@ -483,28 +480,29 @@ class FeatureExtractor:
                 role_indices[self.roles.ROLES_INDEX[role]] += 1
         return role_indices
 
-    def _get_self_features(self, vnode: VirtualNode) -> Sequence[int]:
-        return vnode.start.line, vnode.start.col
+    def _get_keyword_ohe(self, vnode: VirtualNode) -> Sequence[int]:
+        res = [0] * (len(self.tokens.RESERVED_INDEX) + 1)
+        res[self.tokens.RESERVED_INDEX.get(vnode.value, -1) + 1] = 1
+        return res
+
+    def _get_y_ohe(self, vnode: VirtualNode) -> Sequence[int]:
+        res = [0] * (len(CLASS_INDEX) + 1)
+        res[CLASS_INDEX.get(vnode.y, -1) + 1] = 1
+        return res
+
+    def is_expression(self, vnode: VirtualNode) -> int:
+        return vnode.node is not None and bblfsh_roles.EXPRESSION in vnode.node.roles
+
+    def is_identifier(self, vnode: VirtualNode) -> int:
+        return vnode.node is not None and bblfsh_roles.IDENTIFIER in vnode.node.roles
 
     def _get_left_sibling_features(self, left_sibling_vnode: VirtualNode, vnode: VirtualNode
                                    ) -> Sequence[int]:
-        return (abs(left_sibling_vnode.start.line - vnode.start.line),
-                abs(left_sibling_vnode.end.line - vnode.end.line),
-                left_sibling_vnode.start.col - vnode.start.col,
-                left_sibling_vnode.end.col - vnode.end.col,
-                left_sibling_vnode.end.offset - left_sibling_vnode.start.offset,
-                self._get_internal_type_index(left_sibling_vnode),
-                self._get_keyword_index(left_sibling_vnode),
-                *self._get_role_indices(left_sibling_vnode))
-
-    def _get_right_sibling_features(self, right_sibling_vnode: VirtualNode) -> Sequence[int]:
-        return (right_sibling_vnode.end.offset - right_sibling_vnode.start.offset,
-                self._get_internal_type_index(right_sibling_vnode),
-                self._get_keyword_index(right_sibling_vnode),
-                *self._get_role_indices(right_sibling_vnode))
-
-    def _get_parent_features(self, parent_node: bblfsh.Node) -> Sequence[int]:
-        return self.roles.INTERNAL_TYPES_INDEX.get(parent_node.internal_type, -1),
+        return (self.is_expression(left_sibling_vnode),
+                self.is_identifier(left_sibling_vnode),
+                *self._get_y_ohe(left_sibling_vnode),
+                *self._get_keyword_ohe(left_sibling_vnode),
+                )
 
     @staticmethod
     def _find_parent(vnode_index: int, vnodes: Sequence[VirtualNode],
@@ -605,31 +603,14 @@ class FeatureExtractor:
                 end_right += 1
             # We go two by two to avoid NOOP nodes.
             left_siblings = vnodes[max(start_left, 0):max(end_left, 0):-2]
-            right_siblings = vnodes[start_right:end_right:2]
 
             col_offset = 0
-            # 1. write features of the current node
-            col_offset += self._inplace_write_features(self._get_self_features(vnode),
-                                                       position, col_offset, X)
 
             for left_vnode in left_siblings:
                 col_offset += self._inplace_write_features(
                     self._get_left_sibling_features(left_vnode, vnode), position, col_offset, X)
             col_offset += ((self.siblings_window - len(left_siblings))
                            * self.count_features(FeatureType.left))
-
-            # 3. write features of the right siblings of the current node and account for the
-            # possible lack of siblings by adjusting offset
-            for right_vnode in right_siblings:
-                col_offset += self._inplace_write_features(
-                    self._get_right_sibling_features(right_vnode), position, col_offset, X)
-            col_offset += ((self.siblings_window - len(right_siblings))
-                           * self.count_features(FeatureType.right))
-
-            # 4. write features of the parents of the current node
-            for parent_vnode in parents_list:
-                col_offset += self._inplace_write_features(
-                    self._get_parent_features(parent_vnode), position, col_offset, X)
 
             vn[position] = vnode
             position += 1

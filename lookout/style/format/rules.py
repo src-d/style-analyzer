@@ -19,13 +19,20 @@ from sklearn.tree import _tree as Tree, DecisionTreeClassifier
 
 from lookout.core.ports import Type
 
-RuleAttribute = NamedTuple(
-    "RuleAttribute", (("feature", int), ("cmp", bool), ("threshold", float)))
-"""
-`feature` is the feature taken for comparison
-`cmp` is the comparison type: True is "x > v", False is "x <= v"
-`threshold` is "v", the threshold value
-"""
+
+class RuleAttribute(NamedTuple("RAF", (("feature", int), ("cmp", bool), ("threshold", float)))):
+    """
+    `feature` is the feature taken for comparison
+    `cmp` is the comparison type: True is "x > v", False is "x <= v"
+    `threshold` is "v", the threshold value
+    """
+    @property
+    def sign(self) -> str:
+        return ">" if self.cmp else "≤"
+
+    def humanize(self, feature_name: str) -> str:
+        return "%s %s %.3f" % (feature_name, self.sign, self.threshold)
+
 
 RuleStats = NamedTuple("RuleStats", (("cls", int), ("conf", float)))
 """
@@ -33,7 +40,44 @@ RuleStats = NamedTuple("RuleStats", (("cls", int), ("conf", float)))
 `conf` is the rule confidence \\in [0, 1], "1" means super confident
 """
 
-Rule = NamedTuple("RuleType", (("attrs", Tuple[RuleAttribute, ...]), ("stats", RuleStats)))
+
+class Rule(NamedTuple("RF", (("attrs", Tuple[RuleAttribute, ...]), ("stats", RuleStats)))):
+    def humanize(self, feature_names: Sequence[str], reserved: Sequence[str]) -> str:
+        """
+        Converts Rule to human-readable format.
+        :param feature_names: Feature names list.
+        :param reserved: Reserved tokens list.
+        :return: Rule human-readable format.
+        """
+        sep = "˙"
+        split_by = "_is_"
+        repr = defaultdict(lambda: {"in": [], "notin": [], "str": ""})
+        for attr in self.attrs:
+            if "_is_" in feature_names[attr.feature]:
+                assert attr.threshold == 0.5
+                name, value = feature_names[attr.feature].split(split_by)
+                repr[name]["in" if attr.sign else "notin"].append(value)
+        for name, val in repr.items():
+            if val["in"]:
+                repr[name]["str"] += "%s in |%s|" % (name, sep.join(sorted(val["in"])))
+            if val["notin"]:
+                repr[name]["str"] += "\n\t%s not in |%s|" % (name, sep.join(sorted(val["notin"])))
+
+        return "\n\t".join(
+            attr.humanize(feature_names[attr.feature], reserved)
+            for attr in self.attrs if "_is_" not in feature_names[attr.feature]) + "\n\t" + \
+            "\n\t".join(vals["str"] for key, vals in repr.items())
+
+    def to_comment(self, number: int, feature_names: Sequence[str], reserved: Sequence[str]):
+        """
+        Returns the comment for analyser.
+        :param number: Rule number.
+        :param feature_names: Feature names list.
+        :param reserved:  Reserved tokens list.
+        :return: String comment.
+        """
+        return "Confidence: %.3f\nTriggered rule #%d:\n```\n%s\n```" % (
+            self.stats.conf, number, self.humanize(feature_names, reserved))
 
 
 class Rules:
