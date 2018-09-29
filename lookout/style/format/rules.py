@@ -220,6 +220,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         :param y: input labels - the same length as X.
         :return: self
         """
+        self._log.debug("TrainableRules.fit()")
         models_params = {name: val for name, val in self.get_params().items()
                          if name in self._base_param_names}
         base_model = self._base_model_class(**models_params)
