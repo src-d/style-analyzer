@@ -220,6 +220,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         :param y: input labels - the same length as X.
         :return: self
         """
+        self._log.debug("fitting rules with params %s", self.get_params(False))
         models_params = {name: val for name, val in self.get_params().items()
                          if name in self._base_param_names}
         base_model = self._base_model_class(**models_params)
@@ -230,6 +231,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         else:
             X_train, y_train = X, y
         base_model.fit(csr_matrix(X_train), y_train)
+        self.feature_importances_ = base_model.feature_importances_
 
         if isinstance(base_model, DecisionTreeClassifier):
             if "reduced-error" in self.prune_branches_algorithms:

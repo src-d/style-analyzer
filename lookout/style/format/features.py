@@ -225,6 +225,11 @@ class FeatureExtractor:
         return self._feature_names
 
     @property
+    def selected_feature_names(self) -> Sequence[str]:
+        return (self.feature_names if self.selected_features is None else
+                [self._feature_names[x] for x in self.selected_features])
+
+    @property
     def feature2index(self) -> Dict[str, int]:
         return self._feature2index
 

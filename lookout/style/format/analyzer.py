@@ -4,6 +4,7 @@ from pprint import pformat
 import threading
 from typing import Any, Dict, Iterable, List, Mapping
 
+import numpy
 from skopt import BayesSearchCV
 from skopt.space import Categorical, Integer
 
@@ -153,6 +154,12 @@ class FormatAnalyzer(Analyzer):
             trainable_rules = TrainableRules(**lang_config["trainable_rules"],
                                              origin_config=lang_config)
             trainable_rules.fit(X, y)
+            importances = trainable_rules.feature_importances_
+            cls.log.debug(
+                "Feature importances from %s:\n\t%s",
+                lang_config["trainable_rules"]["base_model_name"],
+                "\n\t".join("%-30s: %.5E" % (fe.selected_feature_names[i], importances[i])
+                            for i in numpy.argsort(-importances) if importances[i] > 1e-5))
             model[language] = trainable_rules.rules
         cls.log.info("trained %s", model)
         return model
