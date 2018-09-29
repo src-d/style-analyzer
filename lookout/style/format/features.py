@@ -32,7 +32,7 @@ class FeatureType(enum.Enum):
 
 
 class VirtualNode:
-    def __init__(self,  value: str, start: Position, end: Position,
+    def __init__(self, value: str, start: Position, end: Position,
                  *, node: bblfsh.Node = None, y: int = None, path: str = None):
         """
         This represents either a real UAST node or an imaginary token.
@@ -53,13 +53,17 @@ class VirtualNode:
         self.y = y
         self.path = path
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.value
 
-    def __repr__(self):
-        return "VirtualNode(\"%s\", start=%s, end=%s, node=%s, path=\"%s\")" % (
-            self.value, tuple(self.start), tuple(self.end),
-            id(self.node) if self.node is not None else "None", self.path)
+    def __repr__(self) -> str:
+        return "VirtualNode(\"%s\", y=%s, start=%s, end=%s, node=%s, path=\"%s\")" % (
+            self.value.replace("\n", "\\n"),
+            "None" if self.y is None else self.y,
+            tuple(self.start),
+            tuple(self.end),
+            id(self.node) if self.node is not None else "None",
+            self.path)
 
     def __eq__(self, other: "VirtualNode") -> bool:
         return self.value == other.value and \
