@@ -27,8 +27,8 @@ class FeatureType(enum.Enum):
     all = 0  # reserved for all possible features
     node = 1
     parents = 2
-    left_siblings = 3
-    right_siblings = 4
+    left = 3
+    right = 4
 
 
 class VirtualNode:
@@ -200,11 +200,11 @@ class FeatureExtractor:
         self._feature_layout = OrderedDict([
             (FeatureType.node,
              FeaturesGroup(("start_line", "start_col"), None)),
-            (FeatureType.left_siblings,
+            (FeatureType.left,
              FeaturesGroup(("start_line_diff", "end_line_diff", "start_col_diff", "end_col_diff",
                             "length", "internal_type_id", "keyword_id", *self.roles.ROLES),
                            siblings_window)),
-            (FeatureType.right_siblings,
+            (FeatureType.right,
              FeaturesGroup(("length", "internal_type_id", "keyword_id", *self.roles.ROLES),
                            siblings_window)),
             (FeatureType.parents,
@@ -612,7 +612,7 @@ class FeatureExtractor:
                 col_offset += self._inplace_write_features(
                     self._get_left_sibling_features(left_vnode, vnode), position, col_offset, X)
             col_offset += ((self.siblings_window - len(left_siblings))
-                           * self.count_features(FeatureType.left_siblings))
+                           * self.count_features(FeatureType.left))
 
             # 3. write features of the right siblings of the current node and account for the
             # possible lack of siblings by adjusting offset
@@ -620,7 +620,7 @@ class FeatureExtractor:
                 col_offset += self._inplace_write_features(
                     self._get_right_sibling_features(right_vnode), position, col_offset, X)
             col_offset += ((self.siblings_window - len(right_siblings))
-                           * self.count_features(FeatureType.right_siblings))
+                           * self.count_features(FeatureType.right))
 
             # 4. write features of the parents of the current node
             for parent_vnode in parents_list:
