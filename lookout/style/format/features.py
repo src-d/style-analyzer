@@ -3,7 +3,7 @@ import enum
 import importlib
 import logging
 from typing import (Callable, Dict, Iterable, List, Mapping, NamedTuple, Optional, Sequence, Set,
-                    Tuple)
+                    Tuple, Union)
 
 import bblfsh
 import numpy
@@ -217,7 +217,7 @@ class FeatureExtractor:
              FeaturesGroup(("length", "internal_type_id", "keyword_id", *self.roles.ROLES),
                            siblings_window)),
             (FeatureType.parents,
-             FeaturesGroup(("role_id", ), parents_depth)),
+             FeaturesGroup(("internal_type_id", *self.roles.ROLES), parents_depth)),
         ])
         self._init_feature_names(self.feature_layout)
 
@@ -469,13 +469,14 @@ class FeatureExtractor:
                                       y=CLASS_INDEX[CLS_NOOP], path=path))
         return result
 
-    def _get_internal_type_index(self, vnode: VirtualNode) -> int:
-        role_index = 0
-        if vnode.node:
-            role = vnode.node.internal_type
-            if role in self.roles.INTERNAL_TYPES_INDEX:
-                role_index = self.roles.INTERNAL_TYPES_INDEX[role] + 1
-        return role_index
+    def _get_internal_type_index(self, node: Union[bblfsh.Node, VirtualNode]) -> int:
+        internal_type_index = 0
+        bblfsh_node = node.node if isinstance(node, VirtualNode) else node
+        if bblfsh_node:
+            internal_type = bblfsh_node.internal_type
+            if internal_type in self.roles.INTERNAL_TYPES_INDEX:
+                internal_type_index = self.roles.INTERNAL_TYPES_INDEX[internal_type] + 1
+        return internal_type_index
 
     def _get_keyword_index(self, vnode: VirtualNode) -> int:
         keyword_index = 0
@@ -483,10 +484,11 @@ class FeatureExtractor:
             keyword_index = self.tokens.RESERVED_INDEX[vnode.value] + 1
         return keyword_index
 
-    def _get_role_indices(self, vnode: VirtualNode) -> Sequence[int]:
+    def _get_role_indices(self, node: Union[bblfsh.Node, VirtualNode]) -> Sequence[int]:
         role_indices = [0] * len(self.roles.ROLES)
-        if vnode.node:
-            for role_id in vnode.node.roles:
+        bblfsh_node = node.node if isinstance(node, VirtualNode) else node
+        if bblfsh_node:
+            for role_id in bblfsh_node.roles:
                 role = bblfsh.role_name(role_id)
                 role_indices[self.roles.ROLES_INDEX[role]] += 1
         return role_indices
@@ -512,7 +514,7 @@ class FeatureExtractor:
                 *self._get_role_indices(right_sibling_vnode))
 
     def _get_parent_features(self, parent_node: bblfsh.Node) -> Sequence[int]:
-        return self.roles.INTERNAL_TYPES_INDEX.get(parent_node.internal_type, -1),
+        return (self._get_internal_type_index(parent_node), *self._get_role_indices(parent_node))
 
     @staticmethod
     def _find_parent(vnode_index: int, vnodes: Sequence[VirtualNode],
