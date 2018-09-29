@@ -64,7 +64,7 @@ class FormatAnalyzer(Analyzer):
                 if res is None:
                     comment = Comment()
                     comment.file = file.path
-                    comment.confidence = 1.
+                    comment.confidence = 100
                     comment.line = 1
                     comment.text = "Failed to parse this file"
                     continue
