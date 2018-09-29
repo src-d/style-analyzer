@@ -28,6 +28,7 @@ class FormatAnalyzer(Analyzer):
 
     def __init__(self, model: FormatModel, url: str, config: Mapping[str, Any]) -> None:
         super().__init__(model, url, config)
+        self.config = self._load_analyze_config(self.config)
 
     @with_changed_uasts_and_contents
     def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
@@ -99,7 +100,7 @@ class FormatAnalyzer(Analyzer):
                      pformat(config, width=4096, compact=True))
         files_by_language = cls._files_by_language(data["files"])
         model = FormatModel().construct(cls, ptr)
-        config = cls._load_config(config)
+        config = cls._load_train_config(config)
         for language, files in files_by_language.items():
             lang_config = dict(ChainMap(config.get(language, {}), config["global"]))
             files = list(cls._filter_files(files, lang_config["line_length_limit"]))
@@ -172,14 +173,21 @@ class FormatAnalyzer(Analyzer):
         return result
 
     @classmethod
-    def _load_config(cls, config: Mapping[str, Any]):
-        def recursive_update(mapping, other):
-            for key, value in other.items():
-                if isinstance(value, dict):
-                    recursive_update(mapping.setdefault(key, {}), value)
-                else:
-                    mapping[key] = value
+    def _load_analyze_config(cls, config: Mapping[str, Any]) -> Mapping[str, Any]:
+        """
+        Merges config for analyze call with default config values stored inside this function.
 
+        :param config: User-defined config.
+        :return: Full config.
+        """
+        final_config = {
+            "debug": False,
+        }
+        FormatAnalyzer.recursive_update(final_config, config)
+        return final_config
+
+    @classmethod
+    def _load_train_config(cls, config: Mapping[str, Any]) -> Mapping[str, Any]:
         final_config = {
             "global": {
                 "feature_extractor": {
@@ -207,7 +215,7 @@ class FormatAnalyzer(Analyzer):
                 # The same structure here
             },
         }
-        recursive_update(final_config, config)
+        FormatAnalyzer.recursive_update(final_config, config)
         return final_config
 
     @classmethod
@@ -230,3 +238,11 @@ class FormatAnalyzer(Analyzer):
         if excluded > 0:
             cls.log.debug("excluded %d/%d files by max line length %d",
                           excluded, total, line_length_limit)
+
+    @staticmethod
+    def recursive_update(mapping, other):
+        for key, value in other.items():
+            if isinstance(value, dict):
+                FormatAnalyzer.recursive_update(mapping.setdefault(key, {}), value)
+            else:
+                mapping[key] = value
