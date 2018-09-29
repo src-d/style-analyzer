@@ -56,13 +56,14 @@ def quality_report(input_pattern: str, bblfsh: str, language: str, n_files: int,
     files = prepare_files(input_pattern, client, language)
     print("Number of files: %s" % (len(files)))
 
-    fe = FeatureExtractor(language=language)
+    fe = FeatureExtractor(language=language, **rules.origin_config["feature_extractor"])
     res = fe.extract_features(files)
 
     if res is None:
         print("Failed to parse files, aborting report...")
         return
     X, y, nodes = res
+    X, _ = fe.select_features(X, y)
 
     y_pred = rules.predict(X)
 
