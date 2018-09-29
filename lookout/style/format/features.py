@@ -176,18 +176,23 @@ class FeatureExtractor:
 
     def __init__(self, language: str, *, siblings_window: int = 5, parents_depth: int = 2,
                  select_features_number: Optional[int] = None, remove_empty_features: bool = True,
-                 selected_features: Optional[numpy.ndarray] = None, debug_parsing: bool = False):
+                 selected_features: Optional[numpy.ndarray] = None, insert_noops: bool = False,
+                 debug_parsing: bool = False):
         """
         Construct a `FeatureExtractor`.
 
-        :param parents_depth: how many parents to use for each node.
-        :param siblings_window: how many siblings to use for each node (both left and right).
+        :param language: Language to use to parse the files.
+        :param siblings_window: How many siblings to use for each node (both left and right).
+        :param parents_depth: How many parents to use for each node.
+        :param insert_noops: Whether to insert noop nodes or not.
+        :param debug_parsing: Whether to stop at each assert violation with debug info.
         """
         self.siblings_window = siblings_window
         self.parents_depth = parents_depth
         self.select_features_number = select_features_number
         self.remove_empty_features = remove_empty_features
         self.selected_features = selected_features
+        self.insert_noops = insert_noops
         self.debug_parsing = debug_parsing
         language = language.lower()
         self.tokens = importlib.import_module("lookout.style.format.langs.%s.tokens" % language)
@@ -277,7 +282,10 @@ class FeatureExtractor:
                     input("Press Enter to continue…")
                 continue
             vnodes = self._classify_vnodes(vnodes, file.path)
-            vnodes = self._add_noops(vnodes, file.path)
+            if self.insert_noops:
+                vnodes = self._add_noops(vnodes, file.path)
+            else:
+                vnodes = list(vnodes)
             file_lines = set(lines[i]) if lines is not None else None
             parsed_files.append((vnodes, parents, file_lines))
             labels.append([vnode.y for vnode in vnodes if vnode.y is not None and
@@ -589,23 +597,27 @@ class FeatureExtractor:
                         break
                     current_ancestor = parents[current_ancestor_id]
 
-            # First we define the ranges into which we find siblings when the current node is NOOP.
-            # If the current node is NOOP, then its direct neighbours are interesting (read
-            # non-NOOP) nodes.
-            start_left = i - 1
-            end_left = start_left - self.siblings_window * 2
-            start_right = i + 1
-            end_right = start_right + self.siblings_window * 2
-            # For non-NOOP nodes, the first interesting nodes are further from the current node
-            # since there are NOOP nodes in-between.
-            if vnode.y != CLASS_INDEX[CLS_NOOP]:
-                start_left -= 1
-                end_left -= 1
-                start_right += 1
-                end_right += 1
-            # We go two by two to avoid NOOP nodes.
-            left_siblings = vnodes[max(start_left, 0):max(end_left, 0):-2]
-            right_siblings = vnodes[start_right:end_right:2]
+            if self.insert_noops:
+                # First we define the ranges into which we find siblings when the current node is
+                # NOOP. If the current node is NOOP, then its direct neighbours are interesting
+                # (read non-NOOP) nodes.
+                start_left = i - 1
+                end_left = start_left - self.siblings_window * 2
+                start_right = i + 1
+                end_right = start_right + self.siblings_window * 2
+                # For non-NOOP nodes, the first interesting nodes are further from the current node
+                # since there are NOOP nodes in-between.
+                if vnode.y != CLASS_INDEX[CLS_NOOP]:
+                    start_left -= 1
+                    end_left -= 1
+                    start_right += 1
+                    end_right += 1
+                # We go two by two to avoid NOOP nodes.
+                left_siblings = vnodes[max(start_left, 0):max(end_left, 0):-2]
+                right_siblings = vnodes[start_right:end_right:2]
+            else:
+                left_siblings = vnodes[max(i - 1, 0):max(i - self.siblings_window - 1, 0):-1]
+                right_siblings = vnodes[i + 1:i + self.siblings_window + 1]
 
             col_offset = 0
             # 1. write features of the current node
