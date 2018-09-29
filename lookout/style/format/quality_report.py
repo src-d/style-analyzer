@@ -10,7 +10,8 @@ from sklearn.metrics import classification_report, confusion_matrix
 from tqdm import tqdm
 
 from lookout.core.api.service_data_pb2 import File
-from lookout.style.format.features import FeatureExtractor, CLASSES
+from lookout.style.format.feature_extractor import FeatureExtractor
+from lookout.style.format.feature_utils import CLASSES
 from lookout.style.format.files_filtering import filter_filepaths
 from lookout.style.format.model import FormatModel
 
@@ -62,7 +63,7 @@ def quality_report(input_pattern: str, bblfsh: str, language: str, n_files: int,
     if res is None:
         print("Failed to parse files, aborting report...")
         return
-    X, y, nodes = res
+    X, y, vnodes_y, _ = res
     X, _ = fe.select_features(X, y)
 
     y_pred = rules.predict(X)
@@ -73,7 +74,7 @@ def quality_report(input_pattern: str, bblfsh: str, language: str, n_files: int,
 
     # sort files by mispredictions and print them
     file_mispred = []
-    for gt, pred, vn in zip(y, y_pred, nodes):
+    for gt, pred, vn in zip(y, y_pred, vnodes_y):
         if gt != pred:
             file_mispred.append(vn.path)
     file_stat = Counter(file_mispred)

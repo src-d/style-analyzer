@@ -15,7 +15,7 @@ from lookout.core.api.service_data_pb2 import File
 from lookout.core.api.service_data_pb2_grpc import DataStub
 from lookout.core.data_requests import with_changed_uasts_and_contents, with_uasts_and_contents
 from lookout.style.format.diff import find_new_lines
-from lookout.style.format.features import FeatureExtractor
+from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.model import FormatModel
 from lookout.style.format.rules import TrainableRules
 
@@ -70,13 +70,13 @@ class FormatAnalyzer(Analyzer):
                     comment.line = 1
                     comment.text = "Failed to parse this file"
                     continue
-                X, y, vnodes = res
+                X, y, vnodes_y, vnodes = res
                 X, _ = fe.select_features(X, y)
                 self.log.debug("predicting values for %d samples", len(y))
                 y_pred, winners = rules.predict(X, True)
                 assert len(y) == len(y_pred)
 
-                for yi, y_predi, vnode, winner in zip(y, y_pred, vnodes, winners):
+                for yi, y_predi, vnode, winner in zip(y, y_pred, vnodes_y, winners):
                     if yi != y_predi:
                         comment = vnode.to_comment(y_predi)
                         comment.file = file.path
@@ -116,7 +116,7 @@ class FormatAnalyzer(Analyzer):
             else:
                 cls.log.info("training on %d %s files", len(files), language)
             # we sort to make the features reproducible
-            X, y, _ = fe.extract_features(sorted(files, key=lambda x: x.path))
+            X, y, _, _ = fe.extract_features(sorted(files, key=lambda x: x.path))
             X, selected_features = fe.select_features(X, y)
             lang_config["feature_extractor"]["selected_features"] = selected_features
             lower_bound_instances = lang_config["lower_bound_instances"]
@@ -198,12 +198,23 @@ class FormatAnalyzer(Analyzer):
         final_config = {
             "global": {
                 "feature_extractor": {
-                    "siblings_window": 5,
+                    "left_siblings_window": 5,
+                    "right_siblings_window": 5,
                     "parents_depth": 2,
+                    "node_features": ["start_line", "start_col"],
+                    "left_features": ["length", "diff_offset", "diff_col", "diff_line",
+                                      "internal_type", "label", "reserved",
+                                      "roles"],
+                    "right_features": ["length", "diff_offset", "diff_col", "diff_line",
+                                       "internal_type", "reserved",
+                                       "roles"],
+                    "parent_features": ["internal_type", "roles"],
+                    "no_labels_on_right": True,
                     "debug_parsing": False,
                     "select_features_number": 500,
-                    "remove_empty_features": True,
+                    "remove_constant_features": True,
                     "insert_noops": False,
+                    "index_nodes": False,
                 },
                 "trainable_rules": {
                     "prune_branches_algorithms": ["reduced-error"],

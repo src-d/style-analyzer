@@ -4,7 +4,8 @@ from collections import defaultdict
 from bblfsh import BblfshClient
 from tqdm import tqdm
 
-from lookout.style.format.features import FeatureExtractor, CLASSES
+from lookout.style.format.feature_extractor import FeatureExtractor
+from lookout.style.format.feature_utils import CLASSES
 from lookout.style.format.model import FormatModel
 from lookout.style.format.quality_report import prepare_files
 
@@ -65,7 +66,7 @@ def rules_report(input_pattern: str, bblfsh: str, language: str, model_path: str
         print("Failed to parse files, aborting report...")
         return
 
-    X, y, nodes = res
+    X, y, _ = res
     X, _ = fe.select_features(X, y)
 
     y_pred, winners = rules.predict(X, True)

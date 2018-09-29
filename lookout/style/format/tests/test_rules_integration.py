@@ -1,3 +1,4 @@
+from collections import ChainMap
 import lzma
 from pathlib import Path
 import unittest
@@ -6,7 +7,8 @@ import bblfsh
 from sklearn import model_selection, tree
 
 from lookout.core.api.service_data_pb2 import File
-from lookout.style.format.features import FeatureExtractor
+from lookout.style.format.analyzer import FormatAnalyzer
+from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.rules import TrainableRules
 
 
@@ -22,14 +24,14 @@ class RulesIntegrationTests(unittest.TestCase):
         file = File(content=bytes(contents, "utf-8"),
                     uast=uast)
         cls.files = [file]
-        cls.extractor = FeatureExtractor("javascript",
-                                         parents_depth=2,
-                                         siblings_window=5)
+        config = FormatAnalyzer._load_train_config({})
+        cls.config = ChainMap(config["javascript"], config["global"])
+        cls.extractor = FeatureExtractor(language="javascript", **cls.config["feature_extractor"])
 
     def test_integration(self):
         res = self.extractor.extract_features(self.files)
         self.assertIsNotNone(res, "Failed to parse files.")
-        X, y, _ = res
+        X, y, _, _ = res
         train_X, test_X, train_y, test_y = \
             model_selection.train_test_split(X, y, random_state=1989)
 
