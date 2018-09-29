@@ -42,6 +42,22 @@ class FormatAnalyzer(Analyzer):
         :param data: Contains "changes" - the list of changes in the pointed state.
         :return: List of comments.
         """
+        def one_line_nodes(y, y_pred, vnodes, rule_winners):
+            line_nodes = []
+            generate_comment = False
+            for yi, y_predi, vnode, winner in zip(y, y_pred, vnodes, rule_winners):
+                if not line_nodes or vnode.start.line == line_nodes[0][2].start.line:
+                    # collect all nodes on the same line
+                    line_nodes.append((yi, y_predi, vnode, winner))
+                    if yi != y_predi:
+                        generate_comment = True
+                    continue
+                else:
+                    if generate_comment:
+                        yield line_nodes
+                    generate_comment = yi != y_predi
+                    line_nodes = [(yi, y_predi, vnode, winner)]
+
         comments = []
         changes = list(data["changes"])
         base_files_by_lang = self._files_by_language(c.base for c in changes)
@@ -52,8 +68,7 @@ class FormatAnalyzer(Analyzer):
                                  len(head_files), lang, lang)
                 continue
             rules = self.model[lang]
-            for file in self._filter_files(head_files,
-                                           rules.origin_config["line_length_limit"]):
+            for file in self._filter_files(head_files, rules.origin_config["line_length_limit"]):
                 try:
                     prev_file = base_files_by_lang[lang][file.path]
                 except KeyError:
@@ -68,19 +83,35 @@ class FormatAnalyzer(Analyzer):
                     comment.confidence = 100
                     comment.line = 1
                     comment.text = "Failed to parse this file"
+                    comments.append(comment)
                     continue
                 X, y, vnodes = res
                 X, _ = fe.select_features(X, y)
-                self.log.debug("predicting values for %d samples", len(y))
-                y_pred, winners = rules.predict(X, True)
+                feature_names = fe.selected_feature_names
+                y_pred, rule_winners = rules.predict(X, True)
                 assert len(y) == len(y_pred)
 
-                for yi, y_predi, vnode, winner in zip(y, y_pred, vnodes, winners):
-                    if yi != y_predi:
-                        comment = vnode.to_comment(y_predi)
-                        comment.file = file.path
-                        comment.confidence = int(round(rules.rules[winner].stats.conf * 100))
-                        comments.append(comment)
+                if self.config["debug"]:
+                    code_lines = file.content.decode("utf-8", "replace").splitlines()
+                for line_nodes in one_line_nodes(y, y_pred, vnodes, rule_winners):
+                    code_line_number = line_nodes[0][2].start.line - 1
+                    code_text = (
+                        "" if not self.config["debug"] else
+                        "```%s\n%s\n```\n\n" % (lang, code_lines[code_line_number]))
+                    vnodes_comments = ["%s\n%s\n" % (
+                        vnode.to_comment(y_predi),
+                        rules.rules[winner].to_comment(winner, feature_names, fe.tokens.RESERVED))
+                        for yi, y_predi, vnode, winner in line_nodes if yi != y_predi]
+                    text = "format: style mismatch:\n%s\n%s\n" % (
+                        code_text, "\n".join(vnodes_comments))
+
+                    comment = Comment()
+                    comment.line = code_line_number
+                    comment.text = text
+                    comment.file = file.path
+                    comment.confidence = 100
+                    comments.append(comment)
+
         return comments
 
     @classmethod
@@ -198,16 +229,16 @@ class FormatAnalyzer(Analyzer):
                     "remove_empty_features": True,
                 },
                 "trainable_rules": {
-                    "prune_branches_algorithms": ["reduced-error"],
+                    "prune_branches_algorithms": [],
                     "top_down_greedy_budget": [False, .5],
                     "prune_attributes": False,
-                    "uncertain_attributes": True,
+                    "uncertain_attributes": False,
                     "prune_dataset_ratio": .2,
                     "n_estimators": 10,
                     "random_state": 42,
                 },
                 "n_jobs": -1,
-                "n_iter": 5,
+                "n_iter": 10,
                 "line_length_limit": 500,
                 "lower_bound_instances": 500,
             },
