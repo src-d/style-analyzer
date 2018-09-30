@@ -203,6 +203,13 @@ class FeatureExtractor:
         except ImportError:
             # It's normal for some languages not to have a token_unwrappers module.
             self.token_unwrappers = {}
+        try:
+            self.node_fixtures = importlib.import_module(
+                "lookout.style.format.langs.%s.uast_fixers" % language).NODE_FIXTURES
+        except ImportError:
+            # It's normal for some languages not to have a uast_fixes module.
+            self.node_fixtures = {}
+            pass
 
         # Order is important and should be consistent with _inplace_write_vnode_features function
         # where features generation happens.
@@ -680,6 +687,8 @@ class FeatureExtractor:
         queue = [root]
         while queue:
             node = queue.pop()
+            if node.internal_type in self.node_fixtures:
+                node = self.node_fixtures[node.internal_type](node)
             for child in node.children:
                 parents[id(child)] = node
             queue.extend(node.children)
