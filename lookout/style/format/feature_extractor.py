@@ -480,7 +480,7 @@ class FeatureExtractor:
                 for j in range(i + 1, len(vnodes)):
                     if len(right_siblings) >= self.right_siblings_window:
                         break
-                    if vnodes[j].y is None:
+                    if vnodes[j].y is None and not vnodes[j].value.isspace():
                         right_siblings.append(vnodes[j])
 
             col_offset = 0
