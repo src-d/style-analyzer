@@ -209,7 +209,6 @@ class FeatureExtractor:
         except ImportError:
             # It's normal for some languages not to have a uast_fixes module.
             self.node_fixtures = {}
-            pass
 
         # Order is important and should be consistent with _inplace_write_vnode_features function
         # where features generation happens.
