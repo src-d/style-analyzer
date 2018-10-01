@@ -79,8 +79,10 @@ class FormatModel(AnalyzerModel):
         rules = []
         rule_attrs = (RuleAttribute(*params) for params in
                       zip(rules_tree["features"],  rules_tree["cmps"], rules_tree["thresholds"]))
-        for cls, conf, length in zip(rules_tree["cls"], rules_tree["conf"], rules_tree["lengths"]):
-            rules.append(Rule(tuple(islice(rule_attrs, int(length))), RuleStats(cls, conf)))
+        for cls, conf, support, length in zip(rules_tree["cls"], rules_tree["conf"],
+                                              rules_tree["support"], rules_tree["lengths"]):
+            rules.append(Rule(tuple(islice(rule_attrs, int(length))),
+                              RuleStats(cls, conf, support)))
         return rules
 
     @staticmethod
@@ -91,14 +93,16 @@ class FormatModel(AnalyzerModel):
             features = numpy.fromiter(features, numpy.uint16, rule_len)
             cmps = numpy.fromiter(cmps, numpy.bool, rule_len)
             thresholds = numpy.fromiter(thresholds, numpy.float32, rule_len)
-            return rule.stats.cls, rule.stats.conf, features, cmps, thresholds, rule_len
+            return (rule.stats.cls, rule.stats.conf, rule.stats.support, features, cmps,
+                    thresholds, rule_len)
 
         disassembled_rules = list(zip(*[disassemble_rule(rule) for rule in rules]))
         return dict(
             cls=numpy.array(disassembled_rules[0], dtype=numpy.uint16),
             conf=numpy.array(disassembled_rules[1], dtype=numpy.float32),
-            features=numpy.concatenate(disassembled_rules[2]),
-            cmps=numpy.concatenate(disassembled_rules[3]),
-            thresholds=numpy.concatenate(disassembled_rules[4]),
-            lengths=numpy.array(disassembled_rules[5], dtype=numpy.uint16),
+            support=numpy.array(disassembled_rules[2], dtype=numpy.uint16),
+            features=numpy.concatenate(disassembled_rules[3]),
+            cmps=numpy.concatenate(disassembled_rules[4]),
+            thresholds=numpy.concatenate(disassembled_rules[5]),
+            lengths=numpy.array(disassembled_rules[6], dtype=numpy.uint16),
         )
