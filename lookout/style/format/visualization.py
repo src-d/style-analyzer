@@ -5,7 +5,8 @@ import os
 from bblfsh import BblfshClient
 
 from lookout.core.api.service_data_pb2 import File
-from lookout.style.format.features import CLASSES, FeatureExtractor
+from lookout.style.format.feature_extractor import FeatureExtractor
+from lookout.style.format.feature_utils import CLASSES
 from lookout.style.format.model import FormatModel
 
 RED = "\033[41m"
@@ -53,16 +54,16 @@ def visualize(input_filename: str, bblfsh: str, language: str, model_path: str) 
     if res is None:
         print("Failed to parse files, aborting visualization...")
         return
-    X, y, nodes = res
+    X, y, vnodes_y = res
     X, _ = fe.select_features(X, y)
 
     y_pred, winner = rules.predict(X, True)
 
     mispred = []
-    for gt, pred, node, rule in zip(y, y_pred, nodes, winner):
+    for gt, pred, node, rule in zip(y, y_pred, vnodes_y, winner):
         if gt != pred:
             mispred.append(Misprediction(gt, pred, node, rule))
-    print("Errors: %s out of %s mispredicted" % (len(mispred), len(nodes)))
+    print("Errors: %s out of %s mispredicted" % (len(mispred), len(vnodes_y)))
 
     mispred = sorted(mispred, key=lambda r: r.node.start.offset)
 

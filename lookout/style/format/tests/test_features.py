@@ -1,4 +1,4 @@
-from collections import defaultdict
+from collections import ChainMap, defaultdict
 import lzma
 from pathlib import Path
 import unittest
@@ -7,9 +7,12 @@ import bblfsh
 import numpy
 
 from lookout.core.api.service_data_pb2 import File
-from lookout.style.format.features import (
+from lookout.style.format.analyzer import FormatAnalyzer
+from lookout.style.format.feature_extractor import FeatureExtractor
+from lookout.style.format.feature_utils import (
     CLASS_INDEX, CLASSES, CLS_NEWLINE, CLS_NOOP, CLS_SINGLE_QUOTE, CLS_SPACE, CLS_SPACE_DEC,
-    CLS_SPACE_INC, FeatureExtractor, FeatureType, VirtualNode)
+    CLS_SPACE_INC, VirtualNode)
+from lookout.style.format.features import FeatureGroup
 
 
 class FeaturesTests(unittest.TestCase):
@@ -21,9 +24,13 @@ class FeaturesTests(unittest.TestCase):
             cls.contents = fin.read()
         with lzma.open(str(base / "benchmark.uast.xz")) as fin:
             cls.uast = bblfsh.Node.FromString(fin.read())
-        cls.extractor = FeatureExtractor("javascript", parents_depth=2, siblings_window=5)
-        cls.extractor_noops = FeatureExtractor("javascript", parents_depth=2, siblings_window=5,
-                                               insert_noops=True)
+        config = FormatAnalyzer._load_train_config({})
+        final_config = ChainMap(config["javascript"], config["global"])
+        cls.extractor = FeatureExtractor(language="javascript",
+                                         **final_config["feature_extractor"])
+        cls.extractor_noops = FeatureExtractor(language="javascript",
+                                               **ChainMap({"insert_noops": True},
+                                                          final_config["feature_extractor"]))
 
     def test_parse_file_exact_match(self):
         test_js_code_filepath = Path(__file__).parent / "for_parse_test.js.xz"
@@ -87,12 +94,12 @@ class FeaturesTests(unittest.TestCase):
         self.assertIsNotNone(res, "Failed to parse files.")
         self.check_X_y(*res)
 
-    def check_X_y(self, X, y, vnodes):
+    def check_X_y(self, X, y, vnodes_y, vnodes):
         self.assertEqual(X.shape[0], y.shape[0])
-        self.assertEqual(X.shape[0], len(vnodes))
-        for vn in vnodes:
+        self.assertEqual(X.shape[0], len(vnodes_y))
+        for vn in vnodes_y:
             self.assertIsInstance(vn, VirtualNode)
-        self.assertEqual(X.shape[1], self.extractor.count_features(FeatureType.all))
+        self.assertEqual(X.shape[1], self.extractor.count_features(FeatureGroup.all))
         not_set = X == -1
         unset_rows = numpy.nonzero(numpy.all(not_set, axis=1))[0]
         unset_columns = numpy.nonzero(numpy.all(not_set, axis=0))[0]
@@ -113,13 +120,13 @@ class FeaturesTests(unittest.TestCase):
                     uast=self.uast)
         files = [file]
 
-        X1, y1, vn1 = self.extractor.extract_features(
+        X1, y1, vn1_y, vn1 = self.extractor.extract_features(
             files, [list(range(1, self.contents.count("\n") // 2 + 1))] * 2)
-        self.check_X_y(X1, y1, vn1)
-        X2, y2, vn2 = self.extractor.extract_features(files)
+        self.check_X_y(X1, y1, vn1_y, vn1)
+        X2, y2, vn2_y, vn2 = self.extractor.extract_features(files)
         self.assertTrue((X1 == X2[:len(X1)]).all())
         self.assertTrue((y1 == y2[:len(y1)]).all())
-        self.assertTrue(vn1 == vn2[:len(vn1)])
+        self.assertTrue(vn1_y == vn2_y[:len(vn1_y)])
         self.assertLess(len(y1), len(y2))
 
     def test_noop_vnodes(self):
