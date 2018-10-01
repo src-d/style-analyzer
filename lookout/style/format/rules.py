@@ -27,7 +27,7 @@ RuleAttribute = NamedTuple(
 `threshold` is "v", the threshold value
 """
 
-RuleStats = NamedTuple("RuleStats", (("cls", int), ("conf", float)))
+RuleStats = NamedTuple("RuleStats", (("cls", int), ("conf", float), ("support", int)))
 """
 `cls` is the predicted class
 `conf` is the rule confidence \\in [0, 1], "1" means super confident
@@ -359,12 +359,13 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
             else:
                 freqs = tree_.value[node][0]
                 # why -0.5? See the papers mentioned in _prune_attributes()
-                conf = (freqs.max() - 0.5) / freqs.sum()
+                support = freqs.sum()
+                conf = (freqs.max() - 0.5) / support
                 leaf2rule[node] = len(rules) + offset
                 prediction = int(tree.classes_[numpy.argmax(freqs)])
                 if class_mapping is not None:
                     prediction = class_mapping[prediction]
-                rules.append(Rule(path, RuleStats(prediction, conf)))
+                rules.append(Rule(path, RuleStats(prediction, conf, support)))
         return rules, leaf2rule
 
     @classmethod

@@ -52,16 +52,10 @@ class FormatModelTests(unittest.TestCase):
         fm = FormatModel()
         self.assertEqual(fm.dump(), "<unknown name>/[1, 0, 0] <unknown url> <unknown commit>")
 
-        DUMP = """<unknown name>/[1, 0, 1] <unknown url> <unknown commit>
+        DUMP = """<unknown name>/['1'] <unknown url> <unknown commit>
 
-# js
-31 rules, avg.len. 5.1
-
-# js2
-31 rules, avg.len. 5.1
-
-# js3
-31 rules, avg.len. 5.1"""
+# javascript
+45 rules, avg.len. 6.3"""
         self.assertEqual(self.fm.dump(), DUMP)
 
     def test_len(self):
