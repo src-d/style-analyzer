@@ -34,6 +34,13 @@ class FeaturesTests(unittest.TestCase):
         nodes, parents = self.extractor._parse_file(code, uast, test_js_code_filepath)
         self.assertEqual("".join(n.value for n in nodes), code)
 
+    def test_parse_file_comment_after_regexp(self):
+        code = "x = // comment\n/<regexp>/;"
+        uast = bblfsh.BblfshClient("0.0.0.0:9432").parse(
+            filename="", language="javascript", contents=code.encode()).uast
+        nodes, parents = self.extractor._parse_file(code, uast, "")
+        self.assertEqual("".join(n.value for n in nodes), code)
+
     def test_parse_file(self):
         nodes, parents = self.extractor._parse_file(self.contents, self.uast, "test_file")
         text = []
