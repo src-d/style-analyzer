@@ -10,6 +10,7 @@ from sklearn.metrics import classification_report, confusion_matrix
 from tqdm import tqdm
 
 from lookout.core.api.service_data_pb2 import File
+from lookout.style.format.utils import profile
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.feature_utils import CLASSES
 from lookout.style.format.files_filtering import filter_filepaths
@@ -46,6 +47,7 @@ def prepare_files(folder: str, client: BblfshClient, language: str) -> Iterable[
     return files
 
 
+@profile
 def quality_report(input_pattern: str, bblfsh: str, language: str, n_files: int, model_path: str
                    ) -> None:
     """Print several different reports for a given model on a given dataset."""
