@@ -107,3 +107,6 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+# Visualization models
+lookout/style/format/visualizer/models
