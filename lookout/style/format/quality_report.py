@@ -64,7 +64,6 @@ def quality_report(input_pattern: str, bblfsh: str, language: str, n_files: int,
         print("Failed to parse files, aborting report...")
         return
     X, y, vnodes_y, _ = res
-    X, _ = fe.select_features(X, y)
 
     y_pred = rules.predict(X)
 

@@ -12,7 +12,6 @@ from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.feature_utils import (
     CLASS_INDEX, CLASSES, CLS_NEWLINE, CLS_NOOP, CLS_SINGLE_QUOTE, CLS_SPACE, CLS_SPACE_DEC,
     CLS_SPACE_INC, VirtualNode)
-from lookout.style.format.features import FeatureGroup
 
 
 class FeaturesTests(unittest.TestCase):
@@ -99,7 +98,7 @@ class FeaturesTests(unittest.TestCase):
         self.assertEqual(X.shape[0], len(vnodes_y))
         for vn in vnodes_y:
             self.assertIsInstance(vn, VirtualNode)
-        self.assertEqual(X.shape[1], self.extractor.count_features(FeatureGroup.all))
+        self.assertEqual(X.shape[1], self.extractor.count_features())
         not_set = X == -1
         unset_rows = numpy.nonzero(numpy.all(not_set, axis=1))[0]
         unset_columns = numpy.nonzero(numpy.all(not_set, axis=0))[0]

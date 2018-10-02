@@ -4,6 +4,7 @@ import sys
 from typing import Any
 
 from lookout.core.cmdline import ArgumentDefaultsHelpFormatterNoNone
+from lookout.core.slogging import setup as setup_slogging
 from lookout.style.format.quality_report import quality_report
 from lookout.style.format.rule_stat import rules_report
 from lookout.style.format.visualization import visualize
@@ -16,6 +17,10 @@ def create_parser() -> ArgumentParser:
     :return: an ArgumentParser with an handler defined in the handler attribute.
     """
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatterNoNone)
+
+    # General options
+    parser.add("--log-level", default="DEBUG", help="Log verbosity level.")
+
     subparsers = parser.add_subparsers(help="Commands")
 
     def add_parser(name, help):
@@ -70,6 +75,8 @@ def main() -> Any:
     """Entry point of the utility."""
     parser = create_parser()
     args = parser.parse_args()
+    setup_slogging(args.log_level, False)
+    delattr(args, "log_level")
     try:
         handler = args.handler
         delattr(args, "handler")
