@@ -66,7 +66,7 @@ def rules_report(input_pattern: str, bblfsh: str, language: str, model_path: str
         print("Failed to parse files, aborting report...")
         return
 
-    X, y, _ = res
+    X, y, _, _ = res
     X, _ = fe.select_features(X, y)
 
     y_pred, winners = rules.predict(X, True)

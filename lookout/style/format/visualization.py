@@ -54,7 +54,7 @@ def visualize(input_filename: str, bblfsh: str, language: str, model_path: str) 
     if res is None:
         print("Failed to parse files, aborting visualization...")
         return
-    X, y, vnodes_y = res
+    X, y, vnodes_y, _ = res
     X, _ = fe.select_features(X, y)
 
     y_pred, winner = rules.predict(X, True)
