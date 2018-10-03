@@ -1,4 +1,4 @@
-from collections import ChainMap, defaultdict
+from collections import defaultdict
 import logging
 from pprint import pformat
 import threading
@@ -18,6 +18,7 @@ from lookout.style.format.diff import find_new_lines
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.model import FormatModel
 from lookout.style.format.rules import TrainableRules
+from lookout.style.format.utils import merge_dicts
 
 
 class FormatAnalyzer(Analyzer):
@@ -102,7 +103,7 @@ class FormatAnalyzer(Analyzer):
         model = FormatModel().construct(cls, ptr)
         config = cls._load_train_config(config)
         for language, files in files_by_language.items():
-            lang_config = dict(ChainMap(config.get(language, {}), config["global"]))
+            lang_config = config[language]
             files = list(cls._filter_files(files, lang_config["line_length_limit"]))
             if len(files) == 0:
                 cls.log.info("Zero files after filtering, %s language is skipped.", language)
@@ -186,15 +187,14 @@ class FormatAnalyzer(Analyzer):
         :param config: User-defined config.
         :return: Full config.
         """
-        final_config = {
+        defaults = {
             "debug": False,
         }
-        FormatAnalyzer.recursive_update(final_config, config)
-        return final_config
+        return merge_dicts(defaults, config)
 
     @classmethod
     def _load_train_config(cls, config: Mapping[str, Any]) -> Mapping[str, Any]:
-        final_config = {
+        defaults = {
             "global": {
                 "feature_extractor": {
                     "left_siblings_window": 5,
@@ -230,8 +230,10 @@ class FormatAnalyzer(Analyzer):
                 # The same structure here
             },
         }
-        FormatAnalyzer.recursive_update(final_config, config)
-        return final_config
+        config = merge_dicts(defaults, config)
+        global_config = config.pop("global")
+        return {lang: merge_dicts(global_config, lang_config)
+                for lang, lang_config in config.items()}
 
     @classmethod
     def _filter_files(cls, files: Dict[str, File], line_length_limit: int
@@ -253,11 +255,3 @@ class FormatAnalyzer(Analyzer):
         if excluded > 0:
             cls.log.debug("excluded %d/%d files by max line length %d",
                           excluded, total, line_length_limit)
-
-    @staticmethod
-    def recursive_update(mapping, other):
-        for key, value in other.items():
-            if isinstance(value, dict):
-                FormatAnalyzer.recursive_update(mapping.setdefault(key, {}), value)
-            else:
-                mapping[key] = value
