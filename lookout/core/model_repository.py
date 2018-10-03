@@ -18,7 +18,8 @@ class ModelRepository:
         :param model_type: Class of the model to return the instance of.
         :param url: Git repository remote.
         :return: an `AnalyzerModel` instance and the boolean which indicates whether \
-                 the cache miss happened. Return None in case no models were found.
+                 a cache miss happened. Returns None instead of the model \
+                 in case no models were found.
         """
         raise NotImplementedError
 
