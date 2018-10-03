@@ -103,6 +103,17 @@ def init_repo(args):
     repo.init()
 
 
+def run_analyzer_tool(args) -> None:
+    """
+    Invoke the tooling of an analyzer.
+
+    :param args: Parsed command line arguments.
+    :return: None
+    """
+    with patch("sys.argv", [args.analyzer] + args.args):
+        importlib.import_module(args.analyzer).run_cmdline_tool()
+
+
 def create_model_repo_from_args(args) -> SQLAlchemyModelRepository:
     return SQLAlchemyModelRepository(
         db_endpoint=args.db, fs_root=args.fs,
@@ -121,17 +132,6 @@ def add_model_repository_args(parser):
                     "values like 30min, 4h, 1d.")
     parser.add("--db-kwargs", type=json.loads, default={},
                help="Additional keyword arguments to SQLAlchemy database engine.")
-
-
-def tool(args) -> None:
-    """
-    Invoke the tooling of an analyzer.
-
-    :param args: Parsed command line arguments.
-    :return: None
-    """
-    with patch("sys.argv", [args.analyzer] + args.args):
-        importlib.import_module(args.analyzer).run_cmdline_tool()
 
 
 def add_logging_args(parser):
@@ -178,7 +178,7 @@ def create_parser():
     add_logging_args(init_parser)
 
     tool_parser = add_parser("tool", "Invoke the tooling of a given analyzer.")
-    tool_parser.set_defaults(handler=tool)
+    tool_parser.set_defaults(handler=run_analyzer_tool)
     tool_parser.add("analyzer", help="Fully qualified package name with an analyzer.")
     tool_parser.add("args", nargs=argparse.REMAINDER)
     return parser
