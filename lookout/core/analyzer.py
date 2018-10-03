@@ -7,12 +7,21 @@ from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2_grpc import DataStub
 from lookout.core.ports import Type
 
-# We redefine ReferencePointer because Protocol Buffers message objects suck.
-ReferencePointer = NamedTuple("ReferencePointer", (("url", str), ("ref", str), ("commit", str)))
-ReferencePointer.from_pb = lambda refptr: ReferencePointer(*[f[1] for f in refptr.ListFields()])
-ReferencePointer.to_pb = lambda self: ApiReferencePointer(internal_repository_url=self.url,
-                                                          reference_name=self.ref,
-                                                          hash=self.commit)
+
+class ReferencePointer(NamedTuple("ReferencePointer", (("url", str),
+                                                       ("ref", str),
+                                                       ("commit", str)))):
+    """
+    We redefine ReferencePointer because Protocol Buffers message objects suck.
+    """
+    @staticmethod
+    def from_pb(refptr) -> "ReferencePointer":
+        return ReferencePointer(*[f[1] for f in refptr.ListFields()])
+
+    def to_pb(self) -> ApiReferencePointer:
+        return ApiReferencePointer(internal_repository_url=self.url,
+                                   reference_name=self.ref,
+                                   hash=self.commit)
 
 
 class AnalyzerModel(Model):
