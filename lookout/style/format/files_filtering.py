@@ -25,6 +25,6 @@ def filter_filepaths(filepaths: Iterable[str], line_length_limit: int = 500,
             continue
         if exclude_compiled_pattern and exclude_compiled_pattern.search(filepath):
             continue
-        with open(filepath, 'rb') as fh:
+        with open(filepath, "rb") as fh:
             if len(max(fh, key=len, default=b"")) <= line_length_limit:
                 yield filepath
