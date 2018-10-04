@@ -43,9 +43,8 @@ matrix:
       env: SCRIPT="flake8 .
                    && (! grep -R /tmp lookout/style/*/tests)
                    && rm -rf lookout/core/server
-                   && (! (grep -R -E '(\"|'\"'\"')\.format\(' lookout | grep -v /research/) )
                    && cd doc && make"
-      install: pip install -r doc/requirements.txt flake8
+      install: pip install -r doc/requirements.txt flake8 flake8-quotes
     - python: 3.7
       env: *_coverage
       install: *_install

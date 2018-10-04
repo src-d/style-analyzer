@@ -86,7 +86,7 @@ class FeaturesTests(unittest.TestCase):
         self.assertTrue(cls_counts[CLS_SINGLE_QUOTE] % 2 == 0)
 
     def test_extract_features(self):
-        file = File(content=bytes(self.contents, 'utf-8'),
+        file = File(content=bytes(self.contents, "utf-8"),
                     uast=self.uast)
         files = [file, file]
 
@@ -108,7 +108,7 @@ class FeaturesTests(unittest.TestCase):
                          "columns %s are unset" % ", ".join(map(str, unset_columns)))
 
     def test_extract_features_all_lines(self):
-        file = File(content=bytes(self.contents, 'utf-8'),
+        file = File(content=bytes(self.contents, "utf-8"),
                     uast=self.uast)
         files = [file, file]
 
@@ -116,7 +116,7 @@ class FeaturesTests(unittest.TestCase):
             files, [list(range(1, self.contents.count("\n") + 1))] * 2))
 
     def test_extract_features_some_lines(self):
-        file = File(content=bytes(self.contents, 'utf-8'),
+        file = File(content=bytes(self.contents, "utf-8"),
                     uast=self.uast)
         files = [file]
 

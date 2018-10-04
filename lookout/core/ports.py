@@ -5,7 +5,7 @@ if sys.version_info[:2] == (3, 5):
     from typing import Generic, TypeVar
 
     # Internal type variable used for Type[].
-    CT_co = TypeVar('CT_co', covariant=True, bound=type)
+    CT_co = TypeVar("CT_co", covariant=True, bound=type)
 
     # This is not a real generic class.  Don't use outside annotations.
     class Type(Generic[CT_co], extra=type):

@@ -42,7 +42,7 @@ class SymSpell:
             corpus contains mistakes.
     """
     def __init__(self, max_dictionary_edit_distance=2, prefix_length=7, count_threshold=1):
-        self._distance_algorithm = 'damerau'
+        self._distance_algorithm = "damerau"
         self._max_length = 0
         self._deletes = None
         self._words = None
@@ -124,7 +124,7 @@ class SymSpell:
             corpus (str): Path to corpus file.
         """
         if os.path.exists(corpus):
-            with open(corpus, 'r') as f:
+            with open(corpus, "r") as f:
                 for line in f:
                     key, count = line.split()
                     count = int(count)
@@ -146,7 +146,7 @@ class SymSpell:
             corpus (str): Path to corpus file.
         """
         if os.path.exists(corpus):
-            with open(corpus, 'r') as f:
+            with open(corpus, "r") as f:
                 for line in f:
                     for key in line.split():
                         self._create_dictionary_entry(key, 1)
@@ -183,7 +183,7 @@ class SymSpell:
             AssertionError: If :param:`max_edit_distance` is larger than maximum
                 edit distance specified at initialization.
         """
-        assert max_edit_distance <= self._max_dictionary_edit_distance, 'Distance too big'
+        assert max_edit_distance <= self._max_dictionary_edit_distance, "Distance too big"
         suggestions = list()
         phrase_len = len(phrase)
 
@@ -339,7 +339,7 @@ class SymSpell:
             AssertionError: If :param:`max_edit_distance` is larger than maximum
                 edit distance specified at initialization.
         """
-        assert max_edit_distance <= self._max_dictionary_edit_distance, 'Distance too big'
+        assert max_edit_distance <= self._max_dictionary_edit_distance, "Distance too big"
 
         terms_list_1 = self._parse_words(phrase)
         suggestions = list()
@@ -360,9 +360,9 @@ class SymSpell:
                     else:
                         best_2 = SuggestionItem(terms_list_1[i], max_edit_distance+1, 0)
 
-                    distance = EditDistance(terms_list_1[i-1] + ' ' + terms_list_1[i], 'damerau')
+                    distance = EditDistance(terms_list_1[i-1] + " " + terms_list_1[i], "damerau")
                     if (suggestions_combi[0].distance + 1 <
-                            distance.damerau_levenshtein_distance(best_1.term + ' ' +
+                            distance.damerau_levenshtein_distance(best_1.term + " " +
                                                                   best_2.term,
                                                                   max_edit_distance)):
                         suggestions_combi[0].distance += 1
@@ -396,8 +396,8 @@ class SymSpell:
                                 if len(suggestions) > 0 and suggestions[0] == suggestions_2[0]:
                                     continue
 
-                                split = suggestions_1[0].term + ' ' + suggestions_2[0].term
-                                edit_distance = EditDistance(terms_list_1[i], 'damerau')
+                                split = suggestions_1[0].term + " " + suggestions_2[0].term
+                                edit_distance = EditDistance(terms_list_1[i], "damerau")
                                 suggestion_split = SuggestionItem(
                                     split, edit_distance.damerau_levenshtein_distance(
                                         split, max_edit_distance),
@@ -418,11 +418,11 @@ class SymSpell:
                     si = SuggestionItem(terms_list_1[i], 0, max_edit_distance + 1)
                     suggestions_parts.append(si)
 
-        suggestion = SuggestionItem('', sys.maxsize, sys.maxsize)
-        s = ' '.join([x.term for x in suggestions_parts])
+        suggestion = SuggestionItem("", sys.maxsize, sys.maxsize)
+        s = " ".join([x.term for x in suggestions_parts])
         suggestion.count = min([x.count for x in suggestions_parts])
         suggestion.term = s
-        edit_distance = EditDistance(suggestion.term, 'damerau')
+        edit_distance = EditDistance(suggestion.term, "damerau")
         suggestion.distance = edit_distance.damerau_levenshtein_distance(
             phrase, self._max_dictionary_edit_distance)
         return [suggestion]
@@ -480,7 +480,7 @@ class SymSpell:
     def _edits_prefix(self, key):
         s = set()
         if len(key) <= self._max_dictionary_edit_distance:
-            s.add('')
+            s.add("")
         if len(key) > self._prefix_length:
             key = key[:self._prefix_length]
         s.add(key)
@@ -500,7 +500,7 @@ class SymSpell:
         return hs
 
     def _parse_words(self, text, filters='!"#$%&()*+,-./:;<=>?@[\\]^_`{|}~\t\n',
-                     lower=True, split=' '):
+                     lower=True, split=" "):
         if lower:
             text = text.lower()
 
@@ -515,15 +515,15 @@ class EditDistance():
     def __init__(self, base_string, distance_algorithm):
         self._base_string = base_string
         self._distance_algorithm = distance_algorithm
-        if self._base_string == '':
+        if self._base_string == "":
             self._base_string = None
             return
-        if self._distance_algorithm == 'damerau':
+        if self._distance_algorithm == "damerau":
             self._v0 = np.zeros(len(self._base_string), dtype=np.int32)
             self._v2 = np.zeros(len(self._base_string), dtype=np.int32)
 
     def compare(self, string_2, max_distance):
-        if self._distance_algorithm == 'damerau':
+        if self._distance_algorithm == "damerau":
             return self.damerau_levenshtein_distance(string_2, max_distance)
 
     def damerau_levenshtein_distance(self, string_2, max_distance):
@@ -533,7 +533,7 @@ class EditDistance():
             else:
                 return len(string_2)
 
-        if string_2 is None or string_2 == '':
+        if string_2 is None or string_2 == "":
             return len(self._base_string)
 
         if len(self._base_string) > len(string_2):
@@ -645,7 +645,7 @@ class SuggestionItem():
             return self._distance < other._distance
 
     def __str__(self):
-        return self._term + ':' + str(self._count) + ':' + str(self._distance)
+        return self._term + ":" + str(self._count) + ":" + str(self._distance)
 
     @property
     def count(self):
