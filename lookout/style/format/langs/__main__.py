@@ -217,7 +217,7 @@ def main():
                         log.warning("Bad parquet file %s", filepath)
                     else:
                         analyze = partial(analyze_parquet_row, filepath=filepath)
-                        for index, row in data.iterrows():
+                        for _, row in data.iterrows():
                             progress.total += 1
                             pool.submit(analyze, row)
                     progress.update(1)

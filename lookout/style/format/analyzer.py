@@ -245,7 +245,7 @@ class FormatAnalyzer(Analyzer):
         :return: Files filtered.
         """
         excluded = total = 0
-        for filename, file in files.items():
+        for file in files.values():
             if len(max(file.content.splitlines(), key=len, default=b"")) <= line_length_limit:
                 total += 1
                 yield file

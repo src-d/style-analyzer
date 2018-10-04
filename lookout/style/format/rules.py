@@ -248,7 +248,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
             offset = 0
             leaf2rule = []
             old, new = 0, 0
-            for i, estimator in enumerate(base_model.estimators_):
+            for estimator in base_model.estimators_:
                 if "reduced-error" in self.prune_branches_algorithms:
                     old += (count_nonzero(estimator.tree_.children_left == Tree.TREE_LEAF)
                             + count_nonzero(estimator.tree_.children_right == Tree.TREE_LEAF))
@@ -491,7 +491,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         clss_index = numpy.full(X.shape[0], -1)
         candidate_rules = set(range(len(rules)))
         selected_rules = set()
-        for iteration in range(n_budget):
+        for _ in range(n_budget):
             scores = []
             for rule_id in candidate_rules:
                 triggered_instances = instances_index[rule_id]
@@ -541,14 +541,14 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         new_rules = []
         intervals = {}
         attrs = defaultdict(set)
-        for i, (branch, _) in enumerate(rules):
+        for branch, _ in rules:
             for rule in branch:
                 attrs[rule.feature].add(rule.threshold)
         for key, vals in attrs.items():
             attrs[key] = numpy.array(sorted(vals))
             intervals[key] = [defaultdict(int) for _ in range(len(vals) + 1)]
         searchsorted = numpy.searchsorted
-        for i, (x, y) in enumerate(zip(X, Y)):
+        for x, y in zip(X, Y):
             for attr, val in enumerate(x):
                 interval = intervals.get(attr)
                 if interval is not None:

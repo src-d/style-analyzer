@@ -177,7 +177,7 @@ class FeatureExtractor:
         X = numpy.zeros((y.shape[0], self.count_features(FeatureGroup.all)), dtype=numpy.uint8)
         vnodes_y = [None] * y.shape[0]
         offset = 0
-        for (vnodes, parents, file_lines), partial_labels in zip(parsed_files, labels):
+        for vnodes, parents, file_lines in parsed_files:
             offset = self._inplace_write_vnode_features(vnodes, parents, file_lines, offset, X,
                                                         vnodes_y)
         self._log.debug("Features shape: %s" % (X.shape,))
@@ -441,7 +441,7 @@ class FeatureExtractor:
             parents_list = []
             if parent:
                 current_ancestor = parent
-                for j in range(self.parents_depth):
+                for _ in range(self.parents_depth):
                     parents_list.append(current_ancestor)
                     current_ancestor_id = id(current_ancestor)
                     if current_ancestor_id not in parents:
