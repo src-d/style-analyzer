@@ -3,7 +3,7 @@ import logging
 import lzma
 from pathlib import Path
 import tarfile
-from typing import NamedTuple, Dict, Optional, Iterable
+from typing import Dict, Iterable, NamedTuple, Optional
 import unittest
 
 import bblfsh

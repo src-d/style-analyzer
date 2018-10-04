@@ -4,7 +4,7 @@ import unittest
 import numpy
 import pandas
 from scipy import sparse
-from sklearn import model_selection, tree, ensemble
+from sklearn import ensemble, model_selection, tree
 from sklearn.exceptions import NotFittedError
 from sklearn.tree import _tree
 

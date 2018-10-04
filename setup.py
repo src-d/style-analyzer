@@ -1,7 +1,7 @@
 from importlib.machinery import SourceFileLoader
 import sys
 
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 
 lookout = SourceFileLoader("lookout", "./lookout/__init__.py").load_module()
 

@@ -6,7 +6,7 @@ import grpc
 
 from lookout.core.analyzer import Analyzer, AnalyzerModel, ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
-from lookout.core.api.service_data_pb2 import ChangesRequest, FilesRequest, Change, File
+from lookout.core.api.service_data_pb2 import Change, ChangesRequest, File, FilesRequest
 from lookout.core.api.service_data_pb2_grpc import DataStub
 from lookout.core.garbage_exclusion import GARBAGE_PATTERN
 from lookout.core.ports import Type

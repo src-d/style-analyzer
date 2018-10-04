@@ -8,3 +8,5 @@ exclude=
     lookout/style/format/research
     lookout/style/typos/research
 inline-quotes="
+import-order-style=appnexus
+application-package-names=lookout
