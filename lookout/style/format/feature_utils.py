@@ -42,7 +42,7 @@ class VirtualNode:
 
     def __repr__(self) -> str:
         return ("VirtualNode(\"%s\", y=%s, start=%s, end=%s, node=%s, path=\"%s\", "
-                "global_index=%d, labeled_index=%d)" % (
+                "global_index=%s, labeled_index=%s)" % (
                     self.value.replace("\n", "\\n"),
                     "None" if self.y is None else self.y,
                     tuple(self.start),
