@@ -1,8 +1,8 @@
 from typing import Tuple
 import unittest
 
-from lookout.core.analyzer import AnalyzerModel, Analyzer, ReferencePointer
-from lookout.core.api.event_pb2 import ReviewEvent, PushEvent
+from lookout.core.analyzer import Analyzer, AnalyzerModel, ReferencePointer
+from lookout.core.api.event_pb2 import PushEvent, ReviewEvent
 from lookout.core.api.service_analyzer_pb2 import Comment, EventResponse
 from lookout.core.api.service_data_pb2_grpc import DataStub
 from lookout.core.manager import AnalyzerManager

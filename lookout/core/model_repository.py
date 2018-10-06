@@ -1,4 +1,4 @@
-from typing import Tuple, Optional
+from typing import Optional, Tuple
 
 from lookout.core.analyzer import AnalyzerModel
 from lookout.core.ports import Type
