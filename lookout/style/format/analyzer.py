@@ -1,4 +1,4 @@
-from collections import defaultdict, ChainMap
+from collections import ChainMap, defaultdict
 import logging
 from pprint import pformat
 import threading

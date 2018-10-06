@@ -4,7 +4,6 @@ from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 import logging
 import multiprocessing
-import pandas
 from pathlib import Path
 import re
 import sys
@@ -13,6 +12,7 @@ import threading
 import bblfsh
 from google.protobuf.message import DecodeError
 from jinja2 import Template
+import pandas
 from sourced.ml.cmd.args import ArgumentDefaultsHelpFormatterNoNone, handle_input_arg
 from tqdm import tqdm
 

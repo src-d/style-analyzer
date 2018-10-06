@@ -1,12 +1,12 @@
 from copy import deepcopy
 import io
 from itertools import islice
-from typing import Dict, List, Iterable  # noqa: F401
+from typing import Dict, Iterable, List  # noqa: F401
 
 import numpy
 
 from lookout.core.analyzer import AnalyzerModel
-from lookout.style.format.rules import Rules, Rule, RuleAttribute, RuleStats
+from lookout.style.format.rules import Rule, RuleAttribute, Rules, RuleStats
 
 
 class FormatModel(AnalyzerModel):

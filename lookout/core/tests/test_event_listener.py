@@ -1,8 +1,8 @@
 import unittest
 
-from lookout.core.api.event_pb2 import ReviewEvent, PushEvent
+from lookout.core.api.event_pb2 import PushEvent, ReviewEvent
 from lookout.core.api.service_analyzer_pb2 import EventResponse
-from lookout.core.event_listener import EventListener, EventHandlers
+from lookout.core.event_listener import EventHandlers, EventListener
 from lookout.core.tests import server
 
 

@@ -47,7 +47,8 @@ matrix:
       install: "pip install -r doc/requirements.txt
                             flake8
                             flake8-quotes
-                            flake8-bugbear"
+                            flake8-bugbear
+                            flake8-import-order"
     - python: 3.7
       env: *_coverage
       install: *_install
