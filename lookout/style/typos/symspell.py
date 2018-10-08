@@ -171,11 +171,11 @@ class SymSpell:
             Phrase is not preprocessed in any way.
 
         Args:
-            phrase (str): Word to correct. Should be a valid word.
-            verbosity (int, 0, 1 or 2): Output toggle. Set to 0 to output
+            phrase: (str) Word to correct. Should be a valid word.
+            verbosity: (int, 0, 1 or 2) Output toggle. Set to 0 to output
                 closest most common correction,
                 set to 1 to output closest suggestion, set to 2 to output all suggestions.
-            max_edit_distance (int): Maximum edit distance to consider.
+            max_edit_distance: (int) Maximum edit distance to consider.
 
         Returns:
             list of :obj:`SuggestionItem`: Suggested corrections.
