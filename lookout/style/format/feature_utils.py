@@ -22,8 +22,6 @@ class VirtualNode:
         :param end: ending position of the token (0-based).
         :param node: corresponding UAST node (if exists).
         :param path: path to related file. Useful for debugging.
-        :param global_index: position in the list of all nodes. Useful for debugging.
-        :param labeled_index: position in the list of labeled nodes. Useful for debugging.
         """
         self.value = value
         assert start.line >= 1 and start.col >= 1, "start line and column are 1-based like UASTs"
@@ -34,23 +32,18 @@ class VirtualNode:
         self.node = node
         self.y = y
         self.path = path
-        self.global_index = global_index
-        self.labeled_index = labeled_index
 
     def __str__(self) -> str:
         return self.value
 
     def __repr__(self) -> str:
-        return ("VirtualNode(\"%s\", y=%s, start=%s, end=%s, node=%s, path=\"%s\", "
-                "global_index=%d, labeled_index=%d)" % (
+        return ("VirtualNode(\"%s\", y=%s, start=%s, end=%s, node=%s, path=\"%s\")" % (
                     self.value.replace("\n", "\\n"),
                     "None" if self.y is None else self.y,
                     tuple(self.start),
                     tuple(self.end),
                     id(self.node) if self.node is not None else "None",
-                    self.path,
-                    self.global_index,
-                    self.labeled_index))
+                    self.path))
 
     def __eq__(self, other: "VirtualNode") -> bool:
         return (self.value == other.value
@@ -58,9 +51,7 @@ class VirtualNode:
                 and self.end == other.end
                 and self.node == other.node
                 and self.y == other.y
-                and self.path == other.path
-                and self.global_index == other.global_index
-                and self.labeled_index == other.labeled_index)
+                and self.path == other.path)
 
     @staticmethod
     def from_node(node: bblfsh.Node, file: str, path: str,

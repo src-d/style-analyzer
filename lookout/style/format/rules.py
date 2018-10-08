@@ -19,6 +19,7 @@ from sklearn.tree import _tree as Tree, DecisionTreeClassifier
 
 from lookout.core.ports import Type
 
+
 RuleAttribute = NamedTuple(
     "RuleAttribute", (("feature", int), ("cmp", bool), ("threshold", float)))
 """
@@ -27,11 +28,13 @@ RuleAttribute = NamedTuple(
 `threshold` is "v", the threshold value
 """
 
+
 RuleStats = NamedTuple("RuleStats", (("cls", int), ("conf", float), ("support", int)))
 """
 `cls` is the predicted class
 `conf` is the rule confidence \\in [0, 1], "1" means super confident
 """
+
 
 Rule = NamedTuple("RuleType", (("attrs", Tuple[RuleAttribute, ...]), ("stats", RuleStats)))
 

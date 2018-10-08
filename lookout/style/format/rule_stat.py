@@ -4,6 +4,7 @@ from collections import defaultdict
 from bblfsh import BblfshClient
 from tqdm import tqdm
 
+from lookout.style.format.descriptions import describe_rules
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.feature_utils import CLASSES
 from lookout.style.format.model import FormatModel
@@ -52,9 +53,6 @@ def rules_report(input_pattern: str, bblfsh: str, language: str, model_path: str
     print("Model parameters: %s" % rules.origin_config)
     print("Stats about rules: %s" % rules)
 
-    for i, rule in enumerate(rules.rules):
-        print("Rule %s: %s" % (i, rule))
-
     client = BblfshClient(bblfsh)
     files = prepare_files(input_pattern, client, language)
     print("Number of files: %s" % (len(files)))
@@ -62,12 +60,14 @@ def rules_report(input_pattern: str, bblfsh: str, language: str, model_path: str
     fe = FeatureExtractor(language=language, **rules.origin_config["feature_extractor"])
     res = fe.extract_features(files)
 
+    for i, rule in enumerate(describe_rules(rules.rules, fe)):
+        print("Rule %s: %s" % (i, rule))
+
     if res is None:
         print("Failed to parse files, aborting report...")
         return
 
     X, y, _, _ = res
-    X, _ = fe.select_features(X, y)
 
     y_pred, winners = rules.predict(X, True)
 
