@@ -1,7 +1,7 @@
 """Features definition."""
 from enum import Enum, unique
 import importlib
-from typing import Callable, Iterable, Mapping, Union
+from typing import Callable, Iterable, List, Mapping, MutableMapping, Union  # noqa: F401
 
 import bblfsh
 
@@ -28,17 +28,6 @@ class FeatureId(Enum):
     start_line = 12
 
 
-@unique
-class FeatureGroup(Enum):
-    """Feature groups."""
-
-    all = 0
-    node = 1
-    parents = 2
-    left = 3
-    right = 4
-
-
 FeatureFunction = Callable[[Union[VirtualNode, bblfsh.Node], VirtualNode], Iterable[int]]
 
 
@@ -50,53 +39,68 @@ class Feature:
     def __call__(self, sibling: Union[VirtualNode, bblfsh.Node], node: VirtualNode
                  ) -> Iterable[int]:
         """Compute the relevant values for this feature."""
-        raise NotImplementedError
-
-
-class OHEFeature(Feature):
-    """Base type for one hot encoded features."""
+        raise NotImplementedError()
 
     @property
-    def names(self) -> Iterable[str]:
+    def names(self) -> List[str]:
+        """Return the names of the features this Feature computes."""
+        raise NotImplementedError()
+
+
+class MultipleValuesFeature(Feature):
+    """Base type for features that produce multiple values."""
+
+    @property
+    def names(self) -> List[str]:
         """Return the names of the features this Feature computes."""
         if not hasattr(self, "_names"):
             raise NotImplementedError()
-        yield from ("%s_%s" % (self.id.name, name.lower()) for name in self._names)
+        return self._names
 
 
-class SingleOHEFeature(OHEFeature):
-    """Base type for features that have a single one hot encoded value."""
+class CategoricalFeature(MultipleValuesFeature):
+    """Base type for features that have a one hot encoded value."""
+
     pass
 
 
-class MultiOHEFeature(OHEFeature):
-    """Base type for features that have multiple one hot encoded values ."""
+class BagFeature(MultipleValuesFeature):
+    """Base type for features that have multiple values."""
+
+    pass
 
 
-class SimpleFeature(Feature):
-    """Base type for features that return one value."""
+class OrdinalFeature(Feature):
+    """Base type for ordinal features."""
 
     @property
-    def names(self) -> Iterable[str]:
-        """Return the name of the feature this Feature computes."""
-        yield self.id.name
+    def names(self) -> List[str]:
+        """Return the name of the computed feature."""
+        return [self.id.name]
 
 
 class RolesMixin:
+    """Mixin to make the roles module available in a Feature."""
+
     def __init__(self, language: str) -> None:
+        """Set the _roles attribute to the roles module of the given language."""
         self._roles = importlib.import_module("lookout.style.format.langs.%s.roles" % language)
 
 
 class TokensMixin:
+    """Mixin to make the tokens module available in a Feature."""
+
     def __init__(self, language: str) -> None:
+        """Set the _tokens attribute to the tokens module of the given language."""
         self._tokens = importlib.import_module("lookout.style.format.langs.%s.tokens" % language)
 
 
-_feature_classes = {}
+_feature_classes = {}  # type: MutableMapping[str, Type[Feature]]
 
 
 def get_features(language: str) -> Mapping[str, Feature]:
-    def instantiate(cls):
+    """Return the available features for a language."""
+    def instantiate(cls: Type[Feature]) -> Feature:
         if issubclass(cls, TokensMixin) or issubclass(cls, RolesMixin):
             return cls(language)
         else:
@@ -115,7 +119,7 @@ def register_feature(cls: Type[Feature]) -> Type[Feature]:
 
 
 @register_feature
-class _FeatureDiffCol(SimpleFeature):
+class _FeatureDiffCol(OrdinalFeature):
 
     id = FeatureId.diff_col
 
@@ -126,7 +130,7 @@ class _FeatureDiffCol(SimpleFeature):
 
 
 @register_feature
-class _FeatureDiffLine(SimpleFeature):
+class _FeatureDiffLine(OrdinalFeature):
 
     id = FeatureId.diff_line
 
@@ -137,7 +141,7 @@ class _FeatureDiffLine(SimpleFeature):
 
 
 @register_feature
-class _FeatureDiffOffset(SimpleFeature):
+class _FeatureDiffOffset(OrdinalFeature):
 
     id = FeatureId.diff_offset
 
@@ -148,7 +152,7 @@ class _FeatureDiffOffset(SimpleFeature):
 
 
 @register_feature
-class _FeatureIndexInternalType(SimpleFeature, RolesMixin):
+class _FeatureIndexInternalType(OrdinalFeature, RolesMixin):
 
     id = FeatureId.index_internal_type
 
@@ -166,7 +170,7 @@ class _FeatureIndexInternalType(SimpleFeature, RolesMixin):
 
 
 @register_feature
-class _FeatureIndexLabel(SimpleFeature):
+class _FeatureIndexLabel(OrdinalFeature):
 
     id = FeatureId.index_label
 
@@ -176,7 +180,7 @@ class _FeatureIndexLabel(SimpleFeature):
 
 
 @register_feature
-class _FeatureIndexReserved(SimpleFeature, TokensMixin):
+class _FeatureIndexReserved(OrdinalFeature, TokensMixin):
 
     id = FeatureId.index_reserved
 
@@ -194,7 +198,7 @@ class _FeatureIndexReserved(SimpleFeature, TokensMixin):
 
 
 @register_feature
-class _FeatureInternalType(SingleOHEFeature, RolesMixin):
+class _FeatureInternalType(CategoricalFeature, RolesMixin):
 
     id = FeatureId.internal_type
 
@@ -215,7 +219,7 @@ class _FeatureInternalType(SingleOHEFeature, RolesMixin):
 
 
 @register_feature
-class _FeatureLabel(SingleOHEFeature):
+class _FeatureLabel(CategoricalFeature):
 
     id = FeatureId.label
 
@@ -231,7 +235,7 @@ class _FeatureLabel(SingleOHEFeature):
 
 
 @register_feature
-class _FeatureReserved(SingleOHEFeature, TokensMixin):
+class _FeatureReserved(CategoricalFeature, TokensMixin):
 
     id = FeatureId.reserved
 
@@ -249,7 +253,7 @@ class _FeatureReserved(SingleOHEFeature, TokensMixin):
 
 
 @register_feature
-class _FeatureRoles(MultiOHEFeature, RolesMixin):
+class _FeatureRoles(BagFeature, RolesMixin):
 
     id = FeatureId.roles
 
@@ -270,7 +274,7 @@ class _FeatureRoles(MultiOHEFeature, RolesMixin):
 
 
 @register_feature
-class _FeatureLength(SimpleFeature):
+class _FeatureLength(OrdinalFeature):
 
     id = FeatureId.length
 
@@ -280,7 +284,7 @@ class _FeatureLength(SimpleFeature):
 
 
 @register_feature
-class _FeatureStartCol(SimpleFeature):
+class _FeatureStartCol(OrdinalFeature):
 
     id = FeatureId.start_col
 
@@ -290,7 +294,7 @@ class _FeatureStartCol(SimpleFeature):
 
 
 @register_feature
-class _FeatureStartLine(SimpleFeature):
+class _FeatureStartLine(OrdinalFeature):
 
     id = FeatureId.start_line
 

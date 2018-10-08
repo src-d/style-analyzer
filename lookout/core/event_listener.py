@@ -7,11 +7,11 @@ import time
 import grpc
 import stringcase
 
-from lookout.core.api.service_analyzer_pb2 import EventResponse
-from lookout.core.api.service_analyzer_pb2_grpc import \
-    AnalyzerServicer, add_AnalyzerServicer_to_server
-from lookout.core.api.event_pb2 import ReviewEvent, PushEvent
 from lookout.core import slogging
+from lookout.core.api.event_pb2 import PushEvent, ReviewEvent
+from lookout.core.api.service_analyzer_pb2 import EventResponse
+from lookout.core.api.service_analyzer_pb2_grpc import (add_AnalyzerServicer_to_server,
+                                                        AnalyzerServicer)
 
 
 def extract_review_event_context(request: ReviewEvent):

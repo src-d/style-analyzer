@@ -3,15 +3,15 @@ from datetime import datetime
 import logging
 import os
 import threading
-from typing import Tuple, Optional
+from typing import Optional, Tuple
 
 import cachetools
 from pympler.asizeof import asizeof
-from sqlalchemy import create_engine, Column, String, VARCHAR, DateTime, bindparam, and_
+from sqlalchemy import and_, bindparam, Column, create_engine, DateTime, String, VARCHAR
 from sqlalchemy.ext import baked
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy_utils import database_exists, create_database
+from sqlalchemy_utils import create_database, database_exists
 
 from lookout.core.analyzer import AnalyzerModel
 from lookout.core.model_repository import ModelRepository

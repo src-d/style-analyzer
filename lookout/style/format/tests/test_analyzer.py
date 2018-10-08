@@ -3,7 +3,7 @@ import logging
 import lzma
 from pathlib import Path
 import tarfile
-from typing import NamedTuple, Dict, Optional, Iterable
+from typing import Dict, Iterable, NamedTuple, Optional
 import unittest
 
 import bblfsh
@@ -33,7 +33,7 @@ class AnalyzerTests(unittest.TestCase):
     def get_files_from_tar(tar_path: str) -> Dict[str, File]:
         files = defaultdict(lambda: [None, None])
         with tarfile.open(tar_path) as tar:
-            for i, member in enumerate(tar):
+            for member in tar:
                 name = member.name
                 if name == ".":
                     continue
