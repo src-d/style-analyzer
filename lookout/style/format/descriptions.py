@@ -1,5 +1,6 @@
 """Features and rules description utils."""
 from collections import defaultdict
+from copy import copy
 from functools import singledispatch
 from math import ceil, floor
 from typing import List, Tuple
@@ -7,9 +8,30 @@ from typing import List, Tuple
 from numpy import flatnonzero, floating, ndarray
 
 from lookout.style.format.feature_extractor import FeatureExtractor, FEATURES_MAX, FEATURES_MIN
-from lookout.style.format.feature_utils import CLASSES
+from lookout.style.format.feature_utils import (
+    CLASS_INDEX, CLASSES, CLS_DOUBLE_QUOTE, CLS_NEWLINE, CLS_NOOP, CLS_SINGLE_QUOTE, CLS_SPACE,
+    CLS_SPACE_DEC, CLS_SPACE_INC, CLS_TAB, CLS_TAB_DEC, CLS_TAB_INC)
 from lookout.style.format.features import BagFeature, CategoricalFeature, OrdinalFeature
 from lookout.style.format.rules import Rule
+
+
+_CLASS_REPRESENTATIONS_MAPPING = {
+    CLS_DOUBLE_QUOTE: '"',
+    CLS_NEWLINE: "⏎",
+    CLS_NOOP: "∅",
+    CLS_SINGLE_QUOTE: "'",
+    CLS_SPACE: "␣",
+    CLS_SPACE_DEC: "␣⁻",
+    CLS_SPACE_INC: "␣⁺",
+    CLS_TAB: "⇥",
+    CLS_TAB_DEC: "⇥⁻",
+    CLS_TAB_INC: "⇥⁺",
+}
+CLASS_REPRESENTATIONS = [_CLASS_REPRESENTATIONS_MAPPING[cls] for cls in CLASSES]
+del _CLASS_REPRESENTATIONS_MAPPING
+
+CLASS_PRINTABLES = copy(CLASS_REPRESENTATIONS)
+CLASS_PRINTABLES[CLASS_INDEX[CLS_NEWLINE]] += "\n"
 
 
 def describe_rules(rules: List[Rule], feature_extractor: FeatureExtractor) -> List[str]:
@@ -46,7 +68,7 @@ def describe_rule(rule: Rule, feature_extractor: FeatureExtractor) -> str:
         for feature_name, splits in feature_names.items()]
     return "%s\n\t→ y = %s (%.2f confidence, %d support)" % (
         "\n\t∧ ".join(descriptions),
-        CLASSES[rule.stats.cls],
+        CLASS_REPRESENTATIONS[rule.stats.cls],
         rule.stats.conf,
         rule.stats.support)
 

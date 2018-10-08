@@ -1,0 +1,13 @@
+.Input textarea {
+  width: 100%;
+  min-height: 500px;
+  font-family: monospace;
+}
+
+.Input p {
+  margin-bottom: 1rem;
+}
+
+.Input button {
+  margin-top: 1rem;
+}

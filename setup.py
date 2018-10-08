@@ -47,6 +47,7 @@ setup(
         "tf": ["tensorflow>=1.0,<2.0"],
         "tf_gpu": ["tensorflow-gpu>=1.0,<2.0"],
         "test": tests_require,
+        "web": ["Flask>=1.0.0,<2.0", "Flask-Cors>=3.0.0,<4.0"],
     },
     tests_require=tests_require,
     package_data={"": ["LICENSE.md", "README.md"], },

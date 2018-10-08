@@ -70,7 +70,7 @@ class FormatAnalyzer(Analyzer):
                     comment.line = 1
                     comment.text = "Failed to parse this file"
                     continue
-                X, y, vnodes_y, vnodes = res
+                X, y, vnodes_y, _ = res
                 self.log.debug("predicting values for %d samples", len(y))
                 y_pred, winners = rules.predict(X, True)
                 assert len(y) == len(y_pred)
@@ -210,6 +210,7 @@ class FormatAnalyzer(Analyzer):
                     "select_features_number": 500,
                     "remove_constant_features": True,
                     "insert_noops": False,
+                    "return_sibling_indices": False,
                 },
                 "trainable_rules": {
                     "prune_branches_algorithms": ["reduced-error"],

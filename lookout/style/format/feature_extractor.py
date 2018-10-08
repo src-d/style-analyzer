@@ -47,7 +47,8 @@ class FeatureExtractor:
                  right_features: Sequence[str], parent_features: Sequence[str],
                  no_labels_on_right: bool, select_features_number: Optional[int],
                  remove_constant_features: bool, insert_noops: bool, debug_parsing: bool,
-                 selected_features: Optional[numpy.ndarray] = None) -> None:
+                 return_sibling_indices: bool, selected_features: Optional[numpy.ndarray] = None
+                 ) -> None:
         """
         Construct a `FeatureExtractor`.
 
@@ -64,6 +65,8 @@ class FeatureExtractor:
         :param remove_constant_features: Whether to remove constant features
         :param insert_noops: Whether to insert noop nodes or not.
         :param debug_parsing: Whether to pause on parsing exceptions instead of skipping.
+        :param return_sibling_indices: Whether to return the indices of siblings of the predicted \
+                                       nodes.
         :param selected_features: Features to use. Skips further feature selection.
         """
         self.language = language.lower()
@@ -80,6 +83,7 @@ class FeatureExtractor:
         self.selected_features = selected_features
         self.insert_noops = insert_noops
         self.debug_parsing = debug_parsing
+        self.return_sibling_indices = return_sibling_indices
         self.tokens = importlib.import_module("lookout.style.format.langs.%s.tokens" % language)
         self.roles = importlib.import_module("lookout.style.format.langs.%s.roles" % language)
         try:
@@ -186,7 +190,10 @@ class FeatureExtractor:
         return self._feature_node_counts[feature_group][neighbour_index]
 
     def extract_features(self, files: Iterable[File], lines: List[List[int]]=None
-                         ) -> Optional[Tuple[numpy.ndarray, numpy.ndarray, List[VirtualNode]]]:
+                         ) -> Optional[Union[
+                             Tuple[numpy.ndarray, numpy.ndarray, List[VirtualNode]],
+                             Tuple[numpy.ndarray, numpy.ndarray, List[VirtualNode],
+                                   List[List[int]]]]]:
         """
         Given a list of `File`-s, compute the features and labels required for the training of
         downstream models.
@@ -230,10 +237,16 @@ class FeatureExtractor:
         X = numpy.zeros((y.shape[0], self.count_features()), dtype=FEATURES_NUMPY_TYPE)
         vnodes_y = [None] * y.shape[0]
         offset = 0
+        if self.return_sibling_indices:
+            sibling_indices_list = []
         for vnodes, parents, file_lines in parsed_files:
-            offset = self._inplace_write_vnode_features(vnodes, parents, file_lines, offset, X,
-                                                        vnodes_y)
+            offset, sibling_indices = self._inplace_write_vnode_features(
+                vnodes, parents, file_lines, offset, X, vnodes_y)
+            if self.return_sibling_indices:
+                sibling_indices_list.extend(sibling_indices)
         self._log.debug("Features shape: %s" % (X.shape,))
+        if self.return_sibling_indices:
+            return X, y, vnodes_y, vnodes, sibling_indices_list
         return X, y, vnodes_y, vnodes
 
     def select_features(self, X: numpy.ndarray, y: numpy.ndarray) -> Tuple[numpy.ndarray,
@@ -461,7 +474,8 @@ class FeatureExtractor:
 
     def _inplace_write_vnode_features(
             self, vnodes: Sequence[VirtualNode], parents: Mapping[int, bblfsh.Node],
-            lines: Set[int], index_offset: int, X: numpy.ndarray, vn: List[VirtualNode]) -> int:
+            lines: Set[int], index_offset: int, X: numpy.ndarray, vn: List[VirtualNode]
+            ) -> Tuple[int, Optional[List[int]]]:
         """
         Given a sequence of `VirtualNode`-s and relevant info, compute the input matrix and label
         vector.
@@ -472,10 +486,12 @@ class FeatureExtractor:
         :param index_offset: at which index in the input ndarrays we should start writing
         :param X: features matrix, row per sample
         :param vn: list of the corresponding `VirtualNode`s, the length is the same as `X.shape[0]`
-        :return: the new offset
+        :return: the new offset, list of neighbours if return_neighbours is True else None
         """
         closest_left_node_id = None
         position = index_offset
+        if self.return_sibling_indices:
+            sibling_indices_list = []
         for i, vnode in enumerate(vnodes):
             if vnode.node:
                 closest_left_node_id = id(vnode.node)
@@ -508,7 +524,7 @@ class FeatureExtractor:
                     start_left -= 1
                     end_left -= 1
                 # We go two by two to avoid NOOP nodes.
-                left_siblings = vnodes[max(start_left, 0):max(end_left, 0):-2]
+                left_sibling_indices = range(max(start_left, 0), max(end_left, 0), -2)
 
                 # If we don't compute right siblings without labeled nodes, we do the same for
                 # them.
@@ -518,38 +534,40 @@ class FeatureExtractor:
                     if vnode.y != CLASS_INDEX[CLS_NOOP]:
                         start_right += 1
                         end_right += 1
-                    right_siblings = vnodes[start_right:end_right:2]
+                    right_sibling_indices = range(start_right, end_right, 2)
             else:
-                left_siblings = vnodes[max(i - 1, 0):max(i - self.left_siblings_window - 1, 0):-1]
-                right_siblings = vnodes[i + 1:i + self.right_siblings_window + 1]
+                left_sibling_indices = range(max(i - 1, 0),
+                                             max(i - self.left_siblings_window - 1, 0),
+                                             -1)
+                right_sibling_indices = range(i + 1, i + self.right_siblings_window + 1)
 
             if self.no_labels_on_right:
-                right_siblings = []
+                right_sibling_indices = []
                 for j in range(i + 1, len(vnodes)):
-                    if len(right_siblings) >= self.right_siblings_window:
+                    if len(right_sibling_indices) >= self.right_siblings_window:
                         break
                     if vnodes[j].y is None and not vnodes[j].value.isspace():
-                        right_siblings.append(vnodes[j])
+                        right_sibling_indices.append(j)
 
             col_offset = 0
             # 1. write features of the current node
             col_offset += self._inplace_write_features(
                 self._get_features(FeatureGroup.node, 0, vnode, vnode), position, col_offset, X)
 
-            for j, left_vnode in enumerate(left_siblings):
+            for j, node_index in enumerate(left_sibling_indices):
                 col_offset += self._inplace_write_features(
-                    self._get_features(FeatureGroup.left, j, left_vnode, vnode),
+                    self._get_features(FeatureGroup.left, j, vnodes[node_index], vnode),
                     position, col_offset, X)
-            for j in range(self.left_siblings_window - 1, len(left_siblings) - 1, -1):
+            for j in range(self.left_siblings_window - 1, len(left_sibling_indices) - 1, -1):
                 col_offset += self.count_features(FeatureGroup.left, j)
 
             # 3. write features of the right siblings of the current node and account for the
             # possible lack of siblings by adjusting offset
-            for j, right_vnode in enumerate(right_siblings):
+            for j, node_index in enumerate(right_sibling_indices):
                 col_offset += self._inplace_write_features(
-                    self._get_features(FeatureGroup.right, j, right_vnode, vnode),
+                    self._get_features(FeatureGroup.right, j, vnodes[node_index], vnode),
                     position, col_offset, X)
-            for j in range(self.right_siblings_window - 1, len(right_siblings) - 1, -1):
+            for j in range(self.right_siblings_window - 1, len(right_sibling_indices) - 1, -1):
                 col_offset += self.count_features(FeatureGroup.right, j)
 
             # 4. write features of the parents of the current node
@@ -560,7 +578,10 @@ class FeatureExtractor:
 
             vn[position] = vnode
             position += 1
-        return position
+            if self.return_sibling_indices:
+                sibling_indices_list.append(list(left_sibling_indices)
+                                            + list(right_sibling_indices))
+        return (position, sibling_indices_list if self.return_sibling_indices else None)
 
     def _parse_file(self, contents: str, root: bblfsh.Node, path: str) -> \
             Tuple[List[VirtualNode], Dict[int, bblfsh.Node]]:

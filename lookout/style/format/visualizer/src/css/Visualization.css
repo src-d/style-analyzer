@@ -1,0 +1,33 @@
+.Visualization p {
+  margin-bottom: 1rem;
+}
+
+.Visualization button {
+  margin-top: 1rem;
+}
+
+.Visualization span.non-concept {
+  color: #999;
+}
+
+.Visualization .code-display {
+  font-family: monospace;
+  padding: 10px;
+  border-radius: 5px;
+  border: #666 solid 1px;
+  overflow: auto;
+  height: 500px;
+}
+
+.Visualization .feature-display {
+  font-family: monospace;
+  padding: 10px;
+  border-radius: 5px;
+  border: #666 solid 1px;
+  overflow: auto;
+  height: 500px;
+}
+
+.Visualization pre {
+  overflow: visible;
+}
