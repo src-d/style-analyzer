@@ -6,7 +6,7 @@ from typing import Any
 from lookout.core.cmdline import ArgumentDefaultsHelpFormatterNoNone
 from lookout.core.slogging import setup as setup_slogging
 from lookout.style.format.quality_report import quality_report
-from lookout.style.format.rule_stat import rules_report
+from lookout.style.format.rule_stat import print_rules_report
 from lookout.style.format.visualization import visualize
 
 
@@ -57,7 +57,7 @@ def create_parser() -> ArgumentParser:
 
     # Rules statistics
     rule_parser = add_parser("rule", "Statistics about rules.")
-    rule_parser.set_defaults(handler=rules_report)
+    rule_parser.set_defaults(handler=print_rules_report)
     rule_parser.add_argument("-i", "--input-pattern", required=True, type=str,
                              help="Path to folder with source code - "
                                   "should be in a format compatible with glob (ends with**/* "

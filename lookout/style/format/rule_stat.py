@@ -4,11 +4,12 @@ from collections import defaultdict
 from bblfsh import BblfshClient
 from tqdm import tqdm
 
-from lookout.style.format.descriptions import describe_rules
+from lookout.style.format.descriptions import describe_rule
+from lookout.style.format.utils import profile
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.feature_utils import CLASSES
 from lookout.style.format.model import FormatModel
-from lookout.style.format.quality_report import prepare_files
+from lookout.style.format.utils import prepare_files
 
 
 class RuleStat:
@@ -46,22 +47,30 @@ def print_rule_table(rule_stat):
         print(new_line)
 
 
-def rules_report(input_pattern: str, bblfsh: str, language: str, model_path: str) -> None:
+@profile
+def print_rules_report(input_pattern: str, bblfsh: str, language: str, model_path: str) -> None:
     """Print several different reports for a given model on a given dataset."""
     model = FormatModel().load(model_path)
     rules = model[language]
     print("Model parameters: %s" % rules.origin_config)
     print("Stats about rules: %s" % rules)
 
+    fe = FeatureExtractor(language=language, **rules.origin_config["feature_extractor"])
+    min_support, max_support = float("inf"), -1
+    min_conf, max_conf = 1, 0
+    for i, rule in enumerate(rules.rules):
+        min_support = min(min_support, rule.stats.support)
+        max_support = max(max_support, rule.stats.support)
+        min_conf = min(min_conf, rule.stats.conf)
+        max_conf = max(max_conf, rule.stats.conf)
+        print("Rule %s: %s" % (i, describe_rule(rule, fe)))
+    print("Min/max support: %s/%s, min/max conf: %s/%s" % (min_support, max_support, min_conf,
+                                                           max_conf))
     client = BblfshClient(bblfsh)
     files = prepare_files(input_pattern, client, language)
     print("Number of files: %s" % (len(files)))
 
-    fe = FeatureExtractor(language=language, **rules.origin_config["feature_extractor"])
     res = fe.extract_features(files)
-
-    for i, rule in enumerate(describe_rules(rules.rules, fe)):
-        print("Rule %s: %s" % (i, rule))
 
     if res is None:
         print("Failed to parse files, aborting report...")
