@@ -135,12 +135,12 @@ class VirtualNode:
 
 
 CLS_SPACE = "<space>"
+CLS_TAB = "<tab>"
+CLS_NEWLINE = "<newline>"
 CLS_SPACE_INC = "<+space>"
 CLS_SPACE_DEC = "<-space>"
-CLS_TAB = "<tab>"
 CLS_TAB_INC = "<+tab>"
 CLS_TAB_DEC = "<-tab>"
-CLS_NEWLINE = "<newline>"
 CLS_SINGLE_QUOTE = "'"
 CLS_DOUBLE_QUOTE = '"'
 CLS_NOOP = "<noop>"
