@@ -16,7 +16,7 @@ from lookout.style.format.files_filtering import filter_filepaths
 from lookout.style.format.model import FormatModel
 
 
-def prepare_files(folder: str, client: BblfshClient, language: str) -> Iterable[File]:
+def prepare_files(files_location: str, client: BblfshClient, language: str) -> Iterable[File]:
     """
     Prepare the given folder for analysis by extracting UASTs and creating the gRPC wrappers.
 
@@ -27,8 +27,11 @@ def prepare_files(folder: str, client: BblfshClient, language: str) -> Iterable[
     """
     files = []
 
-    # collect filenames with full path
-    filenames = glob.glob(folder, recursive=True)
+    if isinstance(files_location, str):
+        # collect filenames with the full repository path
+        filenames = glob.glob(files_location, recursive=True)
+    else:
+        filenames = files_location
 
     for file in tqdm(filter_filepaths(filenames)):
         try:
