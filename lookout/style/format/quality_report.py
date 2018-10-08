@@ -1,50 +1,15 @@
 """Facilities to report the quality of a given model on a given dataset."""
 from collections import Counter
-import glob
-from typing import Iterable
 
 from bblfsh import BblfshClient
-from bblfsh.client import NonUTF8ContentException
 import numpy
 from sklearn.metrics import classification_report, confusion_matrix
-from tqdm import tqdm
 
-from lookout.core.api.service_data_pb2 import File
 from lookout.style.format.utils import profile
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.feature_utils import CLASSES
-from lookout.style.format.files_filtering import filter_filepaths
 from lookout.style.format.model import FormatModel
-
-
-def prepare_files(folder: str, client: BblfshClient, language: str) -> Iterable[File]:
-    """
-    Prepare the given folder for analysis by extracting UASTs and creating the gRPC wrappers.
-
-    :param folder: Path to the folder to analyze.
-    :param client: Babelfish client. Babelfish server should be started accordingly.
-    :param language: Language to consider. Will discard the other languages
-    :return: Iterator of File-s with content, uast, path and language set.
-    """
-    files = []
-
-    # collect filenames with full path
-    filenames = glob.glob(folder, recursive=True)
-
-    for file in tqdm(filter_filepaths(filenames)):
-        try:
-            res = client.parse(file)
-        except NonUTF8ContentException:
-            # skip files that can't be parsed because of UTF-8 decoding errors.
-            continue
-        if res.status == 0 and res.language.lower() == language.lower():
-            uast = res.uast
-            path = file
-            with open(file) as f:
-                content = f.read().encode("utf-8")
-            files.append(File(content=content, uast=uast, path=path,
-                              language=res.language.lower()))
-    return files
+from lookout.style.format.utils import prepare_files
 
 
 @profile
