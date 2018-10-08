@@ -25,6 +25,7 @@ def prepare_file(filename: str, client: BblfshClient, language: str) -> File:
     :param filename: Path to the filename to analyze.
     :param client: Babelfish client. Babelfish server should be started accordingly.
     :param language: Language to consider. Will discard the other languages
+    :return: File object with uast, content and path set.
     """
     assert os.path.isfile(filename), "\"%s\" should be a file" % filename
     res = client.parse(filename, language)

@@ -13,7 +13,13 @@ from lookout.style.format.rules import Rule
 
 
 def describe_rules(rules: List[Rule], feature_extractor: FeatureExtractor) -> List[str]:
-    """Format the rules as a list of human-readable descriptions."""
+    """
+    Format the rules as a list of human-readable descriptions.
+
+    :param rules: The list of rules to describe.
+    :param feature_extractor: The FeatureExtractor used to create those rules.
+    :return: A list of rule descriptions.
+    """
     return [describe_rule(rule, feature_extractor) for rule in rules]
 
 
@@ -22,7 +28,10 @@ def describe_rule(rule: Rule, feature_extractor: FeatureExtractor) -> str:
     Format the rule as text.
 
     We take features metadata to convert the integer indices to human-readable names.
-    Delegates most of the work to RuleAttribute.describe().
+
+    :param rule: The rule to describe.
+    :param feature_extractor: The FeatureExtractor used to create those rules.
+    :return: The description of the rule.
     """
     grouped = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
     for feature_index, cmp, threshold in rule.attrs:
@@ -98,6 +107,7 @@ def describe_rule_splits(feature: BagFeature, name: str,
     Describe parts of a rule in natural language.
 
     :param feature: The feature used for the splits to describe.
+    :param name: The name to use for the feature used in the split.
     :param splits: List of tuples representing the splits to describe. The tuples contain the \
                    comparison, the threshold and the index of the feature used, useful in case of \
                    multi-values features.
@@ -114,6 +124,7 @@ def describe_rule_parts_categorical(feature: CategoricalFeature, name: str,
     Describe parts of a rule in natural language.
 
     :param feature: The feature used for the splits to describe.
+    :param name: The name to use for the feature used in the split.
     :param splits: List of tuples representing the splits to describe. The tuples contain the \
                    comparison, the threshold and the index of the feature used, useful in case of \
                    multi-values features.
@@ -143,6 +154,7 @@ def describe_rule_parts_ordinal(feature: OrdinalFeature, name: str,
     Describe a part of a rule in natural language.
 
     :param feature: The feature used for the splits to describe.
+    :param name: The name to use for the feature used in the split.
     :param splits: List of the tuple representing the splits to describe. The tuples contain the \
                    comparison, the threshold and an ignored value here to be consistent with \
                    other types of features. The wrapping list is also needed for this reason.

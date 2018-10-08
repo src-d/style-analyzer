@@ -23,6 +23,7 @@ def prepare_files(folder: str, client: BblfshClient, language: str) -> Iterable[
     :param folder: Path to the folder to analyze.
     :param client: Babelfish client. Babelfish server should be started accordingly.
     :param language: Language to consider. Will discard the other languages
+    :return: Iterator of File-s with content, uast, path and language set.
     """
     files = []
 

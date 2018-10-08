@@ -416,13 +416,14 @@ class FeatureExtractor:
                      parents: Mapping[int, bblfsh.Node], closest_left_node_id: int
                      ) -> Optional[bblfsh.Node]:
         """
-        Compute current vnode parent. If both left and right closest parent are the same then we
-        use it else we use no parent feature (set them to -1 later on)
+        Compute current vnode parent as the lowest common ancestor of the closest left and right
+        babelfish nodes.
 
         :param vnode_index: the index of the current node
         :param vnodes: the sequence of `VirtualNode`-s being transformed into features
         :param parents: the id of bblfsh node to parent bblfsh node mapping
-        :param closest_left_parent: bblfsh node of the closest parent already gone through
+        :param closest_left_node_id: bblfsh node of the closest parent already gone through
+        :return: The bblfsh.Node of the found parent or None if no parent was found.
         """
         left_ancestors = set()
         current_left_ancestor_id = closest_left_node_id
