@@ -194,6 +194,13 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         :param uncertain_attributes: indicates whether to **retain** parts of rules with low \
                                      certainty (see "Generating Production Rules From Decision \
                                      Trees" by J.R. Quinlan).
+        :param prune_dataset_ratio: Ratio of the dataset to use for pruning during training.
+        :param n_estimators: n_estimators parameter of the base model.
+        :param max_depth: max_depth parameter of the base model.
+        :param max_features: max_features parameter of the base model.
+        :param min_samples_leaf: min_samples parameter of the base model.
+        :param min_samples_split: min_samples_split parameter of the base model.
+        :param random_state: random_state parameter of the base model.
         :param origin_config: all parameters that are used for the model training.
         """
         super().__init__()
@@ -532,10 +539,11 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         "Simplifying Decision Trees" by J. R. Quinlan.
         https://dspace.mit.edu/bitstream/handle/1721.1/6453/AIM-930.pdf
 
-        :param rules: list of rules to simplify.
-        :param X: input features, used to exclude the irrelevant attributes.
-        :param Y: input labels.
-        :return: new list of simplified rules.
+        :param rules: List of rules to simplify.
+        :param X: Input features, used to exclude the irrelevant attributes.
+        :param Y: Input labels.
+        :param prune_uncertain: Whether to apply an extra pruning condition.
+        :return: New list of simplified rules.
         """
 
         def confidence(v, not_v):

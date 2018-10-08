@@ -1,5 +1,6 @@
 [flake8]
-select=D,I
+ignore=D301
+select=D
 max-line-length=99
 exclude=
     .git
@@ -8,7 +9,9 @@ exclude=
     doc
     lookout/style/format/research
     lookout/style/typos/research
+    setup.py
     tests
+    # Should be fixed and removed one by one: https://github.com/src-d/style-analyzer/issues/212
     lookout/core/analyzer.py
     lookout/core/cmdline.py
     lookout/core/data_requests.py
@@ -47,4 +50,3 @@ exclude=
     lookout/style/format/visualization.py
     lookout/style/__init__.py
     lookout/style/typos/typos_correction/symspell.py
-    setup.py

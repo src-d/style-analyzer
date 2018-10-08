@@ -1,4 +1,4 @@
-from typing import Callable, Iterable, Mapping, NamedTuple, Optional, Tuple
+from typing import Callable, Iterable, Mapping, NamedTuple, Tuple
 
 import bblfsh
 
@@ -12,16 +12,16 @@ Position = NamedTuple("Position", (("offset", int), ("line", int), ("col", int))
 
 class VirtualNode:
     def __init__(self, value: str, start: Position, end: Position,
-                 *, node: bblfsh.Node = None, y: int = None, path: str = None,
-                 global_index: Optional[int] = None, labeled_index: Optional[int] = None) -> None:
+                 *, node: bblfsh.Node = None, y: int = None, path: str = None) -> None:
         """
         This represents either a real UAST node or an imaginary token.
 
-        :param value: text of the token.
-        :param start: starting position of the token (0-based).
-        :param end: ending position of the token (0-based).
-        :param node: corresponding UAST node (if exists).
-        :param path: path to related file. Useful for debugging.
+        :param value: Text of the token.
+        :param start: Starting position of the token (0-based).
+        :param end: Ending position of the token (0-based).
+        :param node: Corresponding UAST node (if exists).
+        :param y: The label of the node.
+        :param path: Path to related file. Useful for debugging.
         """
         self.value = value
         assert start.line >= 1 and start.col >= 1, "start line and column are 1-based like UASTs"

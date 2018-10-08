@@ -11,7 +11,7 @@ def filter_filepaths(filepaths: Iterable[str], line_length_limit: int = 500,
     """
     Mirror of the file filtering used in the format analyzer for use by debugging tools.
 
-    :param paths: Iterable of paths to filter.
+    :param filepaths: Iterable of paths to filter.
     :param line_length_limit: Maximum length of lines to keep a file.
     :param exclude_pattern: Pattern to reject files based on their path. If None, uses the pattern
                             currently in use in lookout.core. Use "" to not filter anything.
