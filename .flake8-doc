@@ -11,6 +11,7 @@ exclude=
     lookout/style/typos/research
     setup.py
     tests
+    lookout/style/typos/symspell.py
     # Should be fixed and removed one by one: https://github.com/src-d/style-analyzer/issues/212
     lookout/core/analyzer.py
     lookout/core/cmdline.py
@@ -49,4 +50,3 @@ exclude=
     lookout/style/format/rule_stat.py
     lookout/style/format/visualization.py
     lookout/style/__init__.py
-    lookout/style/typos/typos_correction/symspell.py

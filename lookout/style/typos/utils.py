@@ -1,3 +1,5 @@
+"""Various glue functions to work with the input dataset and the output from FastText."""
+
 from itertools import chain
 import lzma
 from typing import Dict, Iterable, List, Tuple
@@ -18,7 +20,14 @@ SUGGESTIONS_COLUMN = "suggestions"
 TYPO_COLUMN = "typo"
 
 
-def collect_embeddings(fasttext: FastText, tokens: Iterable[str]) -> numpy.ndarray:
+def extract_embeddings_from_fasttext(fasttext: FastText, tokens: Iterable[str]) -> numpy.ndarray:
+    """
+    Convert the embeddings from FastText to a dense matrix.
+
+    :param fasttext: trained embeddings.
+    :param tokens: list of tokens - axis Y of the returned matrix.
+    :return: matrix with extracted embeddings.
+    """
     return numpy.array([fasttext.wv[token] for token in tokens])
 
 
@@ -51,10 +60,11 @@ def read_vocabulary(file: str) -> List[str]:
     return tokens
 
 
-def flatten(data: pandas.DataFrame, column: str, new_column: str,
-            apply_function=lambda x: x) -> pandas.DataFrame:
+def flatten_df_by_column(data: pandas.DataFrame, column: str, new_column: str,
+                         apply_function=lambda x: x) -> pandas.DataFrame:
     """
-    Flatten dataframe on "column" with extracted elements put to "new_column".
+    Flatten DataFrame by `column` with extracted elements put to `new_column`. \
+    Operation happens out-of-place.
 
     :param data: DataFrame to flatten
     :param column: Column to expand
@@ -74,16 +84,17 @@ def flatten(data: pandas.DataFrame, column: str, new_column: str,
 
 def flatten_data(data: pandas.DataFrame, new_column_name=TYPO_COLUMN) -> pandas.DataFrame:
     """
-    Flatten identifiers data in column SPLIT_COLUMN.
+    Flatten identifiers data in column `new_column_name`. \
+    Operation happens out-of-place.
 
-    :param data: DataFrame containing column SPLIT_COLUMN with splitted identifiers
+    :param data: DataFrame containing column `new_column_name` with splitted identifiers
                  either as strings or as lists of tokens.
     :param new_column_name: Name of column to put tokens from splits to.
-    :return: Flattened DataFrame
+    :return: Flattened DataFrame.
     """
     apply_function = (lambda x: x) if isinstance(data[SPLIT_COLUMN].tolist()[0], list) \
         else (lambda x: str(x).split())
-    return flatten(data, SPLIT_COLUMN, new_column_name, apply_function=apply_function)
+    return flatten_df_by_column(data, SPLIT_COLUMN, new_column_name, apply_function=apply_function)
 
 
 def add_context_info(data: pandas.DataFrame) -> pandas.DataFrame:
@@ -203,7 +214,8 @@ def suggestions_to_flat_df(typos: pandas.DataFrame,
     :return: DataFrame with columns TYPO_COLUMN, CANDIDATE_COLUMN, PROBABILITY_COLUMN,
              indexed by typos.index.
     """
-    flat_df = flatten(suggestions_to_df(typos, suggestions), SUGGESTIONS_COLUMN, "suggestion")
+    flat_df = flatten_df_by_column(suggestions_to_df(typos, suggestions),
+                                   SUGGESTIONS_COLUMN, "suggestion")
     flat_df[CANDIDATE_COLUMN] = [suggestion[0] for suggestion in flat_df.suggestion]
     flat_df[PROBABILITY_COLUMN] = [suggestion[1] for suggestion in flat_df.suggestion]
     flat_df = flat_df.drop(columns=[SUGGESTIONS_COLUMN, "suggestion"])
