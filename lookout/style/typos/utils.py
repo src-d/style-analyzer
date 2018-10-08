@@ -25,6 +25,7 @@ def collect_embeddings(fasttext: FastText, tokens: Iterable[str]) -> numpy.ndarr
 def read_frequencies(file: str) -> Dict[str, int]:
     """
     Read token frequencies from the file.
+
     :param file: Path to the file containing tokens with frequencies.
                  Every line has format "token count".
     :return: Dictionary of tokens frequencies.
@@ -40,6 +41,7 @@ def read_frequencies(file: str) -> Dict[str, int]:
 def read_vocabulary(file: str) -> List[str]:
     """
     Read vocabulary tokens from the text file.
+
     :param file: Text file used to generate vocabulary of corrections candidates.
                  First token in every line split is added to the vocabulary.
     :return: List of tokens of the vocabulary.
@@ -53,6 +55,7 @@ def flatten(data: pandas.DataFrame, column: str, new_column: str,
             apply_function=lambda x: x) -> pandas.DataFrame:
     """
     Flatten dataframe on "column" with extracted elements put to "new_column".
+
     :param data: DataFrame to flatten
     :param column: Column to expand
     :param new_column: Column to populate with elements from flattened column
@@ -72,6 +75,7 @@ def flatten(data: pandas.DataFrame, column: str, new_column: str,
 def flatten_data(data: pandas.DataFrame, new_column_name=TYPO_COLUMN) -> pandas.DataFrame:
     """
     Flatten identifiers data in column SPLIT_COLUMN.
+
     :param data: DataFrame containing column SPLIT_COLUMN with splitted identifiers
                  either as strings or as lists of tokens.
     :param new_column_name: Name of column to put tokens from splits to.
@@ -85,6 +89,7 @@ def flatten_data(data: pandas.DataFrame, new_column_name=TYPO_COLUMN) -> pandas.
 def add_context_info(data: pandas.DataFrame) -> pandas.DataFrame:
     """
     Split context of identifier on before and after part.
+
     :param data: DataFrame. Column SPLIT_COLUMN will be used for
                  creating context info if present.
     :return: Provided data with added columns BEFORE_COLUMN and AFTER_COLUMN, containing lists
@@ -123,8 +128,9 @@ def rank_candidates(candidates: pandas.DataFrame, pred_proba: List[float],
                     n_candidates: int = None, return_all: bool = True
                     ) -> Dict[int, List[Tuple[str, float]]]:
     """
-    Rank candidates for typos correction based on correctness probabilities.
-    :param candidates: Dataframe with columns ID_COLUMN, TYPO_COLUMN, "candidate"
+    Rank candidates for typos correction based on the correctness probabilities.
+
+    :param candidates: DataFrame with columns ID_COLUMN, TYPO_COLUMN, "candidate"
                        and indexed by range(len(pred_proba)).
     :param pred_proba: Array of probabilities of correctness of every candidate.
     :param n_candidates: Number of most probably correct candidates to return for each typo.
@@ -158,7 +164,8 @@ def filter_suggestions(typos: pandas.DataFrame, suggestions: Dict[int, List[Tupl
                        n_candidates: int=1, return_all: bool=False
                        ) -> Dict[int, List[Tuple[str, float]]]:
     """
-    Filter corrections suggestions.
+    Filter correction suggestions.
+
     :param typos: DataFrame, containing column TYPO_COLUMN.
     :param suggestions: Dictionary of suggestions, keys correspond with typos.index.
     :param n_candidates: Number of most probably correct candidates to return for each typo.
@@ -174,6 +181,7 @@ def suggestions_to_df(typos: pandas.DataFrame, suggestions: Dict[int, List[Tuple
                       ) -> pandas.DataFrame:
     """
     Convert suggestions from dictionary to pandas.DataFrame.
+
     :param typos: DataFrame containing column TYPO_COLUMN.
     :param suggestions: Dictionary of suggestions, keys correspond with typos.index.
     :return: DataFrame with columns TYPO_COLUMN, SUGGESTIONS_COLUMN, indexed by typos.index.
@@ -189,6 +197,7 @@ def suggestions_to_flat_df(typos: pandas.DataFrame,
                            suggestions: Dict[int, List[Tuple[str, float]]]) -> pandas.DataFrame:
     """
     Convert suggestions from dictionary to pandas.DataFrame, flattened by suggestions column.
+
     :param typos: DataFrame containing column TYPO_COLUMN.
     :param suggestions: Dictionary of suggestions, keys correspond with typos.index.
     :return: DataFrame with columns TYPO_COLUMN, CANDIDATE_COLUMN, PROBABILITY_COLUMN,
