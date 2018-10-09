@@ -93,26 +93,25 @@ def files2mispreds(files: Iterable[str], rules: Rules, client: str, language: st
     """
     files = prepare_files(files, client, language)
     fe = FeatureExtractor(language=language, **rules.origin_config["feature_extractor"])
-    X, y, vnodes_y, _ = fe.extract_features(files)
-    X, _ = fe.select_features(X, y)
-    y_pred, winner = rules.predict(X, True)
-    mispreds = get_mispreds(y, y_pred, vnodes_y, winner)
+    X, y, vnodes_y, vnodes = fe.extract_features(files)
+    y_pred, winners = rules.predict(X, vnodes_y, vnodes, language)
+    mispreds = get_mispreds(y, y_pred, vnodes_y, winners)
     return mispreds
 
 
 def get_mispreds(y: numpy.ndarray, y_pred: numpy.ndarray, nodes: Iterable[VirtualNode],
-                 winner: numpy.ndarray) -> Iterable[Misprediction]:
+                 winners: numpy.ndarray) -> Iterable[Misprediction]:
     """
     Return the list of `Misprediction`-s where the labels differ.
 
     :param y: Numpy 1-dimensional array of labels.
     :param y_pred: Numpy 1-dimensional array of predicted labels by the model.
     :param nodes: List of `VirtualNode`-s.
-    :param winner: Numpy 1-dimensional array of the winning rule indices for each sample.
+    :param winners: Numpy 1-dimensional array of the winning rule indices for each sample.
     :return: List of `Misprediction`-s where the labels `y` and `y_pred` differ.
     """
     mispreds = []
-    for gt, pred, vn, rule in zip(y, y_pred, nodes, winner):
+    for gt, pred, vn, rule in zip(y, y_pred, nodes, winners):
         if gt != pred:
             mispreds.append(Misprediction(gt, pred, vn, rule))
     return mispreds

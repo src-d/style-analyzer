@@ -472,6 +472,19 @@ class FeatureExtractor:
         X[row, col:col + len(to_write)] = to_write
         return len(to_write)
 
+    def _keep_sibling(self, sibling: VirtualNode, vnode: VirtualNode, include_labeled: bool
+                      ) -> bool:
+        if not include_labeled and (
+                sibling.y is not None or sibling.node is None and sibling.value.isspace()):
+            return False
+        if sibling.y == CLASS_INDEX[CLS_NOOP]:
+            return False
+        if ((vnode.y == CLASS_INDEX[CLS_DOUBLE_QUOTE] or vnode.y == CLASS_INDEX[CLS_SINGLE_QUOTE])
+                and (sibling.y == CLASS_INDEX[CLS_DOUBLE_QUOTE]
+                     or sibling.y == CLASS_INDEX[CLS_SINGLE_QUOTE])):
+            return False
+        return True
+
     def _inplace_write_vnode_features(
             self, vnodes: Sequence[VirtualNode], parents: Mapping[int, bblfsh.Node],
             lines: Set[int], index_offset: int, X: numpy.ndarray, vn: List[VirtualNode]
@@ -512,42 +525,21 @@ class FeatureExtractor:
                         break
                     current_ancestor = parents[current_ancestor_id]
 
-            if self.insert_noops:
-                # First we define the ranges into which we find siblings when the current node is
-                # NOOP. If the current node is NOOP, then its direct neighbours are interesting
-                # (read non-NOOP) nodes.
-                start_left = i - 1
-                end_left = start_left - self.left_siblings_window * 2
-                # For non-NOOP nodes, the first interesting nodes are further from the current node
-                # since there are NOOP nodes in-between.
-                if vnode.y != CLASS_INDEX[CLS_NOOP]:
-                    start_left -= 1
-                    end_left -= 1
-                # We go two by two to avoid NOOP nodes.
-                left_sibling_indices = range(max(start_left, 0), max(end_left, 0), -2)
-
-                # If we don't compute right siblings without labeled nodes, we do the same for
-                # them.
-                if not self.no_labels_on_right:
-                    start_right = i + 1
-                    end_right = start_right + self.right_siblings_window * 2
-                    if vnode.y != CLASS_INDEX[CLS_NOOP]:
-                        start_right += 1
-                        end_right += 1
-                    right_sibling_indices = range(start_right, end_right, 2)
-            else:
-                left_sibling_indices = range(max(i - 1, 0),
-                                             max(i - self.left_siblings_window - 1, 0),
-                                             -1)
-                right_sibling_indices = range(i + 1, i + self.right_siblings_window + 1)
-
-            if self.no_labels_on_right:
-                right_sibling_indices = []
-                for j in range(i + 1, len(vnodes)):
-                    if len(right_sibling_indices) >= self.right_siblings_window:
-                        break
-                    if vnodes[j].y is None and not vnodes[j].value.isspace():
-                        right_sibling_indices.append(j)
+            left_sibling_indices = []
+            for j in range(i - 1, 0, -1):
+                if len(left_sibling_indices) >= self.left_siblings_window:
+                    break
+                if not self._keep_sibling(vnodes[j], vnode, include_labeled=True):
+                    continue
+                left_sibling_indices.append(j)
+            right_sibling_indices = []
+            for j in range(i + 1, len(vnodes)):
+                if len(right_sibling_indices) >= self.right_siblings_window:
+                    break
+                if not self._keep_sibling(vnodes[j], vnode,
+                                          include_labeled=not self.no_labels_on_right):
+                    continue
+                right_sibling_indices.append(j)
 
             col_offset = 0
             # 1. write features of the current node

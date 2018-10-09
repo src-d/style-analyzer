@@ -52,12 +52,12 @@ def visualize(input_filename: str, bblfsh: str, language: str, model_path: str) 
     if res is None:
         print("Failed to parse files, aborting visualization...")
         return
-    X, y, vnodes_y, _ = res
+    X, y, vnodes_y, vnodes = res
 
-    y_pred, winner = rules.predict(X, True)
+    y_pred, winners = rules.predict(X, vnodes_y, vnodes, language)
 
     mispred = []
-    for gt, pred, node, rule in zip(y, y_pred, vnodes_y, winner):
+    for gt, pred, node, rule in zip(y, y_pred, vnodes_y, winners):
         if gt != pred:
             mispred.append(Misprediction(gt, pred, node, rule))
     print("Errors: %s out of %s mispredicted" % (len(mispred), len(vnodes_y)))

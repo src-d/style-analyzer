@@ -48,14 +48,14 @@ def visualize(input_filename: str, bblfsh: str, language: str, model_path: str) 
     file = prepare_file(input_filename, client, language)
 
     fe = FeatureExtractor(language=language, **rules.origin_config["feature_extractor"])
-    X, y, nodes = fe.extract_features([file])
+    X, y, vnodes_y, vnodes = fe.extract_features([file])
 
-    y_pred = rules.predict(X)
+    y_pred, _ = rules.predict(X, vnodes_y, vnodes, language)
 
     # collect lines with mispredictions - could be removed
     mispred_lines = set()
     lines = set()
-    for gt, pred, node in zip(y, y_pred, nodes):
+    for gt, pred, node in zip(y, y_pred, vnodes_y):
         lines.add((node.path, node.start.line))
         if gt != pred:
             mispred_lines.add((node.path, node.start.line))
@@ -64,7 +64,7 @@ def visualize(input_filename: str, bblfsh: str, language: str, model_path: str) 
 
     # collect mispredictions and all other predictions for each line with mistake
     mispred = defaultdict(list)
-    for gt, pred, node in zip(y, y_pred, nodes):
+    for gt, pred, node in zip(y, y_pred, vnodes_y):
         if (node.path, node.start.line) in mispred_lines:
             mispred[(node.path, node.start.line)].append(Misprediction(gt, pred, node))
 
