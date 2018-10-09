@@ -1,10 +1,9 @@
 """Commonly used utils."""
 import cProfile
 from functools import wraps
-import glob
 import io
 import pstats
-from typing import Callable, Iterable, Union
+from typing import Callable, Iterable
 
 from bblfsh import BblfshClient
 from bblfsh.client import NonUTF8ContentException
@@ -19,7 +18,7 @@ def prepare_files(files: Iterable[str], client: BblfshClient,
     """
     Prepare the given folder for analysis by extracting UASTs and creating the gRPC wrappers.
 
-    :param files: Path to the folder to analyze or list of paths to files to analyze.
+    :param files: List of paths to files to analyze.
     :param client: Babelfish client. Babelfish server should be started accordingly.
     :param language: Language to consider. Will discard the other languages
     :return: Iterator of File-s with content, uast, path and language set.

@@ -1,5 +1,6 @@
 """Facilities to report the quality of a given model on a given dataset."""
 from collections import Counter
+import glob
 
 from bblfsh import BblfshClient
 import numpy

@@ -1,5 +1,6 @@
 """Facilities to report the quality and statistics of a given rules on a given dataset."""
 from collections import defaultdict
+import glob
 
 from bblfsh import BblfshClient
 from tqdm import tqdm
