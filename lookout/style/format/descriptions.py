@@ -66,7 +66,7 @@ def describe_rule(rule: Rule, feature_extractor: FeatureExtractor) -> str:
         for group, nodes in grouped.items()
         for node, feature_names in nodes.items()
         for feature_name, splits in feature_names.items()]
-    return "%s\n\t→ y = %s (%.2f confidence, %d support)" % (
+    return "%s\n\t→ y = %s\n\tConfidence: %.3f. Support: %d." % (
         "\n\t∧ ".join(descriptions),
         CLASS_REPRESENTATIONS[rule.stats.cls],
         rule.stats.conf,
