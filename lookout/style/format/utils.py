@@ -14,25 +14,18 @@ from lookout.core.api.service_data_pb2 import File
 from lookout.style.format.files_filtering import filter_filepaths
 
 
-def prepare_files(files_location: Union[str, Iterable[str]], client: BblfshClient,
+def prepare_files(files: Iterable[str], client: BblfshClient,
                   language: str) -> Iterable[File]:
     """
     Prepare the given folder for analysis by extracting UASTs and creating the gRPC wrappers.
 
-    :param files_location: Path to the folder to analyze or list of paths to files to analyze.
+    :param files: Path to the folder to analyze or list of paths to files to analyze.
     :param client: Babelfish client. Babelfish server should be started accordingly.
     :param language: Language to consider. Will discard the other languages
     :return: Iterator of File-s with content, uast, path and language set.
     """
     files = []
-
-    if isinstance(files_location, str):
-        # collect filenames with the full repository path
-        filenames = glob.glob(files_location, recursive=True)
-    else:
-        filenames = files_location
-
-    for file in tqdm(filter_filepaths(filenames)):
+    for file in tqdm(filter_filepaths(list(files))):
         try:
             res = client.parse(file)
         except NonUTF8ContentException:

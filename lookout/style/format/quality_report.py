@@ -22,7 +22,8 @@ def quality_report(input_pattern: str, bblfsh: str, language: str, n_files: int,
     print("Stats about rules: %s" % rules)
 
     client = BblfshClient(bblfsh)
-    files = prepare_files(input_pattern, client, language)
+    filenames = glob.glob(input_pattern, recursive=True)
+    files = prepare_files(filenames, client, language)
     print("Number of files: %s" % (len(files)))
 
     fe = FeatureExtractor(language=language, **rules.origin_config["feature_extractor"])

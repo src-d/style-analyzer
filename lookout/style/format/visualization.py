@@ -1,6 +1,6 @@
 """Utilities to visualize the errors made on a file."""
-from collections import namedtuple
 import os
+from typing import NamedTuple
 
 from bblfsh import BblfshClient
 
@@ -15,7 +15,8 @@ BLUE = "\033[94m"
 ENDC = "\033[m"
 
 
-Misprediction = namedtuple("Misprediction", ["y", "pred", "node", "rule"])
+Misprediction = NamedTuple("Misprediction", [("y", numpy.ndarray), ("pred", numpy.ndarray),
+                                             ("node", List[Callable]), ("rule", numpy.ndarray)])
 
 
 def prepare_file(filename: str, client: BblfshClient, language: str) -> File:

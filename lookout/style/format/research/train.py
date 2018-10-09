@@ -1,5 +1,6 @@
 """Facilities to train a FormatModel without a lookout server."""
 from argparse import ArgumentParser
+import glob
 from os.path import join
 from typing import Iterable
 
@@ -38,9 +39,10 @@ def train(training_dir: str, output_path: str, language: str, bblfsh: str, confi
             config = safe_load(fh)
     else:
         config = {}
+    filenames = glob.glob(join(training_dir, "**", "*"), recursive=True)
     model = FormatAnalyzer.train(ReferencePointer("someurl", "someref", "somecommit"),
                                  config,
-                                 _FakeDataStub(files=prepare_files(join(training_dir, "**", "*"),
+                                 _FakeDataStub(files=prepare_files(filenames,
                                                                    bblfsh_client,
                                                                    language)))
     model.save(output_path)

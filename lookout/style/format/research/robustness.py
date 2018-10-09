@@ -1,9 +1,9 @@
 from argparse import ArgumentParser
-from collections import defaultdict, namedtuple
+from collections import defaultdict
 from difflib import SequenceMatcher
 import glob
 import os
-from typing import Callable, Dict, List, Set, Tuple
+from typing import Callable, Dict, List, NamedTuple, Set, Tuple
 
 from bblfsh import BblfshClient
 import numpy
@@ -16,16 +16,16 @@ from lookout.style.format.model import FormatModel
 from lookout.style.format.quality_report import prepare_files
 
 
-Misprediction = namedtuple("Misprediction", ["y", "pred", "node", "rule"])
+Misprediction = NamedTuple("Misprediction", [("y", numpy.ndarray), ("pred", numpy.ndarray),
+                                             ("node", List[Callable]), ("rule", numpy.ndarray)])
 
 
 def get_content_from_repo(folder: str) -> Dict[str, str]:
     content = {}
     filenames = glob.glob(folder, recursive=True)
     for file in filter_filepaths(filenames):
-        if file.endswith(".js"):
-            with open(file, "r") as g:
-                content[file] = g.read()
+        with open(file) as g:
+            content[file] = g.read()
     return content
 
     
@@ -46,7 +46,7 @@ def get_difflib_changes(true_content: Dict[str, str], noisy_content: Dict[str, s
 
 
 def get_mispreds(y: numpy.ndarray, y_pred: numpy.ndarray, nodes: List[Callable],
-                 winner: numpy.ndarray) -> List[Callable]:
+                 winner: numpy.ndarray) -> List[NamedTuple]:
     mispreds = []
     for gt, pred, vn, rule in zip(y, y_pred, nodes, winner):
         if gt != pred:
@@ -54,8 +54,8 @@ def get_mispreds(y: numpy.ndarray, y_pred: numpy.ndarray, nodes: List[Callable],
     return mispreds
 
 
-def get_diff_mispreds(mispreds_noise: List[Callable], lines_changed: Dict[str, Set[int]]
-                      ) -> Dict[str, Callable]:
+def get_diff_mispreds(mispreds_noise: List[NamedTuple], lines_changed: Dict[str, Set[int]]
+                      ) -> Dict[str, NamedTuple]:
     diff_mispreds = {}
     for m in mispreds_noise:
         mispred_lines = set(range(m.node.start.line, m.node.end.line+1))
@@ -69,7 +69,7 @@ def get_diff_mispreds(mispreds_noise: List[Callable], lines_changed: Dict[str, S
 
 
 def files2mispreds(files: List[str], rules: Callable, client: str, language: str
-                   ) -> Tuple[List[Callable], List[Callable]]:
+                   ) -> Tuple[List[NamedTuple], List[Callable]]:
     files = prepare_files(files, client, language)
     fe = FeatureExtractor(language=language, **rules.origin_config["feature_extractor"])
     X, y, vnodes_y, _ = fe.extract_features(files)
@@ -79,8 +79,8 @@ def files2mispreds(files: List[str], rules: Callable, client: str, language: str
     return mispreds, vnodes_y
 
 
-def get_style_fixes(diff_mispreds: Dict[str, Callable], vnodes: List[Callable],
-                    true_files: List[str], noisy_files: List[str]) -> List[Callable]:
+def get_style_fixes(diff_mispreds: Dict[str, NamedTuple], vnodes: List[Callable],
+                    true_files: List[str], noisy_files: List[str]) -> List[NamedTuple]:
     style_fixes = []
     for i in range(len(true_files)):
         try:

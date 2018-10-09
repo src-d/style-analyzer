@@ -67,7 +67,8 @@ def print_rules_report(input_pattern: str, bblfsh: str, language: str, model_pat
     print("Min/max support: %s/%s, min/max conf: %s/%s" % (min_support, max_support, min_conf,
                                                            max_conf))
     client = BblfshClient(bblfsh)
-    files = prepare_files(input_pattern, client, language)
+    filenames = glob.glob(input_pattern, recursive=True)
+    files = prepare_files(filenames, client, language)
     print("Number of files: %s" % (len(files)))
 
     res = fe.extract_features(files)

@@ -1,12 +1,15 @@
 """Utilities to visualize the errors made on a file."""
-from collections import namedtuple, defaultdict
+from collections import defaultdict
 from difflib import SequenceMatcher
 import os
+from typing import Callable, List, NamedTuple
 
 from bblfsh import BblfshClient
+import numpy
 
 from lookout.core.api.service_data_pb2 import File
-from lookout.style.format.features import CLASSES, FeatureExtractor
+from lookout.style.format.feature_extractor import FeatureExtractor
+from lookout.style.format.feature_utils import CLASSES
 from lookout.style.format.model import FormatModel
 
 RED = "\033[41m"
@@ -15,7 +18,8 @@ BLUE = "\033[94m"
 ENDC = "\033[m"
 
 
-Misprediction = namedtuple("Misprediction", ["y", "pred", "node", "rule"])
+Misprediction = NamedTuple("Misprediction", [("y", numpy.ndarray), ("pred", numpy.ndarray),
+                                             ("node", List[Callable]), ("rule", numpy.ndarray)])
 
 
 def prepare_file(filename: str, client: BblfshClient, language: str) -> File:
@@ -48,7 +52,7 @@ def visualize(input_filename: str, bblfsh: str, language: str, model_path: str) 
     client = BblfshClient(bblfsh)
     file = prepare_file(input_filename, client, language)
 
-    fe = FeatureExtractor(language=language)
+    fe = FeatureExtractor(language=language, **rules.origin_config["feature_extractor"])
     X, y, nodes = fe.extract_features([file])
 
     y_pred = rules.predict(X)
