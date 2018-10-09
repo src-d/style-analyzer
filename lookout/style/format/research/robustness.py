@@ -70,7 +70,6 @@ def get_diff_mispreds(mispreds_noise: List[Callable], lines_changed: Dict[str, S
 
 def files2mispreds(files: List[str], rules: Callable, client: str, language: str
                    ) -> Tuple[List[Callable], List[Callable]]:
-    import pdb;pdb.set_trace()
     files = prepare_files(files, client, language)
     fe = FeatureExtractor(language=language, **rules.origin_config["feature_extractor"])
     X, y, vnodes_y, _ = fe.extract_features(files)
@@ -82,7 +81,6 @@ def files2mispreds(files: List[str], rules: Callable, client: str, language: str
 
 def get_style_fixes(diff_mispreds: Dict[str, Callable], vnodes: List[Callable],
                     true_files: List[str], noisy_files: List[str]) -> List[Callable]:
-    import pdb;pdb.set_trace()
     style_fixes = []
     for i in range(len(true_files)):
         try:

@@ -1,0 +1,44 @@
+span.context {
+  border-radius: 5px;
+  border: 1px solid #ccc;
+  background-color: #ddd;
+}
+
+span.feature {
+  border-radius: 5px;
+}
+
+span.context.neighbour {
+  background-color: #fcfcfc;
+}
+
+span.feature.wrong {
+  border: 1px solid #fee;
+  background-color: #fcc;
+}
+
+span.feature.correct {
+  border: 1px solid #efe;
+  background-color: #cfc;
+}
+
+span.feature.neighbour.correct {
+  background-color: #6f6;
+}
+
+span.feature.neighbour.wrong {
+  background-color: #f66;
+}
+
+span.highlighted {
+  color: #fff;
+  font-weight: bold;
+}
+
+span.feature.highlighted.wrong {
+  background-color: #900;
+}
+
+span.feature.highlighted.correct {
+  background-color: #090;
+}

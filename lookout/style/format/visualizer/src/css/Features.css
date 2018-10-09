@@ -1,0 +1,8 @@
+.Features {
+  font-family: monospace;
+  padding: 10px;
+  border-radius: 5px;
+  border: #666 solid 1px;
+  overflow: auto;
+  height: 500px;
+}

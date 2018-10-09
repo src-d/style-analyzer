@@ -11,3 +11,7 @@ psycopg2-binary==2.7.5
 scikit-learn==0.19.2
 tqdm==4.11.2
 scikit-optimize==0.5.2
+pandas==0.22.0
+gensim==3.6.0
+# gensim implicitly requires this
+google-compute-engine==2.8.3

@@ -186,7 +186,7 @@ def main():
                 progress.disable = False  # this is needed, do not remove
                 progress.update(1)
 
-    def analyze_parquet_row(row: pandas.Series, filepath):
+    def analyze_parquet_row(row: pandas.Series, filepath: str):
         nonlocal errors
         if errors:
             return

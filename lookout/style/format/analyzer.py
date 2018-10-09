@@ -1,4 +1,4 @@
-from collections import defaultdict, ChainMap
+from collections import ChainMap, defaultdict
 import logging
 from pprint import pformat
 import threading
@@ -70,8 +70,7 @@ class FormatAnalyzer(Analyzer):
                     comment.line = 1
                     comment.text = "Failed to parse this file"
                     continue
-                X, y, vnodes_y, vnodes = res
-                X, _ = fe.select_features(X, y)
+                X, y, vnodes_y, _ = res
                 self.log.debug("predicting values for %d samples", len(y))
                 y_pred, winners = rules.predict(X, True)
                 assert len(y) == len(y_pred)
@@ -159,7 +158,7 @@ class FormatAnalyzer(Analyzer):
             cls.log.debug(
                 "Feature importances from %s:\n\t%s",
                 lang_config["trainable_rules"]["base_model_name"],
-                "\n\t".join("%-30s: %.5E" % (fe.selected_feature_names[i], importances[i])
+                "\n\t".join("%-55s %.5E" % (fe.feature_names[i], importances[i])
                             for i in numpy.argsort(-importances) if importances[i] > 1e-5))
             model[language] = trainable_rules.rules
         cls.log.info("trained %s", model)
@@ -211,7 +210,7 @@ class FormatAnalyzer(Analyzer):
                     "select_features_number": 500,
                     "remove_constant_features": True,
                     "insert_noops": False,
-                    "index_nodes": False,
+                    "return_sibling_indices": False,
                 },
                 "trainable_rules": {
                     "prune_branches_algorithms": ["reduced-error"],
@@ -245,7 +244,7 @@ class FormatAnalyzer(Analyzer):
         :return: Files filtered.
         """
         excluded = total = 0
-        for filename, file in files.items():
+        for file in files.values():
             if len(max(file.content.splitlines(), key=len, default=b"")) <= line_length_limit:
                 total += 1
                 yield file
