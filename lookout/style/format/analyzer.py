@@ -14,6 +14,8 @@ from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2 import File
 from lookout.core.api.service_data_pb2_grpc import DataStub
 from lookout.core.data_requests import with_changed_uasts_and_contents, with_uasts_and_contents
+from lookout.style.format.descriptions import (
+    rule_to_comment, get_code_chunk, get_error_description)
 from lookout.style.format.diff import find_new_lines
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.model import FormatModel
@@ -44,6 +46,22 @@ class FormatAnalyzer(Analyzer):
         :param data: Contains "changes" - the list of changes in the pointed state.
         :return: List of comments.
         """
+        def group_line_nodes(y, y_pred, vnodes_y, rule_winners):
+            line_nodes = []
+            generate_comment = False
+            for yi, y_predi, vnode_y, winner in zip(y, y_pred, vnodes_y, rule_winners):
+                if not line_nodes or vnode_y.start.line == line_nodes[0][2].start.line:
+                    # collect all nodes on the same line
+                    line_nodes.append((yi, y_predi, vnode_y, winner))
+                    if yi != y_predi:
+                        generate_comment = True
+                    continue
+                else:
+                    if generate_comment:
+                        yield line_nodes
+                    generate_comment = yi != y_predi
+                    line_nodes = [(yi, y_predi, vnode_y, winner)]
+
         comments = []
         changes = list(data["changes"])
         base_files_by_lang = self._files_by_language(c.base for c in changes)
@@ -54,8 +72,7 @@ class FormatAnalyzer(Analyzer):
                                  len(head_files), lang, lang)
                 continue
             rules = self.model[lang]
-            for file in self._filter_files(head_files,
-                                           rules.origin_config["line_length_limit"]):
+            for file in self._filter_files(head_files, rules.origin_config["line_length_limit"]):
                 try:
                     prev_file = base_files_by_lang[lang][file.path]
                 except KeyError:
@@ -65,23 +82,51 @@ class FormatAnalyzer(Analyzer):
                 fe = FeatureExtractor(language=lang, **rules.origin_config["feature_extractor"])
                 res = fe.extract_features([file], lines)
                 if res is None:
-                    comment = Comment()
-                    comment.file = file.path
-                    comment.confidence = 100
-                    comment.line = 1
-                    comment.text = "Failed to parse this file"
+                    if self.config["report_parse_failures"]:
+                        comment = Comment()
+                        comment.file = file.path
+                        comment.confidence = 100
+                        comment.line = 1
+                        comment.text = "Failed to parse this file"
+                        comment.append(comment)
+                    self.log.warning("Failed to parse %s", file.path)
                     continue
-                X, y, vnodes_y, _ = res
-                self.log.debug("predicting values for %d samples", len(y))
-                y_pred, winners = rules.predict(X, True)
+                X, y, vnodes_y, vnodes = res
+                y_pred, rule_winners = rules.predict(X, True)
                 assert len(y) == len(y_pred)
 
-                for yi, y_predi, vnode, winner in zip(y, y_pred, vnodes_y, winners):
-                    if yi != y_predi:
-                        comment = vnode.to_comment(y_predi)
-                        comment.file = file.path
-                        comment.confidence = int(round(rules.rules[winner].stats.conf * 100))
-                        comments.append(comment)
+                code_lines = file.content.decode("utf-8", "replace").splitlines()
+                for line_nodes in group_line_nodes(y, y_pred, vnodes_y, rule_winners):
+                    code_line_number = line_nodes[0][2].start.line  # 1-based
+                    if self.config["report_triggered_rules"]:
+                        code_text = ""
+                        if self.config["report_code_lines"]:
+                            code_text = get_code_chunk(lang, code_lines, code_line_number)
+                        vnodes_comments = [
+                            "%s\n%s" % (get_error_description(vnode, y_predi),
+                                        rule_to_comment(rules.rules[winner], fe, winner))
+                            for yi, y_predi, vnode, winner in line_nodes if yi != y_predi]
+                        text = "format: style mismatch:\n%s%s\n" % (
+                            code_text, "\n\n".join(vnodes_comments))
+                    else:
+                        vnodes_comments = [
+                            get_error_description(vnode, y_predi)
+                            for yi, y_predi, vnode, winner in line_nodes if yi != y_predi]
+                        text = "format: style mismatch:\n%s\n" % ("\n\n".join(vnodes_comments))
+
+                    confidence = 0
+                    confidence_count = 0
+                    for yi, y_predi, _, winner in line_nodes:
+                        if yi != y_predi:
+                            confidence += rules.rules[winner].stats.conf
+                            confidence_count += 1
+
+                    comment = Comment()
+                    comment.line = code_line_number
+                    comment.text = text
+                    comment.file = file.path
+                    comment.confidence = int(round(confidence * 100 / confidence_count))
+                    comments.append(comment)
         return comments
 
     @classmethod
@@ -188,7 +233,9 @@ class FormatAnalyzer(Analyzer):
         :return: Full config.
         """
         defaults = {
-            "debug": False,
+            "report_code_lines": True,
+            "report_triggered_rules": True,
+            "report_parse_failures": True,
         }
         return merge_dicts(defaults, config)
 

@@ -2,7 +2,6 @@ from typing import Callable, Iterable, Mapping, NamedTuple, Tuple
 
 import bblfsh
 
-from lookout.core.api.service_analyzer_pb2 import Comment
 
 Position = NamedTuple("Position", (("offset", int), ("line", int), ("col", int)))
 """
@@ -112,26 +111,6 @@ class VirtualNode:
                                        line=node.end_position.line,
                                        col=node.end_position.col),
                               path=path)
-
-    def to_comment(self, correct_y: int) -> Comment:
-        """
-        Writes the comment with regard to the correct node class.
-        :param correct_y: the index of the correct node class.
-        :return: Lookout Comment object.
-        """
-        comment = Comment()
-        comment.line = self.start.line
-        if correct_y == CLASS_INDEX[CLS_NOOP]:
-            comment.text = "format: %s at column %d should be removed" % (
-                CLASSES[self.y], self.start.col)
-        elif self.y == CLASS_INDEX[CLS_NOOP]:
-            comment.text = "format: %s should be inserted at column %d" % (
-                CLASSES[correct_y], self.start.col)
-        else:
-            comment.text = "format: replace %s with %s at column %d" % (
-                CLASSES[self.y], CLASSES[correct_y], self.start.col)
-        comment.text = comment.text.replace("<", "`").replace(">", "`")
-        return comment
 
 
 CLS_SPACE = "<space>"
