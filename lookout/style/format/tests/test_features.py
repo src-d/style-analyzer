@@ -24,7 +24,7 @@ class FeaturesTests(unittest.TestCase):
         with lzma.open(str(base / "benchmark.uast.xz")) as fin:
             cls.uast = bblfsh.Node.FromString(fin.read())
         config = FormatAnalyzer._load_train_config({})
-        final_config = ChainMap(config["javascript"], config["global"])
+        final_config = config["javascript"]
         cls.extractor = FeatureExtractor(language="javascript",
                                          **final_config["feature_extractor"])
         cls.extractor_noops = FeatureExtractor(language="javascript",

@@ -1,4 +1,3 @@
-from collections import ChainMap
 import lzma
 from pathlib import Path
 import unittest
@@ -25,7 +24,7 @@ class RulesIntegrationTests(unittest.TestCase):
                     uast=uast)
         cls.files = [file]
         config = FormatAnalyzer._load_train_config({})
-        cls.config = ChainMap(config["javascript"], config["global"])
+        cls.config = config["javascript"]
         cls.extractor = FeatureExtractor(language="javascript", **cls.config["feature_extractor"])
 
     def test_integration(self):
