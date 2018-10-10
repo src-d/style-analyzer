@@ -83,9 +83,8 @@ def describe_sample(feature: BagFeature, values: ndarray) -> str:
     :param values: The values to describe.
     :return: A string that describe the values of this feature.
     """
-    active = flatnonzero(values)[0]
-    counts = ("%s: %d" % (feature.names[i], count) for i, count in zip(active, values[active]))
-    return ", ".join(counts) if len(active) else "∅"
+    active = flatnonzero(values)
+    return "{%s}" % ", ".join(feature.names[index] for index in active) if len(active) else "∅"
 
 
 @describe_sample.register(CategoricalFeature)
@@ -97,8 +96,8 @@ def describe_sample_categorical(feature: CategoricalFeature, values: ndarray) ->
     :param values: The values to describe.
     :return: A string that describe the values of this feature.
     """
-    active = flatnonzero(values)[0]
-    return str(feature.names[values[active[0]]] if len(active) else "∅")
+    active = flatnonzero(values)
+    return feature.names[active[0]] if len(active) else "∅"
 
 
 @describe_sample.register(OrdinalFeature)
@@ -113,36 +112,9 @@ def describe_sample_ordinal(feature: OrdinalFeature, values: ndarray) -> str:
     return str(values[0])
 
 
-def _format_int(cmp: bool, threshold: floating, name: str) -> str:
-    if cmp:
-        if threshold > FEATURES_MAX - 1:
-            return "%s = %d" % (name, FEATURES_MAX)
-        return "%s ≥ %d" % (name, ceil(threshold))
-    elif threshold < FEATURES_MIN + 1:
-        return "%s = %d" % (name, FEATURES_MIN)
-    return "%s ≤ %d" % (name, floor(threshold))
-
-
 @singledispatch
 def describe_rule_splits(feature: BagFeature, name: str,
                          splits: List[Tuple[bool, floating, int]]) -> str:
-    """
-    Describe parts of a rule in natural language.
-
-    :param feature: The feature used for the splits to describe.
-    :param name: The name to use for the feature used in the split.
-    :param splits: List of tuples representing the splits to describe. The tuples contain the \
-                   comparison, the threshold and the index of the feature used, useful in case of \
-                   multi-values features.
-    :return: A string describing the given rule splits.
-    """
-    return "%s = {%s}" % (name, ", ".join(_format_int(cmp, threshold, feature.names[index])
-                                          for cmp, threshold, index in splits))
-
-
-@describe_rule_splits.register(CategoricalFeature)
-def describe_rule_parts_categorical(feature: CategoricalFeature, name: str,
-                                    splits: List[Tuple[bool, floating, int]]) -> str:
     """
     Describe parts of a rule in natural language.
 
@@ -170,6 +142,36 @@ def describe_rule_parts_categorical(feature: CategoricalFeature, name: str,
     return description
 
 
+@describe_rule_splits.register(CategoricalFeature)
+def describe_rule_parts_categorical(feature: CategoricalFeature, name: str,
+                                    splits: List[Tuple[bool, floating, int]]) -> str:
+    """
+    Describe parts of a rule in natural language.
+
+    :param feature: The feature used for the splits to describe.
+    :param name: The name to use for the feature used in the split.
+    :param splits: List of tuples representing the splits to describe. The tuples contain the \
+                   comparison, the threshold and the index of the feature used, useful in case of \
+                   multi-values features.
+    :return: A string describing the given rule splits.
+    """
+    included = None
+    excluded = set()
+    for cmp, _, index in splits:
+        if cmp:
+            included = feature.names[index]
+        else:
+            excluded.add(feature.names[index])
+    description = name
+    if included:
+        description += " = %s" % included
+        if excluded:
+            description += " and"
+    if excluded:
+        description += " not in {%s}" % ", ".join(excluded)
+    return description
+
+
 @describe_rule_splits.register(OrdinalFeature)
 def describe_rule_parts_ordinal(feature: OrdinalFeature, name: str,
                                 splits: List[Tuple[bool, floating, int]]) -> str:
@@ -184,7 +186,13 @@ def describe_rule_parts_ordinal(feature: OrdinalFeature, name: str,
     :return: A string describing the given rule splits.
     """
     cmp, threshold, _ = splits[0]
-    return _format_int(cmp, threshold, name)
+    if cmp:
+        if threshold > FEATURES_MAX - 1:
+            return "%s = %d" % (name, FEATURES_MAX)
+        return "%s ≥ %d" % (name, ceil(threshold))
+    elif threshold < FEATURES_MIN + 1:
+        return "%s = %d" % (name, FEATURES_MIN)
+    return "%s ≤ %d" % (name, floor(threshold))
 
 
 def get_error_description(vnode: VirtualNode, y_pred: int) -> str:
