@@ -2,22 +2,22 @@ from argparse import ArgumentParser
 from collections import defaultdict
 from difflib import SequenceMatcher
 import glob
-import os
-from typing import Callable, Dict, List, NamedTuple, Set, Tuple
+from typing import Dict, Iterable, List, NamedTuple, Set, Tuple
 
 from bblfsh import BblfshClient
 import numpy
 
 from lookout.core.slogging import setup
 from lookout.style.format.feature_extractor import FeatureExtractor
-from lookout.style.format.feature_utils import CLASS_INDEX
+from lookout.style.format.feature_utils import VirtualNode
 from lookout.style.format.files_filtering import filter_filepaths
 from lookout.style.format.model import FormatModel
 from lookout.style.format.quality_report import prepare_files
+from lookout.style.format.rules import Rules
 
 
 Misprediction = NamedTuple("Misprediction", [("y", numpy.ndarray), ("pred", numpy.ndarray),
-                                             ("node", List[Callable]), ("rule", numpy.ndarray)])
+                                             ("node", List[VirtualNode]), ("rule", numpy.ndarray)])
 
 
 def get_content_from_repo(folder: str) -> Dict[str, str]:
@@ -36,7 +36,7 @@ def get_content_from_repo(folder: str) -> Dict[str, str]:
 
     
 def get_difflib_changes(true_content: Dict[str, str], noisy_content: Dict[str, str]
-                        ) -> Tuple[List[str], List[str], Dict[str, Set[int]], int]:
+                        ) -> Tuple[Iterable[str], Iterable[str], Dict[str, Set[int]], int]:
     """
     Given 2 contents of one repository (the original and its noisy version), returns the list files
     that have been modified, the lines that have changed, and the number of modifications operated.
@@ -58,20 +58,36 @@ def get_difflib_changes(true_content: Dict[str, str], noisy_content: Dict[str, s
                 true_files.add(tf)
                 noisy_files.add(nf)
                 nb_changes += 1
-    return sorted(list(true_files)), sorted(list(noisy_files)), lines_changed, nb_changes
+    return sorted(true_files), sorted(noisy_files), lines_changed, nb_changes
 
 
-def files2mispreds(files: List[str], rules: Callable, client: str, language: str
-                   ) -> Tuple[List[NamedTuple], List[Callable]]:
+def files2vnodes(files: Iterable[str], rules: Rules, client: str, language: str
+                   ) -> Iterable[VirtualNode]:
     """
-    Return the `Mispredictions` of a model on a list of files. 
+    Return the `VirtualNodes` extracted from a list of files. 
 
     :param files: List of files to get `Mispredictions` and `VirtualNodes` from.
     :param rules: rules of the style-analyzer model.
     :param client: Babelfish client. Babelfish server should be started accordingly.
     :param language: Language to consider, others will be discarded.
-    :return: List of `Mispredictions`, and list of `VirtualNodes` extracted
-        from the given list of files.
+    :return: List of `VirtualNodes` extracted from a given list of files.
+    """
+    files = prepare_files(files, client, language)
+    fe = FeatureExtractor(language=language, **rules.origin_config["feature_extractor"])
+    X, y, vnodes_y, _ = fe.extract_features(files)
+    return vnodes_y
+
+
+def files2mispreds(files: Iterable[str], rules: Rules, client: str, language: str
+                   ) -> Iterable[Misprediction]:
+    """
+    Return the model's `Mispredictions` on a list of files. 
+
+    :param files: List of files to get `Mispredictions` from.
+    :param rules: rules of the style-analyzer model.
+    :param client: Babelfish client. Babelfish server should be started accordingly.
+    :param language: Language to consider, others will be discarded.
+    :return: List of `Mispredictions` extracted from a given list of files.
     """
     files = prepare_files(files, client, language)
     fe = FeatureExtractor(language=language, **rules.origin_config["feature_extractor"])
@@ -79,11 +95,11 @@ def files2mispreds(files: List[str], rules: Callable, client: str, language: str
     X, _ = fe.select_features(X, y)
     y_pred, winner = rules.predict(X, True)
     mispreds = get_mispreds(y, y_pred, vnodes_y, winner)
-    return mispreds, vnodes_y
+    return mispreds
 
 
-def get_mispreds(y: numpy.ndarray, y_pred: numpy.ndarray, nodes: List[Callable],
-                 winner: numpy.ndarray) -> List[NamedTuple]:
+def get_mispreds(y: numpy.ndarray, y_pred: numpy.ndarray, nodes: Iterable[VirtualNode],
+                 winner: numpy.ndarray) -> Iterable[Misprediction]:
     """
     Given 2 Numpy 1-dimensional arrays of labels, return the list of `Mispredictions`
     where the labels differ.
@@ -101,8 +117,8 @@ def get_mispreds(y: numpy.ndarray, y_pred: numpy.ndarray, nodes: List[Callable],
     return mispreds
 
 
-def get_diff_mispreds(mispreds: List[NamedTuple], lines_changed: Dict[str, Set[int]]
-                      ) -> Dict[str, NamedTuple]:
+def get_diff_mispreds(mispreds: Iterable[Misprediction], lines_changed: Dict[str, Set[int]]
+                      ) -> Dict[str, Misprediction]:
     """
 .   Filter a list of `Mispredictions` to select only those involving at least one line
     that has been modified by adding noise.
@@ -114,7 +130,7 @@ def get_diff_mispreds(mispreds: List[NamedTuple], lines_changed: Dict[str, Set[i
     """
     diff_mispreds = {}
     for m in mispreds:
-        mispred_lines = set(range(m.node.start.line, m.node.end.line+1))
+        mispred_lines = set(range(m.node.start.line, m.node.end.line + 1))
         if set.intersection(mispred_lines, lines_changed[m.node.path]):
             try:
                 if m.node.start.offset < diff_mispreds[m.node.path].node.start.offset:
@@ -124,8 +140,8 @@ def get_diff_mispreds(mispreds: List[NamedTuple], lines_changed: Dict[str, Set[i
     return diff_mispreds
 
 
-def get_style_fixes(mispreds: Dict[str, NamedTuple], vnodes: List[Callable],
-                    true_files: List[str], noisy_files: List[str]) -> List[NamedTuple]:
+def get_style_fixes(mispreds: Dict[str, Misprediction], vnodes: Iterable[VirtualNode],
+                    true_files: List[str], noisy_files: List[str]) -> Iterable[Misprediction]:
     """
 .   Given a list of `Mispredictions` potentially fixing a style mistake added since involving
     at least one line that has been modified, return the list of `Mispredicitons` really fixing
@@ -181,8 +197,8 @@ def style_robustness_report(true_repo: str, noisy_repo: str, bblfsh: str, langua
     analyzer = FormatModel().load(model)
     rules = analyzer[language]
 
-    _, vnodes_y_true = files2mispreds(true_files, rules, client, language)
-    mispreds_noise, _ = files2mispreds(noisy_files, rules, client, language)
+    vnodes_y_true = files2vnodes(true_files, rules, client, language)
+    mispreds_noise = files2mispreds(noisy_files, rules, client, language)
 
     diff_mispreds = get_diff_mispreds(mispreds_noise, lines_changed)
     print("Number of artificial mistakes potentially fixed by the model (diff of mispredictions): %d / %d"
@@ -192,6 +208,19 @@ def style_robustness_report(true_repo: str, noisy_repo: str, bblfsh: str, langua
     
     print("style-analyzer fixes in the noisy repos : %d / %d -> %.1f %%"
         % (len(style_fixes), nb_changes, 100 *len(style_fixes) / nb_changes))
+    
+    true_positive = len(style_fixes)
+    false_positive = len(diff_mispreds) - len(style_fixes)
+    false_negative = nb_changes - len(diff_mispreds)
+    try:
+        precision = true_positive / (true_positive + false_positive)
+    except ZeroDivisionError:
+        precision = 0
+    recall = true_positive / (true_positive + false_negative)
+    
+    print("preicison :", round(precision, 3))
+    print("recall :", round(recall, 3))
+
     print()
     print("list of files where the style-analyzer succeeds in fixing the random noise :")
     for mispred in style_fixes:
