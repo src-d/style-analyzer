@@ -1,10 +1,11 @@
+import os
 from importlib.machinery import SourceFileLoader
 
 from setuptools import find_packages, setup
 
 lookout = SourceFileLoader("lookout", "./lookout/__init__.py").load_module()
 
-with open("README.md") as f:
+with open(os.path.join(os.path.dirname(__file__), "README.md")) as f:
     long_description = f.read()
 
 tests_require = ["docker>=3.4.0,<4.0"]
