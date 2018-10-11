@@ -7,7 +7,7 @@ import re
 import sys
 import threading
 import traceback
-from typing import Union
+from typing import Union, Dict, Sequence
 
 import numpy
 import xxhash
@@ -60,7 +60,15 @@ class NumpyLogRecord(logging.LogRecord):
             msg = str(self.msg)
         if self.args:
             a2s = self.array2string
-            args = tuple((a2s(a) if isinstance(a, numpy.ndarray) else a) for a in self.args)
+            if isinstance(self.args, Dict):
+                args = {k: (a2s(v) if isinstance(v, numpy.ndarray) else v)
+                        for (k, v) in self.args.items()}
+            elif isinstance(self.args, Sequence):
+                args = tuple((a2s(a) if isinstance(a, numpy.ndarray) else a)
+                             for a in self.args)
+            else:
+                raise TypeError("Unexpected input '%s' with type '%s'" % (self.args,
+                                                                          type(self.args)))
             msg = msg % args
         return msg
 
