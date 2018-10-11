@@ -160,7 +160,7 @@ class FormatAnalyzer(Analyzer):
                 "Feature importances from %s:\n\t%s",
                 lang_config["trainable_rules"]["base_model_name"],
                 "\n\t".join("%-55s %.5E" % (fe.feature_names[i], importances[i])
-                            for i in numpy.argsort(-importances) if importances[i] > 1e-5))
+                            for i in numpy.argsort(-importances)[:25] if importances[i] > 1e-5))
             model[language] = trainable_rules.rules
         cls.log.info("trained %s", model)
         return model
