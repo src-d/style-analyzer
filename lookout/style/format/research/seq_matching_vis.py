@@ -11,15 +11,12 @@ from lookout.core.api.service_data_pb2 import File
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.feature_utils import CLASSES
 from lookout.style.format.model import FormatModel
+from lookout.style.format.robustness import Misprediction
 
 RED = "\033[41m"
 GREEN = "\033[42m"
 BLUE = "\033[94m"
 ENDC = "\033[m"
-
-
-Misprediction = NamedTuple("Misprediction", [("y", numpy.ndarray), ("pred", numpy.ndarray),
-                                             ("node", List[Callable]), ("rule", numpy.ndarray)])
 
 
 def prepare_file(filename: str, client: BblfshClient, language: str) -> File:
