@@ -6,7 +6,7 @@ from numpy.testing import assert_array_equal
 import pandas
 from pandas.util.testing import assert_frame_equal
 
-from lookout.style.typos.generation import (get_candidates_tokens, get_candidates_features,
+from lookout.style.typos.generation import (get_candidates_metadata, get_candidates_features,
                                             CandidatesGenerator)
 from lookout.style.typos.utils import (CANDIDATE_COLUMN, CORRECT_TOKEN_COLUMN,
                                        ID_COLUMN, SPLIT_COLUMN, TYPO_COLUMN, FEATURES_COLUMN)
@@ -31,7 +31,7 @@ class CandidatesSplitTest(unittest.TestCase):
                                    [1, "cit", "cut"],
                                    [1, "cit", "cit"]],
                                   columns=[ID_COLUMN, TYPO_COLUMN, CANDIDATE_COLUMN])
-        assert_frame_equal(get_candidates_tokens(self.candidates), tokens)
+        assert_frame_equal(get_candidates_metadata(self.candidates), tokens)
 
     def test_get_candidates_features(self):
         features = numpy.array([[0.1, 0.2],

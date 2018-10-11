@@ -1,3 +1,5 @@
+"""Generation of the typo correction candidates. Contains features extraction and serialization."""
+
 from itertools import chain
 from multiprocessing import Pool
 import pickle
@@ -28,18 +30,20 @@ Features = NamedTuple("Features", (("index", int),
 
 class CandidatesGenerator:
     """
-    Looks for candidates for correction of typos and generates features
-    for them. Candidates are generated in three ways:
-    1. Closest by cosine distance of embeddings to the given token.
-    2. Closest by cosine distance to the compound vector of token context.
+    Looks for candidates for correction of typos and generates features \
+    for them. Candidates are generated in three ways: \
+    1. Closest by cosine distance of embeddings to the given token. \
+    2. Closest by cosine distance to the compound vector of token context. \
     3. Closest by the edit distance and most frequent tokens from vocabulary.
     """
+
     DEFAULT_RADIUS = 3
     DEFAULT_MAX_DISTANCE = 2
     DEFAULT_NEIGHBORS_NUMBER = 0
     DEFAULT_EDIT_DISTANCE = 20
 
     def __init__(self):
+        """Initialize a new instance of CandidatesGenerator."""
         self.checker = None
         self.fasttext = None
         self.neighbors_number = self.DEFAULT_NEIGHBORS_NUMBER
@@ -86,7 +90,7 @@ class CandidatesGenerator:
                             save_candidates_file: str = None,
                             start_pool_size: int = 64) -> pandas.DataFrame:
         """
-        Generates candidates for typos inside data.
+        Generate candidates for typos inside data.
 
         :param data: DataFrame, containing column TYPO_COLUMN.
         :param threads_number: Number of threads for multiprocessing.
@@ -172,8 +176,9 @@ class CandidatesGenerator:
 
         :param typo_info: instance of TypoInfo class.
         :param dist: edit distance from candidate to typo.
+        :param typo_vec: embedding of the original token.
         :param candidate: candidate token.
-        :param candidate_vec: candidate token embedding.
+        :param candidate_vec: embedding of the candidate token.
         :return: index, typo and candidate tokens, frequencies info, \
                  cosine distances between embeggings and contexts, \
                  edit distance between the tokens, \
@@ -247,6 +252,9 @@ class CandidatesGenerator:
         self.checker.__dict__.update(checker_tree)
 
     def __str__(self):
+        """
+        Represent the candidates generator.
+        """
         return ("Vocabulary_size %d. \n"
                 "Neighbors number %d. \n"
                 "Maximum distance for search %d. \n"
@@ -257,8 +265,14 @@ class CandidatesGenerator:
 
 
 def get_candidates_features(candidates: pandas.DataFrame) -> numpy.ndarray:
+    """
+    Take the feature vectors belonging to the typo correction candidates from the table.
+    """
     return numpy.vstack(candidates[FEATURES_COLUMN].values)
 
 
-def get_candidates_tokens(candidates: pandas.DataFrame) -> pandas.DataFrame:
+def get_candidates_metadata(candidates: pandas.DataFrame) -> pandas.DataFrame:
+    """
+    Take the information about the typo correction candidates from the table.
+    """
     return candidates[[ID_COLUMN, TYPO_COLUMN, CANDIDATE_COLUMN]]
