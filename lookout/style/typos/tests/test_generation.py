@@ -16,7 +16,6 @@ from lookout.style.typos.utils import (CANDIDATE_COLUMN, CORRECT_TOKEN_COLUMN,
 TEST_DATA_PATH = pathlib.Path(__file__).parent
 FASTTEXT_DUMP_FILE = str(TEST_DATA_PATH / "id_vecs_10.bin")
 VOCABULARY_FILE = str(TEST_DATA_PATH / "test_frequencies.csv.xz")
-FREQUENCIES_FILE = str(TEST_DATA_PATH / "frequencies.csv")
 
 
 class CandidatesSplitTest(unittest.TestCase):
