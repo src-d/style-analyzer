@@ -52,12 +52,10 @@ def create_model(num_neurons: int, input_len: int, output_len: int) -> keras.mod
     :return: Built model.
     """
     model = Sequential()
-    model.add(Dense(units=num_neurons, input_dim=input_len))
+    model.add(Dense(units=num_neurons, input_dim=input_len, activation="relu"))
     model.add(BatchNormalization())
-    model.add(Activation("relu"))
-    model.add(Dense(units=num_neurons))
+    model.add(Dense(units=num_neurons, activation="relu"))
     model.add(BatchNormalization())
-    model.add(Activation("relu"))
     model.add(Dense(units=output_len))
     return model
 
