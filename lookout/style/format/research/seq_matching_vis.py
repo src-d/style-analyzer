@@ -2,10 +2,8 @@
 from collections import defaultdict
 from difflib import SequenceMatcher
 import os
-from typing import Callable, List, NamedTuple
 
 from bblfsh import BblfshClient
-import numpy
 
 from lookout.core.api.service_data_pb2 import File
 from lookout.style.format.feature_extractor import FeatureExtractor
