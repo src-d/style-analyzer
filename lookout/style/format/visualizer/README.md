@@ -10,6 +10,10 @@ in the visualizer directory to install dependencies.
 
 Train a model and put it in the `models` directory. Name it `model.asdf`.
 
+And install python dependencies
+
+    pip install -r requirements.txt
+
 ## Build
 
 To build the React client, run
@@ -28,7 +32,7 @@ in the visualizer directory.
 
 2. Run
 
-        serve -s build
+        npm run serve
 
     in the visualizer directory to launch the React client.
 

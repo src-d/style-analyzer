@@ -15,32 +15,27 @@ from lookout.core.event_listener import EventListener
 from lookout.core.tests.server import find_port, run as launch_server
 
 
-@unittest.skipUnless(os.getenv("LONG_TESTS", False),
-                     "Time-consuming tests are skipped by default.")
-class AnalyzerIntegrationTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        parent = Path(__file__).parent.resolve()
-        cls.base_dir = str(parent)
-        cls.jquery_dir = str(parent / "jquery")
-        # str() is needed for Python 3.5
-        with tarfile.open(str(parent / "jquery.tar.xz")) as tar:
-            tar.extractall(path=cls.base_dir)
+class TestAnalyzer:
+    """Context manager for launching analyzer."""
+    def __init__(self, port: int, db: str, fs: str, analyzer: str = "lookout.style.format"):
+        """
+        :param port: port to use for analyzer.
+        :param db: database location.
+        :param fs: location where to store results of launched analyzer.
+        :param analyzer: analyzer to use
+        """
+        self.port = port
+        self.db = db
+        self.fs = fs
+        self.analyzer = analyzer
 
-    @classmethod
-    def tearDownClass(cls):
-        shutil.rmtree(cls.jquery_dir)
-
-    def setUp(self):
-        self.port = find_port()
-        self.db = tempfile.NamedTemporaryFile(dir=self.base_dir)
-        self.fs = tempfile.TemporaryDirectory(dir=self.base_dir)
-        command = "analyzer init --db sqlite:///%s --fs %s" % (self.db.name, self.fs.name)
+    def __enter__(self):
+        command = "analyzer init --db sqlite:///%s --fs %s" % (self.db, self.fs)
         with patch("sys.argv", command.split(" ")):
             launch_analyzer()
-        command = ("analyzer run lookout.style.format --db sqlite:///%s "
+        command = ("analyzer run %s --db sqlite:///%s "
                    "--server localhost:%d --fs %s --log-level DEBUG"
-                   ) % (self.db.name, self.port, self.fs.name)
+                   ) % (self.analyzer, self.db, self.port, self.fs)
         self.logs = logs = []
 
         class ShadowHandler(logging.Handler):
@@ -70,12 +65,47 @@ class AnalyzerIntegrationTests(unittest.TestCase):
         finally:
             EventListener.block = block
 
-    def tearDown(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
         logging.getLogger().removeHandler(self.log_handler)
         self.listener.stop()
         self.process.join()
-        self.db.close()
-        self.fs.cleanup()
+
+
+class BaseAnalyzerIntegrationTests(unittest.TestCase):
+    def setUp(self, fs=None):
+        self.port = find_port()
+        self.db = tempfile.NamedTemporaryFile(dir=self.base_dir)
+        if fs is None:
+            self.fs = tempfile.TemporaryDirectory(dir=self.base_dir)
+        else:
+            self.fs = fs
+
+        self.analyzer = TestAnalyzer(port=self.port, db=self.db.name, fs=self.fs.name).__enter__()
+
+    def tearDown(self, fs_cleanup=True):
+        shutil.rmtree(self.jquery_dir)
+        if fs_cleanup:
+            self.fs.cleanup()
+        self.analyzer.__exit__()
+
+
+@unittest.skipUnless(os.getenv("LONG_TESTS", False),
+                     "Time-consuming tests are skipped by default.")
+class AnalyzerIntegrationTests(BaseAnalyzerIntegrationTests):
+    @classmethod
+    def setUpClass(cls):
+        parent = Path(__file__).parent.resolve()
+        cls.base_dir = str(parent)
+        cls.jquery_dir = str(parent / "jquery")
+        # str() is needed for Python 3.5
+        with tarfile.open(str(parent / "jquery.tar.xz")) as tar:
+            tar.extractall(path=cls.base_dir)
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.jquery_dir)
 
     def test_review(self):
         launch_server(

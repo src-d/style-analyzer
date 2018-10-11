@@ -35,8 +35,8 @@ def get_content_from_repo(folder: str) -> Dict[str, str]:
     return content
 
     
-def get_difflib_changes(true_content: Dict[str, str], noisy_content: Dict[str, str]
-                        ) -> Tuple[Iterable[str], Iterable[str], Dict[str, Set[int]], int]:
+def get_difflib_changes(true_content: Mapping[str, str], noisy_content: Mapping[str, str]
+                        ) -> Tuple[Iterable[str], Iterable[str], Mapping[str, Set[int]], int]:
     """
     Given 2 contents of one repository (the original and its noisy version), returns the list files
     that have been modified, the lines that have changed, and the number of modifications operated.
@@ -117,8 +117,8 @@ def get_mispreds(y: numpy.ndarray, y_pred: numpy.ndarray, nodes: Iterable[Virtua
     return mispreds
 
 
-def get_diff_mispreds(mispreds: Iterable[Misprediction], lines_changed: Dict[str, Set[int]]
-                      ) -> Dict[str, Misprediction]:
+def get_diff_mispreds(mispreds: Iterable[Misprediction], lines_changed: Mapping[str, Set[int]]
+                      ) -> Mapping[str, Misprediction]:
     """
 .   Filter a list of `Mispredictions` to select only those involving at least one line
     that has been modified by adding noise.
@@ -140,8 +140,8 @@ def get_diff_mispreds(mispreds: Iterable[Misprediction], lines_changed: Dict[str
     return diff_mispreds
 
 
-def get_style_fixes(mispreds: Dict[str, Misprediction], vnodes: Iterable[VirtualNode],
-                    true_files: List[str], noisy_files: List[str]) -> Iterable[Misprediction]:
+def get_style_fixes(mispreds: Mapping[str, Misprediction], vnodes: Iterable[VirtualNode],
+                    true_files: Iterable[str], noisy_files: Iterable[str]) -> Iterable[Misprediction]:
     """
 .   Given a list of `Mispredictions` potentially fixing a style mistake added since involving
     at least one line that has been modified, return the list of `Mispredicitons` really fixing
@@ -156,13 +156,13 @@ def get_style_fixes(mispreds: Dict[str, Misprediction], vnodes: Iterable[Virtual
        label of the original file i.e. `Mispredictions` actually fixing the random mistakes added. 
     """
     style_fixes = []
-    for i in range(len(true_files)):
+    for true_file, noisy_file in zip(true_files, noisy_files):
         try:
-            mispred = mispreds[noisy_files[i]]
+            mispred = mispreds[noisy_file]
         except KeyError:
             continue
         for vn in vnodes:
-            if vn.path == true_files[i] and vn.start.offset == mispred.node.start.offset:
+            if vn.path == true_file and vn.start.offset == mispred.node.start.offset:
                 if mispred.pred == vn.y :
                     style_fixes.append(mispred)
                 break

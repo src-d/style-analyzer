@@ -1,9 +1,10 @@
 """Commonly used utils."""
 import cProfile
 from functools import wraps
+from copy import deepcopy
 import io
 import pstats
-from typing import Callable, Iterable
+from typing import Mapping, Callable, Iterable
 
 from bblfsh import BblfshClient
 from bblfsh.client import NonUTF8ContentException
@@ -20,7 +21,7 @@ def prepare_files(filenames: Iterable[str], client: BblfshClient,
 
     :param filenames: List of paths to files to analyze.
     :param client: Babelfish client. Babelfish server should be started accordingly.
-    :param language: Language to consider. Will discard the other languages
+    :param language: Language to consider. Will discard the other languages.
     :return: Iterator of File-s with content, uast, path and language set.
     """
     files = []
@@ -44,8 +45,8 @@ def profile(func: Callable) -> Callable:
     """
     Profiling decorator.
 
-    :param func: function to be wrapped.
-    :return: wrapped function.
+    :param func: Function to be wrapped.
+    :return: Wrapped function.
     """
     @wraps(func)
     def wrapped_profile(*args, **kwargs):
@@ -61,3 +62,35 @@ def profile(func: Callable) -> Callable:
             print(s.getvalue())
         return res
     return wrapped_profile
+
+
+def merge_dicts(*dicts: Mapping) -> Mapping:
+    """
+    Deep merge of nested dictionaries.
+
+    Operation is not commutative, each next dictionary overrides values of the previous one for
+    the same keys sequence.
+    (see example). Example:
+    >>> a = {1: 1, 2: {3: 3, 4: 4}}
+    >>> b = {1: 10, 2: {3: 30, 4: 4, 5: 5}}
+    >>> merge_dicts(a, b)
+    {1: 10, 2: {3: 30, 4: 4, 5: 5}}
+    >>> merge_dicts(b, a)
+    {1: 1, 2: {3: 3, 4: 4, 5: 5}}
+
+    :return: New merged dictionary.
+    """
+    if len(dicts) == 0:
+        raise ValueError("At least one argument is required.")
+    if len(dicts) == 1:
+        return deepcopy(dicts[0])
+    res = deepcopy(dicts[0])
+    stack = [(res, d) for d in dicts[:0:-1]]
+    while stack:
+        d1, d2 = stack.pop()
+        for key, value in d2.items():
+            if isinstance(value, dict):
+                stack.append((d1.setdefault(key, {}), value))
+            else:
+                d1[key] = value
+    return res

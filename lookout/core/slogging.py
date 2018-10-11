@@ -9,6 +9,7 @@ import threading
 import traceback
 from typing import Union
 
+import numpy
 import xxhash
 import yaml
 
@@ -34,15 +35,45 @@ def reduce_thread_id(thread_id: int) -> str:
     return xxhash.xxh32(thread_id.to_bytes(8, "little")).hexdigest()[:4]
 
 
-class ColorFormatter(logging.Formatter):
+class NumpyLogRecord(logging.LogRecord):
     """
-    logging Formatter which prints messages with colors.
+    LogRecord with the special handling of numpy arrays which shortens the long ones.
+    """
+
+    @staticmethod
+    def array2string(arr: numpy.ndarray) -> str:
+        shape = str(arr.shape)[1:-1]
+        if shape.endswith(","):
+            shape = shape[:-1]
+        return numpy.array2string(arr, threshold=11) + "%s[%s]" % (arr.dtype, shape)
+
+    def getMessage(self):
+        """
+        Return the message for this LogRecord.
+
+        Return the message for this LogRecord after merging any user-supplied
+        arguments with the message.
+        """
+        if isinstance(self.msg, numpy.ndarray):
+            msg = self.array2string(self.msg)
+        else:
+            msg = str(self.msg)
+        if self.args:
+            a2s = self.array2string
+            args = tuple((a2s(a) if isinstance(a, numpy.ndarray) else a) for a in self.args)
+            msg = msg % args
+        return msg
+
+
+class AwesomeFormatter(logging.Formatter):
+    """
+    logging.Formatter which adds colors to messages and shortens thread ids.
     """
     GREEN_MARKERS = [" ok", "ok:", "finished", "complete", "ready",
                      "done", "running", "success", "saved"]
     GREEN_RE = re.compile("|".join(GREEN_MARKERS))
 
-    def formatMessage(self, record: logging.LogRecord):
+    def formatMessage(self, record: logging.LogRecord) -> str:
         level_color = "0"
         text_color = "0"
         fmt = ""
@@ -124,6 +155,7 @@ def setup(level: Union[str, int], structured: bool, config_path: str = None):
     # basicConfig is only called to make sure there is at least one handler for the root logger.
     # All the output level setting is down right afterwards.
     logging.basicConfig()
+    logging.setLogRecordFactory(NumpyLogRecord)
     if config_path:
         with open(config_path) as fh:
             config = yaml.safe_load(fh)
@@ -135,7 +167,7 @@ def setup(level: Union[str, int], structured: bool, config_path: str = None):
     if not structured:
         if not sys.stdin.closed and sys.stdout.isatty():
             handler = root.handlers[0]
-            handler.setFormatter(ColorFormatter())
+            handler.setFormatter(AwesomeFormatter())
     else:
         root.handlers[0] = StructuredHandler(level)
 

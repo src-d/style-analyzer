@@ -22,6 +22,11 @@ fs: /tmp
 4. Run the analyzer `python3 -m lookout run lookout.style.format -c config.yml`
 5. File a fake pull request `./lookout review -v ipv4://localhost:2000`
 
+### Implemented analyzers
+
+* [`lookout.style.format`](lookout/style/format)
+* [`lookout.style.typos`](lookout/style/typos)
+
 ### API Documentation
 
 API documentation is available on [Read The Docs](https://style-analyzer.readthedocs.io/en/latest/).

@@ -3,7 +3,7 @@ from collections import defaultdict
 from copy import copy
 from functools import singledispatch
 from math import ceil, floor
-from typing import List, Tuple
+from typing import List, Optional, Tuple, Sequence
 
 from numpy import flatnonzero, floating, ndarray
 
@@ -11,6 +11,7 @@ from lookout.style.format.feature_extractor import FeatureExtractor, FEATURES_MA
 from lookout.style.format.feature_utils import (
     CLASS_INDEX, CLASSES, CLS_DOUBLE_QUOTE, CLS_NEWLINE, CLS_NOOP, CLS_SINGLE_QUOTE, CLS_SPACE,
     CLS_SPACE_DEC, CLS_SPACE_INC, CLS_TAB, CLS_TAB_DEC, CLS_TAB_INC)
+from lookout.style.format.feature_utils import VirtualNode
 from lookout.style.format.features import BagFeature, CategoricalFeature, OrdinalFeature
 from lookout.style.format.rules import Rule
 
@@ -66,7 +67,7 @@ def describe_rule(rule: Rule, feature_extractor: FeatureExtractor) -> str:
         for group, nodes in grouped.items()
         for node, feature_names in nodes.items()
         for feature_name, splits in feature_names.items()]
-    return "%s\n\t→ y = %s (%.2f confidence, %d support)" % (
+    return "%s\n\t→ y = %s\n\tConfidence: %.3f. Support: %d." % (
         "\n\t∧ ".join(descriptions),
         CLASS_REPRESENTATIONS[rule.stats.cls],
         rule.stats.conf,
@@ -184,3 +185,49 @@ def describe_rule_parts_ordinal(feature: OrdinalFeature, name: str,
     """
     cmp, threshold, _ = splits[0]
     return _format_int(cmp, threshold, name)
+
+
+def get_error_description(vnode: VirtualNode, y_pred: int) -> str:
+    """
+    Return the comment with regard to the correct node class.
+
+    :param vnode: Node to describe.
+    :param y_pred: The index of the correct node class.
+    :return: String comment.
+    """
+    column = vnode.start.col
+    if y_pred == CLASS_INDEX[CLS_NOOP]:
+        return "%s at column %d should be removed." % (CLASS_REPRESENTATIONS[vnode.y], column)
+    if vnode.y == CLASS_INDEX[CLS_NOOP]:
+        return "%s should be inserted at column %d." % (CLASS_REPRESENTATIONS[y_pred], column)
+    return "Replace %s with %s at column %d." % (
+        CLASS_REPRESENTATIONS[vnode.y], CLASS_REPRESENTATIONS[y_pred], column)
+
+
+def get_code_chunk(lang: str, code_lines: Sequence[str], line_number: int) -> str:
+    """
+    Return nice code snippet that can be inserted to github message.
+
+    :param lang: Code language. Both styles `javascript` and `JavaScript` are suitable.
+    :param code_lines: Sequence of code lines without ending new line character.
+    :param line_number: 1-based line number to print.
+    :return: Code snippet.
+    """
+    lines = list(range(max(0, line_number - 2), line_number + 1))
+    code_chunk = "\n".join("%d|%s" % (l, code_lines[l]) for l in lines)
+    return "```%s\n%s\n```\n" % (lang, code_chunk)
+
+
+def rule_to_comment(rule: Rule, feature_extractor: FeatureExtractor, number: Optional[int]=None
+                    ) -> str:
+    """
+    Return the comment for the rule.
+
+    :param rule: The rule to convert to string.
+    :param number: Triggered rule number if applicable.
+    :param feature_extractor: Corresponding feature extractor.
+    :return: String comment.
+    """
+    number = "<NA>" if number is None else str(number)
+    return "Triggered rule # %s:\n```\n\t%s\n```" % (
+        number, describe_rule(rule, feature_extractor))
