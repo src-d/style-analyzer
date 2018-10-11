@@ -1,4 +1,3 @@
-from os.path import join
 import pathlib
 import unittest
 
@@ -10,7 +9,7 @@ from pandas.util.testing import assert_frame_equal
 from lookout.style.typos.generation import (get_candidates_tokens, get_candidates_features,
                                             CandidatesGenerator)
 from lookout.style.typos.utils import (CANDIDATE_COLUMN, CORRECT_TOKEN_COLUMN,
-                                       ID_COLUMN, SPLIT_COLUMN, TYPO_COLUMN)
+                                       ID_COLUMN, SPLIT_COLUMN, TYPO_COLUMN, FEATURES_COLUMN)
 
 
 TEST_DATA_PATH = pathlib.Path(__file__).parent
@@ -21,11 +20,11 @@ VOCABULARY_FILE = str(TEST_DATA_PATH / "test_frequencies.csv.xz")
 class CandidatesSplitTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.candidates = pandas.DataFrame([[0, "gut", "get", 0.1, 0.2],
-                                           [1, "cit", "cut", 0.8, 0.3],
-                                           [1, "cit", "cit", 0.1, 0.5]],
-                                          columns=[ID_COLUMN, TYPO_COLUMN,
-                                                   CANDIDATE_COLUMN, 0, 1])
+        cls.candidates = pandas.DataFrame(
+            [[0, "gut", "get", numpy.array([0.1, 0.2], dtype="float32")],
+             [1, "cit", "cut", numpy.array([0.8, 0.3], dtype="float32")],
+             [1, "cit", "cit", numpy.array([0.1, 0.5], dtype="float32")]],
+            columns=[ID_COLUMN, TYPO_COLUMN, CANDIDATE_COLUMN, FEATURES_COLUMN])
 
     def test_get_candidates_tokens(self):
         tokens = pandas.DataFrame([[0, "gut", "get"],
@@ -37,7 +36,7 @@ class CandidatesSplitTest(unittest.TestCase):
     def test_get_candidates_features(self):
         features = numpy.array([[0.1, 0.2],
                                 [0.8, 0.3],
-                                [0.1, 0.5]])
+                                [0.1, 0.5]], dtype="float32")
         assert_array_equal(get_candidates_features(self.candidates), features)
 
 
@@ -45,9 +44,9 @@ class GeneratorTest(unittest.TestCase):
     def test_generate_candidates(self):
         generator = CandidatesGenerator()
         generator.construct(VOCABULARY_FILE, VOCABULARY_FILE, FASTTEXT_DUMP_FILE,
-                            neighbors_number=3, taken_for_distance=3, max_distance=3, radius=3)
+                            neighbors=3, edit_candidates=3, max_distance=3, radius=3)
 
-        data = pandas.read_csv(str(TEST_DATA_PATH / "test_data.csv"),
+        data = pandas.read_csv(str(TEST_DATA_PATH / "test_data.csv.xz"),
                                index_col=0).infer_objects()
         custom_data = pandas.DataFrame([[["get", "tokens", "num"], "tokens", "tokens"],
                                         [["gwt", "tokens"], "gwt", "get"],
