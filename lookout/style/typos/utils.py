@@ -12,6 +12,7 @@ import pandas
 AFTER_COLUMN = "after"
 BEFORE_COLUMN = "before"
 CANDIDATE_COLUMN = "candidate"
+FEATURES_COLUMN = "features"
 CORRECT_TOKEN_COLUMN = "identifier"
 ID_COLUMN = "id"
 PROBABILITY_COLUMN = "proba"
