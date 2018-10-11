@@ -7,6 +7,26 @@ from lookout.style.format.rules import TrainableRules
 from lookout.style.format.tests.test_rules import load_abalone_data
 
 
+def compare_models(test_case: unittest.TestCase,
+                   format_model1: FormatModel,
+                   format_model2: FormatModel):
+    test_case.assertEqual(format_model1.languages, format_model2.languages)
+    for lang in format_model1.languages:
+        # clean None values in format_model1 to match asdf cleaning:`
+        test_case.assertEqual(format_model1[lang]._origin_config.keys(),
+                              format_model2[lang]._origin_config.keys())
+        c = {k: v for k, v in format_model1[lang].origin_config["trainable_rules"].items()
+             if v is not None}
+        test_case.assertEqual(c, format_model2[lang].origin_config["trainable_rules"])
+        for rule1, rule2 in zip(format_model1[lang].rules, format_model2[lang].rules):
+            test_case.assertEqual(rule1.stats[0], rule2.stats[0])
+            test_case.assertAlmostEqual(rule1.stats[1], rule2.stats[1])
+            for r1, r2 in zip(rule1.attrs, rule2.attrs):
+                test_case.assertEqual(r1[0], r2[0])
+                test_case.assertEqual(r1[1], r2[1])
+                test_case.assertAlmostEqual(r1[2], r2[2], places=6)
+
+
 class FormatModelTests(unittest.TestCase):
     def setUp(self):
         (self.train_x, self.test_x, self.train_y, self.test_y), _, _ = load_abalone_data()
@@ -33,20 +53,7 @@ class FormatModelTests(unittest.TestCase):
         with tempfile.NamedTemporaryFile(prefix="lookout-") as f:
             fm1.save(f.name)
             fm2 = FormatModel().load(f.name)
-            self.assertEqual(fm1.languages, fm2.languages)
-            for lang in fm1.languages:
-                # clean None values in fm1 to match asdf cleaning:`
-                self.assertEqual(fm1[lang]._origin_config.keys(), fm2[lang]._origin_config.keys())
-                c = {k: v for k, v in fm1[lang].origin_config["trainable_rules"].items()
-                     if v is not None}
-                self.assertEqual(c, fm2[lang].origin_config["trainable_rules"])
-                for rule1, rule2 in zip(fm1[lang].rules, fm2[lang].rules):
-                    self.assertEqual(rule1.stats[0], rule2.stats[0])
-                    self.assertAlmostEqual(rule1.stats[1], rule2.stats[1])
-                    for r1, r2 in zip(rule1.attrs, rule2.attrs):
-                        self.assertEqual(r1[0], r2[0])
-                        self.assertEqual(r1[1], r2[1])
-                        self.assertAlmostEqual(r1[2], r2[2], places=6)
+            compare_models(self, fm1, fm2)
 
     def test_dump(self):
         fm = FormatModel()

@@ -3,6 +3,7 @@ import logging
 import lzma
 from pathlib import Path
 import tarfile
+from tempfile import TemporaryFile
 from typing import Dict, Iterable, NamedTuple, Optional
 import unittest
 
@@ -12,6 +13,7 @@ from lookout.core.analyzer import ReferencePointer
 from lookout.core.api.service_data_pb2 import File
 from lookout.style.format.analyzer import FormatAnalyzer
 from lookout.style.format.model import FormatModel
+from lookout.style.format.tests.test_model import compare_models
 
 Change = NamedTuple("Change", [("base", File), ("head", File)])
 
@@ -81,6 +83,12 @@ class AnalyzerTests(unittest.TestCase):
         model2 = FormatAnalyzer.train(self.ptr, config, datastub)
         self.assertEqual(model1["javascript"].rules, model2["javascript"].rules)
         self.assertGreater(len(model1["javascript"]), 10)
+        # Check that model can be saved without problems and then load back
+        with TemporaryFile(prefix="analyzer_model-", suffix=".asdf") as f:
+            model2.save(f)
+            f.seek(0)
+            model3 = FormatModel().load(f)
+            compare_models(self, model2, model3)
 
     def test_analyze(self):
         common = self.base_files.keys() & self.head_files.keys()
