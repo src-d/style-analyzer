@@ -2,7 +2,7 @@
 from collections import defaultdict
 from difflib import SequenceMatcher
 import glob
-from typing import Dict, Iterable, List, Mapping, NamedTuple, Set, Tuple
+from typing import Iterable, List, Mapping, NamedTuple, Set, Tuple
 
 from bblfsh import BblfshClient
 import numpy
@@ -19,7 +19,7 @@ Misprediction = NamedTuple("Misprediction", [("y", numpy.ndarray), ("pred", nump
                                              ("node", List[VirtualNode]), ("rule", numpy.ndarray)])
 
 
-def get_content_from_repo(folder: str) -> Dict[str, str]:
+def get_content_from_repo(folder: str) -> Mapping[str, str]:
     """
     Extract the content of the files given their path.
 
@@ -190,6 +190,7 @@ def style_robustness_report(true_repo: str, noisy_repo: str, bblfsh: str, langua
 
     true_content = get_content_from_repo(true_repo)
     noisy_content = get_content_from_repo(noisy_repo)
+    print("len true content :", len(true_content))
     true_files, noisy_files, lines_changed = get_difflib_changes(true_content, noisy_content)
 
     print()
@@ -218,11 +219,12 @@ def style_robustness_report(true_repo: str, noisy_repo: str, bblfsh: str, langua
     false_negative = changes_count - len(diff_mispreds)
     try:
         precision = true_positive / (true_positive + false_positive)
+        recall = true_positive / (true_positive + false_negative)
     except ZeroDivisionError:
         precision = 0
-    recall = true_positive / (true_positive + false_negative)
+        recall = 0
 
-    print("preicison :", round(precision, 3))
+    print("precision :", round(precision, 3))
     print("recall :", round(recall, 3))
 
     print()
