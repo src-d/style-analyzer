@@ -40,11 +40,11 @@ def train(training_dir: str, output_path: str, language: str, bblfsh: str, confi
     else:
         config = {}
     filenames = glob.glob(join(training_dir, "**", "*"), recursive=True)
-    model = FormatAnalyzer.train(ReferencePointer("someurl", "someref", "somecommit"),
-                                 config,
-                                 _FakeDataStub(files=prepare_files(filenames,
-                                                                   bblfsh_client,
-                                                                   language)))
+    model = FormatAnalyzer.train(
+        ReferencePointer("someurl", "someref", "somecommit"),
+        config,
+        _FakeDataStub(files=prepare_files(filenames, bblfsh_client, language))
+    )
     model.save(output_path)
 
 

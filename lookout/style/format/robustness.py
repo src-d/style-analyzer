@@ -44,9 +44,9 @@ def get_difflib_changes(true_content: Mapping[str, str], noisy_content: Mapping[
 
     :param true_content: Dictionary containing the content of the original repository.
     :param noisy_content: Dictionary containing the content of the noisy version of the repository.
-    :return: The list of files where a style mistake has been added, and the mirror list of the
-             original files, and the dictionary of the sets of lines modified by file.
-             The number of lines that have been modified, must be equal to the number
+    :return: The list of files where a style mistake has been added, and the mirror list of the \
+             original files, and the dictionary of the sets of lines modified by file. \
+             The number of lines that have been modified, must be equal to the number \
              of modified files.
     """
     true_files, noisy_files = set(), set()
@@ -64,13 +64,13 @@ def get_difflib_changes(true_content: Mapping[str, str], noisy_content: Mapping[
 def files2vnodes(files: Iterable[str], rules: Rules, client: str, language: str
                  ) -> Iterable[VirtualNode]:
     """
-    Return the `VirtualNodes` extracted from a list of files.
+    Return the `VirtualNode`-s extracted from a list of files.
 
-    :param files: List of files to get `Mispredictions` and `VirtualNodes` from.
+    :param files: List of files to get `Misprediction`-s and `VirtualNode`-s from.
     :param rules: rules of the style-analyzer model.
     :param client: Babelfish client. Babelfish server should be started accordingly.
     :param language: Language to consider, others will be discarded.
-    :return: List of `VirtualNodes` extracted from a given list of files.
+    :return: List of `VirtualNode`-s extracted from a given list of files.
     """
     files = prepare_files(files, client, language)
     fe = FeatureExtractor(language=language, **rules.origin_config["feature_extractor"])
@@ -81,13 +81,13 @@ def files2vnodes(files: Iterable[str], rules: Rules, client: str, language: str
 def files2mispreds(files: Iterable[str], rules: Rules, client: str, language: str
                    ) -> Iterable[Misprediction]:
     """
-    Return the model's `Mispredictions` on a list of files.
+    Return the model's `Misprediction`-s on a list of files.
 
-    :param files: List of files to get `Mispredictions` from.
+    :param files: List of files to get `Misprediction`-s from.
     :param rules: rules of the style-analyzer model.
     :param client: Babelfish client. Babelfish server should be started accordingly.
     :param language: Language to consider, others will be discarded.
-    :return: List of `Mispredictions` extracted from a given list of files.
+    :return: List of `Misprediction`-s extracted from a given list of files.
     """
     files = prepare_files(files, client, language)
     fe = FeatureExtractor(language=language, **rules.origin_config["feature_extractor"])
@@ -101,13 +101,13 @@ def files2mispreds(files: Iterable[str], rules: Rules, client: str, language: st
 def get_mispreds(y: numpy.ndarray, y_pred: numpy.ndarray, nodes: Iterable[VirtualNode],
                  winner: numpy.ndarray) -> Iterable[Misprediction]:
     """
-    Return the list of `Mispredictions` where the labels differ.
+    Return the list of `Misprediction`-s where the labels differ.
 
     :param y: Numpy 1-dimensional array of labels.
     :param y_pred: Numpy 1-dimensional array of predicted labels by the model.
-    :param nodes: List of `VirtualNodes`.
+    :param nodes: List of `VirtualNode`-s.
     :param winner: Numpy 1-dimensional array of the winning rule indices for each sample.
-    :return: List of `Mispredictions` where the labels `y` and `y_pred` differ.
+    :return: List of `Misprediction`-s where the labels `y` and `y_pred` differ.
     """
     mispreds = []
     for gt, pred, vn, rule in zip(y, y_pred, nodes, winner):
@@ -119,11 +119,11 @@ def get_mispreds(y: numpy.ndarray, y_pred: numpy.ndarray, nodes: Iterable[Virtua
 def get_diff_mispreds(mispreds: Iterable[Misprediction], lines_changed: Mapping[str, Set[int]]
                       ) -> Mapping[str, Misprediction]:
     """
-    Filter `Mispredictions` to select those involving at least one line that has been modified.
+    Filter `Misprediction`-s to select those involving at least one line that has been modified.
 
-    :param mispreds: List of `Mispredictions` to filter.
+    :param mispreds: List of `Misprediction`-s to filter.
     :param lines_changed: Dict of lines that have been changed when adding random noise.
-    :return: Dictionary of the `Mispredictions` involving at least one line
+    :return: Dictionary of the `Misprediction`-s involving at least one line \
              that has been modified when adding random noise.
     """
     diff_mispreds = {}
@@ -142,19 +142,19 @@ def get_style_fixes(mispreds: Mapping[str, Misprediction], vnodes: Iterable[Virt
                     true_files: Iterable[str], noisy_files: Iterable[str]
                     ) -> Iterable[Misprediction]:
     """
-    Return `Mispredictions` that fix the style mistakes added.
+    Return `Misprediction`-s that fix the style mistakes added.
 
-    Given a list of `Mispredictions` potentially fixing a style mistake added since involving
+    Given a list of `Misprediction`-s potentially fixing a style mistake added since involving
     at least one line that has been modified, return the list of `Mispredicitons` really fixing
     that mistake because their prediction on the noisy files would match the ground truth
     labels of the original files.
 
-    :param mispreds: Dictionary of `Mispredictions` potentially fixing a style mistake.
-    :param vnodes: List of `VirtualNodes` extracted from the list of `true_files`.
+    :param mispreds: Dictionary of `Misprediction`-s potentially fixing a style mistake.
+    :param vnodes: List of `VirtualNode`-s extracted from the list of `true_files`.
     :param true_files: list of files of the original repos where a style mistake has been added.
     :param noisy_files: list of files from the noisy repos where a modification has been made
-    :return: List of `Mispredictions` where the prediction on a noisy file matches the ground truth
-             label of the original file i.e. `Mispredictions` actually fixing the mistakes added.
+    :return: List of `Misprediction`-s where the prediction on a noisy file matches the ground truth \
+             label of the original file i.e. `Misprediction`-s actually fixing the mistakes added.
     """
     style_fixes = []
     for true_file, noisy_file in zip(true_files, noisy_files):
@@ -179,22 +179,21 @@ def style_robustness_report(true_repo: str, noisy_repo: str, bblfsh: str, langua
     the model is able to fix them according to the style of the original repository.
 
     :param true_repo: Path to the original repository we want to test the model on.
-    :param noisy_repo: Path to the noisy version of the repository where 1 style mistake is
+    :param noisy_repo: Path to the noisy version of the repository where 1 style mistake is \
            randomly added in every file.
     :param bblfsh: Babelfish client. Babelfish server should be started accordingly.
     :param language: Language to consider, others will be discarded.
-    :param model_path: Path to the model to test. It should be previously trained on the original
+    :param model_path: Path to the model to test. It should be previously trained on the original \
            repository located in ':param true_repo:'.
     """
     client = BblfshClient(bblfsh)
 
     true_content = get_content_from_repo(true_repo)
     noisy_content = get_content_from_repo(noisy_repo)
-    print("len true content :", len(true_content))
     true_files, noisy_files, lines_changed = get_difflib_changes(true_content, noisy_content)
 
     print()
-    print("Number of files modified by adding style noise : %d / %d"
+    print("Number of files modified by adding style noise: %d / %d"
           % (len(true_files), len(true_content)))
     del true_content, noisy_content
 
@@ -211,7 +210,7 @@ def style_robustness_report(true_repo: str, noisy_repo: str, bblfsh: str, langua
 
     style_fixes = get_style_fixes(diff_mispreds, vnodes_y_true, true_files, noisy_files)
 
-    print("style-analyzer fixes in the noisy repos : %d / %d -> %.1f %%"
+    print("style-analyzer fixes in the noisy repos: %d / %d -> %.1f %%"
           % (len(style_fixes), changes_count, 100 * len(style_fixes) / changes_count))
 
     true_positive = len(style_fixes)
@@ -224,10 +223,10 @@ def style_robustness_report(true_repo: str, noisy_repo: str, bblfsh: str, langua
         precision = 0
         recall = 0
 
-    print("precision :", round(precision, 3))
-    print("recall :", round(recall, 3))
+    print("precision:", round(precision, 3))
+    print("recall:", round(recall, 3))
 
     print()
-    print("list of files where the style-analyzer succeeds in fixing the random noise :")
+    print("list of files where the style-analyzer succeeds in fixing the random noise:")
     for mispred in style_fixes:
         print(mispred.node.path)

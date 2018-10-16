@@ -71,7 +71,7 @@ def create_parser() -> ArgumentParser:
                              help="Path to saved FormatModel.")
 
     # Style robustness quality report
-    robust_parser = add_parser("robust", "Quality report made by analyzing how well the model is"
+    robust_parser = add_parser("robust-eval", "Quality report made by analyzing how well the model is"
                                          " able to fix random style mistakes among a repository.")
     robust_parser.set_defaults(handler=style_robustness_report)
     robust_parser.add_argument("--true-repo", required=True, type=str,
