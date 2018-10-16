@@ -5,7 +5,7 @@ import unittest
 import numpy
 import pandas
 
-from lookout.style.typos.generation import get_candidates_features, get_candidates_tokens
+from lookout.style.typos.generation import get_candidates_features, get_candidates_metadata
 from lookout.style.typos.ranking import CandidatesRanker
 from lookout.style.typos.utils import (CANDIDATE_COLUMN, CORRECT_TOKEN_COLUMN, ID_COLUMN,
                                        SPLIT_COLUMN, TYPO_COLUMN)
@@ -48,9 +48,9 @@ class CandidatesRankerTest(unittest.TestCase):
         candidates = pandas.read_pickle(join(TEST_DATA_PATH, "test_data_candidates_full.pkl"))
 
         ranker = CandidatesRanker()
-        ranker.fit(data[CORRECT_TOKEN_COLUMN], get_candidates_tokens(candidates),
+        ranker.fit(data[CORRECT_TOKEN_COLUMN], get_candidates_metadata(candidates),
                    get_candidates_features(candidates))
-        suggestions = ranker.rank(get_candidates_tokens(candidates),
+        suggestions = ranker.rank(get_candidates_metadata(candidates),
                                   get_candidates_features(candidates),
                                   n_candidates=3, return_all=True)
         self.assertSetEqual(set(suggestions.keys()), set(data.index))
