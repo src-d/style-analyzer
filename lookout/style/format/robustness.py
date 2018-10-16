@@ -170,6 +170,14 @@ def get_style_fixes(mispreds: Mapping[str, Misprediction], vnodes: Iterable[Virt
     return style_fixes
 
 
+def filter_relevant_rules(rules: Iterable[Rules], support_threshold: int) -> Iterable[Tuple[int, float]]:
+    print("1 :", len(rules))
+    rules_id = [(i, r.stats.conf, r.stats.support) for i, r in enumerate(rules) if r.stats.support > support_threshold]
+    rules_selection = sorted(rules_id, key=lambda k: k[1], reverse=True)
+    print("2 :", len(rules_selection))
+    return rules_selection
+
+
 def style_robustness_report(true_repo: str, noisy_repo: str, bblfsh: str, language: str,
                             model_path: str) -> None:
     """
@@ -190,7 +198,6 @@ def style_robustness_report(true_repo: str, noisy_repo: str, bblfsh: str, langua
 
     true_content = get_content_from_repo(true_repo)
     noisy_content = get_content_from_repo(noisy_repo)
-    print("len true content :", len(true_content))
     true_files, noisy_files, lines_changed = get_difflib_changes(true_content, noisy_content)
 
     print()
@@ -231,3 +238,79 @@ def style_robustness_report(true_repo: str, noisy_repo: str, bblfsh: str, langua
     print("list of files where the style-analyzer succeeds in fixing the random noise :")
     for mispred in style_fixes:
         print(mispred.node.path)
+
+
+def plot_pr_curve(true_repo: str, noisy_repo: str, bblfsh: str, language: str,
+                  model_path: str, support_threshold: int=0) -> None:
+    """
+    Print the quality report of a model tested on a given repository.
+
+    The tests consists in adding random style mistakes in the given repo and looking how well
+    the model is able to fix them according to the style of the original repository.
+
+    :param true_repo: Path to the original repository we want to test the model on.
+    :param noisy_repo: Path to the noisy version of the repository where 1 style mistake is
+           randomly added in every file.
+    :param bblfsh: Babelfish client. Babelfish server should be started accordingly.
+    :param language: Language to consider, others will be discarded.
+    :param model_path: Path to the model to test. It should be previously trained on the original
+           repository located in ':param true_repo:'.
+    """
+    client = BblfshClient(bblfsh)
+
+    true_content = get_content_from_repo(true_repo)
+    noisy_content = get_content_from_repo(noisy_repo)
+    true_files, noisy_files, lines_changed = get_difflib_changes(true_content, noisy_content)
+    changes_count = len(lines_changed)
+
+    print()
+    print("Number of files modified by adding style noise : %d / %d"
+          % (len(true_files), len(true_content)))
+    del true_content, noisy_content
+
+    analyzer = FormatModel().load(model_path)
+    rules = analyzer[language]
+    rules_selection = filter_relevant_rules(rules.rules, support_threshold)
+
+    vnodes_y_true = files2vnodes(true_files, rules, client, language)
+    mispreds_noise = files2mispreds(noisy_files, rules, client, language)
+    diff_mispreds = get_diff_mispreds(mispreds_noise, lines_changed)
+    
+    precisions, recalls = [], []
+    for i in range(len(rules_selection)):
+        print()
+        print("-----  %d  -----" % (i))
+        print()
+        filtered_diff_mispreds = {k: m for k, m in diff_mispreds.items()
+                                  if any(r[0] == m.rule for r in rules_selection[:i + 1])}
+
+        print("Number of artificial mistakes potentially fixed by the model"
+              "(diff of mispredictions): %d / %d" % (len(diff_mispreds), changes_count))
+
+        style_fixes = get_style_fixes(filtered_diff_mispreds, vnodes_y_true, true_files, noisy_files)
+
+        print("style-analyzer fixes in the noisy repos : %d / %d -> %.1f %%"
+            % (len(style_fixes), changes_count, 100 * len(style_fixes) / changes_count))
+
+        true_positive = len(style_fixes)
+        false_positive = len(filtered_diff_mispreds) - len(style_fixes)
+        false_negative = changes_count - len(filtered_diff_mispreds)
+        try:
+            precision = true_positive / (true_positive + false_positive)
+            recall = true_positive / (true_positive + false_negative)
+        except ZeroDivisionError:
+            precision = 0
+            recall = 0
+        
+        precisions.append(round(precision, 3))
+        recalls.append(round(recall, 3))
+        print("precision :", round(precision, 3))
+        print("recall :", round(recall, 3))
+
+    print()
+    print("PRECISONS :", precisions)
+    print("RECALLS :", recalls)
+    #print()
+    #print("list of files where the style-analyzer succeeds in fixing the random noise :")
+    #for mispred in style_fixes:
+    #    print(mispred.node.path)

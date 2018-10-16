@@ -6,7 +6,7 @@ from typing import Any
 from lookout.core.cmdline import ArgumentDefaultsHelpFormatterNoNone
 from lookout.core.slogging import setup as setup_slogging
 from lookout.style.format.quality_report import quality_report
-from lookout.style.format.robustness import style_robustness_report
+from lookout.style.format.robustness import style_robustness_report, plot_pr_curve
 from lookout.style.format.rule_stat import print_rules_report
 from lookout.style.format.visualization import visualize
 
@@ -85,6 +85,24 @@ def create_parser() -> ArgumentParser:
                                help="Babelfish server's address.")
     robust_parser.add_argument("-l", "--language", default="javascript",
                                help="Programming language to use.")
+
+    # Plot Precision and Recall curves
+    pr_curve_parser = add_parser("pr_curve", "Plot Precision/Recall curves function of the number "
+                                             "of rules selected.")
+    pr_curve_parser.set_defaults(handler=plot_pr_curve)
+    pr_curve_parser.add_argument("--true-repo", required=True, type=str,
+                                 help="Path to the directory containing the files of the true "
+                                      "repository.")
+    pr_curve_parser.add_argument("--noisy-repo", required=True, type=str,
+                                 help="Path to the directory containing the files of the true repo "
+                                      "modified by adding artificial style mistakes.")
+    pr_curve_parser.add_argument("-m", "--model-path", required=True, help="Path to the model.")
+    pr_curve_parser.add_argument("--bblfsh", default="0.0.0.0:9432",
+                                 help="Babelfish server's address.")
+    pr_curve_parser.add_argument("-l", "--language", default="javascript",
+                                 help="Programming language to use.")
+    pr_curve_parser.add_argument("--support-threshold", type=int,
+                                 help="Support threshold to filter relevant rules.")
     return parser
 
 
