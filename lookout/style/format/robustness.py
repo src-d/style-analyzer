@@ -153,8 +153,9 @@ def get_style_fixes(mispreds: Mapping[str, Misprediction], vnodes: Iterable[Virt
     :param vnodes: List of `VirtualNode`-s extracted from the list of `true_files`.
     :param true_files: list of files of the original repos where a style mistake has been added.
     :param noisy_files: list of files from the noisy repos where a modification has been made
-    :return: List of `Misprediction`-s where the prediction on a noisy file matches the ground truth \
-             label of the original file i.e. `Misprediction`-s actually fixing the mistakes added.
+    :return: List of `Misprediction`-s where the prediction on a noisy file matches the ground \
+             truth label of the original file i.e. `Misprediction`-s actually fixing the mistakes \
+             added.
     """
     style_fixes = []
     for true_file, noisy_file in zip(true_files, noisy_files):
@@ -219,12 +220,15 @@ def style_robustness_report(true_repo: str, noisy_repo: str, bblfsh: str, langua
     try:
         precision = true_positive / (true_positive + false_positive)
         recall = true_positive / (true_positive + false_negative)
+        f1_score = 2 * precision * recall / (precision + recall)
     except ZeroDivisionError:
         precision = 0
         recall = 0
+        f1_score = 0
 
     print("precision:", round(precision, 3))
     print("recall:", round(recall, 3))
+    print("F1 score:", round(f1_score, 3))
 
     print()
     print("list of files where the style-analyzer succeeds in fixing the random noise:")

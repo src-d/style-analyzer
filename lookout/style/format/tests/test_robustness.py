@@ -34,8 +34,9 @@ class RobustnessTests(unittest.TestCase):
         with Capturing() as output:
             style_robustness_report(input_pattern, input_pattern_noisy, self.bblfsh,
                                     self.language, self.model_path)
-        self.assertIn("precision : 1.0", output)
-        self.assertIn("recall : 0.5", output)
+        self.assertIn("precision: 1.0", output)
+        self.assertIn("recall: 0.5", output)
+        self.assertIn("F1 score: 0.667", output)
 
 
 if __name__ == "__main__":
