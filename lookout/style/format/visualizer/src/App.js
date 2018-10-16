@@ -1,11 +1,12 @@
-import React, { Component } from 'react';
-import Input from './Input.js'
-import Visualization from './Visualization.js'
-import Wait from './Wait.js'
-import './css/App.css';
+import React, { Component } from "react";
+import Input from "./Input.js";
+import range from "lodash.range";
+import zip from "lodash.zip";
+import Visualization from "./Visualization.js";
+import Wait from "./Wait.js";
+import "./css/App.css";
 
 class App extends Component {
-
   constructor(props) {
     super(props);
 
@@ -13,65 +14,78 @@ class App extends Component {
     this.switchToVisualization = this.switchToVisualization.bind(this);
 
     this.state = {
-      mode: 'input'
-    }
+      mode: "input"
+    };
   }
 
   switchToInput() {
     this.setState({
-      mode: 'input',
+      mode: "input",
       response: null
     });
   }
 
   switchToVisualization(code) {
     this.setState({
-      mode: 'wait'
+      mode: "wait"
     });
     fetch(this.props.endpoint, {
-      'method': 'POST',
-      'mode': 'cors',
-      'headers': {
-        'Content-Type': 'application/json; charset=utf-8',
+      method: "POST",
+      mode: "cors",
+      headers: {
+        "Content-Type": "application/json; charset=utf-8"
       },
-      'body': JSON.stringify({
-        'code': code,
-        'babelfish_address': '0.0.0.0:9432',
-        'language': 'javascript'
+      body: JSON.stringify({
+        code: code,
+        babelfish_address: "0.0.0.0:9432",
+        language: "javascript"
       })
-    }).then(results => {
-      return results.json();
-    }).then(data => {
-      data.labeled_indices = []
-      let labeled_index = 0;
-      data.vnodes.forEach(function(vnode, index) {
-        data.labeled_indices.push(vnode.y === null ? null : labeled_index);
-        if (vnode.y !== null) {
-          labeled_index++;
-        }
+    })
+      .then(results => {
+        return results.json();
+      })
+      .then(data => {
+        data.labeled_indices = [];
+        let labeled_index = 0;
+        data.vnodes.forEach(function(vnode, index) {
+          data.labeled_indices.push(vnode.y === null ? null : labeled_index);
+          if (vnode.y !== null) {
+            labeled_index++;
+          }
+        });
+        const rules_by_confidence = zip(
+          range(data.confidences.length),
+          data.confidences
+        );
+        rules_by_confidence.sort(
+          ([index1, conf1], [index2, conf2]) =>
+            conf1 > conf2 ? 1 : conf1 < conf2 ? -1 : 0
+        );
+        data.rules_by_confidence = rules_by_confidence.map(
+          ([index, conf]) => index
+        );
+        this.setState({
+          mode: "visualization",
+          data: data
+        });
       });
-      this.setState({
-        mode: 'visualization',
-        data: data
-      });
-    });
   }
 
   render() {
     let widget;
-    if (this.state.mode === 'input') {
+    if (this.state.mode === "input") {
       widget = <Input switchHandler={this.switchToVisualization} />;
-    } else if (this.state.mode === 'wait') {
-      widget = <Wait />
+    } else if (this.state.mode === "wait") {
+      widget = <Wait />;
     } else {
-      widget = <Visualization switchHandler={this.switchToInput}
-                              data={this.state.data}/>
+      widget = (
+        <Visualization
+          switchHandler={this.switchToInput}
+          data={this.state.data}
+        />
+      );
     }
-    return (
-      <div className="App">
-        {widget}
-      </div>
-    )
+    return <div className="App">{widget}</div>;
   }
 }
 

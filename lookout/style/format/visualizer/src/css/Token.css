@@ -1,11 +1,10 @@
-span.context {
+span {
   border-radius: 5px;
-  border: 1px solid #ccc;
-  background-color: #ddd;
 }
 
-span.feature {
-  border-radius: 5px;
+span.context {
+  border: 1px solid #ccc;
+  background-color: #ddd;
 }
 
 span.context.neighbour {
@@ -22,6 +21,11 @@ span.feature.correct {
   background-color: #cfc;
 }
 
+span.feature.disabled {
+  border: 1px solid #eef;
+  background-color: #ccf;
+}
+
 span.feature.neighbour.correct {
   background-color: #6f6;
 }
@@ -30,9 +34,17 @@ span.feature.neighbour.wrong {
   background-color: #f66;
 }
 
+span.feature.neighbour.disabled {
+  background-color: #66f;
+}
+
 span.highlighted {
   color: #fff;
   font-weight: bold;
+}
+
+span.feature.highlighted.disabled {
+  background-color: #009;
 }
 
 span.feature.highlighted.wrong {
