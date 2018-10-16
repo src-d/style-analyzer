@@ -2,7 +2,7 @@
 from collections.abc import Mapping as Mapping_abc
 from logging import basicConfig
 from pathlib import Path
-from typing import Any, Mapping, MutableMapping
+from typing import Any, List, Mapping, MutableMapping
 
 from bblfsh import BblfshClient
 from flask import abort, Flask, jsonify, request, Response
@@ -11,7 +11,7 @@ import numpy
 
 from lookout.core.api.service_data_pb2 import File
 from lookout.style.format.descriptions import (CLASS_PRINTABLES, CLASS_REPRESENTATIONS,
-                                               describe_rules)
+                                               describe_sample, describe_rules)
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.feature_utils import VirtualNode
 from lookout.style.format.model import FormatModel
@@ -47,6 +47,29 @@ def _vnode_to_dict(vnode: VirtualNode) -> Mapping[str, Any]:
     }
 
 
+def _input_matrix_to_descriptions(X: numpy.ndarray, feature_extractor: FeatureExtractor
+                                  ) -> List[str]:
+    descriptions = []
+    for x in X:
+        offset = 0
+        groups = {}
+        for group, group_value in feature_extractor.feature_to_indices.items():
+            groups[group.name] = []
+            for node, node_value in enumerate(group_value):
+                groups[group.name].append({})
+                for feature_name, feature_indices in node_value.items():
+                    feature_values = x[offset:offset + len(feature_indices)]
+                    offset += len(feature_indices)
+                    indices = feature_extractor._feature_to_indices_set[group][node][feature_name]
+                    indices_sorted = sorted(indices)
+                    description = describe_sample(feature_extractor._features[feature_name],
+                                                  feature_values,
+                                                  indices_sorted)
+                    groups[group.name][node][feature_name] = description
+        descriptions.append(groups)
+    return descriptions
+
+
 @app.route("/", methods=["POST"])
 def return_features() -> Response:
     """Featurize the given code."""
@@ -71,7 +94,7 @@ def return_features() -> Response:
     y_pred, winners = rules.predict(X, True)
     app.logger.info("returning features of shape %d, %d" % X.shape)
     return jsonify({"code": code,
-                    "features": X.tolist(),
+                    "features": _input_matrix_to_descriptions(X, fe),
                     "grount_truths": [int(vnode.y) for vnode in vnodes_y],
                     "predictions": y_pred.tolist(),
                     "sibling_indices": sibling_indices,

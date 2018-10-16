@@ -3,12 +3,12 @@ span {
 }
 
 span.context {
-  border: 1px solid #ccc;
-  background-color: #ddd;
+  border: 1px solid #ddd;
+  background-color: #fcfcfc;
 }
 
 span.context.neighbour {
-  background-color: #fcfcfc;
+  background-color: #ddd;
 }
 
 span.feature.wrong {
