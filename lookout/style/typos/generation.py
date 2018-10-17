@@ -68,7 +68,7 @@ class CandidatesGenerator:
         :param embeddings_file: Path to the dump of FastText model.
         :param neighbors: Number of neighbors of context and typo embeddings \
                           to consider as candidates.
-        :param edit_candidates: Number of the most frequent tokens among tokens on
+        :param edit_candidates: Number of the most frequent tokens among tokens on \
                                 equal edit distance from the typo to consider as candidates.
         :param max_distance: Maximum edit distance for symspell lookup for candidates.
         :param radius: Maximum edit distance from typo allowed for candidates.
