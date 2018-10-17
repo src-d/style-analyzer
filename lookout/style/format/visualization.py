@@ -1,5 +1,4 @@
 """Utilities to visualize the errors made on a file."""
-from collections import namedtuple
 import os
 
 from bblfsh import BblfshClient
@@ -8,14 +7,12 @@ from lookout.core.api.service_data_pb2 import File
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.feature_utils import CLASSES
 from lookout.style.format.model import FormatModel
+from lookout.style.format.robustness import Misprediction
 
 RED = "\033[41m"
 GREEN = "\033[42m"
 BLUE = "\033[94m"
 ENDC = "\033[m"
-
-
-Misprediction = namedtuple("Misprediction", ["y", "pred", "node", "rule"])
 
 
 def prepare_file(filename: str, client: BblfshClient, language: str) -> File:
