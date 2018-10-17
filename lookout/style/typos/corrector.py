@@ -1,3 +1,5 @@
+"""Typo correction model."""
+
 from itertools import chain
 from typing import Dict, List, Tuple
 
@@ -6,15 +8,16 @@ import pandas
 from tqdm import tqdm
 
 from lookout.style.typos.generation import (CandidatesGenerator, get_candidates_features,
-                                            get_candidates_tokens)
+                                            get_candidates_metadata)
 from lookout.style.typos.ranking import CandidatesRanker
 from lookout.style.typos.utils import CORRECT_TOKEN_COLUMN
 
 
 class TyposCorrector(Model):
     """
-    Model for correcting typos in tokens inside identifiers
+    Model for correcting typos in tokens inside identifiers.
     """
+
     NAME = "typos_correction"
     VENDOR = "source{d}"
 
@@ -38,6 +41,11 @@ class TyposCorrector(Model):
                            "eval_metric": ["error"]}
 
     def __init__(self, threads_number: int = DEFAULT_THREADS_NUMBER):
+        """
+        Initialize a new instance of TyposCorrector class.
+
+        :param threads_number: Number of training threads.
+        """
         super().__init__()
         self.generator = CandidatesGenerator()
         self.ranker = CandidatesRanker()
@@ -47,22 +55,45 @@ class TyposCorrector(Model):
     def set_ranker_params(self, train_rounds: int = DEFAULT_TRAIN_ROUNDS,
                           early_stopping: int = DEFAULT_EARLY_STOPPING,
                           boost_param: dict = DEFAULT_BOOST_PARAM) -> None:
+        """
+        Apply the ranking parameters - see XGBoost docs for details.
+
+        :param train_rounds: Number of training rounds.
+        :param early_stopping: Early stopping parameter.
+        :param boost_param: Boosting parameters.
+        :return: Nothing
+        """
         boost_param["nthread"] = self.threads_number
         self.ranker.set_boost_params(train_rounds, early_stopping, boost_param)
 
     def create_model(self, vocabulary_file: str, frequencies_file: str,
                      embeddings_file: str = None,
                      neighbors_number: int = DEFAULT_NEIGHBORS_NUMBER,
-                     taken_for_distance: int = DEFAULT_TAKEN_FOR_DISTANCE,
+                     edit_candidates: int = DEFAULT_TAKEN_FOR_DISTANCE,
                      max_distance: int = DEFAULT_MAX_DISTANCE,
                      radius: int = DEFAULT_RADIUS) -> None:
+        """
+        Construct a new CandidatesGenerator.
+
+        :param vocabulary_file: The path to the vocabulary.
+        :param frequencies_file: The path ot the frequencies.
+        :param embeddings_file: The path to the embeddings.
+        :param neighbors_number: Number of neighbors of context and typo embeddings \
+                                 to consider as candidates.
+        :param edit_candidates: Number of the most frequent tokens among tokens on \
+                                equal edit distance from the typo to consider as candidates.
+        :param max_distance: Maximum edit distance for symspell lookup.
+        :param radius: Maximum edit distance from typo allowed for candidates.
+        :return: Nothing
+        """
         self.generator.construct(vocabulary_file, frequencies_file, embeddings_file,
-                                 neighbors_number, taken_for_distance, max_distance, radius)
+                                 neighbors_number, edit_candidates, max_distance, radius)
 
     def train(self, typos: pandas.DataFrame, candidates: pandas.DataFrame = None,
               save_candidates_file: str = None) -> None:
         """
-        Train corrector on given dataset of typos inside identifiers
+        Train corrector on given dataset of typos inside identifiers.
+
         :param typos: DataFrame containing columns "typo" and "identifier",
                       column "token_split" is optional, but used when present
         :param candidates: DataFrame with precalculated candidates
@@ -71,13 +102,14 @@ class TyposCorrector(Model):
         if candidates is None:
             candidates = self.generator.generate_candidates(typos, self.threads_number,
                                                             save_candidates_file)
-        self.ranker.fit(typos[CORRECT_TOKEN_COLUMN], get_candidates_tokens(candidates),
+        self.ranker.fit(typos[CORRECT_TOKEN_COLUMN], get_candidates_metadata(candidates),
                         get_candidates_features(candidates))
 
     def train_on_file(self, typos_file: str, candidates_file: str = None,
                       save_candidates_file: str = None) -> None:
         """
-        Train corrector on given dataset of typos inside identifiers
+        Train corrector on given dataset of typos inside identifiers.
+
         :param typos_file: csv file containing pandas.DataFrame with
                            columns "typo" and "identifier", column "token_split" is optional,
                            but used when present
@@ -95,35 +127,37 @@ class TyposCorrector(Model):
                 save_candidates_file: str = None, n_candidates: int = 3,
                 return_all: bool = True) -> Dict[int, List[Tuple[str, float]]]:
         """
-        Suggest corrections for given typos
-        :param typos: DataFrame containing column "typo",
+        Suggest corrections for given typos.
+
+        :param typos: DataFrame containing column "typo", \
                       column "token_split" is optional, but used when present
         :param candidates: DataFrame with precalculated candidates
         :param n_candidates: Number of most probable candidates to return
         :param return_all: False to return suggestions only for corrected tokens
         :param save_candidates_file: Path to file to save candidates to
-        :return: Dictionary {id : [[candidate, correctness_proba]]}, candidates are sorted
+        :return: Dictionary {id : [[candidate, correctness_proba]]}, candidates are sorted \
                  by correctness probability in a descending order.
         """
         if candidates is None:
             candidates = self.generator.generate_candidates(typos, self.threads_number,
                                                             save_candidates_file)
-        return self.ranker.rank(get_candidates_tokens(candidates),
+        return self.ranker.rank(get_candidates_metadata(candidates),
                                 get_candidates_features(candidates), n_candidates, return_all)
 
     def suggest_file(self, typos_file: str, candidates_file: str = None,
                      save_candidates_file: str = None, n_candidates: int = 3,
                      return_all: bool = True) -> Dict[int, List[Tuple[str, float]]]:
         """
-        Suggest corrections for given typos
-        :param typos_file: csv file containing DataFrame with column "typo",
+        Suggest corrections for given typos.
+
+        :param typos_file: csv file containing DataFrame with column "typo", \
                            column "token_split" is optional, but used when present
-        :param candidates_file: pickle file containing DataFrame with precalculated
+        :param candidates_file: pickle file containing DataFrame with precalculated \
                                 candidates and features
         :param n_candidates: Number of most probable candidates to return
         :param return_all: False to return suggestions only for corrected tokens
         :param save_candidates_file: Path to file to save candidates to
-        :return: Dictionary {id : [[candidate, correctness_proba]]}, candidates are sorted
+        :return: Dictionary {id : [[candidate, correctness_proba]]}, candidates are sorted \
                  by correctness probability in a descending order.
         """
         typos = pandas.read_csv(typos_file, index_col=0)
@@ -137,13 +171,14 @@ class TyposCorrector(Model):
                            ) -> Dict[int, List[Tuple[str, float]]]:
         """
         Correct typos from dataset by batches. Does not support precalculated candidates.
+
         Suggest corrections for given typos
-        :param typos: DataFrame containing column "typo",
+        :param typos: DataFrame containing column "typo", \
                column "token_split" is optional, but used when present
         :param n_candidates: Number of most probable candidates to return
         :param return_all: False to return suggestions only for corrected tokens
         :param batch_size: Batch size
-        :return: Dictionary {id : [[candidate, correctness_proba]]}, candidates are sorted
+        :return: Dictionary {id : [[candidate, correctness_proba]]}, candidates are sorted \
                  by correctness probability in a descending order.
         """
         all_suggestions = []
@@ -154,9 +189,10 @@ class TyposCorrector(Model):
                                        n_candidates=n_candidates, return_all=return_all)
             all_suggestions.append(suggestions.items())
 
-        return dict(list(chain.from_iterable(all_suggestions)))
+        return dict(chain.from_iterable(all_suggestions))
 
     def dump(self) -> str:
+        """Model.__str__ to format the object."""
         return ("Candidates and features generator parameters:\n%s"
                 "XGBoost classifier is used for ranking candidates" %
                 str(self.finder))
