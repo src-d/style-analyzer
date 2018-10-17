@@ -1,0 +1,13 @@
+.dockerignore
+.flake8*
+.git*
+.pylintrc
+.appveyor.yml
+.travis.yml
+Dockerfile
+requirements-lint.txt
+**/doc*
+**/research*
+lookout/style/format/visualizer
+lookout/core/server*
+**/__pycache__*
