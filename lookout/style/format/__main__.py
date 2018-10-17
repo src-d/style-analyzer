@@ -11,6 +11,29 @@ from lookout.style.format.rule_stat import print_rules_report
 from lookout.style.format.visualization import visualize
 
 
+def add_input_pattern_arg(my_parser: ArgumentParser):
+    my_parser.add_argument(
+        "-i", "--input-pattern", required=True, type=str,
+        help="Path to folder with source code - "
+             "should be in a format compatible with glob (ends with**/* "
+             "and surrounded by quotes. Ex: `path/**/*`).")
+
+
+def add_model_args(my_parser: ArgumentParser):
+    my_parser.add_argument(
+        "-m", "--model-path", required=True,
+        help="Path to the saved FormatModel.")
+    my_parser.add_argument(
+        "-l", "--language", default="javascript",
+        help="Programming language to use.")
+
+
+def add_bblfsh_arg(my_parser: ArgumentParser):
+    my_parser.add_argument(
+        "--bblfsh", default="0.0.0.0:9432",
+        help="Babelfish server's address.")
+
+
 def create_parser() -> ArgumentParser:
     """
     Create a parser for the lookout.style.format utility.
@@ -31,49 +54,33 @@ def create_parser() -> ArgumentParser:
     # Evaluation
     eval_parser = add_parser("eval", "Evaluate trained model on given dataset.")
     eval_parser.set_defaults(handler=quality_report)
-    eval_parser.add_argument("-i", "--input-pattern", required=True, type=str,
-                             help="Path to folder with source code - "
-                                  "should be in a format compatible with glob (ends with**/* "
-                                  "and surrounded by quotes. Ex: `path/**/*`).")
-    eval_parser.add_argument("--bblfsh", default="0.0.0.0:9432",
-                             help="Babelfish server's address.")
-    eval_parser.add_argument("-l", "--language", default="javascript",
-                             help="Programming language to use.")
+    add_input_pattern_arg(eval_parser)
+    add_bblfsh_arg(eval_parser)
+    add_model_args(eval_parser)
     eval_parser.add_argument("-n", "--n-files", default=0, type=int,
                              help="How many files with most mispredictions to show. "
                                   "If n <= 0 show all.")
-    eval_parser.add_argument("-m", "--model-path", required=True,
-                             help="Path to saved FormatModel.")
 
     # Visualization
     vis_parser = add_parser("vis", "Visualize mispredictions of the model on the given file.")
     vis_parser.set_defaults(handler=visualize)
     vis_parser.add_argument("-i", "--input-filename", required=True,
                             help="Path to file to analyze.")
-    vis_parser.add_argument("--bblfsh", default="0.0.0.0:9432",
-                            help="Babelfish server's address.")
-    vis_parser.add_argument("-l", "--language", default="javascript",
-                            help="Programming language to use.")
-    vis_parser.add_argument("-m", "--model-path", required=True, help="Path to saved FormatModel.")
+    add_bblfsh_arg(vis_parser)
+    add_model_args(vis_parser)
 
     # Rules statistics
     rule_parser = add_parser("rule", "Statistics about rules.")
     rule_parser.set_defaults(handler=print_rules_report)
-    rule_parser.add_argument("-i", "--input-pattern", required=True, type=str,
-                             help="Path to folder with source code - "
-                                  "should be in a format compatible with glob (ends with**/* "
-                                  "and surrounded by quotes. Ex: `path/**/*`).")
-    rule_parser.add_argument("--bblfsh", default="0.0.0.0:9432",
-                             help="Babelfish server's address.")
-    rule_parser.add_argument("-l", "--language", default="javascript",
-                             help="Programming language to use.")
-    rule_parser.add_argument("-m", "--model-path", required=True,
-                             help="Path to saved FormatModel.")
+    add_input_pattern_arg(rule_parser)
+    add_bblfsh_arg(rule_parser)
+    add_model_args(rule_parser)
 
-    # Style robustness quality report
+    # Style robustness quality report, includes precision, recall and F1-score
     robust_parser = add_parser("robust-eval", "Quality report made by analyzing how well the "
-                                              "model is able to fix random style mistakes among "
-                                              "a repository.")
+                                              "is able to fix random style mistakes among a model "
+                                              "repository: includes precision, recall and "
+                                              "F1-score.")
     robust_parser.set_defaults(handler=style_robustness_report)
     robust_parser.add_argument("--true-repo", required=True, type=str,
                                help="Path to the directory containing the files of the true "
@@ -81,11 +88,8 @@ def create_parser() -> ArgumentParser:
     robust_parser.add_argument("--noisy-repo", required=True, type=str,
                                help="Path to the directory containing the files of the true repo "
                                     "modified by adding artificial style mistakes.")
-    robust_parser.add_argument("-m", "--model-path", required=True, help="Path to the model.")
-    robust_parser.add_argument("--bblfsh", default="0.0.0.0:9432",
-                               help="Babelfish server's address.")
-    robust_parser.add_argument("-l", "--language", default="javascript",
-                               help="Programming language to use.")
+    add_bblfsh_arg(robust_parser)
+    add_model_args(robust_parser)
     return parser
 
 
