@@ -1,3 +1,5 @@
+"""Identifier typos analyzer."""
+
 import logging
 
 import bblfsh
@@ -11,17 +13,31 @@ from lookout.style.typos.model import IdTyposModel
 
 
 class IdTyposAnalyzer(Analyzer):
+    """
+    Identifier typos analyzer.
+    """
+
     log = logging.getLogger("IdTyposAnalyzer")
     model_type = IdTyposModel
     version = "1"
-    description = "Correcting typos in identifiers."
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    description = "Corrector of typos in source code identifiers."
 
     @with_changed_uasts_and_contents
     def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
                 data_request_stub: DataStub, **data) -> [Comment]:
+        """
+        Return the list of `Comment`-s - found typo corrections.
+
+        :param ptr_from: The Git revision of the fork point. Exists in both the original and \
+                         the forked repositories.
+        :param ptr_to: The Git revision to analyze. Exists only in the forked repository.
+        :param data_request_stub: The channel to the data service in Lookout server to query for \
+                                  UASTs, file contents, etc.
+        :param data: Extra data passed into the method. Used by the decorators to simplify \
+                     the data retrieval.
+        :return: List of found review suggestions. Refer to \
+                 lookout/core/server/sdk/service_analyzer.proto.
+        """
         changes = data["changes"]
         comments = []
         for change in changes:
@@ -62,6 +78,17 @@ class IdTyposAnalyzer(Analyzer):
     @with_uasts_and_contents
     def train(cls, ptr: ReferencePointer, config: dict, data_request_stub: DataStub,
               **data) -> AnalyzerModel:
+        """
+        Generate a new model on top of the specified source code.
+
+        :param ptr: Git repository state pointer.
+        :param config: Configuration of the training of unspecified structure.
+        :param data_request_stub: The channel to the data service in Lookout server to query for \
+                                  UASTs, file contents, etc.
+        :param data: Extra data passed into the method. Used by the decorators to simplify \
+                     the data retrieval.
+        :return: Instance of `AnalyzerModel` (`model_type`, to be precise).
+        """
         cls.log.info("train %s %s %s", ptr.url, ptr.commit, data)
         files = data["files"]
         for file in files:

@@ -1,8 +1,9 @@
+"""Identifier typo correction model."""
+
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Tuple
 
-import modelforge
 import pandas
 from sourced.ml.algorithms import TokenParser
 
@@ -15,6 +16,10 @@ NODE_ID_COLUMN = "node_id"
 
 
 class IdTyposModel(AnalyzerModel):
+    """
+    Model for the typo corrector in source code identifiers.
+    """
+
     NAME = "typos"
     VENDOR = "source{d}"
 
@@ -26,8 +31,13 @@ class IdTyposModel(AnalyzerModel):
 
     def __init__(self, confidence_threshold: float = DEFAULT_CONFIDENCE_THRESHOLD,
                  n_candidates: int = DEFAULT_N_CANDIDATES):
+        """
+        Initialize a new instance of IdTyposModel.
+
+        :param confidence_threshold: Confidence threshold.
+        :param n_candidates: Number of candidates.
+        """
         super().__init__()
-        print(self.meta)
         self.confidence_threshold = confidence_threshold
         self.n_candidates = n_candidates
         self.parser = TokenParser()
@@ -36,11 +46,12 @@ class IdTyposModel(AnalyzerModel):
                           ) -> Dict[int, Dict[str, List[Tuple[str, float]]]]:
         """
         Check tokens from identifiers for typos.
+
         :param identifiers: List of identifiers to check.
-        :return: Dictionary of corrections grouped by ids of corresponding identifier
+        :return: Dictionary of corrections grouped by ids of corresponding identifier \
                  in 'identifiers' and typoed tokens which have correction suggestions.
         """
-        splits = [' '.join(list(self.parser.split(identifier)))
+        splits = [" ".join(list(self.parser.split(identifier)))
                   for identifier in identifiers]
 
         test_df = pandas.DataFrame(columns=[NODE_ID_COLUMN, SPLIT_COLUMN])
@@ -57,8 +68,9 @@ class IdTyposModel(AnalyzerModel):
                            ) -> Dict[int, List[Tuple[str, float]]]:
         """
         Filter suggestions based on the repo specifics and confidence threshold.
+
         :param test_df: DataFrame with info about tested tokens.
-        :param suggestions: Dictionary of correction suggestions grouped by
+        :param suggestions: Dictionary of correction suggestions grouped by \
                             typoed token index in test_df.
         :return: Dictionary of filtered suggestions grouped by typoed token index in test_df.
         """
@@ -82,10 +94,11 @@ class IdTyposModel(AnalyzerModel):
                          ) -> Dict[int, Dict[str, List[Tuple[str, float]]]]:
         """
         Group corrections by nodes to which the typoed tokens belong.
+
         :param test_df: DataFrame with info about tested identifiers.
-        :param suggestions: Dictionary of correction suggestions grouped by
+        :param suggestions: Dictionary of correction suggestions grouped by \
                             typoed token index in test_df.
-        :return: Dictionary of correction suggestions grouped by nodes
+        :return: Dictionary of correction suggestions grouped by nodes \
                  to which typoed tokens belong and the corrected tokens.
         """
         grouped_suggestions = defaultdict(dict)
@@ -95,15 +108,14 @@ class IdTyposModel(AnalyzerModel):
 
         return grouped_suggestions
 
-    def train(self) -> modelforge.Model:
-        return self
-
     @property
     def confidence_threshold(self) -> float:
+        """Return the confidence threshold."""
         return self._confidence_threshold
 
     @property
     def n_candidates(self) -> int:
+        """Return the number of candidates."""
         return self._n_candidates
 
     @confidence_threshold.setter
@@ -115,6 +127,7 @@ class IdTyposModel(AnalyzerModel):
         self._n_candidates = n_candidates
 
     def dump(self) -> str:
+        """Model.__str__ callback."""
         return "Typos correcting model with vocabulary size %d" %\
                len(self.corrector.generator.tokens)
 
