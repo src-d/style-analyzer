@@ -38,5 +38,6 @@ class RobustnessTests(unittest.TestCase):
         self.assertIn("recall: 0.5", output)
         self.assertIn("F1 score: 0.667", output)
 
+
 if __name__ == "__main__":
     unittest.main()

@@ -269,7 +269,7 @@ class _FeatureRoles(BagFeature, RolesMixin):
         if bblfsh_node:
             for role_id in bblfsh_node.roles:
                 role = bblfsh.role_name(role_id)
-                role_indices[self._roles_index[role]] += 1
+                role_indices[self._roles_index[role]] = 1
         yield from role_indices
 
 

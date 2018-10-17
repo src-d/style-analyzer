@@ -1,3 +1,4 @@
+import lzma
 import os
 import sys
 
@@ -125,11 +126,18 @@ class SymSpell:
             corpus (str): Path to corpus file.
         """
         if os.path.exists(corpus):
-            with open(corpus, "r") as f:
-                for line in f:
-                    key, count = line.split()
-                    count = int(count)
-                    self._create_dictionary_entry(key, count)
+            try:
+                with lzma.open(corpus, "rt") as f:
+                    for line in f:
+                        key, count = line.split()
+                        count = int(count)
+                        self._create_dictionary_entry(key, count)
+            except lzma.LZMAError:
+                with open(corpus, "r") as f:
+                    for line in f:
+                        key, count = line.split()
+                        count = int(count)
+                        self._create_dictionary_entry(key, count)
 
         if self._deletes is None:
             self._deletes = dict()
@@ -512,7 +520,7 @@ class SymSpell:
         return [i for i in seq if i]
 
 
-class EditDistance():
+class EditDistance:
     def __init__(self, base_string, distance_algorithm):
         self._base_string = base_string
         self._distance_algorithm = distance_algorithm
@@ -627,7 +635,7 @@ class EditDistance():
             return -1
 
 
-class SuggestionItem():
+class SuggestionItem:
     def __init__(self, term, distance, count):
         self._term = term
         self._distance = distance

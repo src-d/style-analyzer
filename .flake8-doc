@@ -1,5 +1,5 @@
 [flake8]
-ignore=D301
+ignore=D301,D200
 select=D
 max-line-length=99
 exclude=

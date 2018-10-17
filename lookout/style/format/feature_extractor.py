@@ -112,7 +112,7 @@ class FeatureExtractor:
             self._feature_to_indices_set[feature_group] = []
             for node_index in range(nodes_number):
                 self._feature_to_indices[feature_group].append(OrderedDict())
-                self._feature_to_indices_set[feature_group].append({})
+                self._feature_to_indices_set[feature_group].append(OrderedDict())
                 for feature_name in feature_names:
                     feature = self._features[feature_name]
                     names = list(feature.names)
@@ -139,7 +139,7 @@ class FeatureExtractor:
         self._feature_to_indices = OrderedDict()  # type: FeatureToIndex
         self._feature_names = []  # type: List[str]
         # Not exposed through properties, only used during feature extraction.
-        self._feature_to_indices_set = {}  # type: Dict[FeatureGroup, List[Dict[str, Set[int]]]]
+        self._feature_to_indices_set = OrderedDict()
         total_index = 0
         total_index = populate_indices(FeatureGroup.node, self.node_features, 1, total_index)
         total_index = populate_indices(FeatureGroup.left, self.left_features,

@@ -10,7 +10,8 @@ from flask_cors import CORS
 import numpy
 
 from lookout.core.api.service_data_pb2 import File
-from lookout.style.format.descriptions import CLASS_PRINTABLES, CLASS_REPRESENTATIONS
+from lookout.style.format.descriptions import (CLASS_PRINTABLES, CLASS_REPRESENTATIONS,
+                                               describe_rules)
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.feature_utils import VirtualNode
 from lookout.style.format.model import FormatModel
@@ -71,8 +72,13 @@ def return_features() -> Response:
     app.logger.info("returning features of shape %d, %d" % X.shape)
     return jsonify({"code": code,
                     "features": X.tolist(),
+                    "grount_truths": [int(vnode.y) for vnode in vnodes_y],
                     "predictions": y_pred.tolist(),
                     "sibling_indices": sibling_indices,
+                    "rules": describe_rules(rules.rules, fe),
+                    "confidences": [float(rule.stats.conf * 100) for rule in rules.rules],
+                    "supports": [int(rule.stats.support) for rule in rules.rules],
+                    "winners": winners.tolist(),
                     "feature_names": fe.feature_names,
                     "class_representations": CLASS_REPRESENTATIONS,
                     "class_printables": CLASS_PRINTABLES,

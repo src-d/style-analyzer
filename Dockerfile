@@ -24,15 +24,9 @@ echo\n\' > /browser && \
 ENV BROWSER=/browser \
     LC_ALL=en_US.UTF-8
 
-COPY lookout/core/api lookout/core/api
-COPY lookout/core/*.py lookout/core/
-COPY lookout/core/langs lookout/core/langs
-COPY lookout/style lookout/style/
-COPY lookout/__init__.py lookout/__init__.py
-COPY lookout/__main__.py lookout/__main__.py
-COPY setup.py setup.py
-COPY requirements.txt requirements.txt
-RUN pip3 install -r requirements.txt && \
+COPY . style-analyzer
+RUN cd style-analyzer && \
+    pip3 install -r requirements.txt && \
     pip3 install -e . && \
     rm -rf /usr/local/lib/python3.6/dist-packages/pyspark/
 ENTRYPOINT ["analyzer"]

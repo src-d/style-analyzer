@@ -12,6 +12,7 @@ import pandas
 AFTER_COLUMN = "after"
 BEFORE_COLUMN = "before"
 CANDIDATE_COLUMN = "candidate"
+FEATURES_COLUMN = "features"
 CORRECT_TOKEN_COLUMN = "identifier"
 ID_COLUMN = "id"
 PROBABILITY_COLUMN = "proba"
@@ -135,7 +136,7 @@ def add_context_info(data: pandas.DataFrame) -> pandas.DataFrame:
     return data.infer_objects()
 
 
-def rank_candidates(candidates: pandas.DataFrame, pred_proba: List[float],
+def rank_candidates(candidates: pandas.DataFrame, pred_probs: List[float],
                     n_candidates: int = None, return_all: bool = True
                     ) -> Dict[int, List[Tuple[str, float]]]:
     """
@@ -143,7 +144,7 @@ def rank_candidates(candidates: pandas.DataFrame, pred_proba: List[float],
 
     :param candidates: DataFrame with columns ID_COLUMN, TYPO_COLUMN, "candidate"
                        and indexed by range(len(pred_proba)).
-    :param pred_proba: Array of probabilities of correctness of every candidate.
+    :param pred_probs: Array of probabilities of correctness of every candidate.
     :param n_candidates: Number of most probably correct candidates to return for each typo.
     :param return_all: False to return corrections only for typos corrected in the
                        first candidate.
@@ -152,11 +153,11 @@ def rank_candidates(candidates: pandas.DataFrame, pred_proba: List[float],
     """
     suggestions = {}
     corrections = []
-    for i in range(len(pred_proba)):
+    for i in range(len(pred_probs)):
         index = candidates.loc[i, ID_COLUMN]
-        corrections.append((candidates.loc[i, CANDIDATE_COLUMN], pred_proba[i]))
+        corrections.append((candidates.loc[i, CANDIDATE_COLUMN], pred_probs[i]))
 
-        if i < len(pred_proba) - 1 and candidates.loc[i + 1, ID_COLUMN] == index:
+        if i < len(pred_probs) - 1 and candidates.loc[i + 1, ID_COLUMN] == index:
             continue
 
         corrections = list(sorted(corrections, key=lambda x: -x[1]))

@@ -10,24 +10,16 @@
   color: #999;
 }
 
-.Visualization .code-display {
+.Code, .Features {
   font-family: monospace;
-  padding: 10px;
-  border-radius: 5px;
-  border: #666 solid 1px;
-  overflow: auto;
-  height: 500px;
-}
-
-.Visualization .feature-display {
-  font-family: monospace;
-  padding: 10px;
-  border-radius: 5px;
-  border: #666 solid 1px;
   overflow: auto;
   height: 500px;
 }
 
 .Visualization pre {
   overflow: visible;
+}
+
+.Visualization input[type="number"] {
+  width: 4em;
 }
