@@ -10,8 +10,9 @@ Code style analyzer.
 ### How to run the format analyzer
 
 1. Download [`lookout`](https://github.com/src-d/lookout/releases) binary.
-2. Install the deps `sudo pip3 install -e .`
-3. Write the configuration file `config.yml`:
+2. Start a [babelfish server](https://doc.bblf.sh/) with the v1.2.0 javascript driver installed (`docker exec -it bblfshd bblfshctl driver install --update javascript bblfsh/javascript-driver:v1.2.0`)
+3. Install the deps `sudo pip3 install -e .`
+4. Write the configuration file `config.yml`:
 
 ```yaml
 server: 0.0.0.0:2000
