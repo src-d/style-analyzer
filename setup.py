@@ -44,6 +44,7 @@ setup(
         "pandas>=0.22,<2.0",
         "gensim>=3.5.0,<4.0",
         "google-compute-engine>=2.8.3,<3.0",  # for gensim
+        "xgboost>=0.72,<2.0",
         "typing;python_version<'3.5'",
     ],
     extras_require={
