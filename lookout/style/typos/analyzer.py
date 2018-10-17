@@ -94,4 +94,4 @@ class IdTyposAnalyzer(Analyzer):
         for file in files:
             cls.log.info("%s %s %d", file.path, file.language, len(file.uast.children))
         model = IdTyposModel().construct(cls, ptr)
-        return model.train()
+        return model

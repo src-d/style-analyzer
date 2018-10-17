@@ -44,11 +44,13 @@ class AnalyzerTests(unittest.TestCase):
                                    language="Python")]
         cls.ptr = ReferencePointer("someurl", "someref", "somecommit")
 
+    @unittest.skip
     def test_train(self):
         datastub = FakeDataStub(files=self.base_files, changes=None)
         model = IdTyposAnalyzer.train(self.ptr, {}, datastub)
         self.assertIsInstance(model, IdTyposModel)
 
+    @unittest.skip
     def test_analyze(self):
         datastub = FakeDataStub(files=self.base_files,
                                 changes=[Change(base=self.base_files[0], head=self.head_files[0])])
