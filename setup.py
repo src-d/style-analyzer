@@ -46,7 +46,6 @@ setup(
         "google-compute-engine>=2.8.3,<3.0",  # for gensim
         "xgboost>=0.72,<2.0",
         "typing;python_version<'3.5'",
-        "matplotlib>=2.0",
     ],
     extras_require={
         "tf": ["tensorflow>=1.0,<2.0"],

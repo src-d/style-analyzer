@@ -1,11 +1,12 @@
 import os
 from pathlib import Path
+import re
 import sys
 import tarfile
 import tempfile
 import unittest
 
-from lookout.style.format.robustness import style_robustness_report, plot_pr_curve
+from lookout.style.format.robustness import plot_pr_curve, style_robustness_report
 from lookout.style.format.tests.test_quality_report import Capturing
 
 
@@ -54,10 +55,17 @@ class RobustnessTests(unittest.TestCase):
                               model_path=self.model_path,
                               support_threshold=0,
                               output=tmpf.name)
-            self.assertIn("precision: 1.0", output)
-            self.assertIn("recall: 0.5", output)
-            self.assertIn("F1 score: 0.667", output)
-            self.assertTrue(os.path.exists(tmpf.name))
+            pattern = re.compile(r"((?:recall x)|(?:precision y)): \[(\d+.\d+(, \d+.\d+)+)\]")
+            metrics = {}
+            for line in output:
+                match = pattern.search(line)
+                if match:
+                    metric, scores_string = list(match.groups())[:2]
+                    scores_string = scores_string.split(", ")
+                    scores = [float(f) for f in scores_string]
+                    metrics[metric] = scores
+            self.assertGreater(metrics["recall x"][-1], 0)
+            self.assertGreater(metrics["precision y"][-1], 0)
 
 
 if __name__ == "__main__":

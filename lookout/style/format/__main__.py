@@ -6,7 +6,7 @@ from typing import Any
 from lookout.core.cmdline import ArgumentDefaultsHelpFormatterNoNone
 from lookout.core.slogging import setup as setup_slogging
 from lookout.style.format.quality_report import quality_report
-from lookout.style.format.robustness import style_robustness_report, plot_pr_curve
+from lookout.style.format.robustness import plot_pr_curve, style_robustness_report
 from lookout.style.format.rule_stat import print_rules_report
 from lookout.style.format.visualization import visualize
 
