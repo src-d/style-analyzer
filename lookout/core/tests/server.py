@@ -9,6 +9,8 @@ import sys
 import tarfile
 from urllib.request import urlopen
 
+from lookout.core.api.version import __version__ as binver
+
 
 file = pathlib.Path(__file__).parent / "server"
 
@@ -17,12 +19,12 @@ def fetch():
     try:
         buffer = io.BytesIO()
         with urlopen("https://github.com/src-d/lookout/releases/download/"
-                     "v0.1.3/lookout_sdk_v0.1.3_linux_amd64.tar.gz") as response:
+                     "%s/lookout-sdk_%s_linux_amd64.tar.gz" % (binver, binver)) as response:
             copyfileobj(response, buffer)
         buffer.seek(0)
         with tarfile.open(fileobj=buffer, mode="r:gz") as tar:
             with file.open("wb") as fout:
-                copyfileobj(tar.extractfile("lookout_sdk_linux_amd64/lookout"), fout)
+                copyfileobj(tar.extractfile("lookout-sdk_linux_amd64/lookout-sdk"), fout)
         os.chmod(str(file), 0o775)
     except Exception as e:
         if file.exists():
