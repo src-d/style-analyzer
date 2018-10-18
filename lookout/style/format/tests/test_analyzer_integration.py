@@ -14,6 +14,10 @@ from lookout.core.event_listener import EventListener
 from lookout.core.tests.server import find_port, run as launch_server
 
 
+FROM_COMMIT = "HEAD" + "^" * 8
+TO_COMMIT = "HEAD"
+
+
 class TestAnalyzer:
     """Context manager for launching analyzer."""
     def __init__(self, port: int, db: str, fs: str, analyzer: str = "lookout.style.format"):
@@ -109,8 +113,8 @@ class AnalyzerIntegrationTests(BaseAnalyzerIntegrationTests):
     def test_review(self):
         launch_server(
             "review",
-            "HEAD" + "^" * 9,
-            "HEAD",
+            FROM_COMMIT,
+            TO_COMMIT,
             self.port, git_dir=self.jquery_dir)
         matches = re.search(r"FormatAnalyzer: (\d+) comments", "".join(self.analyzer.logs))
         self.assertTrue(matches)
