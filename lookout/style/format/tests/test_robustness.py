@@ -42,6 +42,8 @@ class RobustnessTests(unittest.TestCase):
         self.assertIn("recall: 0.5", output)
         self.assertIn("F1 score: 0.667", output)
 
+    @unittest.skipIf(sys.version_info.minor == 5, "Python 3.5 is not yet supported"
+                                                  " by difflib")
     def test_plot_pr_curve(self):
         with tempfile.NamedTemporaryFile(prefix="output-figure", suffix=".png") as tmpf:
             with Capturing() as output:

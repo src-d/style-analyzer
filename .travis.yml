@@ -19,6 +19,7 @@ stages:
     if: tag =~ .*
 _install: &_install
   - pip install --upgrade pip cython codecov
+  - pip install matplotlib
   - pip install -e .[test]
 _coverage: &_coverage
   - SCRIPT="coverage run --concurrency=multiprocessing -m unittest discover

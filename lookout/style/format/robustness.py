@@ -2,6 +2,8 @@
 from collections import defaultdict
 from difflib import SequenceMatcher
 import glob
+import logging
+import sys
 from typing import Iterable, List, Mapping, NamedTuple, Set, Tuple
 
 from bblfsh import BblfshClient
@@ -171,6 +173,21 @@ def get_style_fixes(mispreds: Mapping[str, Misprediction], vnodes: Iterable[Virt
     return style_fixes
 
 
+def compute_metrics(filtered_diff_mispreds, style_fixes, changes_count):
+    true_positive = len(style_fixes)
+    false_positive = len(filtered_diff_mispreds) - len(style_fixes)
+    false_negative = changes_count - len(filtered_diff_mispreds)
+    try:
+        precision = true_positive / (true_positive + false_positive)
+        recall = true_positive / (true_positive + false_negative)
+    except ZeroDivisionError:
+        precision = 1
+        recall = 0
+        f1_score = 0
+    f1_score = 2 * precision * recall / (precision + recall)
+    return precision, recall, f1_score
+
+
 def style_robustness_report(true_repo: str, noisy_repo: str, bblfsh: str, language: str,
                             model_path: str) -> None:
     """
@@ -187,45 +204,29 @@ def style_robustness_report(true_repo: str, noisy_repo: str, bblfsh: str, langua
     :param model_path: Path to the model to test. It should be previously trained on the original \
            repository located in ':param true_repo:'.
     """
-    client = BblfshClient(bblfsh)
+    log = logging.getLogger("style_robustness_report")
 
     true_content = get_content_from_repo(true_repo)
     noisy_content = get_content_from_repo(noisy_repo)
     true_files, noisy_files, lines_changed = get_difflib_changes(true_content, noisy_content)
-
-    print()
-    print("Number of files modified by adding style noise: %d / %d"
-          % (len(true_files), len(true_content)))
+    log.info("Number of files modified by adding style noise: %d / %d"
+             % (len(true_files), len(true_content)))
     del true_content, noisy_content
 
+    client = BblfshClient(bblfsh)
     analyzer = FormatModel().load(model_path)
     rules = analyzer[language]
-
     vnodes_y_true = files2vnodes(true_files, rules, client, language)
     mispreds_noise = files2mispreds(noisy_files, rules, client, language)
-
     diff_mispreds = get_diff_mispreds(mispreds_noise, lines_changed)
     changes_count = len(lines_changed)
-    print("Number of artificial mistakes potentially fixed by the model "
-          "(diff of mispredictions): %d / %d" % (len(diff_mispreds), changes_count))
-
+    log.info("Number of artificial mistakes potentially fixed by the model "
+             "(diff of mispredictions): %d / %d" % (len(diff_mispreds), changes_count))
     style_fixes = get_style_fixes(diff_mispreds, vnodes_y_true, true_files, noisy_files)
+    log.info("style-analyzer fixes in the noisy repos: %d / %d -> %.1f %%"
+             % (len(style_fixes), changes_count, 100 * len(style_fixes) / changes_count))
 
-    print("style-analyzer fixes in the noisy repos: %d / %d -> %.1f %%"
-          % (len(style_fixes), changes_count, 100 * len(style_fixes) / changes_count))
-
-    true_positive = len(style_fixes)
-    false_positive = len(diff_mispreds) - len(style_fixes)
-    false_negative = changes_count - len(diff_mispreds)
-    try:
-        precision = true_positive / (true_positive + false_positive)
-        recall = true_positive / (true_positive + false_negative)
-    except ZeroDivisionError:
-        precision = 1
-        recall = 0
-        f1_score = 0
-    f1_score = 2 * precision * recall / (precision + recall)
-
+    precision, recall, f1_score = compute_metrics(filtered_diff_mispreds, style_fixes, changes_count)
     print("precision:", round(precision, 3))
     print("recall:", round(recall, 3))
     print("F1 score:", round(f1_score, 3))
@@ -236,20 +237,21 @@ def style_robustness_report(true_repo: str, noisy_repo: str, bblfsh: str, langua
         print(mispred.node.path)
 
 
-def filter_relevant_rules(rules: Iterable[Rules], support_threshold: int
+def filter_relevant_rules(rules: Iterable[Rules], support_threshold: int, log: logging.Logger
                           ) -> Iterable[Tuple[int, float]]:
     """
     Filter relevant rules that have a support higher than `support threshold`.
 
     :param rules: List of `Rules` from the model.
     :param support_threshold: Support threshold to filter relevant rules.
+    :param log: Logger.
     :return: List of `Rules` index and confidence we filter according to `support_threshold`.
     """
-    print("Filtering rules with support higher than %d" % (support_threshold))
+    log.info("Filtering rules with support higher than %d" % (support_threshold))
     rules_id = [(i, r.stats.conf, r.stats.support) for i, r in enumerate(rules)
                 if r.stats.support > support_threshold]
     rules_selection = sorted(rules_id, key=lambda k: k[1], reverse=True)
-    print("Number of rules decreased from %d to %d" % (len(rules), len(rules_selection)))
+    log.info("Number of rules decreased from %d to %d" % (len(rules), len(rules_selection)))
     return rules_selection
 
 
@@ -261,18 +263,17 @@ def plot_curve(x: numpy.ndarray, y: numpy.ndarray, output: str) -> None:
     :param y: 1-D numpy array containing the y coordinates.
     :param output: Path to the output figure, could be either a png or svg file.
     """
-    import matplotlib.pyplot as plt
-
+    try:
+        import matplotlib.pyplot as plt
+    except ImportError:
+        sys.exit("Matplotlib is required to plot the Precision/Recall curve")
     plt.figure(figsize=(15, 10))
     ax = plt.subplot(111)
-
     ax.plot(x, y, marker="x", linestyle="--")
-
     ax.set_ylabel("Precision", fontsize=17, labelpad=15)
     ax.set_xlabel("Recall", fontsize=17, labelpad=15)
     ax.spines["right"].set_visible(False)
     ax.spines["top"].set_visible(False)
-
     plt.savefig(output)
 
 
@@ -291,56 +292,37 @@ def plot_pr_curve(true_repo: str, noisy_repo: str, bblfsh: str, language: str,
     :param support_threshold: Support threshold to filter relevant rules.
     :param output: Path to the output figure. Could yield to a png or svg file.
     """
-    client = BblfshClient(bblfsh)
+    log = logging.getLogger("plot_pr_curve")
 
     true_content = get_content_from_repo(true_repo)
     noisy_content = get_content_from_repo(noisy_repo)
     true_files, noisy_files, lines_changed = get_difflib_changes(true_content, noisy_content)
-
-    print()
-    print("Number of files modified by adding style noise: %d / %d"
-          % (len(true_files), len(true_content)))
+    log.info("Number of files modified by adding style noise: %d / %d"
+             % (len(true_files), len(true_content)))
     del true_content, noisy_content
 
+    client = BblfshClient(bblfsh)
     analyzer = FormatModel().load(model_path)
     rules = analyzer[language]
-
     vnodes_y_true = files2vnodes(true_files, rules, client, language)
     mispreds_noise = files2mispreds(noisy_files, rules, client, language)
-
     diff_mispreds = get_diff_mispreds(mispreds_noise, lines_changed)
     changes_count = len(lines_changed)
 
     precisions, recalls = [], []
-    rules_selection = filter_relevant_rules(rules.rules, support_threshold)
+    rules_selection = filter_relevant_rules(rules.rules, support_threshold, log)
     for i in range(len(rules_selection)):
         filtered_diff_mispreds = {k: m for k, m in diff_mispreds.items()
                                   if any(r[0] == m.rule for r in rules_selection[:i + 1])}
-
         style_fixes = get_style_fixes(filtered_diff_mispreds, vnodes_y_true,
                                       true_files, noisy_files)
-
-        true_positive = len(style_fixes)
-        false_positive = len(filtered_diff_mispreds) - len(style_fixes)
-        false_negative = changes_count - len(filtered_diff_mispreds)
-        try:
-            precision = true_positive / (true_positive + false_positive)
-            recall = true_positive / (true_positive + false_negative)
-        except ZeroDivisionError:
-            precision = 1
-            recall = 0
-            f1_score = 0
-        f1_score = 2 * precision * recall / (precision + recall)
-
+        precision, recall, f1_score = compute_metrics(filtered_diff_mispreds, style_fixes, changes_count)
         precisions.append(round(precision, 3))
         recalls.append(round(recall, 3))
+        log.debug("precision:", round(precision, 3))
+        log.debug("recall:", round(recall, 3))
+        log.debug("F1 score:", round(f1_score, 3))
 
-        print("precision:", round(precision, 3))
-        print("recall:", round(recall, 3))
-        print("F1 score:", round(f1_score, 3))
-
-    print()
     print("recall x:", recalls)
     print("precision y:", precisions)
-
     plot_curve(numpy.asarray(recalls), numpy.asarray(precisions), output)
