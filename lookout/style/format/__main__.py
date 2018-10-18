@@ -5,6 +5,7 @@ from typing import Any
 
 from lookout.core.cmdline import ArgumentDefaultsHelpFormatterNoNone
 from lookout.core.slogging import setup as setup_slogging
+from lookout.style.format.benchmarks.generate_smoke import generate_smoke_entry
 from lookout.style.format.quality_report import quality_report
 from lookout.style.format.robustness import plot_pr_curve, style_robustness_report
 from lookout.style.format.rule_stat import print_rules_report
@@ -107,6 +108,24 @@ def create_parser() -> ArgumentParser:
                                  help="Support threshold to filter relevant rules.")
     pr_curve_parser.add_argument("-o", "--output", required=True, type=str,
                                  help="Path to the output figure. Could be a png or svg file.")
+
+    # Generate dataset of different styles in code for smoke testing.
+    gen_smoke_parser = add_parser("gen-smoke-dataset",
+                                  "Generate dataset with different styles. "
+                                  "Helps to check the basic system functionality. "
+                                  "Only JavaScript code is supported now.")
+    gen_smoke_parser.set_defaults(handler=generate_smoke_entry)
+    gen_smoke_parser.add_argument(
+        "inputpath", type=str,
+        help="Path to the tar.xz archive containing initial repositories.")
+    gen_smoke_parser.add_argument(
+        "outputpath", type=str,
+        help="Path to the directory where the generated dataset should be stored.")
+    gen_smoke_parser.add_argument(
+        "--force", default=False, action="store_true",
+        help="Override output directory if exists."
+    )
+
     return parser
 
 
