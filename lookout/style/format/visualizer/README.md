@@ -2,39 +2,49 @@
 
 ## Installation
 
-Install node.js and npm and run
+There are three components to install. First step is to clone the repository
 
-    npm install
+    git clone git@github.com:src-d/style-analyzer.git
 
-in the visualizer directory to install dependencies.
+### Install babelfish
 
-Train a model and put it in the `models` directory. Name it `model.asdf`.
+Follow the instructions of the [official
+documentation](https://doc.bblf.sh/using-babelfish/getting-started.html) up until the drivers
+installation. Instead of installing the recommended drivers, run the following command to install
+the javascript driver version 1.2.0
 
-And install python dependencies
+    docker exec -it bblfshd bblfshctl driver install javascript bblfsh/javascript-driver:v1.2.0
 
-    pip install -r requirements.txt
+### Install style-analyzer
 
-## Build
+In the `style-analyzer` directory, install style-analyzer with the `web` extras
 
-To build the React client, run
+    pip install -e '.[web]'
 
-    npm run build
+### Install the web client
 
-in the visualizer directory.
+1. Install node.js and npm
+
+2. In the `visualizer` directory, install the web client by running
+
+        npm install
 
 ## Usage
 
-1. Run
+1. Train a model and put it in the `visualizer/models` directory. Name it `model.asdf`.
+
+2. In the `visualizer` directory, launch the python server by running
 
         FLASK_APP=server.py python3 -m flask run --port 5001
 
-    in the visualizer directory to run the python server.
+3. You can launch the client in development mode (autoreload, better profiling) or production mode (faster):
 
-2. Run
+    - (Development) In the `visualizer` directory, launch the development web client by running
 
-        npm run serve
+            npm start
 
-    in the visualizer directory to launch the React client.
+    - (Production) In the `visualizer` directory, launch the production web client by running
 
+            npm run build && npm run serve
 
-3. Go to the URL printed by the React client.
+3. Go to [http://localhost:3000/](http://localhost:3000/).
