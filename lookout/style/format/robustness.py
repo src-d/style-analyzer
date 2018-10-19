@@ -274,6 +274,8 @@ def plot_curve(x: numpy.ndarray, y: numpy.ndarray, output: str) -> None:
     :param output: Path to the output figure, could be either a png or svg file.
     """
     try:
+        import matplotlib
+        matplotlib.use("Agg")
         import matplotlib.pyplot as plt
     except ImportError:
         sys.exit("Matplotlib is required to plot the Precision/Recall curve")
