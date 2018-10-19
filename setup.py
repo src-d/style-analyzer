@@ -50,6 +50,7 @@ setup(
     extras_require={
         "tf": ["tensorflow>=1.0,<2.0"],
         "tf_gpu": ["tensorflow-gpu>=1.0,<2.0"],
+        "plot": ["matplotlib>=2.0,<3.0"],
         "test": tests_require,
         "web": ["Flask>=1.0.0,<2.0", "Flask-Cors>=3.0.0,<4.0"],
     },

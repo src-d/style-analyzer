@@ -11,7 +11,8 @@ class MainTests(unittest.TestCase):
             "eval": "quality_report",
             "vis": "visualize",
             "rule": "print_rules_report",
-            "robust-eval": "style_robustness_report"
+            "robust-eval": "style_robustness_report",
+            "pr-curve": "plot_pr_curve"
         }
         parser = main.create_parser()
         subcommands = set([x.dest for x in parser._subparsers._actions[2]._choices_actions])

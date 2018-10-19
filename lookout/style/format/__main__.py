@@ -6,7 +6,7 @@ from typing import Any
 from lookout.core.cmdline import ArgumentDefaultsHelpFormatterNoNone
 from lookout.core.slogging import setup as setup_slogging
 from lookout.style.format.quality_report import quality_report
-from lookout.style.format.robustness import style_robustness_report
+from lookout.style.format.robustness import plot_pr_curve, style_robustness_report
 from lookout.style.format.rule_stat import print_rules_report
 from lookout.style.format.visualization import visualize
 
@@ -32,6 +32,16 @@ def add_bblfsh_arg(my_parser: ArgumentParser):
     my_parser.add_argument(
         "--bblfsh", default="0.0.0.0:9432",
         help="Babelfish server's address.")
+
+
+def add_true_noisy_repos_args(my_parser: ArgumentParser):
+    my_parser.add_argument(
+        "--true-repo", required=True, type=str,
+        help="Path to the directory containing the files of the true repository.")
+    my_parser.add_argument(
+        "--noisy-repo", required=True, type=str,
+        help="Path to the directory containing the files of the true repo "
+             "modified by adding artificial style mistakes.")
 
 
 def create_parser() -> ArgumentParser:
@@ -82,14 +92,21 @@ def create_parser() -> ArgumentParser:
                                               "repository: includes precision, recall and "
                                               "F1-score.")
     robust_parser.set_defaults(handler=style_robustness_report)
-    robust_parser.add_argument("--true-repo", required=True, type=str,
-                               help="Path to the directory containing the files of the true "
-                                    "repository.")
-    robust_parser.add_argument("--noisy-repo", required=True, type=str,
-                               help="Path to the directory containing the files of the true repo "
-                                    "modified by adding artificial style mistakes.")
+    add_true_noisy_repos_args(robust_parser)
     add_bblfsh_arg(robust_parser)
     add_model_args(robust_parser)
+
+    # Plot Precision and Recall curves
+    pr_curve_parser = add_parser("pr-curve", "Plot Precision/Recall curves with different rules "
+                                             "selected based on their confidence.")
+    pr_curve_parser.set_defaults(handler=plot_pr_curve)
+    add_true_noisy_repos_args(pr_curve_parser)
+    add_bblfsh_arg(pr_curve_parser)
+    add_model_args(pr_curve_parser)
+    pr_curve_parser.add_argument("--support-threshold", type=int, default=0,
+                                 help="Support threshold to filter relevant rules.")
+    pr_curve_parser.add_argument("-o", "--output", required=True, type=str,
+                                 help="Path to the output figure. Could be a png or svg file.")
     return parser
 
 
