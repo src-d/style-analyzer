@@ -2,8 +2,8 @@ import os
 import tempfile
 import unittest
 
-from lookout.style.format.visualization import visualize
 from lookout.style.format.tests.test_quality_report import Capturing, PretrainedModelTests
+from lookout.style.format.visualization import visualize
 
 
 @unittest.skipUnless(os.getenv("LONG_TESTS", False),

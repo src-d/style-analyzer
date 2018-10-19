@@ -1,10 +1,10 @@
 """Commonly used utils."""
+from copy import deepcopy
 import cProfile
 from functools import wraps
-from copy import deepcopy
 import io
 import pstats
-from typing import Mapping, Callable, Iterable
+from typing import Callable, Iterable, Mapping
 
 from bblfsh import BblfshClient
 from bblfsh.client import NonUTF8ContentException

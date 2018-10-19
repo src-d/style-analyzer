@@ -6,11 +6,10 @@ from bblfsh import BblfshClient
 import numpy
 from sklearn.metrics import classification_report, confusion_matrix
 
-from lookout.style.format.utils import profile
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.feature_utils import CLASSES
 from lookout.style.format.model import FormatModel
-from lookout.style.format.utils import prepare_files
+from lookout.style.format.utils import prepare_files, profile
 
 
 @profile

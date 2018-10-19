@@ -14,8 +14,8 @@ from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2 import File
 from lookout.core.api.service_data_pb2_grpc import DataStub
 from lookout.core.data_requests import with_changed_uasts_and_contents, with_uasts_and_contents
-from lookout.style.format.descriptions import (
-    rule_to_comment, get_code_chunk, get_error_description)
+from lookout.style.format.descriptions import (get_code_chunk, get_error_description,
+                                               rule_to_comment)
 from lookout.style.format.diff import find_new_lines
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.model import FormatModel

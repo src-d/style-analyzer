@@ -3,7 +3,7 @@
 from itertools import chain
 from multiprocessing import Pool
 import pickle
-from typing import NamedTuple, List, Set, Union
+from typing import List, NamedTuple, Set, Union
 
 from gensim.models import FastText
 from modelforge import merge_strings, split_strings
@@ -13,8 +13,8 @@ from scipy.spatial.distance import cosine
 from tqdm import tqdm
 
 from lookout.style.typos.symspell import EditDistance, SymSpell
-from lookout.style.typos.utils import (add_context_info, read_frequencies, read_vocabulary,
-                                       CANDIDATE_COLUMN, ID_COLUMN, TYPO_COLUMN, FEATURES_COLUMN)
+from lookout.style.typos.utils import (add_context_info, CANDIDATE_COLUMN, FEATURES_COLUMN,
+                                       ID_COLUMN, read_frequencies, read_vocabulary, TYPO_COLUMN)
 
 
 TypoInfo = NamedTuple("TypoInfo", (("index", int),

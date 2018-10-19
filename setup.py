@@ -1,5 +1,5 @@
-import os
 from importlib.machinery import SourceFileLoader
+import os
 
 from setuptools import find_packages, setup
 
