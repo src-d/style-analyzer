@@ -10,6 +10,7 @@
     "react": "^16.5.2",
     "react-bootstrap": "^0.32.4",
     "react-dom": "^16.5.2",
+    "react-json-inspector": "^7.1.1",
     "react-scripts": "1.1.5",
     "serve": "^10.0.2"
   },
@@ -18,7 +19,7 @@
     "build": "react-scripts build",
     "test": "react-scripts test --env=jsdom",
     "eject": "react-scripts eject",
-    "serve": "serve -s build"
+    "serve": "serve -s build -p 3000"
   },
   "devDependencies": {
     "prettier": "1.14.3"

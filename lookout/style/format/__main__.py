@@ -120,7 +120,7 @@ def main() -> Any:
         handler = args.handler
         delattr(args, "handler")
     except AttributeError:
-        def print_usage(_):
+        def print_usage(*args, **kwargs):
             parser.print_usage()
 
         handler = print_usage

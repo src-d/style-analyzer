@@ -75,40 +75,52 @@ def describe_rule(rule: Rule, feature_extractor: FeatureExtractor) -> str:
 
 
 @singledispatch
-def describe_sample(feature: BagFeature, values: ndarray) -> str:
+def describe_sample(feature: BagFeature, values: ndarray, indices: Sequence[int]) -> str:
     """
     Describe a sample given its feature values.
 
     :param feature: The feature that computed the values to describe.
     :param values: The values to describe.
+    :param indices: Activated indices of the feature.
     :return: A string that describe the values of this feature.
     """
+    if not len(indices):
+        return "unselected"
     active = flatnonzero(values)
-    return "{%s}" % ", ".join(feature.names[index] for index in active) if len(active) else "∅"
+    return "{%s}" % ", ".join(feature.names[indices[index]]
+                              for index in active) if len(active) else "∅"
 
 
 @describe_sample.register(CategoricalFeature)
-def describe_sample_categorical(feature: CategoricalFeature, values: ndarray) -> str:
+def describe_sample_categorical(feature: CategoricalFeature, values: ndarray,
+                                indices: Sequence[int]) -> str:
     """
     Describe a sample given its feature values.
 
     :param feature: The feature that computed the values to describe.
     :param values: The values to describe.
+    :param indices: Activated indices of the feature.
     :return: A string that describe the values of this feature.
     """
+    if not len(indices):
+        return "unselected"
     active = flatnonzero(values)
-    return feature.names[active[0]] if len(active) else "∅"
+    return feature.names[indices[active[0]]] if len(active) else "∅"
 
 
 @describe_sample.register(OrdinalFeature)
-def describe_sample_ordinal(feature: OrdinalFeature, values: ndarray) -> str:
+def describe_sample_ordinal(feature: OrdinalFeature, values: ndarray, indices: Sequence[int]
+                            ) -> str:
     """
     Describe a sample given its feature value.
 
     :param feature: The feature that computed the values to describe.
     :param values: The value to describe, in an array.
+    :param indices: Activated indices of the feature.
     :return: A string that describe the value of this feature.
     """
+    if not len(indices):
+        return "unselected"
     return str(values[0])
 
 
