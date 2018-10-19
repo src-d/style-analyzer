@@ -18,7 +18,7 @@
     "build": "react-scripts build",
     "test": "react-scripts test --env=jsdom",
     "eject": "react-scripts eject",
-    "serve": "serve -s build"
+    "serve": "serve -s build -p 3000"
   },
   "devDependencies": {
     "prettier": "1.14.3"
