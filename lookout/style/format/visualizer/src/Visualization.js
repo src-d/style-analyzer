@@ -1,4 +1,5 @@
-import Features from "./Features.js";
+import Details from "./Details.js";
+import EmptyDetails from "./EmptyDetails.js";
 import zip from "lodash.zip";
 import memoizeOne from "memoize-one";
 import React, { Component } from "react";
@@ -122,9 +123,15 @@ class Visualization extends Component {
     }
   );
 
+  computeNEnabledRules = memoizeOne(
+    enabledRules => enabledRules.filter(Boolean).length
+  );
+
   computeEnabled = memoizeOne(enabledRules =>
     this.props.data.winners.map(winner => enabledRules[winner])
   );
+
+  computeNEnabled = memoizeOne(enabled => enabled.filter(Boolean).length);
 
   computeCorrects = memoizeOne(enabled => {
     const ys = this.props.data.grount_truths;
@@ -143,25 +150,35 @@ class Visualization extends Component {
   });
 
   render() {
-    const data = this.props.data;
-    const state = this.state;
-    const neighbours = state.neighbours;
-    const printables = data.class_printables;
-    const winners = data.winners;
-    const labeled_indices = data.labeled_indices;
-    const highlighted = state.highlighted;
+    const {
+      absoluteConfidence,
+      highlighted,
+      neighbours,
+      relativeConfidence,
+      support
+    } = this.state;
+    const {
+      class_printables,
+      class_representations,
+      features,
+      labeled_indices,
+      predictions,
+      rules,
+      vnodes,
+      winners
+    } = this.props.data;
     const enabledRules = this.computeEnabledRules(
-      state.relativeConfidence,
-      state.absoluteConfidence,
-      state.support
+      relativeConfidence,
+      absoluteConfidence,
+      support
     );
-    const nEnabledRules = enabledRules.filter(Boolean).length;
+    const nEnabledRules = this.computeNEnabledRules(enabledRules);
     const enabled = this.computeEnabled(enabledRules);
+    const nEnabled = this.computeNEnabled(enabled);
     const corrects = this.computeCorrects(enabled);
     const tokens = [];
-    const nEnabled = enabled.filter(Boolean).length;
     const precision = this.computePrecision(enabled, corrects, nEnabled);
-    data.vnodes.forEach((vnode, index) => {
+    vnodes.forEach((vnode, index) => {
       tokens.push(
         <Token
           key={index.toString()}
@@ -172,7 +189,7 @@ class Visualization extends Component {
           value={vnode.value}
           y={vnode.y}
           enabled={vnode.y !== null && enabled[labeled_indices[index]]}
-          classPrintables={printables}
+          classPrintables={class_printables}
           highlightCallback={this.highlight}
         />
       );
@@ -220,11 +237,11 @@ class Visualization extends Component {
                       id="confidence-relative"
                       type="number"
                       onChange={this.changeRelativeConfidence}
-                      value={this.state.relativeConfidence}
+                      value={relativeConfidence}
                       min={0}
-                      max={this.props.data.rules.length}
+                      max={rules.length}
                     />{" "}
-                    / {this.props.data.rules.length}
+                    / {rules.length}
                   </Col>
                   <Col sm={4}>
                     Absolute confidence threshold{" "}
@@ -232,7 +249,7 @@ class Visualization extends Component {
                       id="confidence-absolute"
                       type="number"
                       onChange={this.changeAbsoluteConfidence}
-                      value={this.state.absoluteConfidence}
+                      value={absoluteConfidence}
                       min="0.0"
                       max="100.0"
                       step="0.1"
@@ -245,7 +262,7 @@ class Visualization extends Component {
                       id="support"
                       type="number"
                       onChange={this.changeSupport}
-                      value={this.state.support}
+                      value={support}
                       min={0}
                     />
                   </Col>
@@ -255,7 +272,7 @@ class Visualization extends Component {
           </Col>
         </Row>
         <Row>
-          <Col sm={9}>
+          <Col sm={6}>
             <Panel bsStyle="info">
               <Panel.Heading>
                 <Glyphicon glyph="align-left" /> Code
@@ -269,20 +286,26 @@ class Visualization extends Component {
               </Panel.Body>
             </Panel>
           </Col>
-          <Col sm={3}>
+          <Col sm={6}>
             <Panel bsStyle="info">
               <Panel.Heading>
-                <Glyphicon glyph="th-list" /> Features
+                <Glyphicon glyph="th-list" /> Details
               </Panel.Heading>
               <Panel.Body>
-                <Features
-                  features={
-                    this.state.highlighted !== null
-                      ? this.props.data.vnodes[this.state.highlighted]
-                      : null
-                  }
-                  classRepresentations={this.props.data.class_representations}
-                />
+                {highlighted !== null ? (
+                  <Details
+                    start={vnodes[highlighted].start}
+                    end={vnodes[highlighted].end}
+                    y={vnodes[highlighted].y}
+                    internal_type={vnodes[highlighted].internal_type}
+                    rule={rules[winners[labeled_indices[highlighted]]]}
+                    prediction={predictions[labeled_indices[highlighted]]}
+                    classRepresentations={class_representations}
+                    features={features[labeled_indices[highlighted]]}
+                  />
+                ) : (
+                  <EmptyDetails />
+                )}
               </Panel.Body>
             </Panel>
           </Col>

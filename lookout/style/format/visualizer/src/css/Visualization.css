@@ -6,18 +6,18 @@
   margin-top: 1rem;
 }
 
-.Visualization span.non-concept {
-  color: #999;
-}
-
-.Code, .Features {
+.Code,
+.Details {
   font-family: monospace;
   overflow: auto;
   height: 500px;
 }
 
-.Visualization pre {
+.Code pre {
+  font-family: monospace;
   overflow: visible;
+  background-color: #fff;
+  border: 0px;
 }
 
 .Visualization input[type="number"] {
