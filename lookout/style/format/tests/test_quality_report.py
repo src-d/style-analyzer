@@ -1,6 +1,6 @@
+import glob
 import io
 import os
-import glob
 from pathlib import Path
 import shutil
 import sys
@@ -8,9 +8,9 @@ import tarfile
 import tempfile
 import unittest
 
-from lookout.core.tests.server import run as launch_server, find_port
-from lookout.style.format.tests.test_analyzer_integration import TestAnalyzer
+from lookout.core.tests.server import find_port, run as launch_server
 from lookout.style.format.quality_report import quality_report
+from lookout.style.format.tests.test_analyzer_integration import TestAnalyzer
 
 
 class PretrainedModelTests(unittest.TestCase):

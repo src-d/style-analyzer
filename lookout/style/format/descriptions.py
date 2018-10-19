@@ -3,7 +3,7 @@ from collections import defaultdict
 from copy import copy
 from functools import singledispatch
 from math import ceil, floor
-from typing import List, Optional, Tuple, Sequence
+from typing import List, Optional, Sequence, Tuple
 
 from numpy import flatnonzero, floating, ndarray
 

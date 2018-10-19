@@ -6,11 +6,10 @@ from bblfsh import BblfshClient
 from tqdm import tqdm
 
 from lookout.style.format.descriptions import describe_rule
-from lookout.style.format.utils import profile
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.feature_utils import CLASSES
 from lookout.style.format.model import FormatModel
-from lookout.style.format.utils import prepare_files
+from lookout.style.format.utils import prepare_files, profile
 
 
 class RuleStat:

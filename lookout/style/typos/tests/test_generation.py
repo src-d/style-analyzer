@@ -6,10 +6,10 @@ from numpy.testing import assert_array_equal
 import pandas
 from pandas.util.testing import assert_frame_equal
 
-from lookout.style.typos.generation import (get_candidates_metadata, get_candidates_features,
-                                            CandidatesGenerator)
-from lookout.style.typos.utils import (CANDIDATE_COLUMN, CORRECT_TOKEN_COLUMN,
-                                       ID_COLUMN, SPLIT_COLUMN, TYPO_COLUMN, FEATURES_COLUMN)
+from lookout.style.typos.generation import (CandidatesGenerator, get_candidates_features,
+                                            get_candidates_metadata)
+from lookout.style.typos.utils import (CANDIDATE_COLUMN, CORRECT_TOKEN_COLUMN, FEATURES_COLUMN,
+                                       ID_COLUMN, SPLIT_COLUMN, TYPO_COLUMN)
 
 
 TEST_DATA_PATH = pathlib.Path(__file__).parent

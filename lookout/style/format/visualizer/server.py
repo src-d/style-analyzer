@@ -11,7 +11,7 @@ import numpy
 
 from lookout.core.api.service_data_pb2 import File
 from lookout.style.format.descriptions import (CLASS_PRINTABLES, CLASS_REPRESENTATIONS,
-                                               describe_sample, describe_rules)
+                                               describe_rules, describe_sample)
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.feature_utils import VirtualNode
 from lookout.style.format.model import FormatModel

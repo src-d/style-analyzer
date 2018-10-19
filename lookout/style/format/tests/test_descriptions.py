@@ -3,7 +3,7 @@ from random import randint
 import unittest
 
 from lookout.style.format.analyzer import FormatAnalyzer
-from lookout.style.format.descriptions import describe_rule, CLASS_REPRESENTATIONS
+from lookout.style.format.descriptions import CLASS_REPRESENTATIONS, describe_rule
 from lookout.style.format.feature_extractor import FeatureExtractor, FeatureGroup
 from lookout.style.format.feature_utils import CLASSES
 from lookout.style.format.rules import Rule, RuleStats

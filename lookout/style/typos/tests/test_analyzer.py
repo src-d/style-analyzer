@@ -1,7 +1,7 @@
 import logging
 import lzma
 from pathlib import Path
-from typing import NamedTuple, Optional, Iterable
+from typing import Iterable, NamedTuple, Optional
 import unittest
 
 import bblfsh

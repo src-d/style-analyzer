@@ -1,7 +1,7 @@
 import pathlib
 import unittest
 
-from lookout.style.typos.symspell import SymSpell, EditDistance
+from lookout.style.typos.symspell import EditDistance, SymSpell
 
 
 TEST_DATA_PATH = str(pathlib.Path(__file__).parent)

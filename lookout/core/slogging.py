@@ -7,7 +7,7 @@ import re
 import sys
 import threading
 import traceback
-from typing import Union, Dict, Sequence
+from typing import Dict, Sequence, Union
 
 import numpy
 import xxhash

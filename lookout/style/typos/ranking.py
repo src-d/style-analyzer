@@ -6,7 +6,7 @@ import numpy
 import pandas
 import xgboost as xgb
 
-from lookout.style.typos.utils import rank_candidates, CANDIDATE_COLUMN, ID_COLUMN
+from lookout.style.typos.utils import CANDIDATE_COLUMN, ID_COLUMN, rank_candidates
 
 
 class CandidatesRanker:
