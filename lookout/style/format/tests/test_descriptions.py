@@ -1,11 +1,15 @@
+import lzma
 from math import ceil
+from pathlib import Path
 from random import randint
 import unittest
 
+import bblfsh
+
+from lookout.core.api.service_data_pb2 import File
 from lookout.style.format.analyzer import FormatAnalyzer
-from lookout.style.format.descriptions import CLASS_REPRESENTATIONS, describe_rule
+from lookout.style.format.descriptions import describe_rule, get_composite_class_representations
 from lookout.style.format.feature_extractor import FeatureExtractor, FeatureGroup
-from lookout.style.format.feature_utils import CLASSES
 from lookout.style.format.rules import Rule, RuleStats
 
 
@@ -25,21 +29,32 @@ class DescriptionsTests(unittest.TestCase):
                     "left_siblings_window": 0,
                     "right_siblings_window": 0,
                     "parents_depth": 0,
-                    "node_features": ["start_line", "label", "roles"]
+                    "node_features": ["start_line", "reserved", "roles"]
                 }
             }
         })
+        base = Path(__file__).parent
+        with lzma.open(str(base / "benchmark.js.xz"), mode="rt") as fin:
+            contents = fin.read()
+        with lzma.open(str(base / "benchmark.uast.xz")) as fin:
+            uast = bblfsh.Node.FromString(fin.read())
+        file = File(content=bytes(contents, "utf-8"), uast=uast)
+        files = [file, file]
+
         cls.fe = FeatureExtractor(language="javascript",
                                   **config["javascript"]["feature_extractor"])
+        cls.fe.extract_features(files)
+        cls.class_representations = get_composite_class_representations(cls.fe)
+        cls.n_classes = len(cls.fe.composite_to_labels)
         cls.feature_to_indices = cls.fe.feature_to_indices[FeatureGroup.node][0]
         cls.ordinal = cls.return_feature("start_line")
-        cls.categorical = cls.return_feature("label")
+        cls.categorical = cls.return_feature("reserved")
         cls.bag = cls.return_feature("roles")
 
     def test_describe_rule_ordinal(self):
         name, indices, feature = self.ordinal
-        picked_class = randint(0, len(CLASSES) - 1)
-        picked_class_name = CLASS_REPRESENTATIONS[picked_class]
+        picked_class = randint(0, self.n_classes - 1)
+        picked_class_name = self.class_representations[picked_class]
         index = indices[0]
         rule = Rule([(index, True, 4.5)], RuleStats(picked_class, 0.9, 150))
         self.assertEqual(describe_rule(rule, self.fe),
@@ -53,8 +68,8 @@ class DescriptionsTests(unittest.TestCase):
         name, indices, feature = self.categorical
         activated = randint(0, len(indices) - 1)
         activated_name = feature.names[activated]
-        picked_class = randint(0, len(CLASSES) - 1)
-        picked_class_name = CLASS_REPRESENTATIONS[picked_class]
+        picked_class = randint(0, self.n_classes - 1)
+        picked_class_name = self.class_representations[picked_class]
         index = indices[activated]
         rule = Rule([(index, True, 0.5)], RuleStats(picked_class, 0.9, 150))
         self.assertEqual(describe_rule(rule, self.fe),
@@ -70,8 +85,8 @@ class DescriptionsTests(unittest.TestCase):
         activated_name = feature.names[activated]
         not_activated = randint(0, len(indices) - 1)
         not_activated_name = feature.names[not_activated]
-        picked_class = randint(0, len(CLASSES) - 1)
-        picked_class_name = CLASS_REPRESENTATIONS[picked_class]
+        picked_class = randint(0, self.n_classes - 1)
+        picked_class_name = self.class_representations[picked_class]
         index = indices[activated]
         not_index = indices[not_activated]
         rule = Rule([(index, True, 0.5), (not_index, False, 0.5)],

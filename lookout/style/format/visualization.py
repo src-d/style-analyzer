@@ -4,8 +4,8 @@ import os
 from bblfsh import BblfshClient
 
 from lookout.core.api.service_data_pb2 import File
+from lookout.style.format.descriptions import get_composite_class_representations
 from lookout.style.format.feature_extractor import FeatureExtractor
-from lookout.style.format.feature_utils import CLASSES
 from lookout.style.format.model import FormatModel
 from lookout.style.format.robustness import Misprediction
 
@@ -54,7 +54,7 @@ def visualize(input_filename: str, bblfsh: str, language: str, model_path: str) 
         return
     X, y, vnodes_y, vnodes = res
 
-    y_pred, winners = rules.predict(X, vnodes_y, vnodes, language)
+    y_pred, winners = rules.predict(X, vnodes_y, vnodes, fe)
 
     mispred = []
     for gt, pred, node, rule in zip(y, y_pred, vnodes_y, winners):
@@ -66,6 +66,7 @@ def visualize(input_filename: str, bblfsh: str, language: str, model_path: str) 
 
     new_content = ENDC
     old_content = file.content.decode("utf-8")
+    class_names = get_composite_class_representations(fe)
     for i in range(len(mispred)):
         wrong = mispred[i]
         start = wrong.node.start.offset
@@ -75,7 +76,7 @@ def visualize(input_filename: str, bblfsh: str, language: str, model_path: str) 
 
         if i == 0 and start != 0:
             new_content += old_content[:start]
-        new_content += GREEN + CLASSES[wrong.y] + RED + CLASSES[wrong.pred] + BLUE + \
+        new_content += GREEN + class_names[wrong.y] + RED + class_names[wrong.pred] + BLUE + \
             "<rule%s>" % wrong.rule + ENDC
 
         if i == len(mispred) - 1:

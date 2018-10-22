@@ -35,6 +35,28 @@ CLASS_PRINTABLES = copy(CLASS_REPRESENTATIONS)
 CLASS_PRINTABLES[CLASS_INDEX[CLS_NEWLINE]] += "\n"
 
 
+def get_composite_class_representations(feature_extractor: FeatureExtractor) -> List[str]:
+    """
+    Return the class representations of composite classes.
+
+    :param feature_extractor: FeatureExtractor used to extract features.
+    :return: Strings representing the composite classes.
+    """
+    return ["".join(CLASS_REPRESENTATIONS[label] for label in labels)
+            for labels in feature_extractor.composite_to_labels]
+
+
+def get_composite_class_printables(feature_extractor: FeatureExtractor) -> List[str]:
+    """
+    Return the class printables of composite classes.
+
+    :param feature_extractor: FeatureExtractor used to extract features.
+    :return: Strings that can be printed to represent the composite classes.
+    """
+    return ["".join(CLASS_PRINTABLES[label] for label in labels)
+            for labels in feature_extractor.composite_to_labels]
+
+
 def describe_rules(rules: List[Rule], feature_extractor: FeatureExtractor) -> List[str]:
     """
     Format the rules as a list of human-readable descriptions.
@@ -69,7 +91,8 @@ def describe_rule(rule: Rule, feature_extractor: FeatureExtractor) -> str:
         for feature_name, splits in feature_names.items()]
     return "%s\n\t→ y = %s\n\tConfidence: %.3f. Support: %d." % (
         "\n\t∧ ".join(descriptions),
-        CLASS_REPRESENTATIONS[rule.stats.cls],
+        "".join(CLASS_REPRESENTATIONS[c]
+                for c in feature_extractor.composite_to_labels[rule.stats.cls]),
         rule.stats.conf,
         rule.stats.support)
 
@@ -207,21 +230,26 @@ def describe_rule_parts_ordinal(feature: OrdinalFeature, name: str,
     return "%s ≤ %d" % (name, floor(threshold))
 
 
-def get_error_description(vnode: VirtualNode, y_pred: int) -> str:
+def get_error_description(vnode: VirtualNode, y_pred: int, feature_extractor: FeatureExtractor
+                          ) -> str:
     """
     Return the comment with regard to the correct node class.
 
     :param vnode: Node to describe.
     :param y_pred: The index of the correct node class.
+    :param feature_extractor: FeatureExtractor used to extract features.
     :return: String comment.
     """
     column = vnode.start.col
-    if y_pred == CLASS_INDEX[CLS_NOOP]:
-        return "%s at column %d should be removed." % (CLASS_REPRESENTATIONS[vnode.y], column)
-    if vnode.y == CLASS_INDEX[CLS_NOOP]:
-        return "%s should be inserted at column %d." % (CLASS_REPRESENTATIONS[y_pred], column)
+    class_representations = get_composite_class_representations(feature_extractor)
+    y = feature_extractor.labels_to_composite[vnode.y]
+    labels_pred = feature_extractor.composite_to_labels[y_pred]
+    if labels_pred[0] == CLASS_INDEX[CLS_NOOP]:
+        return "%s at column %d should be removed." % (class_representations[y], column)
+    if vnode.y[0] == CLASS_INDEX[CLS_NOOP]:
+        return "%s should be inserted at column %d." % (class_representations[y_pred], column)
     return "Replace %s with %s at column %d." % (
-        CLASS_REPRESENTATIONS[vnode.y], CLASS_REPRESENTATIONS[y_pred], column)
+        class_representations[y], class_representations[y_pred], column)
 
 
 def get_code_chunk(lang: str, code_lines: Sequence[str], line_number: int) -> str:

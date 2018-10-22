@@ -64,8 +64,9 @@ class App extends Component {
         data.rules_by_confidence = rules_by_confidence.map(
           ([index, conf]) => index
         );
-        data.rules = data.rules.map(rule => {
-          const parts = rule.split("\n\t").map(part => <li>{part}</li>);
+        data.rules = data.rules.map((rule, indexRule) => {
+          const parts = rule.split("\n\t").map((part, indexPart) =>
+            <li key={indexRule * 1000 + indexPart}>{part}</li>);
           return <ul className="list-unstyled">{parts}</ul>;
         });
         this.setState({

@@ -14,7 +14,7 @@ class VirtualNode:
     """Represent either a real UAST node or an imaginary token."""
 
     def __init__(self, value: str, start: Position, end: Position,
-                 *, node: bblfsh.Node = None, y: int = None, path: str = None) -> None:
+                 *, node: bblfsh.Node = None, y: Tuple[int] = None, path: str = None) -> None:
         """
         Construct a VirtualNode.
 
@@ -22,13 +22,14 @@ class VirtualNode:
         :param start: Starting position of the token (0-based).
         :param end: Ending position of the token (0-based).
         :param node: Corresponding UAST node (if exists).
-        :param y: The label of the node.
+        :param y: The sequence of labels of the node.
         :param path: Path to related file. Useful for debugging.
         """
         self.value = value
         assert start.line >= 1 and start.col >= 1, "start line and column are 1-based like UASTs"
         assert end.line >= 1 and end.col >= 1, "end line and column are 1-based like UASTs"
-        assert y in EMPTY_CLS or start.offset < end.offset, "illegal empty node"
+        ys = set(y) if isinstance(y, tuple) else set([y])
+        assert y is None or ys <= EMPTY_CLS or start.offset < end.offset, "illegal empty node"
         self.start = start
         self.end = end
         self.node = node

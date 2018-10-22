@@ -134,7 +134,7 @@ class Visualization extends Component {
   computeNEnabled = memoizeOne(enabled => enabled.filter(Boolean).length);
 
   computeCorrects = memoizeOne(enabled => {
-    const ys = this.props.data.grount_truths;
+    const ys = this.props.data.ground_truths;
     const predictions = this.props.data.predictions;
     return enabled.map(
       (enabledi, index) => enabledi && ys[index] === predictions[index]
@@ -161,6 +161,7 @@ class Visualization extends Component {
       class_printables,
       class_representations,
       features,
+      ground_truths,
       labeled_indices,
       predictions,
       rules,
@@ -179,16 +180,17 @@ class Visualization extends Component {
     const tokens = [];
     const precision = this.computePrecision(enabled, corrects, nEnabled);
     vnodes.forEach((vnode, index) => {
+      const labeled_index = labeled_indices[index];
       tokens.push(
         <Token
           key={index.toString()}
           index={index}
           highlighted={highlighted === index}
           neighbour={neighbours.includes(index)}
-          correct={corrects[labeled_indices[index]]}
+          correct={labeled_index === null ? null : corrects[labeled_index]}
           value={vnode.value}
-          y={vnode.y}
-          enabled={vnode.y !== null && enabled[labeled_indices[index]]}
+          y={labeled_index === null ? null : ground_truths[labeled_index]}
+          enabled={labeled_index === null ? null : enabled[labeled_index]}
           classPrintables={class_printables}
           highlightCallback={this.highlight}
         />
@@ -285,7 +287,7 @@ class Visualization extends Component {
                   <Details
                     start={vnodes[highlighted].start}
                     end={vnodes[highlighted].end}
-                    y={vnodes[highlighted].y}
+                    y={ground_truths[labeled_indices[highlighted]]}
                     internal_type={vnodes[highlighted].internal_type}
                     rule={rules[winners[labeled_indices[highlighted]]]}
                     prediction={predictions[labeled_indices[highlighted]]}
