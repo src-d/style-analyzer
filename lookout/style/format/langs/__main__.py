@@ -1,3 +1,4 @@
+"""Tooling to generate language specific resources."""
 import argparse
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
@@ -19,7 +20,8 @@ from tqdm import tqdm
 from lookout.core import slogging
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
+    """Parse arguments into an argparse.Namespace."""
     parser = argparse.ArgumentParser(description="Generates a new language description for the "
                                                  "format analyser based on the sample files.",
                                      formatter_class=ArgumentDefaultsHelpFormatterNoNone)
@@ -48,6 +50,13 @@ def parse_args():
 
 
 def extract_node_token(file: str, node: bblfsh.Node) -> str:
+    """
+    Extract a token from a babelfish node.
+
+    :param file: File from which the node was parsed.
+    :param node: Node from which to extract a token.
+    :return: Extracted token.
+    """
     if node.token:
         return node.token
 
@@ -62,6 +71,16 @@ def extract_node_token(file: str, node: bblfsh.Node) -> str:
 
 def analyze_uast(path: str, content: str, root: bblfsh.Node, internal_types: dict, roles: dict,
                  reserved: set):
+    """
+    Fill internal types, roles and reserved dictionaries with statistics computed from an UAST.
+
+    :param path: Path of the analyzed file.
+    :param content: Content of the analyzed file.
+    :param root: UAST of the analyzed file.
+    :param internal_types: Dictionary containing the internal types statistics.
+    :param roles: Dictionary containing the roles statistics.
+    :param reserved: Dictionary containing the reserved (or tokens) statistics.
+    """
     # walk the tree: collect nodes with assigned tokens and build the parents map
     node_tokens = []
     parents = {}
@@ -129,20 +148,29 @@ def analyze_uast(path: str, content: str, root: bblfsh.Node, internal_types: dic
                     reserved.add(char)
 
 
-def generate_files(outdir: str, iternal_types: dict, roles: dict, reserved: set):
+def generate_files(outdir: str, internal_types: dict, roles: dict, reserved: set) -> None:
+    """
+    Generate roles and tokens statistics modules.
+
+    :param outdir: Output directory in which to write the computed statistics.
+    :param internal_types: Internal types statistics dictionary.
+    :param roles: Roles statistics dictionary.
+    :param reserved: Reserved (or tokens) statistics dictionary.
+    """
     env = dict(trim_blocks=True, lstrip_blocks=True)
     base = Path(__file__).parent
     outdir = Path(outdir)
     outdir.mkdir(exist_ok=True)
     (outdir / "roles.py").write_text(
-        Template((base / "roles.py.jinja2").read_text(), **env).render(iternal_types=iternal_types,
-                                                                       roles=roles))
+        Template((base / "roles.py.jinja2").read_text(), **env).render(
+            internal_types=internal_types, roles=roles))
     (outdir / "tokens.py").write_text(
         Template((base / "tokens.py.jinja2").read_text(), **env).render(reserved=reserved))
     (outdir / "__init__.py").touch()
 
 
 def main():
+    """Entry point."""
     args = parse_args()
     slogging.setup(args.log_level, False)
     clients = threading.local()

@@ -1,9 +1,11 @@
+"""Javascript specific fixes for babelfish UASTs."""
 from bblfsh import Node
 
 
 def fix_regexp_node(node: Node) -> Node:
     """
-    Workaround for https://github.com/bblfsh/javascript-driver/issues/37
+    Workaround https://github.com/bblfsh/javascript-driver/issues/37.
+
     Should be removed as soon as issue closed and new driver is used.
     """
     node.token = node.properties["pattern"]

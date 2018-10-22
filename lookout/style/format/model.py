@@ -1,3 +1,4 @@
+"""Modelforge model for the format analyzer."""
 from copy import deepcopy
 import io
 from itertools import islice
@@ -12,6 +13,7 @@ from lookout.style.format.rules import Rule, RuleAttribute, Rules, RuleStats
 class FormatModel(AnalyzerModel):
     """
     A modelforge model to store Rules instances.
+
     It is required to store all the Rules for different programming languages in a single model,
     named after each language.
     Note that Rules must be fitted and Rules.base_model is not saved.
@@ -20,18 +22,22 @@ class FormatModel(AnalyzerModel):
     Each Rules must provide enough information to reproduce it bit-to-bit in form of a
     configuration dictionary. Model is simple and must remain simple.
     """
+
     NAME = "code-format"
     VENDOR = "source{d}"
 
     def __init__(self, **kwargs):
+        """Construct a FormatModel."""
         super().__init__(**kwargs)
         self._rules_by_lang = {}  # type: Dict[str, Rules]
 
     @property
     def languages(self) -> List[str]:
+        """Return the languages for which this model has trained rules available."""
         return sorted(self._rules_by_lang)
 
     def dump(self) -> str:
+        """Serialize this model and return the result as a string."""
         result = io.StringIO()
         result.write(super().dump())
         for lang, rules in sorted(self._rules_by_lang.items()):
@@ -57,6 +63,7 @@ class FormatModel(AnalyzerModel):
     def __getitem__(self, lang: str) -> Rules:
         """
         Get the Rules estimator by its language.
+
         :param lang: Estimator language.
         :return: Rules estimator instance.
         """

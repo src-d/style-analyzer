@@ -40,6 +40,8 @@ FEATURES_MAX = numpy.iinfo(FEATURES_NUMPY_TYPE).max
 
 
 class FeatureExtractor:
+    """Extract features for downstream models."""
+
     _log = logging.getLogger("FeaturesExtractor")
 
     def __init__(self, *, language: str, left_siblings_window: int, right_siblings_window: int,
@@ -195,8 +197,7 @@ class FeatureExtractor:
                              Tuple[numpy.ndarray, numpy.ndarray, List[VirtualNode],
                                    List[List[int]]]]]:
         """
-        Given a list of `File`-s, compute the features and labels required for the training of
-        downstream models.
+        Compute features and labels required by downstream models given a list of `File`-s.
 
         :param files: the list of `File`-s (see service_data.proto) of the same language.
         :param lines: the list of enabled line numbers per file. The lines which are not \
@@ -283,9 +284,10 @@ class FeatureExtractor:
 
     def _classify_vnodes(self, nodes: Iterable[VirtualNode], path: str) -> Iterable[VirtualNode]:
         """
-        This function fills "y" attribute in the VirtualNode-s from _parse_file().
-        It is the index of the corresponding class to predict.
-        We detect indentation changes so several whitespace nodes are merged together.
+        Fill "y" attribute in the VirtualNode-s extracted from _parse_file().
+
+        It is the index of the corresponding class to predict. We detect indentation changes so
+        several whitespace nodes are merged together.
 
         :param nodes: sequence of VirtualNodes.
         :param path: path to file.
@@ -429,8 +431,7 @@ class FeatureExtractor:
                      parents: Mapping[int, bblfsh.Node], closest_left_node_id: int
                      ) -> Optional[bblfsh.Node]:
         """
-        Compute current vnode parent as the lowest common ancestor of the closest left and right
-        babelfish nodes.
+        Compute vnode parent as the LCA of the closest left and right babelfish nodes.
 
         :param vnode_index: the index of the current node
         :param vnodes: the sequence of `VirtualNode`-s being transformed into features
@@ -477,8 +478,7 @@ class FeatureExtractor:
             lines: Set[int], index_offset: int, X: numpy.ndarray, vn: List[VirtualNode]
             ) -> Tuple[int, Optional[List[int]]]:
         """
-        Given a sequence of `VirtualNode`-s and relevant info, compute the input matrix and label
-        vector.
+        Write features in the input matrix given a sequence of `VirtualNode`-s and relevant info.
 
         :param vnodes: input sequence of `VirtualNode`s
         :param parents: dictionnary of node id to parent node
@@ -586,6 +586,8 @@ class FeatureExtractor:
     def _parse_file(self, contents: str, root: bblfsh.Node, path: str) -> \
             Tuple[List[VirtualNode], Dict[int, bblfsh.Node]]:
         """
+        Parse a file into a sequence of `VirtuaNode`-s and a mapping from VirtualNode to parent.
+
         Given the source text and the corresponding UAST this function compiles the list of
         `VirtualNode`-s and the parents mapping. That list of nodes equals to the original
         source text bit-to-bit after `"".join(n.value for n in nodes)`. `parents` map from

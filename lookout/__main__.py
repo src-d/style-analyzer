@@ -1,9 +1,11 @@
+"""Entry point for the Lookout Python SDK and supported analyzers."""
 import sys
 
 from lookout.core.cmdline import create_parser
 
 
 def main():
+    """Entry point."""
     parser = create_parser()
     args = parser.parse_args()
     try:

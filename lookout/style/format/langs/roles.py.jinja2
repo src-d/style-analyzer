@@ -1,11 +1,11 @@
-{% set max_role_len = [roles.keys() | map("length") | max, iternal_types.keys() | map("length") | max] | max %}
+{% set max_role_len = [roles.keys() | map("length") | max, internal_types.keys() | map("length") | max] | max %}
 {% set sum_roles = roles.values() | sum %}
-{% set sum_types = iternal_types.values() | sum %}
+{% set sum_types = internal_types.values() | sum %}
 {% macro freq(name, value) -%}
 {{ '%-*s' | format(max_role_len + 4, '"%s":' | format(name)) }} {{ "%.5E" | format(value) }},
 {%- endmacro %}
 INTERNAL_TYPES_FREQ = {
-{% for type, n in iternal_types.items() | sort(true,attribute="1") %}
+{% for type, n in internal_types.items() | sort(true,attribute="1") %}
     {{ freq(type, n / sum_types) }}
 {% endfor %}
 }

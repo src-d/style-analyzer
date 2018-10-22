@@ -1,3 +1,4 @@
+"""Facilities to create and use features."""
 from typing import Callable, Iterable, Mapping, NamedTuple, Tuple
 
 import bblfsh
@@ -10,10 +11,12 @@ Position = NamedTuple("Position", (("offset", int), ("line", int), ("col", int))
 
 
 class VirtualNode:
+    """Represent either a real UAST node or an imaginary token."""
+
     def __init__(self, value: str, start: Position, end: Position,
                  *, node: bblfsh.Node = None, y: int = None, path: str = None) -> None:
         """
-        This represents either a real UAST node or an imaginary token.
+        Construct a VirtualNode.
 
         :param value: Text of the token.
         :param start: Starting position of the token (0-based).
@@ -57,13 +60,13 @@ class VirtualNode:
                   token_unwrappers: Mapping[str, Callable[[str], Tuple[str, str]]]
                   ) -> Iterable["VirtualNode"]:
         """
-        Initializes the VirtualNode from a UAST node. Takes into account prefixes and suffixes.
+        Initialize the VirtualNode from a UAST node. Takes into account prefixes and suffixes.
 
-        :param node: UAST node
-        :param file: the file contents
-        :param path: the file path
-        :param token_unwrappers: mapping from bblfsh internal types to functions to unwrap tokens
-        :return: new VirtualNode-s
+        :param node: UAST node.
+        :param file: File contents.
+        :param path: File path.
+        :param token_unwrappers: Mapping from bblfsh internal types to functions to unwrap tokens.
+        :return: New VirtualNode-s.
         """
         outer_token = file[node.start_position.offset:node.end_position.offset]
         if not node.token:
