@@ -63,6 +63,20 @@ class AnalyzerModel(Model):
         return "%s/%s %s %s" % (self.name, self.version, self.ptr.url, self.ptr.commit)
 
 
+class DummyAnalyzerModel(AnalyzerModel):
+    """
+    Stub for stateless analyzers.
+    """
+    NAME = "dummy"
+    VENDOR = "public domain"
+
+    def _generate_tree(self) -> dict:
+        return {}
+
+    def _load_tree(self, tree: dict) -> None:
+        pass
+
+
 class Analyzer:
     """
     Interface of all the analyzers. Each analyzer uses a model to run the analysis and generates
