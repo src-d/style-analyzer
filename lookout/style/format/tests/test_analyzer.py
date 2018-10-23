@@ -62,16 +62,6 @@ class AnalyzerTests(unittest.TestCase):
         cls.head_files = cls.get_files_from_tar(str(base / "freecodecamp-head.tar.xz"))
         cls.ptr = ReferencePointer("someurl", "someref", "somecommit")
 
-    def test_files_by_language(self):
-        file_stats = {"js": 2, "Python": 5, "ruby": 7}
-        files = []
-        for language, n_files in file_stats.items():
-            for i in range(n_files):
-                files.append(File(language=language, uast=self.uast, path=str(i)))
-        result = FormatAnalyzer._files_by_language(files)
-        self.assertEqual({"js": 2, "python": 5, "ruby": 7}, {k: len(v) for k, v in result.items()})
-        return result
-
     def test_train(self):
         datastub = FakeDataStub(files=self.base_files.values(), changes=None)
         config = {"global": {"n_iter": 1}}

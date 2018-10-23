@@ -45,6 +45,7 @@ setup(
         "gensim>=3.5.0,<4.0",
         "google-compute-engine>=2.8.3,<3.0",  # for gensim
         "xgboost>=0.72,<2.0",
+        "bblfsh>=2.12.3,<3.0",
         "typing;python_version<'3.5'",
     ],
     extras_require={
