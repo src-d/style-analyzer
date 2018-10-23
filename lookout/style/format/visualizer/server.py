@@ -91,7 +91,7 @@ def return_features() -> Response:
     if res is None:
         abort(500)
     X, y, vnodes_y, vnodes, sibling_indices = res
-    y_pred, winners = rules.predict(X, True)
+    y_pred, winners = rules.predict(X, vnodes_y, vnodes, language)
     app.logger.info("returning features of shape %d, %d" % X.shape)
     return jsonify({"code": code,
                     "features": _input_matrix_to_descriptions(X, fe),

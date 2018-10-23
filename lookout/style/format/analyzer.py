@@ -102,7 +102,7 @@ class FormatAnalyzer(Analyzer):
                     self.log.warning("Failed to parse %s", file.path)
                     continue
                 X, y, vnodes_y, vnodes = res
-                y_pred, rule_winners = rules.predict(X, True)
+                y_pred, rule_winners = rules.predict(X, vnodes_y, vnodes, lang)
                 assert len(y) == len(y_pred)
 
                 code_lines = file.content.decode("utf-8", "replace").splitlines()

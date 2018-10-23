@@ -85,9 +85,9 @@ def print_rules_report(input_pattern: str, bblfsh: str, language: str, model_pat
         print("Failed to parse files, aborting report...")
         return
 
-    X, y, _, _ = res
+    X, y, vnodes_y, vnodes = res
 
-    y_pred, winners = rules.predict(X, True)
+    y_pred, winners = rules.predict(X, vnodes_y, vnodes, language)
 
     rule_stat = defaultdict(RuleStat)
 

@@ -2,7 +2,7 @@
 from collections import defaultdict
 from copy import deepcopy
 import functools
-import importlib
+from importlib import import_module
 import logging
 from typing import (Any, Dict, Iterable, List, Mapping, NamedTuple, Optional, Sequence, Set, Tuple,
                     Union)
@@ -19,6 +19,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.tree import _tree as Tree, DecisionTreeClassifier
 
 from lookout.core.ports import Type
+from lookout.style.format.feature_utils import VirtualNode
 
 
 RuleAttribute = NamedTuple(
@@ -75,8 +76,8 @@ class Rules:
     def __len__(self):
         return len(self._rules)
 
-    def predict(self, X: numpy.ndarray, return_winner_indices=False
-                ) -> Union[numpy.ndarray, Tuple[numpy.ndarray, numpy.ndarray]]:
+    def apply(self, X: numpy.ndarray, return_winner_indices=False
+              ) -> Union[numpy.ndarray, Tuple[numpy.ndarray, numpy.ndarray]]:
         """
         Evaluate the rules against the given features.
 
@@ -109,6 +110,34 @@ class Rules:
         if return_winner_indices:
             return prediction, winner_indices
         return prediction
+
+    def predict(self, X: numpy.ndarray, vnodes_y: Sequence[VirtualNode],
+                vnodes: Sequence[VirtualNode], language: str, return_originals: bool = False
+                ) -> Union[Tuple[numpy.ndarray, numpy.ndarray, numpy.ndarray, numpy.ndarray],
+                           Tuple[numpy.ndarray, numpy.ndarray]]:
+        """
+        Predict classes given the input features and metadata.
+
+        :param X: Input features.
+        :param vnodes_y: Sequence of the labeled `VirtualNode`-s corresponding to labeled samples.
+        :param vnodes: Sequence of all the `VirtualNode`-s corresponding to the input.
+        :param language: Language of the predicted samples.
+        :param return_originals: Whether to return the basic predictions (Rules.apply()) in \
+                                 addition to the post-processed ones.
+        :return: The predictions, the winning rules and optionally the basic predictions from \
+                 Rules.apply()
+        """
+        y_pred, winners = self.apply(X, True)
+        try:
+            postprocess = import_module(
+                "lookout.style.format.langs.%s.postprocessor" % language).postprocess
+        except ImportError:
+            return y_pred, winners
+        postprocessed_y, postprocessed_winners = postprocess(X, y_pred, vnodes_y, vnodes, winners,
+                                                             self)
+        if return_originals:
+            return postprocessed_y, postprocessed_winners, y_pred, winners
+        return postprocessed_y, postprocessed_winners
 
     @property
     def rules(self) -> List[Rule]:
@@ -312,7 +341,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         if isinstance(value, str):
             self._base_model_name = value
             base_model_module_name, base_model_class_name = value.rsplit(".", 1)
-            base_model_module = importlib.import_module(base_model_module_name)
+            base_model_module = import_module(base_model_module_name)
             value = getattr(base_model_module, base_model_class_name)
         else:
             self._base_model_name = "%s.%s" % (value.__module__, value.__name__)
@@ -343,7 +372,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         :param X: Input features.
         :return: Array of the same length as X with predictions.
         """
-        return self._rules.predict(X)
+        return self._rules.apply(X)
 
     _check_fitted = staticmethod(_check_fitted)
 

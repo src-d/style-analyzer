@@ -32,9 +32,9 @@ def quality_report(input_pattern: str, bblfsh: str, language: str, n_files: int,
     if res is None:
         print("Failed to parse files, aborting report...")
         return
-    X, y, vnodes_y, _ = res
+    X, y, vnodes_y, vnodes = res
 
-    y_pred = rules.predict(X)
+    y_pred, _ = rules.predict(X, vnodes_y, vnodes, language)
 
     target_names = [CLASSES[cls_ind] for cls_ind in numpy.unique(y)]
     print("Classification report:\n" + classification_report(y, y_pred, target_names=target_names))

@@ -172,7 +172,7 @@ class RulesTests(unittest.TestCase):
                                prune_branches_algorithms=[],
                                prune_attributes=False, min_samples_leaf=26, random_state=1989)
         rules.fit(self.train_x, self.train_y)
-        pred_y, winners = rules.rules.predict(self.train_x, return_winner_indices=True)
+        pred_y, winners = rules.rules.apply(self.train_x, return_winner_indices=True)
         for ycls, w in zip(pred_y, winners):
             self.assertEqual(ycls, rules.rules.rules[w].stats.cls)
 
