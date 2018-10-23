@@ -1,0 +1,174 @@
+apiVersion: v1
+items:
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      kompose.cmd: kompose convert --build local --controller deployment --volumes
+        hostPath -o visualizer.yml
+      kompose.version: 1.16.0 (0c01309)
+    creationTimestamp: null
+    labels:
+      io.kompose.service: bblfsh
+    name: bblfsh
+  spec:
+    ports:
+    - name: "9432"
+      port: 9432
+      targetPort: 9432
+    selector:
+      io.kompose.service: bblfsh
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      kompose.cmd: kompose convert --build local --controller deployment --volumes
+        hostPath -o visualizer.yml
+      kompose.version: 1.16.0 (0c01309)
+    creationTimestamp: null
+    labels:
+      io.kompose.service: style-analyzer-visualizer-client
+    name: style-analyzer-visualizer-client
+  spec:
+    ports:
+    - name: "3000"
+      port: 3000
+      targetPort: 3000
+    selector:
+      io.kompose.service: style-analyzer-visualizer-client
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      kompose.cmd: kompose convert --build local --controller deployment --volumes
+        hostPath -o visualizer.yml
+      kompose.version: 1.16.0 (0c01309)
+    creationTimestamp: null
+    labels:
+      io.kompose.service: style-analyzer-visualizer-server
+    name: style-analyzer-visualizer-server
+  spec:
+    ports:
+    - name: "5001"
+      port: 5001
+      targetPort: 5001
+    selector:
+      io.kompose.service: style-analyzer-visualizer-server
+  status:
+    loadBalancer: {}
+- apiVersion: extensions/v1beta1
+  kind: Deployment
+  metadata:
+    annotations:
+      kompose.cmd: kompose convert --build local --controller deployment --volumes
+        hostPath -o visualizer.yml
+      kompose.version: 1.16.0 (0c01309)
+    creationTimestamp: null
+    labels:
+      io.kompose.service: bblfsh
+    name: bblfsh
+  spec:
+    replicas: 1
+    strategy: {}
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          io.kompose.service: bblfsh
+      spec:
+        containers:
+        - image: srcd/style-analyzer-visualizer-bblfsh
+          name: bblfsh
+          ports:
+          - containerPort: 9432
+          resources: {}
+          securityContext:
+            privileged: true
+        restartPolicy: Always
+  status: {}
+- apiVersion: extensions/v1beta1
+  kind: Deployment
+  metadata:
+    annotations:
+      kompose.cmd: kompose convert --build local --controller deployment --volumes
+        hostPath -o visualizer.yml
+      kompose.version: 1.16.0 (0c01309)
+    creationTimestamp: null
+    labels:
+      io.kompose.service: style-analyzer-visualizer-client
+    name: style-analyzer-visualizer-client
+  spec:
+    replicas: 1
+    strategy:
+      type: Recreate
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          io.kompose.service: style-analyzer-visualizer-client
+      spec:
+        containers:
+        - image: srcd/style-analyzer-visualizer-client
+          name: style-analyzer-visualizer-client
+          ports:
+          - containerPort: 3000
+          resources: {}
+          volumeMounts:
+          - mountPath: /visualizer/public
+            name: client-mount-public
+          - mountPath: /visualizer/src
+            name: client-mount-src
+        restartPolicy: Always
+        volumes:
+        - hostPath:
+            path: /home/mog/work/style-analyzer/lookout/style/format/visualizer/public
+            type: Directory
+          name: client-mount-public
+        - hostPath:
+            path: /home/mog/work/style-analyzer/lookout/style/format/visualizer/src
+            type: Directory
+          name: client-mount-src
+  status: {}
+- apiVersion: extensions/v1beta1
+  kind: Deployment
+  metadata:
+    annotations:
+      kompose.cmd: kompose convert --build local --controller deployment --volumes
+        hostPath -o visualizer.yml
+      kompose.version: 1.16.0 (0c01309)
+    creationTimestamp: null
+    labels:
+      io.kompose.service: style-analyzer-visualizer-server
+    name: style-analyzer-visualizer-server
+  spec:
+    replicas: 1
+    strategy:
+      type: Recreate
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          io.kompose.service: style-analyzer-visualizer-server
+      spec:
+        containers:
+        - image: srcd/style-analyzer-visualizer-server
+          name: style-analyzer-visualizer-server
+          ports:
+          - containerPort: 5001
+          resources: {}
+          volumeMounts:
+          - mountPath: /visualizer
+            name: server-mount
+        restartPolicy: Always
+        volumes:
+        - hostPath:
+            path: /home/mog/work/style-analyzer/lookout/style/format/visualizer
+            type: Directory
+          name: server-mount
+  status: {}
+kind: List
+metadata: {}

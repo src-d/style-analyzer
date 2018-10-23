@@ -1,0 +1,41 @@
+version: "3"
+
+services:
+  bblfsh:
+    image: "srcd/style-analyzer-visualizer-bblfsh"
+    build:
+      context: .
+      dockerfile: "Dockerfile.bblfsh"
+    privileged: true
+    network_mode: "host"
+    ports:
+      - "9432:9432"
+  style-analyzer-visualizer-server:
+    image: "srcd/style-analyzer-visualizer-server"
+    depends_on:
+      - bblfsh
+    build:
+      context: "."
+      dockerfile: "Dockerfile.server"
+    network_mode: "host"
+    ports:
+      - "5001:5001"
+    volumes:
+      - "${PWD}:/visualizer"
+  style-analyzer-visualizer-client:
+    image: "srcd/style-analyzer-visualizer-client"
+    depends_on:
+      - bblfsh
+      - style-analyzer-visualizer-server
+    build:
+      context: "."
+      dockerfile: "Dockerfile.client"
+    network_mode: "host"
+    ports:
+      - "3000:3000"
+    volumes:
+      - "${PWD}/public:/visualizer/public"
+      - "${PWD}/src:/visualizer/src"
+
+volumes:
+  drivers:
