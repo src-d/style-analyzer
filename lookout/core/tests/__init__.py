@@ -1,5 +1,4 @@
-from lookout.core.tests import server
-
+from lookout.core import server
 
 if not server.file.exists():
     server.fetch()

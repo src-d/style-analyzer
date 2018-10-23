@@ -8,7 +8,7 @@ import tarfile
 import tempfile
 import unittest
 
-from lookout.core.tests.server import find_port, run as launch_server
+from lookout.core.server import find_port, run as launch_server
 from lookout.style.format.quality_report import quality_report
 from lookout.style.format.tests.test_analyzer_integration import TestAnalyzer
 

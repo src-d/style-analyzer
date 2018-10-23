@@ -1,9 +1,9 @@
 import unittest
 
+from lookout.core import server
 from lookout.core.api.event_pb2 import PushEvent, ReviewEvent
 from lookout.core.api.service_analyzer_pb2 import EventResponse
 from lookout.core.event_listener import EventHandlers, EventListener
-from lookout.core.tests import server
 
 
 class Handlers(EventHandlers):
@@ -29,7 +29,8 @@ class EventListenerTests(unittest.TestCase):
         server.run("review",
                    "4984b98b0e2375e9372fbab4eb4c9cd8f0c289c6",
                    "5833b4ba94154cf1ed07f37c32928c7b4411b36b",
-                   self.port)
+                   self.port,
+                   ".")
         self.assertIsInstance(self.handlers.request, ReviewEvent)
         del listener
 
@@ -38,7 +39,8 @@ class EventListenerTests(unittest.TestCase):
         server.run("push",
                    "4984b98b0e2375e9372fbab4eb4c9cd8f0c289c6",
                    "5833b4ba94154cf1ed07f37c32928c7b4411b36b",
-                   self.port)
+                   self.port,
+                   ".")
         self.assertIsInstance(self.handlers.request, PushEvent)
         del listener
 

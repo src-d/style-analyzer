@@ -5,6 +5,7 @@ import unittest
 import bblfsh
 
 import lookout
+from lookout.core import server
 from lookout.core.analyzer import ReferencePointer
 from lookout.core.api.event_pb2 import PushEvent, ReviewEvent
 from lookout.core.api.service_analyzer_pb2 import EventResponse
@@ -13,7 +14,6 @@ from lookout.core.data_requests import (DataService,
                                         with_changed_uasts, with_changed_uasts_and_contents,
                                         with_uasts, with_uasts_and_contents)
 from lookout.core.event_listener import EventHandlers, EventListener
-from lookout.core.tests import server
 
 
 class DataRequestsTests(unittest.TestCase, EventHandlers):
@@ -49,7 +49,8 @@ class DataRequestsTests(unittest.TestCase, EventHandlers):
         server.run("push",
                    "4984b98b0e2375e9372fbab4eb4c9cd8f0c289c6",
                    "5833b4ba94154cf1ed07f37c32928c7b4411b36b",
-                   self.port)
+                   self.port,
+                   git_dir=".")
 
     def test_with_changed_uasts(self):
         def func(imposter, ptr_from: ReferencePointer, ptr_to: ReferencePointer,

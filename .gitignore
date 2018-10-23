@@ -110,4 +110,4 @@ venv.bak/
 
 # Visualization models
 lookout/style/format/visualizer/models
-lookout/core/tests/server
+lookout/core/lookout-sdk

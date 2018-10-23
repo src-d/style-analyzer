@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 from lookout.__main__ import main as launch_analyzer
 from lookout.core.event_listener import EventListener
-from lookout.core.tests.server import find_port, run as launch_server
+from lookout.core.server import find_port, run as launch_server
 
 
 class TestAnalyzer:
@@ -88,7 +88,7 @@ class BaseAnalyzerIntegrationTests(unittest.TestCase):
         shutil.rmtree(self.jquery_dir)
         if fs_cleanup:
             self.fs.cleanup()
-        self.analyzer.__exit__()
+        self.analyzer.__exit__(None, None, None)
 
 
 @unittest.skipUnless(os.getenv("LONG_TESTS", False),
