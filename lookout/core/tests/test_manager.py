@@ -1,7 +1,7 @@
 from typing import Tuple
 import unittest
 
-from lookout.core.analyzer import Analyzer, AnalyzerModel, ReferencePointer
+from lookout.core.analyzer import Analyzer, AnalyzerModel, DummyAnalyzerModel, ReferencePointer
 from lookout.core.api.event_pb2 import PushEvent, ReviewEvent
 from lookout.core.api.service_analyzer_pb2 import Comment, EventResponse
 from lookout.core.api.service_data_pb2_grpc import DataStub
@@ -22,6 +22,8 @@ class FakeAnalyzer(Analyzer):
     version = "1"
     model_type = FakeModel
     name = "fake.analyzer.FakeAnalyzer"
+    instance = None
+    stub = None
 
     def __init__(self, model: AnalyzerModel, url: str, config: dict):
         super().__init__(model, url, config)
@@ -39,6 +41,31 @@ class FakeAnalyzer(Analyzer):
               ) -> AnalyzerModel:
         cls.stub = data_request_stub
         return FakeModel()
+
+
+class FakeDummyAnalyzer(Analyzer):
+    version = "1"
+    model_type = DummyAnalyzerModel
+    name = "fake.analyzer.FakeDummyAnalyzer"
+    instance = None
+    trained = False
+
+    def __init__(self, model: AnalyzerModel, url: str, config: dict):
+        super().__init__(model, url, config)
+        self.analyzed = False
+        self.trained = False
+        FakeDummyAnalyzer.instance = self
+
+    def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
+                data_request_stub: DataStub, **data) -> [Comment]:
+        self.analyzed = True
+        return []
+
+    @classmethod
+    def train(cls, ptr: ReferencePointer, config: dict, data_request_stub: DataStub, **data
+              ) -> AnalyzerModel:
+        cls.trained = True
+        return DummyAnalyzerModel()
 
 
 class FakeDataService:
@@ -74,7 +101,8 @@ class AnalyzerManagerTests(unittest.TestCase):
         self.data_service = FakeDataService()
         self.model_repository = FakeModelRepository()
         self.manager = AnalyzerManager(
-            [FakeAnalyzer, FakeAnalyzer], self.model_repository, self.data_service)
+            [FakeAnalyzer, FakeAnalyzer, FakeDummyAnalyzer],
+            self.model_repository, self.data_service)
         FakeAnalyzer.stub = None
 
     def test_process_review_event(self):
@@ -89,7 +117,8 @@ class AnalyzerManagerTests(unittest.TestCase):
         response = self.manager.process_review_event(request)
         self.assertIsInstance(response, EventResponse)
         self.assertEqual(response.analyzer_version, "fake.analyzer.FakeAnalyzer/1 "
-                                                    "fake.analyzer.FakeAnalyzer/1")
+                                                    "fake.analyzer.FakeAnalyzer/1 "
+                                                    "fake.analyzer.FakeDummyAnalyzer/1")
         self.assertEqual(len(response.comments), 2)
         self.assertEqual(*response.comments)
         self.assertEqual(response.comments[0].text, "%s|%s" % ("00" * 20, "ff" * 20))
@@ -97,6 +126,7 @@ class AnalyzerManagerTests(unittest.TestCase):
                          [("fake.analyzer.FakeAnalyzer/1", FakeModel, "foo")] * 2)
         self.assertEqual(FakeAnalyzer.instance.config["one"], "two")
         self.assertEqual(FakeAnalyzer.stub, "XXX")
+        self.assertTrue(FakeDummyAnalyzer.instance.analyzed)
 
     def test_process_push_event(self):
         request = PushEvent()
@@ -106,7 +136,8 @@ class AnalyzerManagerTests(unittest.TestCase):
         response = self.manager.process_push_event(request)
         self.assertIsInstance(response, EventResponse)
         self.assertEqual(response.analyzer_version, "fake.analyzer.FakeAnalyzer/1 "
-                                                    "fake.analyzer.FakeAnalyzer/1")
+                                                    "fake.analyzer.FakeAnalyzer/1 "
+                                                    "fake.analyzer.FakeDummyAnalyzer/1")
         self.assertEqual(len(response.comments), 0)
         self.assertEqual(len(self.model_repository.set_calls), 2)
         self.assertEqual(self.model_repository.set_calls[0][:2],
@@ -116,6 +147,7 @@ class AnalyzerManagerTests(unittest.TestCase):
                          ("fake.analyzer.FakeAnalyzer/1", "wow"))
         self.assertIsInstance(self.model_repository.set_calls[1][2], FakeModel)
         self.assertEqual(FakeAnalyzer.stub, "XXX")
+        self.assertFalse(FakeDummyAnalyzer.trained)
 
 
 if __name__ == "__main__":

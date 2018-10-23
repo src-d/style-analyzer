@@ -1,7 +1,7 @@
 import logging
 from typing import Iterable, Sequence
 
-from lookout.core.analyzer import Analyzer, ReferencePointer
+from lookout.core.analyzer import Analyzer, DummyAnalyzerModel, ReferencePointer
 from lookout.core.api.event_pb2 import PushEvent, ReviewEvent
 from lookout.core.api.service_analyzer_pb2 import EventResponse
 from lookout.core.data_requests import DataService
@@ -57,14 +57,17 @@ class AnalyzerManager(EventHandlers):
             except (KeyError, ValueError):
                 mycfg = {}
                 self._log.debug("no config was provided for %s", analyzer.name)
-            model, cache_miss = self._model_repository.get(
-                self._model_id(analyzer), analyzer.model_type, base_ptr.url)
-            if cache_miss:
-                self._log.info("cache miss: %s", analyzer.name)
-            if model is None:
-                self._log.info("training: %s", analyzer.name)
-                model = analyzer.train(base_ptr, mycfg, self._data_service.get())
-                self._model_repository.set(self._model_id(analyzer), base_ptr.url, model)
+            if analyzer.model_type != DummyAnalyzerModel:
+                model, cache_miss = self._model_repository.get(
+                    self._model_id(analyzer), analyzer.model_type, base_ptr.url)
+                if cache_miss:
+                    self._log.info("cache miss: %s", analyzer.name)
+                if model is None:
+                    self._log.info("training: %s", analyzer.name)
+                    model = analyzer.train(base_ptr, mycfg, self._data_service.get())
+                    self._model_repository.set(self._model_id(analyzer), base_ptr.url, model)
+            else:
+                model = DummyAnalyzerModel()
             self._log.debug("running %s", analyzer.name)
             results = analyzer(model, head_ptr.url, mycfg).analyze(
                 base_ptr, head_ptr, self._data_service.get())
@@ -76,6 +79,8 @@ class AnalyzerManager(EventHandlers):
     def process_push_event(self, request: PushEvent) -> EventResponse:
         ptr = ReferencePointer.from_pb(request.commit_revision.head)
         for analyzer in self._analyzers:
+            if analyzer.model_type == DummyAnalyzerModel:
+                continue
             self._log.debug("training %s", analyzer.name)
             try:
                 mycfg = dict(request.configuration[analyzer.name])
