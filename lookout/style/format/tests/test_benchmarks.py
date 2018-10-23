@@ -4,7 +4,6 @@ import tempfile
 import unittest
 
 from dulwich.index import build_index_from_tree
-from dulwich.porcelain import update_head
 from dulwich.repo import Repo
 
 from lookout.style.format.benchmarks import generate_smoke
@@ -25,9 +24,11 @@ class DescriptionsTests(unittest.TestCase):
                 repo.hooks.clear()  # Speed up dulwich by ~25%
                 self.assertEqual(set(init_repo_files[init_repo]),
                                  set(os.listdir(repo.path)) - {".git"})
-                update_head(repo.path, b"test")
+                walker = repo.get_graph_walker((b"refs/heads/test",))
+                next(walker)  # Skip head commit. We need HEAD~1
+                before_head = next(walker)
                 build_index_from_tree(repo.path, repo.index_path(), repo.object_store,
-                                      repo[repo.head()].tree)
+                                      repo[before_head].tree)
                 for filename in init_repo_files[init_repo]:
                     self.assertEqual(init_repo_files[init_repo][filename],
                                      (Path(testdir) / init_repo / filename).read_text())
