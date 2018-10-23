@@ -1,9 +1,8 @@
 """Analyzer that detects bad formatting by learning on the existing code in the repository."""
-from collections import defaultdict
 import logging
 from pprint import pformat
 import threading
-from typing import Any, Dict, Iterable, List, Mapping
+from typing import Any, List, Mapping
 
 import numpy
 from skopt import BayesSearchCV
@@ -12,12 +11,11 @@ from skopt.space import Categorical, Integer
 from lookout.core import slogging
 from lookout.core.analyzer import Analyzer, ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
-from lookout.core.api.service_data_pb2 import File
 from lookout.core.api.service_data_pb2_grpc import DataStub
 from lookout.core.data_requests import with_changed_uasts_and_contents, with_uasts_and_contents
-from lookout.style.format.descriptions import (get_code_chunk, get_error_description,
-                                               rule_to_comment)
-from lookout.style.format.diff import find_new_lines
+from lookout.core.lib import files_by_language, filter_files, find_new_lines
+from lookout.style.format.descriptions import get_code_chunk, get_error_description, \
+    rule_to_comment
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.model import FormatModel
 from lookout.style.format.rules import TrainableRules
@@ -72,17 +70,18 @@ class FormatAnalyzer(Analyzer):
                     generate_comment = yi != y_predi
                     line_nodes = [(yi, y_predi, vnode_y, winner)]
 
+        log = self.log
         comments = []
         changes = list(data["changes"])
-        base_files_by_lang = self._files_by_language(c.base for c in changes)
-        head_files_by_lang = self._files_by_language(c.head for c in changes)
+        base_files_by_lang = files_by_language(c.base for c in changes)
+        head_files_by_lang = files_by_language(c.head for c in changes)
         for lang, head_files in head_files_by_lang.items():
             if lang not in self.model:
-                self.log.warning("skipped %d written in %s. Rules for %s do not exist in model",
-                                 len(head_files), lang, lang)
+                log.warning("skipped %d written in %s. Rules for %s do not exist in model",
+                            len(head_files), lang, lang)
                 continue
             rules = self.model[lang]
-            for file in self._filter_files(head_files, rules.origin_config["line_length_limit"]):
+            for file in filter_files(head_files, rules.origin_config["line_length_limit"], log):
                 try:
                     prev_file = base_files_by_lang[lang][file.path]
                 except KeyError:
@@ -99,7 +98,7 @@ class FormatAnalyzer(Analyzer):
                         comment.line = 1
                         comment.text = "Failed to parse this file"
                         comment.append(comment)
-                    self.log.warning("Failed to parse %s", file.path)
+                    log.warning("Failed to parse %s", file.path)
                     continue
                 X, y, vnodes_y, vnodes = res
                 y_pred, rule_winners = rules.predict(X, vnodes_y, vnodes, lang)
@@ -154,12 +153,11 @@ class FormatAnalyzer(Analyzer):
         """
         cls.log.info("train %s %s %s", ptr.url, ptr.commit,
                      pformat(config, width=4096, compact=True))
-        files_by_language = cls._files_by_language(data["files"])
         model = FormatModel().construct(cls, ptr)
         config = cls._load_train_config(config)
-        for language, files in files_by_language.items():
+        for language, files in files_by_language(data["files"]).items():
             lang_config = config[language]
-            files = list(cls._filter_files(files, lang_config["line_length_limit"]))
+            files = filter_files(files, lang_config["line_length_limit"], cls.log)
             if len(files) == 0:
                 cls.log.info("Zero files after filtering, %s language is skipped.", language)
                 continue
@@ -221,21 +219,6 @@ class FormatAnalyzer(Analyzer):
         return model
 
     @classmethod
-    def _files_by_language(cls, files: Iterable[File]) -> Dict[str, Dict[str, File]]:
-        """
-        Sort files by programming language and path.
-
-        :param files: iterable of `File`-s.
-        :return: dictionary with languages as keys and files mapped to paths as values.
-        """
-        result = defaultdict(dict)
-        for file in files:
-            if not len(file.uast.children):
-                continue
-            result[file.language.lower()][file.path] = file
-        return result
-
-    @classmethod
     def _load_analyze_config(cls, config: Mapping[str, Any]) -> Mapping[str, Any]:
         """
         Merge config for analyze call with default config values stored inside this function.
@@ -292,24 +275,3 @@ class FormatAnalyzer(Analyzer):
         global_config = config.pop("global")
         return {lang: merge_dicts(global_config, lang_config)
                 for lang, lang_config in config.items()}
-
-    @classmethod
-    def _filter_files(cls, files: Dict[str, File], line_length_limit: int
-                      ) -> Iterable[File]:
-        """
-        Filter files based on their maximum line length.
-
-        :param files: Files to filter.
-        :param line_length_limit: Maximum line length to accept a file.
-        :return: Files filtered.
-        """
-        excluded = total = 0
-        for file in files.values():
-            if len(max(file.content.splitlines(), key=len, default=b"")) <= line_length_limit:
-                total += 1
-                yield file
-            else:
-                excluded += 1
-        if excluded > 0:
-            cls.log.debug("excluded %d/%d files by max line length %d",
-                          excluded, total, line_length_limit)

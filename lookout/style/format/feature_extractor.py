@@ -573,7 +573,7 @@ class FeatureExtractor:
             if self.return_sibling_indices:
                 sibling_indices_list.append(list(left_sibling_indices)
                                             + list(right_sibling_indices))
-        return (position, sibling_indices_list if self.return_sibling_indices else None)
+        return position, sibling_indices_list if self.return_sibling_indices else None
 
     def _parse_file(self, contents: str, root: bblfsh.Node, path: str) -> \
             Tuple[List[VirtualNode], Dict[int, bblfsh.Node]]:

@@ -17,3 +17,4 @@ gensim==3.6.0
 # gensim implicitly requires this
 google-compute-engine==2.8.3
 xgboost==0.72.1
+bblfsh==2.12.3
