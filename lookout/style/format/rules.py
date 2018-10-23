@@ -1,3 +1,4 @@
+"""Train and compile rules for multi-class classification using an sklearn base model."""
 from collections import defaultdict
 from copy import deepcopy
 import functools
@@ -40,6 +41,8 @@ Rule = NamedTuple("RuleType", (("attrs", Tuple[RuleAttribute, ...]), ("stats", R
 
 
 class Rules:
+    """Store already trained rules for downstream prediction tasks."""
+
     CompiledNegatedRules = NamedTuple("CompiledNegatedRules", (
         ("false", numpy.ndarray), ("true", numpy.ndarray)))
     """
@@ -55,10 +58,10 @@ class Rules:
 
     def __init__(self, rules: List[Rule], origin_config: Mapping[str, Any]):
         """
-        Initializes the rules so that it is possible to call predict() afterwards.
+        Initialize the rules so that it is possible to call predict() afterwards.
 
-        :param rules: the list of rules to assign.
-        :param origin_config: all parameters that are used for the model training.
+        :param rules: List of rules to assign.
+        :param origin_config: All parameters that are used for the model training.
         """
         super().__init__()
         assert rules is not None, "rules may not be None"
@@ -75,7 +78,7 @@ class Rules:
     def predict(self, X: numpy.ndarray, return_winner_indices=False
                 ) -> Union[numpy.ndarray, Tuple[numpy.ndarray, numpy.ndarray]]:
         """
-        Evaluates the rules against the given features.
+        Evaluate the rules against the given features.
 
         :param X: input features.
         :param return_winner_indices: whether to return the winning rule index for each sample.
@@ -109,14 +112,17 @@ class Rules:
 
     @property
     def rules(self) -> List[Rule]:
+        """Return the list of rules."""
         return self._rules
 
     @property
     def origin_config(self) -> Mapping[str, Any]:
+        """Return the configuration used for the model training."""
         return self._origin_config
 
     @property
     def avg_rule_len(self) -> float:
+        """Compute the average length of the rules."""
         if not self._rules:
             return 0
         return sum(len(r.attrs) for r in self._rules) / len(self._rules)
@@ -172,6 +178,7 @@ TopDownGreedyBudget = NamedTuple("TopDownGreedyBudget", (("absolute", bool),
 
 
 class TrainableRules(BaseEstimator, ClassifierMixin):
+    """Trainable rules model based on a decision tree or a random forest."""
 
     _log = logging.getLogger("TrainableRules")
 
@@ -182,11 +189,11 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
                  max_depth=None, max_features=None, min_samples_leaf=1, min_samples_split=2,
                  random_state=42, origin_config=None):
         """
-        Initializes a new instance of Rules class.
+        Initialize a new instance of Rules class.
 
         :param base_model_name: fully qualified type name of the base model to train. \
                                 Must be either "sklearn.tree.DecisionTreeClassifier" or \
-                               "sklearn.ensemble.RandomForestClassifier".
+                                "sklearn.ensemble.RandomForestClassifier".
         :param prune_branches_algorithms: branch pruning algorithms to use.
         :param top_down_greedy_budget: how many the branches to leave, either a floating point \
                                        number from 0 to 1 or the exact quantity.
@@ -223,8 +230,10 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
 
     def fit(self, X: numpy.ndarray, y: numpy.ndarray) -> "TrainableRules":
         """
-        Trains the rules using the base tree model and the samples (X, y). If `base_model` is
-        already fitted, the samples may be different from the ones that were used.
+        Train the rules using the base tree model and the samples (X, y).
+
+        If `base_model` is already fitted, the samples may be different from the ones that were
+        used.
 
         :param X: input features.
         :param y: input labels - the same length as X.
@@ -293,11 +302,13 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
 
     @property
     def base_model_name(self) -> str:
+        """Return the name of the base model used for training."""
         return self._base_model_name
 
     @base_model_name.setter
     def base_model_name(self, value: Union[str, Type[DecisionTreeClassifier],
                                            Type[RandomForestClassifier]]):
+        """Set the name of the base model used for training."""
         if isinstance(value, str):
             self._base_model_name = value
             base_model_module_name, base_model_class_name = value.rsplit(".", 1)
@@ -312,6 +323,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
 
     @property
     def fitted(self):
+        """Return whether the model is fitted or not."""
         return self._rules is not None
 
     def _check_fitted(func):
@@ -326,10 +338,10 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
     @_check_fitted
     def predict(self, X: numpy.ndarray) -> numpy.ndarray:
         """
-        Evaluates the rules against the given features.
+        Evaluate the rules against the given features.
 
-        :param X: input features.
-        :return: array of the same length as X with predictions.
+        :param X: Input features.
+        :return: Array of the same length as X with predictions.
         """
         return self._rules.predict(X)
 
@@ -337,6 +349,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
 
     @property
     def rules(self) -> Rules:
+        """Return the list of rules."""
         return self._rules
 
     @classmethod
@@ -344,7 +357,8 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
                        class_mapping: Optional[numpy.ndarray] = None
                        ) -> Tuple[List[Rule], Mapping[int, int]]:
         """
-        Converts the sklearn's decision tree to the set of rules.
+        Convert an sklearn decision tree to a set of rules.
+
         Each rule is a branch in the tree.
 
         :param tree: input decision tree.
@@ -529,7 +543,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
                           X: numpy.ndarray, Y: numpy.ndarray,
                           prune_uncertain: bool) -> List[Rule]:
         """
-        Removes the attribute comparisons which do not influence the rule decision.
+        Remove the attribute comparisons which do not influence the rule decision.
 
         Based on:
 
@@ -545,7 +559,6 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         :param prune_uncertain: Whether to apply an extra pruning condition.
         :return: New list of simplified rules.
         """
-
         def confidence(v, not_v):
             return (v - 0.5) / (v + not_v)
 
@@ -593,10 +606,10 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
     @staticmethod
     def _sanitize_params(params: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Normalizes the parameters from get_params() so that they are suitable for serialization.
+        Normalize the parameters from get_params() so that they are suitable for serialization.
 
-        :param params: dict from get_params().
-        :return: normalized dict.
+        :param params: Dictionary obtained from get_params().
+        :return: Normalized dictionary.
         """
         sanitized = {}
         for k, v in params.items():

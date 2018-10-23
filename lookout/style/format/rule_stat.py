@@ -13,12 +13,20 @@ from lookout.style.format.utils import prepare_files, profile
 
 
 class RuleStat:
+    """Stats about ground truth and predicted classes for a given rule."""
+
     def __init__(self):
+        """Construct a RuleStat."""
         self.gt_classes = [0 for _ in range(len(CLASSES))]
         self.pred_classes = [0 for _ in range(len(CLASSES))]
 
 
 def print_rule_table(rule_stat):
+    """
+    Print a table to detail rules statistics.
+
+    :param rule_stat: `RuleStats`-s for all the rules to detail.
+    """
     print("Legend: predictions/ground truth")
     report = [["#rule"] + list(CLASSES) + ["n_mistakes", "support"]]
     for rule in sorted(rule_stat):

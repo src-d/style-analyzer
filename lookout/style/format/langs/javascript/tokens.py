@@ -1,3 +1,4 @@
+"""Javascript specific tokens that are not handled by babelfish."""
 import re
 
 RESERVED = [

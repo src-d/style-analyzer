@@ -1,5 +1,5 @@
 [flake8]
-ignore=D301,D200
+ignore=D105,D200,D301
 select=D
 max-line-length=99
 exclude=
@@ -27,26 +27,3 @@ exclude=
     lookout/core/ports.py
     lookout/core/slogging.py
     lookout/core/sqla_model_repository.py
-    lookout/__init__.py
-    lookout/__main__.py
-    lookout/style/format/analyzer.py
-    lookout/style/format/diff.py
-    lookout/style/format/feature_extractor.py
-    lookout/style/format/features.py
-    lookout/style/format/feature_utils.py
-    lookout/style/format/files_filtering.py
-    lookout/style/format/__init__.py
-    lookout/style/format/langs/__init__.py
-    lookout/style/format/langs/javascript/__init__.py
-    lookout/style/format/langs/javascript/roles.py
-    lookout/style/format/langs/javascript/tokens.py
-    lookout/style/format/langs/javascript/token_unwrappers.py
-    lookout/style/format/langs/javascript/uast_fixers.py
-    lookout/style/format/langs/__main__.py
-    lookout/style/format/__main__.py
-    lookout/style/format/model.py
-    lookout/style/format/quality_report.py
-    lookout/style/format/rules.py
-    lookout/style/format/rule_stat.py
-    lookout/style/format/visualization.py
-    lookout/style/__init__.py

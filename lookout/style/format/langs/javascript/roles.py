@@ -1,3 +1,6 @@
+"""Javascript specific bablefish roles and internal types tooling."""
+
+
 INTERNAL_TYPES_FREQ = {
     "Identifier":                   3.29693E-01,
     "MemberExpression":             1.11422E-01,

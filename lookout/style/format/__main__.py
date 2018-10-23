@@ -12,6 +12,11 @@ from lookout.style.format.visualization import visualize
 
 
 def add_input_pattern_arg(my_parser: ArgumentParser):
+    """
+    Add an input pattern argument to an argpase parser.
+
+    :param my_parser: Parser to add the argument to.
+    """
     my_parser.add_argument(
         "-i", "--input-pattern", required=True, type=str,
         help="Path to folder with source code - "
@@ -20,6 +25,11 @@ def add_input_pattern_arg(my_parser: ArgumentParser):
 
 
 def add_model_args(my_parser: ArgumentParser):
+    """
+    Add arguments to specify model path and language.
+
+    :param my_parser: Parser to add the arguments to.
+    """
     my_parser.add_argument(
         "-m", "--model-path", required=True,
         help="Path to the saved FormatModel.")
@@ -29,12 +39,22 @@ def add_model_args(my_parser: ArgumentParser):
 
 
 def add_bblfsh_arg(my_parser: ArgumentParser):
+    """
+    Add an argument to specify the babelfish server connection address.
+
+    :param my_parser: Parser to add the argument to.
+    """
     my_parser.add_argument(
         "--bblfsh", default="0.0.0.0:9432",
         help="Babelfish server's address.")
 
 
 def add_true_noisy_repos_args(my_parser: ArgumentParser):
+    """
+    Add arguments to specify the path of true and noisy repositories.
+
+    :param my_parser: Parser to add the arguments to.
+    """
     my_parser.add_argument(
         "--true-repo", required=True, type=str,
         help="Path to the directory containing the files of the true repository.")

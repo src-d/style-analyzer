@@ -2,8 +2,8 @@ current_dir = $(shell pwd)
 
 .PHONY: check
 check:
-	flake8 --config .flake8-code .
-	flake8 --config .flake8-doc .
+	flake8 --config .flake8-code . --count
+	flake8 --config .flake8-doc . --count
 	pylint lookout
 
 .PHONY: docker-build

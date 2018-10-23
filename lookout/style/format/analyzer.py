@@ -1,3 +1,4 @@
+"""Analyzer that detects bad formatting by learning on the existing code in the repository."""
 from collections import defaultdict
 import logging
 from pprint import pformat
@@ -24,6 +25,8 @@ from lookout.style.format.utils import merge_dicts
 
 
 class FormatAnalyzer(Analyzer):
+    """Detect bad formatting by training on existing code and analyzing pull requests."""
+
     log = logging.getLogger("FormatAnalyzer")
     model_type = FormatModel
     name = "style.format.analyzer.FormatAnalyzer"
@@ -31,6 +34,13 @@ class FormatAnalyzer(Analyzer):
     description = "Source code formatting: whitespace, new lines, quotes, braces."
 
     def __init__(self, model: FormatModel, url: str, config: Mapping[str, Any]) -> None:
+        """
+        Construct a FormatAnalyzer.
+
+        :param model: FormatModel to use during pull request analysis.
+        :param url: Git repository on which the model was trained.
+        :param config: Configuration to use to analyze pull requests.
+        """
         super().__init__(model, url, config)
         self.config = self._load_analyze_config(self.config)
 
@@ -213,7 +223,8 @@ class FormatAnalyzer(Analyzer):
     @classmethod
     def _files_by_language(cls, files: Iterable[File]) -> Dict[str, Dict[str, File]]:
         """
-        Sorts files by programming language and path.
+        Sort files by programming language and path.
+
         :param files: iterable of `File`-s.
         :return: dictionary with languages as keys and files mapped to paths as values.
         """
@@ -227,7 +238,7 @@ class FormatAnalyzer(Analyzer):
     @classmethod
     def _load_analyze_config(cls, config: Mapping[str, Any]) -> Mapping[str, Any]:
         """
-        Merges config for analyze call with default config values stored inside this function.
+        Merge config for analyze call with default config values stored inside this function.
 
         :param config: User-defined config.
         :return: Full config.
