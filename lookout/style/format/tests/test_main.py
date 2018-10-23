@@ -12,7 +12,8 @@ class MainTests(unittest.TestCase):
             "vis": "visualize",
             "rule": "print_rules_report",
             "robust-eval": "style_robustness_report",
-            "pr-curve": "plot_pr_curve"
+            "pr-curve": "plot_pr_curve",
+            "gen-smoke-dataset": "generate_smoke_entry",
         }
         parser = main.create_parser()
         subcommands = set([x.dest for x in parser._subparsers._actions[2]._choices_actions])
