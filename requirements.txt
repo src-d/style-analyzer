@@ -1,4 +1,3 @@
-bblfsh==2.12.2
 sourced-ml==0.6.0
 xxhash==1.2.0
 stringcase==1.2.0
