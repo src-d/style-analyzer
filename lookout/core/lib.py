@@ -27,6 +27,27 @@ def find_new_lines(before: File, after: File) -> List[int]:
     return result
 
 
+def find_deleted_lines(before: File, after: File) -> List[int]:
+    """
+    Return line numbers next to deleted lines in the new file.
+
+    :param before: the previous contents of the file.
+    :param after: the new contents of the file.
+    :return: list of line numbers next to deleted lines.
+    """
+    before_lines = before.content.decode("utf-8", "replace").splitlines()
+    after_lines = after.content.decode("utf-8", "replace").splitlines()
+    matcher = SequenceMatcher(a=before_lines, b=after_lines)
+    result = []
+    for action, _, _, j1, _ in matcher.get_opcodes():
+        if action == "delete":
+            if j1 != 0:
+                result.append(j1)
+            if j1 != len(after_lines):
+                result.append(j1 + 1)
+    return result
+
+
 def extract_changed_nodes(root: Node, lines: Sequence[int]) -> List[Node]:
     """
     Collect the list of UAST nodes which lie on the changed lines.

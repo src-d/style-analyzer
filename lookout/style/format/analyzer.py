@@ -1,4 +1,5 @@
 """Analyzer that detects bad formatting by learning on the existing code in the repository."""
+from itertools import chain
 import logging
 from pprint import pformat
 import threading
@@ -13,7 +14,7 @@ from lookout.core.analyzer import Analyzer, ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2_grpc import DataStub
 from lookout.core.data_requests import with_changed_uasts_and_contents, with_uasts_and_contents
-from lookout.core.lib import files_by_language, filter_files, find_new_lines
+from lookout.core.lib import files_by_language, filter_files, find_deleted_lines, find_new_lines
 from lookout.style.format.descriptions import get_code_chunk, get_error_description, \
     rule_to_comment
 from lookout.style.format.feature_extractor import FeatureExtractor
@@ -87,9 +88,12 @@ class FormatAnalyzer(Analyzer):
                 except KeyError:
                     lines = None
                 else:
-                    lines = [find_new_lines(prev_file, file)]
+                    lines = sorted(chain.from_iterable((
+                        find_new_lines(prev_file, file),
+                        find_deleted_lines(prev_file, file),
+                    )))
                 fe = FeatureExtractor(language=lang, **rules.origin_config["feature_extractor"])
-                res = fe.extract_features([file], lines)
+                res = fe.extract_features([file], [lines])
                 if res is None:
                     if self.config["report_parse_failures"]:
                         comment = Comment()
