@@ -45,8 +45,10 @@ matrix:
                    && flake8 . --config .flake8-doc
                    && (! grep -R /tmp lookout/style/*/tests)
                    && rm -rf lookout/core/server
-                   && cd doc && make"
-      install: pip install -r doc/requirements.txt -r requirements-lint.txt
+                   && cd doc && make
+                   && cd ../lookout/style/format/visualizer && npm run build"
+      install: - pip install -r doc/requirements.txt -r requirements-lint.txt
+               - cd lookout/style/format/visualizer && npm install
     - python: 3.7
       env: *_coverage
       install: *_install
