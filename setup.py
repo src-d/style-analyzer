@@ -3,7 +3,7 @@ import os
 
 from setuptools import find_packages, setup
 
-lookout = SourceFileLoader("lookout", "./lookout/__init__.py").load_module()
+lookout_style = SourceFileLoader("lookout", "./lookout/style/__init__.py").load_module()
 
 with open(os.path.join(os.path.dirname(__file__), "README.md")) as f:
     long_description = f.read()
@@ -15,7 +15,7 @@ setup(
     description="Machine learning-based assisted code review - code style analyzers.",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    version=".".join(map(str, lookout.__version__)),
+    version=".".join(map(str, lookout_style.__version__)),
     license="AGPL-3.0",
     author="source{d}",
     author_email="machine-learning@sourced.tech",
