@@ -198,14 +198,9 @@ class Visualization extends Component {
       <Grid fluid={true} className="Visualization">
         <Row>
           <Col sm={12}>
-            <p>Click on a token to display its features.</p>
-          </Col>
-        </Row>
-        <Row>
-          <Col sm={12}>
             <Panel bsStyle="info">
               <Panel.Heading>
-                <Glyphicon glyph="info-sign" /> Statistics
+                <Glyphicon glyph="cog" /> Statistics and parameters
               </Panel.Heading>
               <Panel.Body>
                 <Row>
@@ -219,17 +214,11 @@ class Visualization extends Component {
                     {(nEnabled / winners.length).toFixed(2)}
                   </Col>
                 </Row>
-              </Panel.Body>
-            </Panel>
-          </Col>
-        </Row>
-        <Row>
-          <Col sm={12}>
-            <Panel bsStyle="info">
-              <Panel.Heading>
-                <Glyphicon glyph="cog" /> Parameters
-              </Panel.Heading>
-              <Panel.Body>
+                <Row>
+                  <Col sm={12}>
+                    <hr />
+                  </Col>
+                </Row>
                 <Row>
                   <Col sm={4}>
                     Relative confidence threshold:{" "}
