@@ -52,24 +52,24 @@ def commit_style(repo: Repo, format_rule_name: str) -> Tuple[str, str]:
     :param format_rule_name: Applied format rule name.
     :return: Two commit hashes: where style was applied and where style was disrupt.
     """
+    def commit(repo: Repo, msg: str) -> str:
+        """Commit everything."""
+        for tree_path, entry in repo.open_index().items():
+            full_path = os.path.join(repo.path.encode(), tree_path)
+            blob = blob_from_path_and_stat(full_path, os.lstat(full_path))
+            if blob.id != entry.sha:
+                repo.stage(tree_path)
+        return repo.do_commit(msg.encode(), b"Source{d} ML Team <ml@sourced.tech>")
+
     repopath = repo.path
     base = repo.head()
-    # Checkout new branch
     branch_create(repopath, format_rule_name, force=True)
     update_head(repopath, format_rule_name)
-    # Commit everything
-    for tree_path, entry in repo.open_index().items():
-        full_path = os.path.join(repopath.encode(), tree_path)
-        blob = blob_from_path_and_stat(full_path, os.lstat(full_path))
-        if blob.id != entry.sha:
-            repo.stage(tree_path)
-    style_commit = repo.do_commit(format_rule_name.encode(),
-                                  b"Source{d} ML Team <ml@sourced.tech>")
-    # Back to master
-    update_head(repopath, b"master")
+    style_commit_sha = commit(repo, format_rule_name)
     build_index_from_tree(repo.path, repo.index_path(), repo.object_store, repo[base].tree)
-
-    return style_commit.decode(), base.decode()
+    revert_style_commit_sha = commit(repo, "Revert " + format_rule_name)
+    update_head(repopath, b"master")
+    return style_commit_sha.decode(), revert_style_commit_sha.decode()
 
 
 def generate_smoke_entry(inputpath: str, outputpath: str, force: bool = False) -> int:
