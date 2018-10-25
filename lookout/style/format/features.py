@@ -125,8 +125,7 @@ class _FeatureDiffCol(OrdinalFeature):
 
     def __call__(self, sibling: Union[VirtualNode, bblfsh.Node], node: VirtualNode
                  ) -> Iterable[int]:
-        yield min(abs(sibling.start.col - node.end.col),
-                  abs(sibling.end.col - node.start.col))
+        yield abs(sibling.start.col - node.start.col)
 
 
 @register_feature
@@ -147,8 +146,7 @@ class _FeatureDiffOffset(OrdinalFeature):
 
     def __call__(self, sibling: Union[VirtualNode, bblfsh.Node], node: VirtualNode
                  ) -> Iterable[int]:
-        yield min(abs(sibling.start.offset - node.end.offset),
-                  abs(sibling.end.offset - node.start.offset))
+        yield abs(sibling.start.offset - node.start.offset)
 
 
 @register_feature
