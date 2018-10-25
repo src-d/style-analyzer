@@ -341,6 +341,8 @@ class FeatureExtractor:
             line = lines[-1]
             my_indent = list(line)
             offset, lineno, col = node.end
+            offset -= len(line)
+            col -= len(line)
             try:
                 for ws in indentation:
                     my_indent.remove(ws)
@@ -349,12 +351,10 @@ class FeatureExtractor:
                     # mixed tabs and spaces, do not classify
                     yield VirtualNode(
                         line,
-                        Position(offset - len(line), lineno, col - len(line)),
+                        Position(offset, lineno, col),
                         node.end, path=path)
                     continue
-                # indentation decrease
-                offset -= len(line)
-                col -= len(line)
+                # indentation decreases
                 for char in indentation[len(line):]:
                     if char == "\t":
                         cls = CLASS_INDEX[CLS_TAB_DEC]
@@ -372,22 +372,8 @@ class FeatureExtractor:
                         Position(offset, lineno, col),
                         node.end, path=path)
             else:
-                if indentation:
-                    yield VirtualNode(
-                        "".join(indentation),
-                        Position(offset - len(line), lineno, col - len(line)),
-                        Position(offset - len(line) + len(indentation),
-                                 lineno,
-                                 col - len(line) + len(indentation)),
-                        path=path)
-                offset += - len(line) + len(indentation)
-                col += - len(line) + len(indentation)
-                if not my_indent:
-                    # indentation is the same
-                    continue
-                # indentation increase
+                # indentation is stable or increases
                 for i, char in enumerate(my_indent):
-                    indentation.append(char)
                     if char == "\t":
                         cls = CLASS_INDEX[CLS_TAB_INC]
                     else:
@@ -397,6 +383,16 @@ class FeatureExtractor:
                         Position(offset + i, lineno, col + i),
                         Position(offset + i + 1, lineno, col + i + 1),
                         y=cls, path=path)
+                offset += len(my_indent)
+                col += len(my_indent)
+                if indentation:
+                    yield VirtualNode(
+                        "".join(indentation),
+                        Position(offset, lineno, col),
+                        Position(offset + len(indentation), lineno, col + len(indentation)),
+                        path=path)
+                for char in my_indent:
+                    indentation.append(char)
 
     @staticmethod
     def _add_noops(vnodes: Sequence[VirtualNode], path: str) -> List[VirtualNode]:
