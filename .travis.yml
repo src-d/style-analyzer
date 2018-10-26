@@ -47,8 +47,9 @@ matrix:
                    && rm -rf lookout/core/server
                    && cd doc && make
                    && cd ../lookout/style/format/visualizer && npm run build"
-      install: - pip install -r doc/requirements.txt -r requirements-lint.txt
-               - cd lookout/style/format/visualizer && npm install
+      install:
+        - pip install -r doc/requirements.txt -r requirements-lint.txt
+        - cd lookout/style/format/visualizer && npm install
     - python: 3.7
       env: *_coverage
       install: *_install
