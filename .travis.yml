@@ -17,6 +17,8 @@ stages:
   - name: deploy
     # require any tag name to deploy
     if: tag =~ .*
+  - name: deploy-k8s
+    if: tag =~ .*
 _install: &_install
   - pip install --upgrade pip cython codecov
   - pip install -e .[test,plot]
@@ -64,6 +66,16 @@ matrix:
       script:
         - python3 setup.py bdist_wheel
       deploy: *_deploy
+    - name: 'Push image to Docker Hub'
+      stage: deploy
+      script:
+        - DOCKER_PUSH_LATEST=true make docker-push
+    - name: 'Deploy to staging'
+      stage: deploy-k8s
+      install:
+        - make install-helm
+      script:
+        - HELM_RELEASE=lookout-style-analyzer HELM_CHART=lookout-style-analyzer K8S_NAMESPACE=lookout HELM_ARGS="--tiller-namespace=lookout --repo https://src-d.github.io/charts/ --set image.tag=$TRAVIS_TAG -f .helm_staging.yml" make deploy
   fast_finish: true
 before_script:
   - docker run -d --privileged -p 9432:9432 --name bblfshd bblfsh/bblfshd
