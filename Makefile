@@ -1,14 +1,25 @@
 current_dir = $(shell pwd)
 
+PROJECT = style-analyzer
+
+DOCKERFILES = Dockerfile:$(PROJECT)
+DOCKER_ORG = "srcd"
+
+# Including ci Makefile
+CI_REPOSITORY ?= https://github.com/src-d/ci.git
+CI_BRANCH ?= v1
+CI_PATH ?= .ci
+MAKEFILE := $(CI_PATH)/Makefile.main
+$(MAKEFILE):
+	git clone --quiet --depth 1 -b $(CI_BRANCH) $(CI_REPOSITORY) $(CI_PATH);
+-include $(MAKEFILE)
+
+
 .PHONY: check
 check:
 	! grep -R /tmp lookout/style/*/tests
 	flake8 --count
 	pylint lookout
-
-.PHONY: docker-build
-docker-build:
-	docker build -t srcd/style-analyzer .
 
 .PHONY: docker-test
 docker-test:
