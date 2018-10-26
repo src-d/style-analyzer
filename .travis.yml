@@ -64,6 +64,14 @@ matrix:
       script:
         - python3 setup.py bdist_wheel
       deploy: *_deploy
+    - name: 'Push image to Docker Hub'
+      stage: deploy
+      script:
+        - DOCKER_PUSH_LATEST=true make docker-push
+    - name: 'Deploy to staging'
+      stage: deploy
+      script:
+        - HELM_RELEASE=lookout-style-analyzer HELM_CHART=src-d/lookout-style-analyzer K8S_NAMESPACE=lookout HELM_ARGS="--tiller-namespace=lookout --set image.tag=$TRAVIS_TAG -f .helm_staging.yml" make deploy
   fast_finish: true
 before_script:
   - docker run -d --privileged -p 9432:9432 --name bblfshd bblfsh/bblfshd
