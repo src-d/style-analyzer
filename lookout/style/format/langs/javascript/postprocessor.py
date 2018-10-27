@@ -70,8 +70,8 @@ def postprocess(X: numpy.ndarray, y: numpy.ndarray, vnodes_y: Sequence[VirtualNo
         y_i_3 = y_indices[id(vnode3)]
         conf_vnode1 = rules.rules[winners[y_i_1]].stats.conf
         conf_vnode3 = rules.rules[winners[y_i_3]].stats.conf
-        labels1 = feature_extractor.labels_to_class_sequences[y[y_i_1]][:]
-        labels3 = feature_extractor.labels_to_class_sequences[y[y_i_3]][:]
+        labels1 = list(feature_extractor.labels_to_class_sequences[y[y_i_1]])
+        labels3 = list(feature_extractor.labels_to_class_sequences[y[y_i_3]])
         if labels1[-1] not in quotes_classes or labels3[0] not in quotes_classes:
             _set_new_rule(feature_extractor, vnode1.y, rules, new_rules, processed_winners,
                           processed_y, y_i_1)
