@@ -5,6 +5,7 @@ from typing import Any
 
 from lookout.core.cmdline import ArgumentDefaultsHelpFormatterNoNone
 from lookout.core.slogging import setup as setup_slogging
+from lookout.style.format.benchmarks.evaluate_smoke import evaluate_smoke_entry
 from lookout.style.format.benchmarks.generate_smoke import generate_smoke_entry
 from lookout.style.format.quality_report import quality_report
 from lookout.style.format.robustness import plot_pr_curve, style_robustness_report
@@ -145,6 +146,18 @@ def create_parser() -> ArgumentParser:
         "--force", default=False, action="store_true",
         help="Override output directory if exists."
     )
+
+    # Evaluate on different styles dataset
+    eval_gen_styles_parser = add_parser("eval-smoke-dataset",
+                                        "Evaluate on the dataset with different styles.")
+    eval_gen_styles_parser.set_defaults(handler=evaluate_smoke_entry)
+    eval_gen_styles_parser.add_argument(
+        "inputpath", type=str,
+        help="Path to the directory where the generated dataset is stored. "
+             "To generate a dataset run gen-smoke-dataset command.")
+    eval_gen_styles_parser.add_argument(
+        "reportpath", type=str,
+        help="Path for report performance output.")
 
     return parser
 
