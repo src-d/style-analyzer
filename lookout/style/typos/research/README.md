@@ -1,6 +1,6 @@
 # Baseline model
 
-## Model description:
+## Model description
 
 1. For every token generate list of closest on edit distance and most frequent words from "vocabulary" with SymSpell lookout algorithm
 
@@ -16,17 +16,19 @@
 5. If the first suggestion equals to token then token is considered correct, otherwise suggest all options in the order of ranking.
 
 
-## Datasets creation:
+## Datasets creation
+
 1. Randomly pick tokens from the dataset of identifiers statistics.
 1. Augmented with random edit typos (insertion, deletion, substitution) with given probability.
 1. Split on train and test in given proportions
 
 
-## Vocabulary:
+## Vocabulary
+
 Tokens from splitted identifiers from GitHub repos with known frequencies and vector embeddings.
 
 
-## Results of model suggestions for small datasets (~11k train, ~4k test):
+## Results of model suggestions for small datasets (~11k train, ~4k test)
 
 METRICS        |DETECTION SCORE|TOP1 SCORE CORR|TOP2 SCORE CORR|TOP3 SCORE CORR|TOP1 SCORE ALL |TOP2 SCORE ALL |TOP3 SCORE ALL 
 ---------------|---------------|---------------|---------------|---------------|---------------|---------------|---------------
@@ -37,7 +39,7 @@ F1             |         0.841 |         0.830 |         0.872 |         0.873 |
 
 
 
-## Results on whole dataset of identifiers (~400k train, ~44k test):
+## Results on whole dataset of identifiers (~400k train, ~44k test)
 
 SCORE | DETECTION | TOP SUGGESTION | TOP2 SUGGESTIONS | TOP3 SUGGESTIONS
 ----- | --------- | -------------- | ---------------- | ----------------

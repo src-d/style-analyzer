@@ -1,3 +1,4 @@
+import io
 from os.path import join
 import pathlib
 import unittest
@@ -18,7 +19,7 @@ class TyposCorrectorTest(unittest.TestCase):
         cls.data = pandas.read_csv(join(TEST_DATA_PATH, "test_data.csv.xz"),
                                    index_col=0).infer_objects()
         cls.corrector = TyposCorrector()
-        cls.corrector.create_model(VOCABULARY_FILE, VOCABULARY_FILE, FASTTEXT_DUMP_FILE)
+        cls.corrector.initialize_generator(VOCABULARY_FILE, VOCABULARY_FILE, FASTTEXT_DUMP_FILE)
 
     def test_corrector_on_df(self):
         custom_data = pandas.DataFrame([[["get", "tokens", "num"], "get", "get"],
@@ -33,6 +34,15 @@ class TyposCorrectorTest(unittest.TestCase):
         self.corrector.train_on_file(join(TEST_DATA_PATH, "test_data.csv.xz"))
         suggestions = self.corrector.suggest_file(join(TEST_DATA_PATH, "test_data.csv.xz"))
         self.assertSetEqual(set(suggestions.keys()), set(self.data.index))
+
+    def test_save_load(self):
+        self.corrector.train(self.data)
+        with io.BytesIO() as buffer:
+            self.corrector.save(buffer)
+            print(buffer.tell())
+            buffer.seek(0)
+            corrector2 = TyposCorrector().load(buffer)
+        self.assertTrue(self.corrector, corrector2)
 
 
 if __name__ == "__main__":
