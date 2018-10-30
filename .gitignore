@@ -111,3 +111,6 @@ venv.bak/
 # Visualization models
 lookout/style/format/visualizer/models
 lookout/core/tests/server
+
+# CI
+.ci

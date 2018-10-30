@@ -111,8 +111,8 @@ class Rules:
             return prediction, winner_indices
         return prediction
 
-    def predict(self, X: numpy.ndarray, y, vnodes_y: Sequence[VirtualNode],
-                vnodes: Sequence[VirtualNode], language: str, content, uast,
+    def predict(self, X: numpy.ndarray, y: numpy.ndarray, vnodes_y: Sequence[VirtualNode],
+                vnodes: Sequence[VirtualNode], language: str, content: str=None, uast: str=None,
                 return_originals: bool = False
                 ) -> Union[Tuple[numpy.ndarray, numpy.ndarray, numpy.ndarray, numpy.ndarray],
                            Tuple[numpy.ndarray, numpy.ndarray]]:
@@ -137,7 +137,7 @@ class Rules:
         except ImportError:
             return y_pred, winners
         postprocessed_y_pred, postprocessed_winners = postprocess(X, y_pred, vnodes_y, vnodes, winners,
-                                                             self)
+                                                                  self)
         postprocessed_y = filter_corrupting_preds(y, postprocessed_y_pred, vnodes_y, content, uast)
         if return_originals:
             return postprocessed_y, postprocessed_winners, y_pred, winners
