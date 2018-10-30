@@ -1,11 +1,11 @@
 import argparse
 import sys
 
-from create_typos import create_typos
-from baseline import baseline
-from filter_identifiers import filter_identifiers
-from get_frequencies import get_frequencies
-from pick_subset import pick_subset
+from lookout.style.typos.research.create_typos import create_typos
+from lookout.style.typos.research.baseline import baseline
+from lookout.style.typos.research.filter_identifiers import filter_identifiers
+from lookout.style.typos.research.get_frequencies import get_frequencies
+from lookout.style.typos.research.pick_subset import pick_subset
 
 from sourced.ml.cmd.args import ArgumentDefaultsHelpFormatterNoNone
 

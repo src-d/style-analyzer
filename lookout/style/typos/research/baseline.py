@@ -5,9 +5,12 @@ from multiprocessing import Pool
 import pandas
 import numpy
 from sklearn.ensemble import RandomForestClassifier
-import pysymspell.symspell as symspell
+import lookout.style.typos.symspell as symspell
 
-import typos_functions
+from lookout.style.typos.research.typos_functions import (correct as typos_functions_correct,
+                                                          print_suggestion_results,
+                                                          read_frequencies,
+                                                          suggest_corrections)
 
 
 MAX_DISTANCE = 2
@@ -32,7 +35,7 @@ class Baseline:
     def __init__(self, frequencies_file):
         self.checker = symspell.SymSpell(max_dictionary_edit_distance=MAX_DISTANCE)
         self.checker.load_dictionary(frequencies_file)
-        self.frequencies = typos_functions.read_frequencies(frequencies_file)
+        self.frequencies = read_frequencies(frequencies_file)
 
     def fit(self, train_file, cand_train_file=None):
         train_df = pandas.read_pickle(train_file)
@@ -64,10 +67,10 @@ class Baseline:
 
         test_matrix = self._create_matrix(test_candidates)
         test_proba = self.model.predict_proba(test_matrix)
-        return typos_functions.suggest_corrections(test_candidates, test_proba[:, 1])
+        return suggest_corrections(test_candidates, test_proba[:, 1])
 
     def correct(self, test_file, cand_file=None):
-        return typos_functions.correct(self.suggest(test_file, cand_file))
+        return typos_functions_correct(self.suggest(test_file, cand_file))
 
     def _freq(self, token):
         try:
@@ -139,5 +142,4 @@ def baseline(args):
     if args.test_file is not None:
         suggestions = baseline.suggest(args.test_file, args.cand_test_file)
         with open(args.out_file, "w") as out_file:
-            typos_functions.print_suggestion_results(pandas.read_pickle(args.test_file),
-                                                     suggestions, out_file)
+            print_suggestion_results(pandas.read_pickle(args.test_file), suggestions, out_file)
