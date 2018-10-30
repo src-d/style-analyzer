@@ -1,17 +1,17 @@
 """Prediction post processing module."""
-from typing import MutableMapping, Sequence, Tuple
+from typing import Mapping, Sequence
 
 from bblfsh.client import BblfshClient
 import bblfsh
 import numpy
 
+from lookout.core.api.service_data_pb2 import File
 from lookout.style.format.feature_extractor import FeatureExtractor
-from lookout.style.format.feature_utils import (CLASS_INDEX,
-                                                INDEX_CHARACTER, VirtualNode)
+from lookout.style.format.feature_utils import (
+    CLS_SINGLE_QUOTE, CLS_DOUBLE_QUOTE, INDEX_CLS_TO_STR, VirtualNode)
 
 
-def equal_uasts(uast1: bblfsh.Node, uast2: bblfsh.Node) -> bool:
-    parents = {}
+def check_uasts_are_equal(uast1: bblfsh.Node, uast2: bblfsh.Node) -> bool:
     queue1 = [uast1]
     queue2 = [uast2]
     while queue1 or queue2:
@@ -28,16 +28,20 @@ def equal_uasts(uast1: bblfsh.Node, uast2: bblfsh.Node) -> bool:
     return True
 
 
-def filter_corrupting_preds(y: numpy.ndarray, y_pred: numpy.ndarray, vnodes_y: Sequence[VirtualNode],
-                            content: str, uast_before: bblfsh.Node) -> Tuple[numpy.ndarray, numpy.ndarray]:
+def filter_uast_breaking_preds(y: numpy.ndarray, y_pred: numpy.ndarray,
+                               vnodes_y: Sequence[VirtualNode], files: Mapping[str, File],
+                               feature_extractor: FeatureExtractor, client: BblfshClient
+                               ) -> numpy.ndarray:
     for i, (gt, pred, vn_y) in enumerate(zip(y, y_pred, vnodes_y)):
         if gt != pred:
-            try:
-                content_after = content[:vn_y.start.offset] + INDEX_CHARACTER[pred].encode() + content[vn_y.start.offset+1:]
-                bblfsh_client = BblfshClient("0.0.0.0:9432")
-                uast_after = bblfsh_client.parse(filename="fake/path", contents=content_after, language="javascript").uast
-                if not equal_uasts(uast_before, uast_after):
-                    y_pred[i] *= -1
-            except KeyError:
-                continue
+            content_before = files[vn_y.path].content
+            if INDEX_CLS_TO_STR[pred] not in (CLS_SINGLE_QUOTE, CLS_DOUBLE_QUOTE):
+                content_after = content_before[:vn_y.start.offset] \
+                                + INDEX_CLS_TO_STR[pred].encode() \
+                                + content_before[vn_y.start.offset+1:]
+                uast_before = files[vn_y.path].uast
+                uast_after = client.parse(filename="", contents=content_after,
+                                          language=feature_extractor.language).uast
+                if not check_uasts_are_equal(uast_before, uast_after):
+                    y_pred[i] = gt
     return y_pred

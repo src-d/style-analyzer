@@ -80,7 +80,7 @@ def files2vnodes(files: Iterable[str], rules: Rules, client: str, language: str
     return vnodes_y
 
 
-def files2mispreds(files: Iterable[str], rules: Rules, client: str, language: str
+def files2mispreds(files: Iterable[str], rules: Rules, client: BblfshClient, language: str
                    ) -> Iterable[Misprediction]:
     """
     Return the model's `Misprediction`-s on a list of files.
@@ -94,7 +94,8 @@ def files2mispreds(files: Iterable[str], rules: Rules, client: str, language: st
     files = prepare_files(files, client, language)
     fe = FeatureExtractor(language=language, **rules.origin_config["feature_extractor"])
     X, y, vnodes_y, vnodes = fe.extract_features(files)
-    y_pred, winners = rules.predict(X, y, vnodes_y, vnodes, language)
+    files = {f.path: f for f in files}
+    y_pred, winners = rules.predict(X, y, vnodes_y, vnodes, files, fe, client)
     mispreds = get_mispreds(y, y_pred, vnodes_y, winners)
     return mispreds
 

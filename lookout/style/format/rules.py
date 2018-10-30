@@ -7,6 +7,7 @@ import logging
 from typing import (Any, Dict, Iterable, List, Mapping, NamedTuple, Optional, Sequence, Set, Tuple,
                     Union)
 
+from bblfsh import BblfshClient
 import numpy
 from numpy import count_nonzero
 from scipy.sparse import csr_matrix
@@ -18,7 +19,9 @@ from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
 from sklearn.tree import _tree as Tree, DecisionTreeClassifier
 
+from lookout.core.api.service_data_pb2 import File
 from lookout.core.ports import Type
+from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.feature_utils import VirtualNode
 
 
@@ -112,7 +115,8 @@ class Rules:
         return prediction
 
     def predict(self, X: numpy.ndarray, y: numpy.ndarray, vnodes_y: Sequence[VirtualNode],
-                vnodes: Sequence[VirtualNode], language: str, content: str=None, uast: str=None,
+                vnodes: Sequence[VirtualNode], files: Mapping[str, File],
+                feature_extractor: FeatureExtractor, client: BblfshClient,
                 return_originals: bool = False
                 ) -> Union[Tuple[numpy.ndarray, numpy.ndarray, numpy.ndarray, numpy.ndarray],
                            Tuple[numpy.ndarray, numpy.ndarray]]:
@@ -131,14 +135,16 @@ class Rules:
         y_pred, winners = self.apply(X, True)
         try:
             postprocess = import_module(
-                "lookout.style.format.langs.%s.postprocessor" % language).postprocess
-            filter_corrupting_preds = import_module(
-                "lookout.style.format.postprocess").filter_corrupting_preds
+                "lookout.style.format.langs.%s.postprocessor"
+                % feature_extractor.language).postprocess
+            filter_uast_breaking_preds = import_module(
+                "lookout.style.format.postprocess").filter_uast_breaking_preds
         except ImportError:
             return y_pred, winners
-        postprocessed_y_pred, postprocessed_winners = postprocess(X, y_pred, vnodes_y, vnodes, winners,
-                                                                  self)
-        postprocessed_y = filter_corrupting_preds(y, postprocessed_y_pred, vnodes_y, content, uast)
+        postprocessed_y_pred, postprocessed_winners = postprocess(X, y_pred, vnodes_y, vnodes,
+                                                                  winners, self)
+        postprocessed_y = filter_uast_breaking_preds(y, postprocessed_y_pred, vnodes_y, files,
+                                                     feature_extractor, client)
         if return_originals:
             return postprocessed_y, postprocessed_winners, y_pred, winners
         return postprocessed_y, postprocessed_winners

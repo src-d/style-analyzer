@@ -5,6 +5,7 @@ from pprint import pformat
 import threading
 from typing import Any, List, Mapping
 
+from bblfsh.client import BblfshClient
 import numpy
 from skopt import BayesSearchCV
 from skopt.space import Categorical, Integer
@@ -47,7 +48,7 @@ class FormatAnalyzer(Analyzer):
 
     @with_changed_uasts_and_contents
     def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
-                data_request_stub: DataStub, **data) -> List[Comment]:
+                data_request_stub: DataStub, client: BblfshClient, **data) -> List[Comment]:
         """
         Analyze a set of changes from one revision to another.
 
@@ -107,7 +108,7 @@ class FormatAnalyzer(Analyzer):
                     log.warning("Failed to parse %s", file.path)
                     continue
                 X, y, vnodes_y, vnodes = res
-                y_pred, rule_winners = rules.predict(X, vnodes_y, vnodes, lang)
+                y_pred, rule_winners = rules.predict(X, y, vnodes_y, vnodes, {file.path: file}, fe)
                 assert len(y) == len(y_pred)
 
                 code_lines = file.content.decode("utf-8", "replace").splitlines()

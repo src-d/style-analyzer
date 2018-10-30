@@ -132,15 +132,15 @@ CLASS_INDEX = {cls: i for i, cls in enumerate(CLASSES)}
 EMPTY_CLS = frozenset([CLASS_INDEX[CLS_TAB_DEC], CLASS_INDEX[CLS_SPACE_DEC],
                        CLASS_INDEX[CLS_NOOP]])
 CLS_TO_STR = {
-    CLS_SPACE: " ",
-    CLS_TAB: "\t",
-    CLS_NEWLINE: "\n",
-    CLS_SPACE_INC: " ",
-    CLS_SPACE_DEC: "",
-    CLS_TAB_INC: "\t",
-    CLS_TAB_DEC: "",
-    CLS_SINGLE_QUOTE: "'",
     CLS_DOUBLE_QUOTE: '"',
+    CLS_NEWLINE: "\n",
     CLS_NOOP: "",
+    CLS_SINGLE_QUOTE: "'",
+    CLS_SPACE: " ",
+    CLS_SPACE_DEC: "",
+    CLS_SPACE_INC: " ",
+    CLS_TAB: "\t",
+    CLS_TAB_DEC: "",
+    CLS_TAB_INC: "\t",
 }
-INDEX_CLS_TO_STR = {i: c for i, c in enumerate(CLS_TO_STR)}
+INDEX_CLS_TO_STR = tuple(CLS_TO_STR[c] for c in CLASSES)
