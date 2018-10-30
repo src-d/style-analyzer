@@ -191,6 +191,31 @@ class FeatureExtractor:
             return self._feature_group_counts[feature_group]
         return self._feature_node_counts[feature_group][neighbour_index]
 
+    def contents(self, files: Iterable[File]) -> Mapping[str, str]:
+        contents = {}
+        for i, file in enumerate(files):
+            contents[file.path] = file.content.decode("utf-8", "replace")
+        return contents
+
+    def uasts(self, files: Iterable[File]) -> Mapping[str, bblfsh.Node]:
+        uasts = {}
+        for i, file in enumerate(files):
+            uasts[file.path] = file.uast
+        return uasts
+
+    def parents(self, files: Iterable[File]) -> Mapping[str, Mapping[int, bblfsh.Node]]:
+        parents = {}
+        for i, file in enumerate(files):
+            uast = file.uast
+            parents[file.path] = {}
+            queue = [uast]
+            while queue:
+                node = queue.pop()
+                for child in node.children:
+                    parents[file.path][id(child)] = node
+                queue.extend(node.children)
+        return parents
+
     def extract_features(self, files: Iterable[File], lines: List[List[int]]=None
                          ) -> Optional[Union[
                              Tuple[numpy.ndarray, numpy.ndarray, List[VirtualNode]],
@@ -428,7 +453,6 @@ class FeatureExtractor:
                      ) -> Optional[bblfsh.Node]:
         """
         Compute vnode parent as the LCA of the closest left and right babelfish nodes.
-
         :param vnode_index: the index of the current node
         :param vnodes: the sequence of `VirtualNode`-s being transformed into features
         :param parents: the id of bblfsh node to parent bblfsh node mapping

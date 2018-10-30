@@ -54,7 +54,7 @@ def visualize(input_filename: str, bblfsh: str, language: str, model_path: str) 
         return
     X, y, vnodes_y, vnodes = res
 
-    y_pred, winners = rules.predict(X, vnodes_y, vnodes, language)
+    y_pred, winners = rules.predict(X, y, vnodes_y, vnodes, language, file.content, file.uast)
 
     mispred = []
     for gt, pred, node, rule in zip(y, y_pred, vnodes_y, winners):

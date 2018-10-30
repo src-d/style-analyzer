@@ -13,8 +13,8 @@ from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.feature_utils import VirtualNode
 from lookout.style.format.files_filtering import filter_filepaths
 from lookout.style.format.model import FormatModel
-from lookout.style.format.quality_report import prepare_files
 from lookout.style.format.rules import Rules
+from lookout.style.format.utils import prepare_files
 
 
 Misprediction = NamedTuple("Misprediction", [("y", numpy.ndarray), ("pred", numpy.ndarray),

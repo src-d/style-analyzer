@@ -131,3 +131,8 @@ CLASSES = (CLS_SPACE, CLS_TAB, CLS_NEWLINE, CLS_SPACE_INC, CLS_SPACE_DEC,
 CLASS_INDEX = {cls: i for i, cls in enumerate(CLASSES)}
 EMPTY_CLS = frozenset([CLASS_INDEX[CLS_TAB_DEC], CLASS_INDEX[CLS_SPACE_DEC],
                        CLASS_INDEX[CLS_NOOP]])
+SPACE = " "
+TAB = "\t"
+NEWLINE = "\n"
+CHARACTERS = (SPACE, TAB, NEWLINE)
+INDEX_CHARACTER = {i: c for i, c in enumerate(CHARACTERS)}

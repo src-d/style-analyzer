@@ -111,8 +111,9 @@ class Rules:
             return prediction, winner_indices
         return prediction
 
-    def predict(self, X: numpy.ndarray, vnodes_y: Sequence[VirtualNode],
-                vnodes: Sequence[VirtualNode], language: str, return_originals: bool = False
+    def predict(self, X: numpy.ndarray, y, vnodes_y: Sequence[VirtualNode],
+                vnodes: Sequence[VirtualNode], language: str, content, uast,
+                return_originals: bool = False
                 ) -> Union[Tuple[numpy.ndarray, numpy.ndarray, numpy.ndarray, numpy.ndarray],
                            Tuple[numpy.ndarray, numpy.ndarray]]:
         """
@@ -131,10 +132,13 @@ class Rules:
         try:
             postprocess = import_module(
                 "lookout.style.format.langs.%s.postprocessor" % language).postprocess
+            filter_corrupting_preds = import_module(
+                "lookout.style.format.postprocess").filter_corrupting_preds
         except ImportError:
             return y_pred, winners
-        postprocessed_y, postprocessed_winners = postprocess(X, y_pred, vnodes_y, vnodes, winners,
+        postprocessed_y_pred, postprocessed_winners = postprocess(X, y_pred, vnodes_y, vnodes, winners,
                                                              self)
+        postprocessed_y = filter_corrupting_preds(y, postprocessed_y_pred, vnodes_y, content, uast)
         if return_originals:
             return postprocessed_y, postprocessed_winners, y_pred, winners
         return postprocessed_y, postprocessed_winners
