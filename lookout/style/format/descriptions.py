@@ -8,13 +8,11 @@ from typing import List, Optional, Sequence, Tuple
 from numpy import flatnonzero, floating, ndarray
 
 from lookout.style.format.feature_extractor import FeatureExtractor, FEATURES_MAX, FEATURES_MIN
-from lookout.style.format.feature_utils import (
-    CLASS_INDEX, CLASSES, CLS_DOUBLE_QUOTE, CLS_NEWLINE, CLS_NOOP, CLS_SINGLE_QUOTE, CLS_SPACE,
-    CLS_SPACE_DEC, CLS_SPACE_INC, CLS_TAB, CLS_TAB_DEC, CLS_TAB_INC)
-from lookout.style.format.feature_utils import VirtualNode
+from lookout.style.format.feature_utils import CLASS_INDEX, CLASSES, CLS_DOUBLE_QUOTE, \
+    CLS_NEWLINE, CLS_NOOP, CLS_SINGLE_QUOTE, CLS_SPACE, CLS_SPACE_DEC, CLS_SPACE_INC, CLS_TAB, \
+    CLS_TAB_DEC, CLS_TAB_INC, VirtualNode
 from lookout.style.format.features import BagFeature, CategoricalFeature, OrdinalFeature
 from lookout.style.format.rules import Rule
-
 
 _CLASS_REPRESENTATIONS_MAPPING = {
     CLS_DOUBLE_QUOTE: '"',
@@ -84,12 +82,12 @@ def describe_rule(rule: Rule, feature_extractor: FeatureExtractor) -> str:
         grouped[group][node_index][feature_name].append((cmp, threshold, index))
     descriptions = [
         describe_rule_splits(feature_extractor._features[feature_name],
-                             "%s.%s.%s" % (group.name, node, feature_name),
+                             "%s%s" % (group.format(node), feature_name),
                              splits)
         for group, nodes in grouped.items()
         for node, feature_names in nodes.items()
         for feature_name, splits in feature_names.items()]
-    return "%s\n\t→ y = %s\n\tConfidence: %.3f. Support: %d." % (
+    return "  %s\n\t⇒ y = %s\n\tConfidence: %.3f. Support: %d." % (
         "\n\t∧ ".join(descriptions),
         "".join(CLASS_REPRESENTATIONS[c]
                 for c in feature_extractor.composite_to_labels[rule.stats.cls]),
