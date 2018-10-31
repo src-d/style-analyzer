@@ -3,11 +3,10 @@ from collections import Counter
 import glob
 
 from bblfsh import BblfshClient
-import numpy
 from sklearn.metrics import classification_report, confusion_matrix
 
+from lookout.style.format.descriptions import get_composite_class_representations
 from lookout.style.format.feature_extractor import FeatureExtractor
-from lookout.style.format.feature_utils import CLASSES
 from lookout.style.format.model import FormatModel
 from lookout.style.format.utils import prepare_files, profile
 
@@ -34,9 +33,9 @@ def quality_report(input_pattern: str, bblfsh: str, language: str, n_files: int,
         return
     X, y, vnodes_y, vnodes = res
 
-    y_pred, _ = rules.predict(X, vnodes_y, vnodes, language)
+    y_pred, _ = rules.predict(X, vnodes_y, vnodes, fe)
 
-    target_names = [CLASSES[cls_ind] for cls_ind in numpy.unique(y)]
+    target_names = get_composite_class_representations(fe)
     print("Classification report:\n" + classification_report(y, y_pred, target_names=target_names))
     print("Confusion matrix:\n" + str(confusion_matrix(y, y_pred)))
 

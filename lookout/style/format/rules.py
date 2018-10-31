@@ -19,6 +19,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.tree import _tree as Tree, DecisionTreeClassifier
 
 from lookout.core.ports import Type
+from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.feature_utils import VirtualNode
 
 
@@ -112,7 +113,8 @@ class Rules:
         return prediction
 
     def predict(self, X: numpy.ndarray, vnodes_y: Sequence[VirtualNode],
-                vnodes: Sequence[VirtualNode], language: str, return_originals: bool = False
+                vnodes: Sequence[VirtualNode], feature_extractor: FeatureExtractor,
+                return_originals: bool = False
                 ) -> Union[Tuple[numpy.ndarray, numpy.ndarray, numpy.ndarray, numpy.ndarray],
                            Tuple[numpy.ndarray, numpy.ndarray]]:
         """
@@ -121,7 +123,7 @@ class Rules:
         :param X: Input features.
         :param vnodes_y: Sequence of the labeled `VirtualNode`-s corresponding to labeled samples.
         :param vnodes: Sequence of all the `VirtualNode`-s corresponding to the input.
-        :param language: Language of the predicted samples.
+        :param feature_extractor: FeatureExtractor used to extract features.
         :param return_originals: Whether to return the basic predictions (Rules.apply()) in \
                                  addition to the post-processed ones.
         :return: The predictions, the winning rules and optionally the basic predictions from \
@@ -130,11 +132,12 @@ class Rules:
         y_pred, winners = self.apply(X, True)
         try:
             postprocess = import_module(
-                "lookout.style.format.langs.%s.postprocessor" % language).postprocess
+                "lookout.style.format.langs.%s.postprocessor" % feature_extractor.language) \
+                .postprocess
         except ImportError:
             return y_pred, winners
         postprocessed_y, postprocessed_winners = postprocess(X, y_pred, vnodes_y, vnodes, winners,
-                                                             self)
+                                                             self, feature_extractor)
         if return_originals:
             return postprocessed_y, postprocessed_winners, y_pred, winners
         return postprocessed_y, postprocessed_winners
