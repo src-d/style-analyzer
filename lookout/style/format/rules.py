@@ -126,7 +126,7 @@ class Rules:
         :param X: Input features.
         :param vnodes_y: Sequence of the labeled `VirtualNode`-s corresponding to labeled samples.
         :param vnodes: Sequence of all the `VirtualNode`-s corresponding to the input.
-        :param language: Language of the predicted samples.
+        :param feature_extractor: FeatureExtractor used to extract features.
         :param return_originals: Whether to return the basic predictions (Rules.apply()) in \
                                  addition to the post-processed ones.
         :return: The predictions, the winning rules and optionally the basic predictions from \
@@ -135,15 +135,15 @@ class Rules:
         y_pred, winners = self.apply(X, True)
         try:
             postprocess = import_module(
-                "lookout.style.format.langs.%s.postprocessor"
-                % feature_extractor.language).postprocess
+                "lookout.style.format.langs.%s.postprocessor" % feature_extractor.language) \
+                .postprocess
             filter_uast_breaking_preds = import_module(
                 "lookout.style.format.postprocess").filter_uast_breaking_preds
         except ImportError:
             return y_pred, winners
-        postprocessed_y_pred, postprocessed_winners = postprocess(X, y_pred, vnodes_y, vnodes,
-                                                                  winners, self)
-        postprocessed_y = filter_uast_breaking_preds(y, postprocessed_y_pred, vnodes_y, files,
+        postprocessed_y, postprocessed_winners = postprocess(X, y_pred, vnodes_y, vnodes,
+                                                             winners, self, feature_extractor)
+        postprocessed_y = filter_uast_breaking_preds(y, postprocessed_y vnodes_y, files,
                                                      feature_extractor, client)
         if return_originals:
             return postprocessed_y, postprocessed_winners, y_pred, winners

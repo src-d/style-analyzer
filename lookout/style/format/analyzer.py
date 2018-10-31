@@ -119,14 +119,14 @@ class FormatAnalyzer(Analyzer):
                         if self.config["report_code_lines"]:
                             code_text = get_code_chunk(lang, code_lines, code_line_number)
                         vnodes_comments = [
-                            "%s\n%s" % (get_error_description(vnode, y_predi),
+                            "%s\n%s" % (get_error_description(vnode, y_predi, fe),
                                         rule_to_comment(rules.rules[winner], fe, winner))
                             for yi, y_predi, vnode, winner in line_nodes if yi != y_predi]
                         text = "format: style mismatch:\n%s%s\n" % (
                             code_text, "\n\n".join(vnodes_comments))
                     else:
                         vnodes_comments = [
-                            get_error_description(vnode, y_predi)
+                            get_error_description(vnode, y_predi, fe)
                             for yi, y_predi, vnode, winner in line_nodes if yi != y_predi]
                         text = "format: style mismatch:\n%s\n" % ("\n\n".join(vnodes_comments))
 
@@ -194,6 +194,7 @@ class FormatAnalyzer(Analyzer):
             X, y, _, _ = fe.extract_features(sorted(files, key=lambda x: x.path))
             X, selected_features = fe.select_features(X, y)
             lang_config["feature_extractor"]["selected_features"] = selected_features
+            lang_config["feature_extractor"]["composite_to_labels"] = fe.composite_to_labels
             lower_bound_instances = lang_config["lower_bound_instances"]
             if X.shape[0] < lower_bound_instances:
                 cls.log.warning("skipped %d %s files: too few samples (%d/%d)",

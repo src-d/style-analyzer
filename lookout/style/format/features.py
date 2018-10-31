@@ -1,7 +1,8 @@
 """Features definition."""
 from enum import Enum, unique
 import importlib
-from typing import Callable, Iterable, List, Mapping, MutableMapping, Union  # noqa: F401
+from typing import (Callable, Iterable, List, Mapping, MutableMapping, Sequence,  # noqa: F401
+                    Tuple, Union)
 
 import bblfsh
 
@@ -98,11 +99,14 @@ class TokensMixin:
 _feature_classes = {}  # type: MutableMapping[str, Type[Feature]]
 
 
-def get_features(language: str) -> Mapping[str, Feature]:
+def get_features(language: str, composite_to_labels: Sequence[Tuple[int, ...]]
+                 ) -> Mapping[str, Feature]:
     """Return the available features for a language."""
     def instantiate(cls: Type[Feature]) -> Feature:
         if issubclass(cls, TokensMixin) or issubclass(cls, RolesMixin):
             return cls(language)
+        if issubclass(cls, _FeatureLabel):
+            return cls(composite_to_labels)
         else:
             return cls()
 
@@ -217,18 +221,20 @@ class _FeatureInternalType(CategoricalFeature, RolesMixin):
 
 
 @register_feature
-class _FeatureLabel(CategoricalFeature):
+class _FeatureLabel(BagFeature):
 
     id = FeatureId.label
 
-    def __init__(self) -> None:
+    def __init__(self, composite_to_labels: Sequence[Tuple[int, ...]]) -> None:
+        self._composite_to_labels = composite_to_labels
         self._names = CLASSES
 
     def __call__(self, sibling: Union[VirtualNode, bblfsh.Node], node: VirtualNode
                  ) -> Iterable[int]:
         label_indices = [0] * len(self._names)
         if sibling.y is not None:
-            label_indices[sibling.y] = 1
+            for label in sibling.y:
+                label_indices[label] += 1
         yield from label_indices
 
 
