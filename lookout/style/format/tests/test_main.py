@@ -9,7 +9,6 @@ class MainTests(unittest.TestCase):
     def test_handlers(self):
         action2handler = {
             "eval": "quality_report",
-            "vis": "visualize",
             "rule": "print_rules_report",
             "robust-eval": "style_robustness_report",
             "pr-curve": "plot_pr_curve",

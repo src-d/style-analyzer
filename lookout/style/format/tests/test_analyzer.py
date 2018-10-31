@@ -8,7 +8,6 @@ from typing import Dict, Iterable, NamedTuple, Optional
 import unittest
 
 import bblfsh
-from bblfsh.client import BblfshClient
 
 from lookout.core.analyzer import ReferencePointer
 from lookout.core.api.service_data_pb2 import File
@@ -89,8 +88,7 @@ class AnalyzerTests(unittest.TestCase):
         config = {"global": {"n_iter": 1}}
         model = FormatAnalyzer.train(self.ptr, config, datastub)
         analyzer = FormatAnalyzer(model, self.ptr.url, {})
-        client = BblfshClient("0.0.0.0:9432")
-        comments = analyzer.analyze(self.ptr, self.ptr, datastub, client)
+        comments = analyzer.analyze(self.ptr, self.ptr, datastub)
         self.assertGreater(len(comments), 0)
 
     def test_file_filtering(self):

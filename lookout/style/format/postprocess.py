@@ -1,17 +1,24 @@
-"""Prediction post processing module."""
+"""Postprocess predictions of the model."""
 from typing import Mapping, Sequence
 
-from bblfsh.client import BblfshClient
 import bblfsh
+from bblfsh.client import BblfshClient
 import numpy
 
 from lookout.core.api.service_data_pb2 import File
 from lookout.style.format.feature_extractor import FeatureExtractor
-from lookout.style.format.feature_utils import (
-    CLS_SINGLE_QUOTE, CLS_DOUBLE_QUOTE, INDEX_CLS_TO_STR, VirtualNode)
+from lookout.style.format.feature_utils import CLS_DOUBLE_QUOTE, CLS_SINGLE_QUOTE, \
+    INDEX_CLS_TO_STR, VirtualNode
 
 
 def check_uasts_are_equal(uast1: bblfsh.Node, uast2: bblfsh.Node) -> bool:
+    """
+    Check if 2 UASTs are identical or not in terms of nodes `roles`, `internal_type` and `token`.
+
+    :param uast1: The bblfsh.Node of the first UAST to compare.
+    :param uast2: The bblfsh.Node of the second UAST to compare.
+    :return: A boolean equals to True if the 2 input UASTs are identical and False otherwise.
+    """
     queue1 = [uast1]
     queue2 = [uast2]
     while queue1 or queue2:
@@ -32,6 +39,17 @@ def filter_uast_breaking_preds(y: numpy.ndarray, y_pred: numpy.ndarray,
                                vnodes_y: Sequence[VirtualNode], files: Mapping[str, File],
                                feature_extractor: FeatureExtractor, client: BblfshClient
                                ) -> numpy.ndarray:
+    """
+    Filter and drop the model's predictions that modify the UAST apart from positioning.
+
+    :param y: Numpy 1-dimensional array of labels.
+    :param y_pred: Numpy 1-dimensional array of predicted labels by the model.
+    :param vnodes_y: Sequence of the labeled `VirtualNode`-s corresponding to labeled samples.
+    :param files: Dictionary of File-s with content, uast and path.
+    :param feature_extractor: FeatureExtractor used to extract features.
+    :param client: Babelfish client.
+    :return: Numpy 1-dimensional array of predictions that do not modify the uast.
+    """
     for i, (gt, pred, vn_y) in enumerate(zip(y, y_pred, vnodes_y)):
         if gt != pred:
             content_before = files[vn_y.path].content

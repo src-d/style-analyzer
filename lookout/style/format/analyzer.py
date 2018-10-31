@@ -48,7 +48,7 @@ class FormatAnalyzer(Analyzer):
 
     @with_changed_uasts_and_contents
     def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
-                data_request_stub: DataStub, client: BblfshClient, **data) -> List[Comment]:
+                data_request_stub: DataStub, **data) -> List[Comment]:
         """
         Analyze a set of changes from one revision to another.
 
@@ -108,7 +108,9 @@ class FormatAnalyzer(Analyzer):
                     log.warning("Failed to parse %s", file.path)
                     continue
                 X, y, vnodes_y, vnodes = res
-                y_pred, rule_winners = rules.predict(X, y, vnodes_y, vnodes, {file.path: file}, fe)
+                client = BblfshClient(self.config["bblfsh_address"])
+                y_pred, rule_winners = rules.predict(X, y, vnodes_y, vnodes, {file.path: file},
+                                                     fe, client)
                 assert len(y) == len(y_pred)
 
                 code_lines = file.content.decode("utf-8", "replace").splitlines()
@@ -250,6 +252,7 @@ class FormatAnalyzer(Analyzer):
         :return: Full config.
         """
         defaults = {
+            "bblfsh_address": "0.0.0.0:9432",
             "report_code_lines": True,
             "report_triggered_rules": True,
             "report_parse_failures": True,

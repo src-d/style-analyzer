@@ -123,10 +123,13 @@ class Rules:
         """
         Predict classes given the input features and metadata.
 
-        :param X: Input features.
+        :param X: Numpy 1-dimensional array of input features.
+        :param y: Numpy 1-dimensional array of labels.
         :param vnodes_y: Sequence of the labeled `VirtualNode`-s corresponding to labeled samples.
         :param vnodes: Sequence of all the `VirtualNode`-s corresponding to the input.
+        :param files: Dictionary of File-s with content, uast and path.
         :param feature_extractor: FeatureExtractor used to extract features.
+        :param client: Babelfish client.
         :param return_originals: Whether to return the basic predictions (Rules.apply()) in \
                                  addition to the post-processed ones.
         :return: The predictions, the winning rules and optionally the basic predictions from \
@@ -141,13 +144,13 @@ class Rules:
                 "lookout.style.format.postprocess").filter_uast_breaking_preds
         except ImportError:
             return y_pred, winners
-        postprocessed_y, postprocessed_winners = postprocess(X, y_pred, vnodes_y, vnodes,
-                                                             winners, self, feature_extractor)
-        postprocessed_y = filter_uast_breaking_preds(y, postprocessed_y vnodes_y, files,
-                                                     feature_extractor, client)
+        postprocessed_y_pred, postprocessed_winners = postprocess(X, y_pred, vnodes_y, vnodes,
+                                                                  winners, self, feature_extractor)
+        postprocessed_y_pred = filter_uast_breaking_preds(y, postprocessed_y_pred, vnodes_y, files,
+                                                          feature_extractor, client)
         if return_originals:
-            return postprocessed_y, postprocessed_winners, y_pred, winners
-        return postprocessed_y, postprocessed_winners
+            return postprocessed_y_pred, postprocessed_winners, y_pred, winners
+        return postprocessed_y_pred, postprocessed_winners
 
     @property
     def rules(self) -> List[Rule]:

@@ -10,7 +10,6 @@ from lookout.style.format.benchmarks.generate_smoke import generate_smoke_entry
 from lookout.style.format.quality_report import quality_report
 from lookout.style.format.robustness import plot_pr_curve, style_robustness_report
 from lookout.style.format.rule_stat import print_rules_report
-from lookout.style.format.visualization import visualize
 
 
 def add_input_pattern_arg(my_parser: ArgumentParser):
@@ -92,14 +91,6 @@ def create_parser() -> ArgumentParser:
     eval_parser.add_argument("-n", "--n-files", default=0, type=int,
                              help="How many files with most mispredictions to show. "
                                   "If n <= 0 show all.")
-
-    # Visualization
-    vis_parser = add_parser("vis", "Visualize mispredictions of the model on the given file.")
-    vis_parser.set_defaults(handler=visualize)
-    vis_parser.add_argument("-i", "--input-filename", required=True,
-                            help="Path to file to analyze.")
-    add_bblfsh_arg(vis_parser)
-    add_model_args(vis_parser)
 
     # Rules statistics
     rule_parser = add_parser("rule", "Statistics about rules.")
