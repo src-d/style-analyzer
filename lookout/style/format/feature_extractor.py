@@ -31,6 +31,24 @@ class FeatureGroup(Enum):
     left = 3
     right = 4
 
+    def format(self, value) -> str:
+        """
+        Represent the feature group for user interfaces. The trailing dot is appended as needed.
+
+        :param value: The feature group parameter. E.g., the index of the node for "left" \
+                      and "right".
+        :return: pretty-printed string, the trailing dot is appended as needed.
+        """
+        if self == FeatureGroup.node:
+            return "•••"
+        if self == FeatureGroup.parents:
+            return "^%d." % (value + 1)  # ↑ is displayed like shit in Ubuntu
+        if self == FeatureGroup.left:
+            return str(-value - 1) + "."
+        if self == FeatureGroup.right:
+            return "+%s." % (value + 1)
+        return "%s.%s." % (self.name, value)
+
 
 FeatureToIndex = MutableMapping[FeatureGroup, List[MutableMapping[str, List[int]]]]
 IndexToFeature = List[Tuple[FeatureGroup, int, str, int]]
