@@ -1,5 +1,8 @@
 app:
-  dataServiceUrl: ipv4://lookout:10301
+  requestServer: ipv4://lookout:10301
+  volume:
+    pvc:
+      size: 30Gi
 
 databases:
   postgres:
