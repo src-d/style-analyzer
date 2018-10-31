@@ -1,4 +1,4 @@
-sourced-ml==0.6.0
+sourced-ml==0.6.4
 xxhash==1.2.0
 stringcase==1.2.0
 sqlalchemy==1.2.10
