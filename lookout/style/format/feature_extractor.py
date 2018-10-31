@@ -457,6 +457,9 @@ class FeatureExtractor:
                 end = vnode.end
                 value += vnode.value
                 current_labels.append(vnode.y)
+        if value or current_labels:
+            yield VirtualNode(
+                value=value, start=start, end=end, y=tuple(current_labels), path=path)
 
     def _add_noops(self, vnodes: Sequence[VirtualNode], path: str, index_labels: bool = False
                    ) -> List[VirtualNode]:
@@ -484,6 +487,7 @@ class FeatureExtractor:
             if vnode.y is None and next_vnode.y is None:
                 augmented_vnodes.append(VirtualNode(value="", start=vnode.end, end=vnode.end,
                                                     y=noop_label, path=path))
+        augmented_vnodes.append(next_vnode)
         if augmented_vnodes[-1].y is None:
             augmented_vnodes.append(VirtualNode(value="", start=vnodes[-1].end, end=vnodes[-1].end,
                                                 y=noop_label, path=path))
