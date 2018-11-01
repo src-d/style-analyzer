@@ -18,6 +18,24 @@
   overflow: visible;
   background-color: #fff;
   border: 0px;
+  counter-reset: line;
+}
+
+.Code code div {
+    counter-increment: line;
+}
+
+.Code code div:before {
+  display: inline-block;
+  width: 3em; /* Fixed width */
+  border-right: 1px solid #bbb;
+  padding: 0 .5em;
+  margin-right: .5em;
+  color: #888;
+  text-align: right;
+  background-color: #eee;
+  content: counter(line);
+  -webkit-user-select: none;
 }
 
 .Visualization input[type="number"] {
