@@ -216,9 +216,10 @@ class FeatureExtractor:
 
     def extract_features(self, files: Iterable[File], lines: List[List[int]]=None
                          ) -> Optional[Union[
-                             Tuple[numpy.ndarray, numpy.ndarray, List[VirtualNode]],
-                             Tuple[numpy.ndarray, numpy.ndarray, List[VirtualNode],
-                                   List[List[int]]]]]:
+                             Tuple[numpy.ndarray, numpy.ndarray,
+                                   List[VirtualNode], List[VirtualNode]],
+                             Tuple[numpy.ndarray, numpy.ndarray,
+                                   List[VirtualNode], List[VirtualNode], List[List[int]]]]]:
         """
         Compute features and labels required by downstream models given a list of `File`-s.
 
