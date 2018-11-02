@@ -295,5 +295,10 @@ class FormatAnalyzer(Analyzer):
         }
         config = merge_dicts(defaults, config)
         global_config = config.pop("global")
-        return {lang: merge_dicts(global_config, lang_config)
-                for lang, lang_config in config.items()}
+        try:
+            return {lang: merge_dicts(global_config, lang_config)
+                    for lang, lang_config in config.items()}
+        except AttributeError as e:
+            raise ValueError("Config %s can not be merged with default values config: %s" % (
+                config, global_config
+            ))
