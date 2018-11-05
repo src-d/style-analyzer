@@ -4,24 +4,28 @@
   "private": true,
   "dependencies": {
     "bootstrap": "^3.3.7",
-    "lodash.range": "^3.2.0",
-    "lodash.zip": "^4.2.0",
+    "lodash-es": "^4.17.11",
     "memoize-one": "^4.0.2",
-    "react": "^16.5.2",
+    "react": "^16.7.0-alpha.0",
     "react-bootstrap": "^0.32.4",
-    "react-dom": "^16.5.2",
+    "react-dom": "^16.7.0-alpha.0",
     "react-json-inspector": "^7.1.1",
-    "react-scripts": "1.1.5",
-    "serve": "^10.0.2"
+    "react-scripts-ts": "3.1.0"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test --env=jsdom",
-    "eject": "react-scripts eject",
-    "serve": "serve -s build -p 3000"
+    "start": "react-scripts-ts start",
+    "build": "react-scripts-ts build",
+    "test": "react-scripts-ts test --env=jsdom",
+    "eject": "react-scripts-ts eject"
   },
   "devDependencies": {
-    "prettier": "1.14.3"
+    "@types/jest": "^23.3.9",
+    "@types/lodash-es": "^4.17.1",
+    "@types/memoize-one": "^3.1.1",
+    "@types/node": "^10.12.1",
+    "@types/react": "^16.4.18",
+    "@types/react-bootstrap": "^0.32.14",
+    "@types/react-dom": "^16.0.9",
+    "typescript": "^3.1.5"
   }
 }
