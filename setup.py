@@ -29,7 +29,7 @@ setup(
     keywords=["machine learning on source code", "babelfish"],
     install_requires=[
         "bblfsh!=2.12.2",
-        "sourced-ml>=0.6.0,<0.7",
+        "sourced-ml>=0.6.4,<0.7",
         "xxhash>=0.5.0,<2.0",
         "stringcase>=1.2.0,<2.0",
         "sqlalchemy>=1.0.0,<2.0",

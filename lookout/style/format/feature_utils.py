@@ -45,7 +45,9 @@ class VirtualNode:
     def __repr__(self) -> str:
         return ("VirtualNode(\"%s\", y=%s, start=%s, end=%s, node=%s, path=\"%s\")" % (
                     self.value.replace("\n", "\\n"),
-                    "None" if self.y is None else self.y,
+                    "None" if self.y is None else
+                    CLASS_REPRESENTATIONS[self.y] if isinstance(self.y, int) else
+                    "".join(CLASS_REPRESENTATIONS[yi] for yi in self.y),
                     tuple(self.start),
                     tuple(self.end),
                     id(self.node) if self.node is not None else "None",
@@ -120,6 +122,8 @@ class VirtualNode:
                               path=path)
 
 
+# TODO(zurk): refactor CLS related code into one class. Related issue:
+# https://github.com/src-d/style-analyzer/issues/286
 CLS_SPACE = "<space>"
 CLS_TAB = "<tab>"
 CLS_NEWLINE = "<newline>"
@@ -147,3 +151,20 @@ CLS_TO_STR = {
     CLS_TAB_DEC: "",
     CLS_TAB_INC: "\t",
 }
+_CLASS_REPRESENTATIONS_MAPPING = {
+    CLS_DOUBLE_QUOTE: '"',
+    CLS_NEWLINE: "⏎",
+    CLS_NOOP: "∅",
+    CLS_SINGLE_QUOTE: "'",
+    CLS_SPACE: "␣",
+    CLS_SPACE_DEC: "␣⁻",
+    CLS_SPACE_INC: "␣⁺",
+    CLS_TAB: "⇥",
+    CLS_TAB_DEC: "⇥⁻",
+    CLS_TAB_INC: "⇥⁺",
+}
+CLASS_REPRESENTATIONS = [_CLASS_REPRESENTATIONS_MAPPING[cls] for cls in CLASSES]
+del _CLASS_REPRESENTATIONS_MAPPING
+
+CLASS_PRINTABLES = CLASS_REPRESENTATIONS[:]
+CLASS_PRINTABLES[CLASS_INDEX[CLS_NEWLINE]] += "\n"

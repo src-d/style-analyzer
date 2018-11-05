@@ -1,6 +1,5 @@
 """Features and rules description utils."""
 from collections import defaultdict
-from copy import copy
 from functools import singledispatch
 from math import ceil, floor
 from typing import List, Optional, Sequence, Tuple
@@ -8,29 +7,11 @@ from typing import List, Optional, Sequence, Tuple
 from numpy import flatnonzero, floating, ndarray
 
 from lookout.style.format.feature_extractor import FeatureExtractor, FEATURES_MAX, FEATURES_MIN
-from lookout.style.format.feature_utils import CLASS_INDEX, CLASSES, CLS_DOUBLE_QUOTE, \
-    CLS_NEWLINE, CLS_NOOP, CLS_SINGLE_QUOTE, CLS_SPACE, CLS_SPACE_DEC, CLS_SPACE_INC, CLS_TAB, \
-    CLS_TAB_DEC, CLS_TAB_INC, VirtualNode
+from lookout.style.format.feature_utils import (
+    CLASS_INDEX, CLASS_PRINTABLES, CLASS_REPRESENTATIONS, CLS_NOOP)
+from lookout.style.format.feature_utils import VirtualNode
 from lookout.style.format.features import BagFeature, CategoricalFeature, OrdinalFeature
 from lookout.style.format.rules import Rule
-
-_CLASS_REPRESENTATIONS_MAPPING = {
-    CLS_DOUBLE_QUOTE: '"',
-    CLS_NEWLINE: "⏎",
-    CLS_NOOP: "∅",
-    CLS_SINGLE_QUOTE: "'",
-    CLS_SPACE: "␣",
-    CLS_SPACE_DEC: "␣⁻",
-    CLS_SPACE_INC: "␣⁺",
-    CLS_TAB: "⇥",
-    CLS_TAB_DEC: "⇥⁻",
-    CLS_TAB_INC: "⇥⁺",
-}
-CLASS_REPRESENTATIONS = [_CLASS_REPRESENTATIONS_MAPPING[cls] for cls in CLASSES]
-del _CLASS_REPRESENTATIONS_MAPPING
-
-CLASS_PRINTABLES = copy(CLASS_REPRESENTATIONS)
-CLASS_PRINTABLES[CLASS_INDEX[CLS_NEWLINE]] += "\n"
 
 
 def get_composite_class_representations(feature_extractor: FeatureExtractor) -> List[str]:

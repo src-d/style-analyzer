@@ -1,11 +1,14 @@
 FROM ubuntu:18.04
 
+COPY requirements.txt style-analyzer/requirements.txt
+
 RUN apt-get update && \
     apt-get install -y --no-install-suggests --no-install-recommends ca-certificates locales \
-      libxml2 libxml2-dev libsnappy1v5 libsnappy-dev gcc g++ wget \
+      libgomp1 libxml2 libxml2-dev libsnappy1v5 libsnappy-dev gcc g++ wget \
       python3 python3-dev python3-distutils && \
     wget -O - https://bootstrap.pypa.io/get-pip.py | python3 && \
-    pip3 install --no-cache-dir sourced-ml && \
+    cd style-analyzer && \
+    pip3 install --no-cache-dir -r requirements.txt && \
     pip3 uninstall -y pyspark && \
     apt-get remove -y python3-dev libxml2-dev libsnappy-dev gcc g++ wget && \
     apt-get remove -y .*-doc .*-man >/dev/null && \
@@ -26,7 +29,6 @@ ENV BROWSER=/browser \
 
 COPY . style-analyzer
 RUN cd style-analyzer && \
-    pip3 install -r requirements.txt && \
     pip3 install -e . && \
     rm -rf /usr/local/lib/python3.6/dist-packages/pyspark/
 ENTRYPOINT ["analyzer"]
