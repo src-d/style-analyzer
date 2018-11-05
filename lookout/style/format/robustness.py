@@ -342,7 +342,7 @@ def plot_pr_curve(true_repo: str, noisy_repo: str, bblfsh: str, language: str,
         recalls.append(round(recall, 3))
         log.debug("precision: %.3f", precision)
         log.debug("recall: %.3f", recall)
-        log.debug("F1 score: %.3f", f1_score, 3)
+        log.debug("F1 score: %.3f", f1_score)
 
     print("recall x:", recalls)
     print("precision y:", precisions)
