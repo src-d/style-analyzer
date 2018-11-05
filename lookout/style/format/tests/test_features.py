@@ -142,7 +142,8 @@ class FeaturesTests(unittest.TestCase):
     def test_noop_vnodes(self):
         vnodes, parents = self.extractor_noops._parse_file(self.contents, self.uast, "test_file")
         vnodes = self.extractor_noops._classify_vnodes(vnodes, "test_file")
-        vnodes = self.extractor_noops._pack_sequences(vnodes, "test_file", index_labels=True)
+        vnodes = self.extractor_noops._merge_classes_to_composite_labels(
+            vnodes, "test_file", index_labels=True)
         vnodes = self.extractor_noops._add_noops(list(vnodes), "test_file", index_labels=True)
         for vnode1, vnode2, vnode3 in zip(vnodes,
                                           islice(vnodes, 1, None),
