@@ -1,8 +1,7 @@
 """Facilities to create and use features."""
-from typing import Callable, Iterable, Mapping, NamedTuple, Tuple
+from typing import Callable, Iterable, Mapping, NamedTuple, Tuple, Union
 
 import bblfsh
-
 
 Position = NamedTuple("Position", (("offset", int), ("line", int), ("col", int)))
 """
@@ -14,7 +13,8 @@ class VirtualNode:
     """Represent either a real UAST node or an imaginary token."""
 
     def __init__(self, value: str, start: Position, end: Position,
-                 *, node: bblfsh.Node = None, y: Tuple[int] = None, path: str = None) -> None:
+                 *, node: bblfsh.Node = None, y: Union[int, Tuple[int]] = None,
+                 path: str = None) -> None:
         """
         Construct a VirtualNode.
 
@@ -22,7 +22,10 @@ class VirtualNode:
         :param start: Starting position of the token (0-based).
         :param end: Ending position of the token (0-based).
         :param node: Corresponding UAST node (if exists).
-        :param y: The sequence of labels of the node.
+        :param y: The label of the node. It can be either a predicted token class from CLASSES \
+                  or a composite sequence of such classes. It is guaranteed that the final type \
+                  is Tuple[int]; the plain integer is an intermediate "unmerged" value which \
+                  is replaced during the class composition.
         :param path: Path to related file. Useful for debugging.
         """
         self.value = value

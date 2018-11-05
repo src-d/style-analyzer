@@ -16,7 +16,6 @@ from lookout.style.format.model import FormatModel
 from lookout.style.format.quality_report import prepare_files
 from lookout.style.format.rules import Rules
 
-
 Misprediction = NamedTuple("Misprediction", [("y", numpy.ndarray), ("pred", numpy.ndarray),
                                              ("node", List[VirtualNode]), ("rule", numpy.ndarray)])
 
@@ -164,8 +163,8 @@ def get_style_fixes(mispreds: Mapping[str, Misprediction], vnodes: Iterable[Virt
             continue
         for vn in vnodes:
             if vn.path == true_file and vn.start.offset == mispred.node.start.offset:
-                print(feature_extractor.composite_to_labels[mispred.pred], vn.y)
-                if feature_extractor.composite_to_labels[mispred.pred] == vn.y:
+                print(feature_extractor.labels_to_class_sequences[mispred.pred], vn.y)
+                if feature_extractor.labels_to_class_sequences[mispred.pred] == vn.y:
                     style_fixes.append(mispred)
                 break
     return style_fixes

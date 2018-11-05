@@ -41,7 +41,7 @@ def get_composite_class_representations(feature_extractor: FeatureExtractor) -> 
     :return: Strings representing the composite classes.
     """
     return ["".join(CLASS_REPRESENTATIONS[label] for label in labels)
-            for labels in feature_extractor.composite_to_labels]
+            for labels in feature_extractor.labels_to_class_sequences]
 
 
 def get_composite_class_printables(feature_extractor: FeatureExtractor) -> List[str]:
@@ -52,7 +52,7 @@ def get_composite_class_printables(feature_extractor: FeatureExtractor) -> List[
     :return: Strings that can be printed to represent the composite classes.
     """
     return ["".join(CLASS_PRINTABLES[label] for label in labels)
-            for labels in feature_extractor.composite_to_labels]
+            for labels in feature_extractor.labels_to_class_sequences]
 
 
 def describe_rules(rules: List[Rule], feature_extractor: FeatureExtractor) -> List[str]:
@@ -90,7 +90,7 @@ def describe_rule(rule: Rule, feature_extractor: FeatureExtractor) -> str:
     return "  %s\n\t⇒ y = %s\n\tConfidence: %.3f. Support: %d." % (
         "\n\t∧ ".join(descriptions),
         "".join(CLASS_REPRESENTATIONS[c]
-                for c in feature_extractor.composite_to_labels[rule.stats.cls]),
+                for c in feature_extractor.labels_to_class_sequences[rule.stats.cls]),
         rule.stats.conf,
         rule.stats.support)
 
@@ -240,8 +240,8 @@ def get_error_description(vnode: VirtualNode, y_pred: int, feature_extractor: Fe
     """
     column = vnode.start.col
     class_representations = get_composite_class_representations(feature_extractor)
-    y = feature_extractor.labels_to_composite[vnode.y]
-    labels_pred = feature_extractor.composite_to_labels[y_pred]
+    y = feature_extractor.class_sequences_to_labels[vnode.y]
+    labels_pred = feature_extractor.labels_to_class_sequences[y_pred]
     if labels_pred[0] == CLASS_INDEX[CLS_NOOP]:
         return "%s at column %d should be removed." % (class_representations[y], column)
     if vnode.y[0] == CLASS_INDEX[CLS_NOOP]:

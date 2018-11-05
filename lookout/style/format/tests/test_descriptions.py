@@ -44,7 +44,7 @@ class DescriptionsTests(unittest.TestCase):
                                   **config["javascript"]["feature_extractor"])
         cls.fe.extract_features(files)
         cls.class_representations = get_composite_class_representations(cls.fe)
-        cls.n_classes = len(cls.fe.composite_to_labels)
+        cls.n_classes = len(cls.fe.labels_to_class_sequences)
         cls.ordinal = cls.return_node_feature("start_line")
         cls.categorical = cls.return_node_feature("reserved")
         cls.bag = cls.return_node_feature("roles")

@@ -17,8 +17,8 @@ class RuleStat:
 
     def __init__(self, feature_extractor: FeatureExtractor) -> None:
         """Construct a RuleStat."""
-        self.gt_classes = [0 for _ in feature_extractor.composite_to_labels]
-        self.pred_classes = [0 for _ in feature_extractor.composite_to_labels]
+        self.gt_classes = [0 for _ in feature_extractor.labels_to_class_sequences]
+        self.pred_classes = [0 for _ in feature_extractor.labels_to_class_sequences]
 
 
 def print_rule_table(rule_stat: Iterable[RuleStat], feature_extractor: FeatureExtractor) -> None:
