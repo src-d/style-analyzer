@@ -10,7 +10,11 @@ Position = NamedTuple("Position", (("offset", int), ("line", int), ("col", int))
 
 
 class VirtualNode:
-    """Represent either a real UAST node or an imaginary token."""
+    """
+    Represent either a real UAST node or an imaginary token.
+
+    The class instance should be considered as read-only.
+    """
 
     def __init__(self, value: str, start: Position, end: Position,
                  *, node: bblfsh.Node = None, y: Union[int, Tuple[int]] = None,
@@ -38,6 +42,18 @@ class VirtualNode:
         self.node = node
         self.y = y
         self.path = path
+        self.is_accumulated_indentation = self._is_accumulated_indentation()
+
+    def _is_accumulated_indentation(self) -> bool:
+        """
+        Check if node represents virtual node with accumulated indentation.
+
+        :return: True if the node represents accumulated indentation else False.
+        """
+        for v in self.value:
+            if v not in INTENDATION_INC_STRS:
+                return False
+        return self.y is None and self.node is None
 
     def __str__(self) -> str:
         return self.value
@@ -151,6 +167,7 @@ CLS_TO_STR = {
     CLS_TAB_DEC: "",
     CLS_TAB_INC: "\t",
 }
+INTENDATION_INC_STRS = {CLS_TO_STR[CLS_SPACE_INC], CLS_TO_STR[CLS_TAB_INC]}
 _CLASS_REPRESENTATIONS_MAPPING = {
     CLS_DOUBLE_QUOTE: '"',
     CLS_NEWLINE: "⏎",

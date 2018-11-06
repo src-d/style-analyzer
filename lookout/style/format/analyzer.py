@@ -18,8 +18,6 @@ from lookout.core.lib import files_by_language, filter_files, find_deleted_lines
 from lookout.style.format.descriptions import get_code_chunk, get_error_description, \
     rule_to_comment
 from lookout.style.format.feature_extractor import FeatureExtractor
-from lookout.style.format.feature_utils import (
-    CLASS_INDEX, CLASSES, CLS_SPACE_DEC, CLS_SPACE_INC, CLS_TAB_DEC, CLS_TAB_INC, CLS_TO_STR)
 from lookout.style.format.model import FormatModel
 from lookout.style.format.rules import TrainableRules
 from lookout.style.format.utils import merge_dicts
@@ -85,6 +83,7 @@ class FormatAnalyzer(Analyzer):
                 continue
             rules = self.model[lang]
             for file in filter_files(head_files, rules.origin_config["line_length_limit"], log):
+                log.debug("Analyze %s file", file.path)
                 try:
                     prev_file = base_files_by_lang[lang][file.path]
                 except KeyError:
@@ -143,21 +142,6 @@ class FormatAnalyzer(Analyzer):
                     comment.confidence = int(round(confidence * 100 / confidence_count))
                     comments.append(comment)
         return comments
-
-    @staticmethod
-    def generate_file(vnodes_y, y_pred, vnodes) -> List[str]:
-        """
-        TODO (zurk).
-        """
-        indentations = {CLASS_INDEX[x] for x in
-                        [CLS_SPACE_INC, CLS_TAB_INC, CLS_SPACE_DEC, CLS_TAB_DEC]}
-        for vnode, y_ in zip(vnodes_y, y_pred):
-            if vnode.y != y_:
-                if vnode.y in indentations or y_ in indentations:
-                    raise NotImplementedError()
-                vnode.y = y_
-                vnode.value = CLS_TO_STR[CLASSES[y_]]
-        return "".join(vnode.value for vnode in vnodes).splitlines()
 
     @classmethod
     @with_uasts_and_contents
