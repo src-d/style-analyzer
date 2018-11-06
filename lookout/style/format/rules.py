@@ -116,7 +116,7 @@ class Rules:
 
     def predict(self, X: numpy.ndarray, y: numpy.ndarray, vnodes_y: Sequence[VirtualNode],
                 vnodes: Sequence[VirtualNode], files: Mapping[str, File],
-                feature_extractor: FeatureExtractor, client: BblfshClient,
+                feature_extractor: FeatureExtractor, client: BblfshClient, vnodes_trace, parents,
                 return_originals: bool = False
                 ) -> Union[Tuple[numpy.ndarray, numpy.ndarray, numpy.ndarray, numpy.ndarray],
                            Tuple[numpy.ndarray, numpy.ndarray]]:
@@ -146,8 +146,8 @@ class Rules:
             return y_pred, winners
         postprocessed_y_pred, postprocessed_winners = postprocess(X, y_pred, vnodes_y, vnodes,
                                                                   winners, self, feature_extractor)
-        postprocessed_y_pred = filter_uast_breaking_preds(y, postprocessed_y_pred, vnodes_y, files,
-                                                          feature_extractor, client)
+        postprocessed_y_pred = filter_uast_breaking_preds(y, postprocessed_y_pred, vnodes_y, vnodes, files,
+                                                          feature_extractor, client, vnodes_trace, parents)
         if return_originals:
             return postprocessed_y_pred, postprocessed_winners, y_pred, winners
         return postprocessed_y_pred, postprocessed_winners

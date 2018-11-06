@@ -41,6 +41,16 @@ class FeaturesTests(unittest.TestCase):
         nodes, parents = self.extractor._parse_file(code, uast, test_js_code_filepath)
         self.assertEqual("".join(n.value for n in nodes), code)
 
+    def test_extract_features_exact_match(self):
+        file = File(content=bytes(self.contents, "utf-8"),
+                    uast=self.uast)
+        files = [file]
+        X, y, vnodes_y, vnodes = self.extractor.extract_features(files)
+        self.assertEqual("".join(vnode.value for vnode in vnodes), self.contents)
+
+        X, y, vnodes_y, vnodes = self.extractor_noops.extract_features(files)
+        self.assertEqual("".join(vnode.value for vnode in vnodes), self.contents)
+
     def test_parse_file_comment_after_regexp(self):
         code = "x = // comment\n/<regexp>/;"
         uast = bblfsh.BblfshClient("0.0.0.0:9432").parse(
@@ -132,7 +142,8 @@ class FeaturesTests(unittest.TestCase):
     def test_noop_vnodes(self):
         vnodes, parents = self.extractor_noops._parse_file(self.contents, self.uast, "test_file")
         vnodes = self.extractor_noops._classify_vnodes(vnodes, "test_file")
-        vnodes = self.extractor_noops._pack_sequences(vnodes, "test_file", index_labels=True)
+        vnodes = self.extractor_noops._merge_classes_to_composite_labels(
+            vnodes, "test_file", index_labels=True)
         vnodes = self.extractor_noops._add_noops(list(vnodes), "test_file", index_labels=True)
         for vnode1, vnode2, vnode3 in zip(vnodes,
                                           islice(vnodes, 1, None),

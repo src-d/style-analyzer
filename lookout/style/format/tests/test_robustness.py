@@ -30,8 +30,7 @@ class RobustnessTests(unittest.TestCase):
 
         cls.model_path = str(Path(__file__).parent.resolve() / "model_jquery5.asdf")
 
-    @unittest.skipIf(sys.version_info.minor == 5, "Python 3.5 is not yet supported"
-                                                  " by difflib")
+    @unittest.skipIf(sys.version_info.minor == 5, "Python 3.5 is not yet supported by difflib")
     @unittest.skip("To fix")
     def test_style_robustness_report(self):
         with Capturing() as output:
@@ -51,19 +50,21 @@ class RobustnessTests(unittest.TestCase):
         self.assertGreater(metrics["recall"], 0)
         self.assertGreater(metrics["precision"], 0)
 
-    @unittest.skipIf(sys.version_info.minor == 5, "Python 3.5 is not yet supported"
-                                                  " by difflib")
+    @unittest.skipIf(sys.version_info.minor == 5, "Python 3.5 is not yet supported by difflib")
     @unittest.skip("To fix")
     def test_plot_pr_curve(self):
         with tempfile.NamedTemporaryFile(prefix="output-figure", suffix=".png") as tmpf:
             with Capturing() as output:
-                plot_pr_curve(true_repo=self.input_pattern,
-                              noisy_repo=self.input_pattern_noisy,
-                              bblfsh=self.bblfsh,
-                              language=self.language,
-                              model_path=self.model_path,
-                              support_threshold=0,
-                              output=tmpf.name)
+                try:
+                    plot_pr_curve(true_repo=self.input_pattern,
+                                  noisy_repo=self.input_pattern_noisy,
+                                  bblfsh=self.bblfsh,
+                                  language=self.language,
+                                  model_path=self.model_path,
+                                  support_threshold=0,
+                                  output=tmpf.name)
+                except SystemExit:
+                    self.skipTest("Matplotlib is required to run this test")
             pattern = re.compile(r"((?:recall x)|(?:precision y)): \[(\d+.\d+(, \d+.\d+)+)\]")
             metrics = {}
             for line in output:

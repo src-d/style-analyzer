@@ -196,7 +196,7 @@ class FormatAnalyzer(Analyzer):
             X, y, _, _ = fe.extract_features(sorted(files, key=lambda x: x.path))
             X, selected_features = fe.select_features(X, y)
             lang_config["feature_extractor"]["selected_features"] = selected_features
-            lang_config["feature_extractor"]["composite_to_labels"] = fe.composite_to_labels
+            lang_config["feature_extractor"]["label_composites"] = fe.labels_to_class_sequences
             lower_bound_instances = lang_config["lower_bound_instances"]
             if X.shape[0] < lower_bound_instances:
                 cls.log.warning("skipped %d %s files: too few samples (%d/%d)",
@@ -299,5 +299,10 @@ class FormatAnalyzer(Analyzer):
         }
         config = merge_dicts(defaults, config)
         global_config = config.pop("global")
-        return {lang: merge_dicts(global_config, lang_config)
-                for lang, lang_config in config.items()}
+        try:
+            return {lang: merge_dicts(global_config, lang_config)
+                    for lang, lang_config in config.items()}
+        except AttributeError as e:
+            raise ValueError("Config %s can not be merged with default values config: %s" % (
+                config, global_config
+            ))

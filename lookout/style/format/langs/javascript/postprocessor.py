@@ -12,11 +12,12 @@ from lookout.style.format.rules import Rule, Rules, RuleStats
 
 
 def _get_composite(feature_extractor: FeatureExtractor, labels: Tuple[int, ...]) -> int:
-    if labels in feature_extractor.labels_to_composite:
-        return feature_extractor.labels_to_composite[labels]
-    feature_extractor.labels_to_composite[labels] = len(feature_extractor.labels_to_composite)
-    feature_extractor.composite_to_labels.append(labels)
-    return len(feature_extractor.composite_to_labels) - 1
+    if labels in feature_extractor.class_sequences_to_labels:
+        return feature_extractor.class_sequences_to_labels[labels]
+    feature_extractor.class_sequences_to_labels[labels] = \
+        len(feature_extractor.class_sequences_to_labels)
+    feature_extractor.labels_to_class_sequences.append(labels)
+    return len(feature_extractor.labels_to_class_sequences) - 1
 
 
 def _get_new_rule(feature_extractor: FeatureExtractor, labels: Tuple[int, ...], rules: Rules,
@@ -69,8 +70,8 @@ def postprocess(X: numpy.ndarray, y: numpy.ndarray, vnodes_y: Sequence[VirtualNo
         y_i_3 = y_indices[id(vnode3)]
         conf_vnode1 = rules.rules[winners[y_i_1]].stats.conf
         conf_vnode3 = rules.rules[winners[y_i_3]].stats.conf
-        labels1 = feature_extractor.composite_to_labels[y[y_i_1]][:]
-        labels3 = feature_extractor.composite_to_labels[y[y_i_3]][:]
+        labels1 = feature_extractor.labels_to_class_sequences[y[y_i_1]][:]
+        labels3 = feature_extractor.labels_to_class_sequences[y[y_i_3]][:]
         if labels1[-1] not in quotes_classes or labels3[0] not in quotes_classes:
             _set_new_rule(feature_extractor, vnode1.y, rules, new_rules, processed_winners,
                           processed_y, y_i_1)

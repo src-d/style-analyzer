@@ -16,7 +16,6 @@ from lookout.style.format.model import FormatModel
 from lookout.style.format.rules import Rules
 from lookout.style.format.utils import prepare_files
 
-
 Misprediction = NamedTuple("Misprediction", [("y", numpy.ndarray), ("pred", numpy.ndarray),
                                              ("node", List[VirtualNode]), ("rule", numpy.ndarray)])
 
@@ -74,7 +73,7 @@ def files2vnodes(files: Iterable[str], feature_extractor: FeatureExtractor, clie
     :return: List of `VirtualNode`-s extracted from a given list of files.
     """
     files = prepare_files(files, client, feature_extractor.language)
-    _, _, vnodes_y, _ = feature_extractor.extract_features(files)
+    _, _, vnodes_y, _, _, _ = feature_extractor.extract_features(files)
     return vnodes_y
 
 
@@ -90,9 +89,9 @@ def files2mispreds(files: Iterable[str], feature_extractor: FeatureExtractor, ru
     :return: List of `Misprediction`-s extracted from a given list of files.
     """
     files = prepare_files(files, client, feature_extractor.language)
-    X, y, vnodes_y, vnodes = feature_extractor.extract_features(files)
+    X, y, vnodes_y, vnodes, vnodes_trace, parents = feature_extractor.extract_features(files)
     files = {f.path: f for f in files}
-    y_pred, winners = rules.predict(X, y, vnodes_y, vnodes, files, feature_extractor, client)
+    y_pred, winners = rules.predict(X, y, vnodes_y, vnodes, files, feature_extractor, client, vnodes_trace, parents)
     mispreds = get_mispreds(y, y_pred, vnodes_y, winners)
     return mispreds
 
@@ -165,8 +164,8 @@ def get_style_fixes(mispreds: Mapping[str, Misprediction], vnodes: Iterable[Virt
             continue
         for vn in vnodes:
             if vn.path == true_file and vn.start.offset == mispred.node.start.offset:
-                print(feature_extractor.composite_to_labels[mispred.pred], vn.y)
-                if feature_extractor.composite_to_labels[mispred.pred] == vn.y:
+                print(feature_extractor.labels_to_class_sequences[mispred.pred], vn.y)
+                if feature_extractor.labels_to_class_sequences[mispred.pred] == vn.y:
                     style_fixes.append(mispred)
                 break
     return style_fixes
@@ -343,7 +342,7 @@ def plot_pr_curve(true_repo: str, noisy_repo: str, bblfsh: str, language: str,
         recalls.append(round(recall, 3))
         log.debug("precision: %.3f", precision)
         log.debug("recall: %.3f", recall)
-        log.debug("F1 score: %.3f", f1_score, 3)
+        log.debug("F1 score: %.3f", f1_score)
 
     print("recall x:", recalls)
     print("precision y:", precisions)
