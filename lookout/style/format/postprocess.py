@@ -35,17 +35,6 @@ def check_uasts_are_equal(uast1: bblfsh.Node, uast2: bblfsh.Node) -> bool:
     return True
 
 
-def node2lines(uast: bblfsh.Node) -> Tuple[int]:
-    offsets = set()
-    queue = [uast]
-    while queue:
-        node = queue.pop()
-        for child in node.children:
-            offsets.update({child.START_POSITION_FIELD_NUMBER, child.END_POSITION_FIELD_NUMBER})
-        queue.extend(node.children)
-    return min(offsets), max(offsets)
-
-
 def filter_uast_breaking_preds(y: numpy.ndarray, y_pred: numpy.ndarray,
                                vnodes_y: Sequence[VirtualNode], vnodes: Sequence[VirtualNode], files: Mapping[str, File],
                                feature_extractor: FeatureExtractor, client: BblfshClient, vnodes_trace, parents
@@ -63,9 +52,7 @@ def filter_uast_breaking_preds(y: numpy.ndarray, y_pred: numpy.ndarray,
     """
     for i, (gt, pred, vn_y) in enumerate(zip(y, y_pred, vnodes_y)):
         if gt != pred:
-            import pdb;pdb.set_trace()
-            index = [vn.start for vn in vnodes].index(vn_y.start)
-            #index = vnodes.index(vn_y)
+            index = vnodes.index(vn_y)
             for vn in vnodes[:index + 1][::-1]:
                 if vn.node:
                     closest_left_node_id = id(vn.node)
@@ -75,19 +62,7 @@ def filter_uast_breaking_preds(y: numpy.ndarray, y_pred: numpy.ndarray,
             parent = feature_extractor._find_parent(index, vnodes, parents[vn_y.path], closest_left_node_id)
             if parent is None:
                 parent = files[vn_y.path].uast
-            #import pdb;pdb.set_trace() # test lintervalle doffset de parent
-            # get the right content
-            #try:
             start, end = vnodes_trace[id(vn_y)]
-            #except KeyError:
-            #    if vn_y.start == (9, 1, 10) and vn_y.path == "/home/waren/sourced/data/tmp/noisy_repos/jquery_test/src/attributes/attr.js":
-            #        print("Keyerror")
-            #        print("vn :", vn_y)
-            #        print("id(vn) :", id(vn_y))
-            #import pdb;pdb.set_trace()
-
-
-            #print("i :", i)
             content_before = files[vn_y.path].content
             if INDEX_CLS_TO_STR[pred] not in (CLS_SINGLE_QUOTE, CLS_DOUBLE_QUOTE):
                 content_after = content_before[:vn_y.start.offset] \
@@ -96,7 +71,7 @@ def filter_uast_breaking_preds(y: numpy.ndarray, y_pred: numpy.ndarray,
                 content_after = content_after[start:end+1]
             #    uast_before = files[vn_y.path].uast
                 parent_after = client.parse(filename="", contents=content_after,
-                                          language=feature_extractor.language).uast
+                                            language=feature_extractor.language).uast
                 if not check_uasts_are_equal(parent, parent_after):
                     print("X")
                     y_pred[i] = gt
