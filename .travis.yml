@@ -13,6 +13,7 @@ cache: pip
 before_cache:
   - chown -R travis:travis $HOME/.cache/pip
 stages:
+  - style
   - test
   - name: deploy
     # require any tag name to deploy
@@ -33,30 +34,33 @@ _deploy: &_deploy
     tags: true
 matrix:
   include:
-    - python: 3.5
-      env: *_coverage
-      install: *_install
-    - python: 3.6
-      env: *_coverage
-      install: *_install
-    - python: 3.7
+    - stage: style
+      python: 3.7
       env: SCRIPT="flake8 . --config .flake8-code
-                   && pylint lookout
-                   && flake8 . --config .flake8-doc
-                   && (! grep -R /tmp lookout/style/*/tests)
-                   && rm -rf lookout/core/server
-                   && cd doc && make
-                   && cd ../lookout/style/format/visualizer && npm run build"
+        && pylint lookout
+        && flake8 . --config .flake8-doc
+        && (! grep -R /tmp lookout/style/*/tests)
+        && rm -rf lookout/core/server
+        && cd doc && make
+        && cd ../lookout/style/format/visualizer && npm run build"
       install:
-        - pip install -r doc/requirements.txt -r requirements-lint.txt
-        - cd lookout/style/format/visualizer && npm install && cd -
-    - python: 3.6
-      env: SCRIPT="make docker-build && make docker-test"
-    - python: 3.7
-      env: *_coverage
-      install: *_install
-      after_success:
-        - codecov
+      - pip install -r doc/requirements.txt -r requirements-lint.txt
+      - cd lookout/style/format/visualizer && npm install && cd -
+    - stage: test
+      - python: 3.5
+        env: *_coverage
+        install: *_install
+# We test python 3.6 inside docker.
+#      - python: 3.6
+#        env: *_coverage
+#        install: *_install
+      - python: 3.6
+        env: SCRIPT="make docker-build && make docker-test"
+      - python: 3.7
+        env: *_coverage
+        install: *_install
+        after_success:
+          - codecov
     - stage: deploy
       python: 3.5
       install:
