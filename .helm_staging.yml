@@ -1,15 +1,16 @@
 app:
-  requestServer: ipv4://lookout:10301
+  requestServer: lookout:10301
+  log:
+    level: DEBUG
   volume:
-    pvc:
-      size: 30Gi
+    pvcName: lookout-style-analyzer
 
 databases:
   postgres:
     cloudSQL: true
     instanceConnectionName: srcd-public-staging:europe-west1:lookout-staging-primary
     serviceAccountSecret: cloudsql-proxy-credentials
-    connectionDetailsSecret: lookout-postgres-connection-details
+    connectionDetailsSecret: lookout-style-analyzer-postgres-connection-details
 
 nodeSelector:
   srcd.host/app: lookout
