@@ -1,5 +1,5 @@
 app:
-  requestServer: lookout:10301
+  requestServer: lookout-work:10301
   log:
     level: DEBUG
   volume:
