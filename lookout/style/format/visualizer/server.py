@@ -84,8 +84,7 @@ def return_features() -> Response:
         abort(500)
     model = FormatModel().load(str(Path(__file__).parent / "models" / "model.asdf"))
     rules = model[language]
-    file = File(path=str(Path(__file__).parent / "src" / "defaultCode.js"),
-                content=code.encode(), uast=res.uast, language="javascript")
+    file = File(content=code.encode(), uast=res.uast, language="javascript")
     config = rules.origin_config["feature_extractor"]
     config["return_sibling_indices"] = True
     fe = FeatureExtractor(language=language, **config)

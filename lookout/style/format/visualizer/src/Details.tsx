@@ -4,17 +4,17 @@ import Inspector from "react-json-inspector";
 import "./css/Details.css";
 
 export interface IProps {
-  classRepresentations: string[],
-  end: Position,
-  features: any,
-  internal_type?: string,
-  prediction: number,
-  start: Position,
-  rule: JSX.Element,
-  y: number,
+  classRepresentations: string[];
+  end: Position;
+  features: any;
+  internal_type?: string;
+  prediction: number;
+  start: Position;
+  rule: JSX.Element;
+  y: number;
 }
 
-const Details = (props: IProps) =>
+const Details = (props: IProps) => (
   <Grid fluid={true} className="Details">
     <Row>
       <Col sm={12}>
@@ -25,8 +25,7 @@ const Details = (props: IProps) =>
           </dd>
           <dt>ŷ</dt>
           <dd>
-            {props.classRepresentations[props.prediction]} (
-            {props.prediction})
+            {props.classRepresentations[props.prediction]} ({props.prediction})
           </dd>
           <dt>Rule</dt>
           <dd>{props.rule === null ? "None" : props.rule}</dd>
@@ -37,6 +36,7 @@ const Details = (props: IProps) =>
         </dl>
       </Col>
     </Row>
-  </Grid>;
+  </Grid>
+);
 
 export default Details;

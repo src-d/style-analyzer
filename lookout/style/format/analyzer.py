@@ -45,6 +45,7 @@ class FormatAnalyzer(Analyzer):
         """
         super().__init__(model, url, config)
         self.config = self._load_analyze_config(self.config)
+        self.client = BblfshClient(self.config["bblfsh_address"])
 
     @with_changed_uasts_and_contents
     def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
@@ -108,10 +109,9 @@ class FormatAnalyzer(Analyzer):
                     log.warning("Failed to parse %s", file.path)
                     continue
                 X, y, vnodes_y, vnodes, vnodes_parents, parents = res
-                client = BblfshClient(self.config["bblfsh_address"])
                 y_pred, rule_winners = rules.predict(X=X, y=y, vnodes_y=vnodes_y, vnodes=vnodes,
                                                      files={file.path: file}, feature_extractor=fe,
-                                                     client=client, vnodes_parents=vnodes_parents,
+                                                     client=self.client, vnodes_parents=vnodes_parents,
                                                      parents=parents)
                 assert len(y) == len(y_pred)
 
