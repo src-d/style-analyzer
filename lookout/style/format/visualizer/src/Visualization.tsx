@@ -9,28 +9,30 @@ import EmptyDetails from "./EmptyDetails";
 import SampleToken from "./SampleToken";
 
 export interface IState {
-  absoluteConfidence: number
-  enabledRules: number[],
-  highlighted?: number,
-  neighbours: number[],
-  relativeConfidence: number,
-  support: number,
+  absoluteConfidence: number;
+  enabledRules: number[];
+  highlighted?: number;
+  neighbours: number[];
+  relativeConfidence: number;
+  support: number;
 }
 
 export interface IProps {
-  data: Data,
-  switchHandler: () => void,
+  data: Data;
+  switchHandler: () => void;
 }
 
 class Visualization extends React.Component<IProps, IState> {
-  private computeEnabledRulesSupport = memoizeOne((support: number): boolean[] => {
-    const supports = this.props.data.supports;
-    const enabledRules = [];
-    for (let i = 0; i < this.props.data.rules.length; i++) {
-      enabledRules.push(supports[i] >= support);
+  private computeEnabledRulesSupport = memoizeOne(
+    (support: number): boolean[] => {
+      const supports = this.props.data.supports;
+      const enabledRules = [];
+      for (let i = 0; i < this.props.data.rules.length; i++) {
+        enabledRules.push(supports[i] >= support);
+      }
+      return enabledRules;
     }
-    return enabledRules;
-  });
+  );
 
   private computeEnabledRulesAbsoluteConfidence = memoizeOne(
     (absoluteConfidence: number): boolean[] => {
@@ -40,7 +42,8 @@ class Visualization extends React.Component<IProps, IState> {
         enabledRules.push(confidences[i] >= absoluteConfidence);
       }
       return enabledRules;
-    });
+    }
+  );
 
   private computeEnabledRulesRelativeConfidence = memoizeOne(
     (relativeConfidence: number): boolean[] => {
@@ -54,10 +57,15 @@ class Visualization extends React.Component<IProps, IState> {
         enabledRules[rules_by_confidence[i]] = false;
       }
       return enabledRules;
-    });
+    }
+  );
 
   private computeEnabledRules = memoizeOne(
-    (relativeConfidence: number, absoluteConfidence: number, support: number): boolean[] => {
+    (
+      relativeConfidence: number,
+      absoluteConfidence: number,
+      support: number
+    ): boolean[] => {
       const data = this.props.data;
       const enabledRulesSupport = this.computeEnabledRulesSupport(support);
       const enabledRulesAbsoluteConfidence = this.computeEnabledRulesAbsoluteConfidence(
@@ -78,23 +86,28 @@ class Visualization extends React.Component<IProps, IState> {
     }
   );
 
-  private computeNEnabledRules = memoizeOne((enabledRules: boolean[]): number =>
-    enabledRules.filter(Boolean).length);
-
-  private computeEnabled = memoizeOne((enabledRules: boolean[]): boolean[] =>
-    this.props.data.winners.map(winner => enabledRules[winner])
+  private computeNEnabledRules = memoizeOne(
+    (enabledRules: boolean[]): number => enabledRules.filter(Boolean).length
   );
 
-  private computeNEnabled = memoizeOne((enabled: boolean[]): number =>
-    enabled.filter(Boolean).length);
+  private computeEnabled = memoizeOne(
+    (enabledRules: boolean[]): boolean[] =>
+      this.props.data.winners.map(winner => enabledRules[winner])
+  );
 
-  private computeCorrects = memoizeOne((enabled: boolean[]): boolean[] => {
-    const ys = this.props.data.ground_truths;
-    const predictions = this.props.data.predictions;
-    return enabled.map(
-      (enabledi, index) => enabledi && ys[index] === predictions[index]
-    );
-  });
+  private computeNEnabled = memoizeOne(
+    (enabled: boolean[]): number => enabled.filter(Boolean).length
+  );
+
+  private computeCorrects = memoizeOne(
+    (enabled: boolean[]): boolean[] => {
+      const ys = this.props.data.ground_truths;
+      const predictions = this.props.data.predictions;
+      return enabled.map(
+        (enabledi, index) => enabledi && ys[index] === predictions[index]
+      );
+    }
+  );
 
   private computePrecision = memoizeOne(
     (enabled: boolean[], corrects: boolean[], nEnabled: number): number => {
@@ -103,7 +116,8 @@ class Visualization extends React.Component<IProps, IState> {
           .map(([enabledi, correct]) => enabledi && correct)
           .filter(Boolean).length / nEnabled
       );
-    });
+    }
+  );
 
   constructor(props: IProps) {
     super(props);
@@ -113,7 +127,7 @@ class Visualization extends React.Component<IProps, IState> {
       highlighted: undefined,
       neighbours: [],
       relativeConfidence: props.data.rules.length,
-      support: 0,
+      support: 0
     };
   }
 
@@ -146,21 +160,21 @@ class Visualization extends React.Component<IProps, IState> {
     const nEnabled = this.computeNEnabled(enabled);
     const corrects = this.computeCorrects(enabled);
     const precision = this.computePrecision(enabled, corrects, nEnabled);
-    const highlightedLabeledIndex = (highlighted === undefined
-                                     ? undefined
-                                     : labeled_indices.get(highlighted));
+    const highlightedLabeledIndex =
+      highlighted === undefined ? undefined : labeled_indices.get(highlighted);
     const tokensByLines: JSX.Element[][] = [];
     let currentLine: JSX.Element[] = [];
     vnodes.forEach((vnode, index) => {
       const labeledIndex = labeled_indices.get(index);
-      const value = (labeledIndex === undefined
-                     ? vnode.value
-                     : class_printables[ground_truths[labeledIndex]]);
+      const value =
+        labeledIndex === undefined
+          ? vnode.value
+          : class_printables[ground_truths[labeledIndex]];
       const lines = value.split(/\n|(?:\r\n)/);
       lines.forEach((line, i) => {
         currentLine.push(
-          labeledIndex !== undefined
-          ? <SampleToken
+          labeledIndex !== undefined ? (
+            <SampleToken
               key={`${index}-${i}`}
               index={index}
               highlighted={highlighted === index}
@@ -170,11 +184,14 @@ class Visualization extends React.Component<IProps, IState> {
               enabled={enabled[labeledIndex]}
               highlightCallback={this.highlight}
             />
-          : <ContextToken
+          ) : (
+            <ContextToken
               key={`${index}-${i}`}
               neighbour={neighbours.includes(index)}
               value={line}
-            />);
+            />
+          )
+        );
         if (i < lines.length - 1) {
           tokensByLines.push(currentLine);
           currentLine = [];
@@ -184,7 +201,9 @@ class Visualization extends React.Component<IProps, IState> {
     if (currentLine.length > 0) {
       tokensByLines.push(currentLine);
     }
-    const tokens = tokensByLines.map((lineTokens, index) => <div key={index}>{lineTokens}</div>);
+    const tokens = tokensByLines.map((lineTokens, index) => (
+      <div key={index}>{lineTokens}</div>
+    ));
     return (
       <Grid fluid={true} className="Visualization">
         <Row>
@@ -277,7 +296,9 @@ class Visualization extends React.Component<IProps, IState> {
                     start={vnodes[highlightedLabeledIndex].start}
                     end={vnodes[highlightedLabeledIndex].end}
                     y={ground_truths[highlightedLabeledIndex]}
-                    internal_type={vnodes[highlightedLabeledIndex].internal_type}
+                    internal_type={
+                      vnodes[highlightedLabeledIndex].internal_type
+                    }
                     rule={rule_uls[winners[highlightedLabeledIndex]]}
                     prediction={predictions[highlightedLabeledIndex]}
                     classRepresentations={class_representations}
@@ -311,7 +332,7 @@ class Visualization extends React.Component<IProps, IState> {
       return this.props.data.sibling_indices[labeledIndex];
     }
     return [];
-  }
+  };
 
   private highlight = (key: number) => {
     if (key === this.state.highlighted) {
@@ -325,28 +346,32 @@ class Visualization extends React.Component<IProps, IState> {
         neighbours: this.findSiblings(key)
       });
     }
-  }
+  };
 
-  private changeRelativeConfidence = (e: React.FormEvent<HTMLInputElement>): void => {
+  private changeRelativeConfidence = (
+    e: React.FormEvent<HTMLInputElement>
+  ): void => {
     this.setState({
       relativeConfidence: parseInt(e.currentTarget.value, 10)
     });
     e.preventDefault();
-  }
+  };
 
-  private changeAbsoluteConfidence = (e: React.FormEvent<HTMLInputElement>): void => {
+  private changeAbsoluteConfidence = (
+    e: React.FormEvent<HTMLInputElement>
+  ): void => {
     this.setState({
       absoluteConfidence: parseFloat(e.currentTarget.value)
     });
     e.preventDefault();
-  }
+  };
 
   private changeSupport = (e: React.FormEvent<HTMLInputElement>): void => {
     this.setState({
       support: parseInt(e.currentTarget.value, 10)
     });
     e.preventDefault();
-  }
+  };
 }
 
 export default Visualization;

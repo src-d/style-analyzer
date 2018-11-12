@@ -5,12 +5,12 @@ import Visualization from "./Visualization";
 import Wait from "./Wait";
 
 export interface IProps {
-  endpoint: string,
+  endpoint: string;
 }
 
 export interface IState {
-  data?: Data,
-  mode: string,
+  data?: Data;
+  mode: string;
 }
 
 class App extends React.Component<IProps, IState> {
@@ -25,9 +25,9 @@ class App extends React.Component<IProps, IState> {
   public switchToInput = (): void => {
     this.setState({
       data: undefined,
-      mode: "input",
+      mode: "input"
     });
-  }
+  };
 
   public switchToVisualization = (code: string) => {
     this.setState({
@@ -37,13 +37,13 @@ class App extends React.Component<IProps, IState> {
       body: JSON.stringify({
         babelfish_address: "0.0.0.0:9432",
         code,
-        language: "javascript",
+        language: "javascript"
       }),
       headers: {
-        "Content-Type": "application/json; charset=utf-8",
+        "Content-Type": "application/json; charset=utf-8"
       },
       method: "POST",
-      mode: "cors",
+      mode: "cors"
     })
       .then(results => {
         return results.json();
@@ -58,7 +58,10 @@ class App extends React.Component<IProps, IState> {
             labeledIndex++;
           }
         });
-        const rulesByConfidence = data.confidences.map((confidence, index) => [index, confidence]);
+        const rulesByConfidence = data.confidences.map((confidence, index) => [
+          index,
+          confidence
+        ]);
         rulesByConfidence.sort(
           ([_indexLeft, confLeft], [_indexRight, confRight]) =>
             confLeft > confRight ? 1 : confLeft < confRight ? -1 : 0
@@ -67,16 +70,23 @@ class App extends React.Component<IProps, IState> {
           ([index, _conf]) => index
         );
         data.rule_uls = data.rules.map((rule, indexRule) => {
-          const parts = rule.split("\n\t").map((part, indexPart) =>
-            <li key={indexRule * 1000 + indexPart}>{part}</li>);
-          return <ul key={indexRule} className="list-unstyled">{parts}</ul>;
+          const parts = rule
+            .split("\n\t")
+            .map((part, indexPart) => (
+              <li key={indexRule * 1000 + indexPart}>{part}</li>
+            ));
+          return (
+            <ul key={indexRule} className="list-unstyled">
+              {parts}
+            </ul>
+          );
         });
         this.setState({
           data,
-          mode: "visualization",
+          mode: "visualization"
         });
       });
-  }
+  };
 
   public render() {
     let widget;
@@ -84,7 +94,10 @@ class App extends React.Component<IProps, IState> {
       widget = <Input switchHandler={this.switchToVisualization} />;
     } else if (this.state.mode === "wait") {
       widget = <Wait />;
-    } else if (this.state.mode === "visualization" && this.state.data !== undefined){
+    } else if (
+      this.state.mode === "visualization" &&
+      this.state.data !== undefined
+    ) {
       widget = (
         <Visualization
           switchHandler={this.switchToInput}
