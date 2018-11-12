@@ -241,7 +241,7 @@ class FeatureExtractor:
             contents = file.content.decode("utf-8", "replace")
             uast = file.uast
             try:
-                vnodes, parents = self._parse_file(contents, uast, file.path)
+                file_vnodes, file_parents = self._parse_file(contents, uast, file.path)
             except AssertionError as e:
                 self._log.warning("could not parse file %s with error '%s', skipping",
                                   file.path, e)
@@ -250,20 +250,21 @@ class FeatureExtractor:
                     traceback.print_exc()
                     input("Press Enter to continue…")
                 continue
-            vnodes = self._classify_vnodes(vnodes, file.path)
-            vnodes = self._merge_classes_to_composite_labels(
-                vnodes, file.path, index_labels=index_labels)
+            file_vnodes = self._classify_vnodes(file_vnodes, file.path)
+            file_vnodes = self._merge_classes_to_composite_labels(
+                file_vnodes, file.path, index_labels=index_labels)
             if self.insert_noops:
-                vnodes = self._add_noops(list(vnodes), file.path, index_labels=index_labels)
+                file_vnodes = self._add_noops(list(file_vnodes), file.path,
+                                              index_labels=index_labels)
             else:
-                vnodes = list(vnodes)
+                file_vnodes = list(file_vnodes)
             file_lines = set(lines[i]) if lines is not None else None
-            parsed_files.append((vnodes, parents, file_lines))
+            parsed_files.append((file_vnodes, file_parents, file_lines))
 
         labels = [[self.class_sequences_to_labels[vnode.y]
-                   for vnode in vnodes if vnode.y is not None and (
+                   for vnode in file_vnodes if vnode.y is not None and (
                        vnode.start.line in file_lines if file_lines is not None else True)]
-                  for vnodes, parents, file_lines in parsed_files]
+                  for file_vnodes, file_parents, file_lines in parsed_files]
 
         if not labels:
             # nothing was extracted
@@ -275,13 +276,15 @@ class FeatureExtractor:
 
         y = numpy.concatenate(labels)
         X = numpy.zeros((y.shape[0], self.count_features()), dtype=FEATURES_NUMPY_TYPE)
+        vnodes = []
         vnodes_y = [None] * y.shape[0]
         offset = 0
         if self.return_sibling_indices:
             sibling_indices_list = []
-        for vnodes, parents, file_lines in parsed_files:
+        for file_vnodes, file_parents, file_lines in parsed_files:
+            vnodes.extend(file_vnodes)
             offset, sibling_indices = self._inplace_write_vnode_features(
-                vnodes, parents, file_lines, offset, X, vnodes_y)
+                file_vnodes, file_parents, file_lines, offset, X, vnodes_y)
             if self.return_sibling_indices:
                 sibling_indices_list.extend(sibling_indices)
         self._log.debug("Features shape: %s" % (X.shape,))
