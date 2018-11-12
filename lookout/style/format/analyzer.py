@@ -195,7 +195,7 @@ class FormatAnalyzer(Analyzer):
             else:
                 cls.log.info("training on %d %s files", len(files), language)
             # we sort to make the features reproducible
-            X, y, _, _ = fe.extract_features(sorted(files, key=lambda x: x.path))
+            X, y, _, _, _, _ = fe.extract_features(sorted(files, key=lambda x: x.path))
             X, selected_features = fe.select_features(X, y)
             lang_config["feature_extractor"]["selected_features"] = selected_features
             lang_config["feature_extractor"]["label_composites"] = fe.labels_to_class_sequences

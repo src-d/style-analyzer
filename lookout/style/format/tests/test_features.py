@@ -45,10 +45,10 @@ class FeaturesTests(unittest.TestCase):
         file = File(content=bytes(self.contents, "utf-8"),
                     uast=self.uast)
         files = [file]
-        X, y, vnodes_y, vnodes = self.extractor.extract_features(files)
+        X, y, vnodes_y, vnodes, _, _ = self.extractor.extract_features(files)
         self.assertEqual("".join(vnode.value for vnode in vnodes), self.contents)
 
-        X, y, vnodes_y, vnodes = self.extractor_noops.extract_features(files)
+        X, y, vnodes_y, vnodes, _, _ = self.extractor_noops.extract_features(files)
         self.assertEqual("".join(vnode.value for vnode in vnodes), self.contents)
 
     def test_parse_file_comment_after_regexp(self):
@@ -104,11 +104,15 @@ class FeaturesTests(unittest.TestCase):
         self.assertIsNotNone(res, "Failed to parse files.")
         self.check_X_y(*res)
 
-    def check_X_y(self, X, y, vnodes_y, vnodes):
+    def check_X_y(self, X, y, vnodes_y, vnodes, vnodes_parents, parents):
         self.assertEqual(X.shape[0], y.shape[0])
         self.assertEqual(X.shape[0], len(vnodes_y))
+        self.assertEqual(len(vnodes), len(vnodes_parents))
         for vn in vnodes_y:
             self.assertIsInstance(vn, VirtualNode)
+        self.assertEqual(type(vnodes_parents[id(vnodes[0])]).__module__, bblfsh.Node.__module__)
+        for _, node in parents.items():
+            self.assertEqual(type(node).__module__, bblfsh.Node.__module__)
         self.assertEqual(X.shape[1], self.extractor.count_features())
         not_set = X == -1
         unset_rows = numpy.nonzero(numpy.all(not_set, axis=1))[0]
@@ -130,10 +134,10 @@ class FeaturesTests(unittest.TestCase):
                     uast=self.uast)
         files = [file]
 
-        X1, y1, vn1_y, vn1 = self.extractor.extract_features(
+        X1, y1, vn1_y, vn1, vn1_parents, parents = self.extractor.extract_features(
             files, [list(range(1, self.contents.count("\n") // 2 + 1))] * 2)
-        self.check_X_y(X1, y1, vn1_y, vn1)
-        X2, y2, vn2_y, vn2 = self.extractor.extract_features(files)
+        self.check_X_y(X1, y1, vn1_y, vn1, vn1_parents, parents)
+        X2, y2, vn2_y, vn2, _, _ = self.extractor.extract_features(files)
         self.assertTrue((X1 == X2[:len(X1)]).all())
         self.assertTrue((y1 == y2[:len(y1)]).all())
         self.assertTrue(vn1_y == vn2_y[:len(vn1_y)])
