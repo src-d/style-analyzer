@@ -89,9 +89,12 @@ def files2mispreds(files: Iterable[str], feature_extractor: FeatureExtractor, ru
     :return: List of `Misprediction`-s extracted from a given list of files.
     """
     files = prepare_files(files, client, feature_extractor.language)
-    X, y, vnodes_y, vnodes, vnodes_trace, parents = feature_extractor.extract_features(files)
-    files = {f.path: f for f in files}
-    y_pred, winners = rules.predict(X, y, vnodes_y, vnodes, files, feature_extractor, client, vnodes_trace, parents)
+    X, y, vnodes_y, vnodes, vnodes_parents, parents = feature_extractor.extract_features(files)
+    y_pred, winners = rules.predict(X=X, y=y, vnodes_y=vnodes_y, vnodes=vnodes,
+                                    files={f.path: f for f in files},
+                                    feature_extractor=feature_extractor,
+                                    client=client, vnodes_parents=vnodes_parents,
+                                    parents=parents)
     mispreds = get_mispreds(y, y_pred, vnodes_y, winners)
     return mispreds
 

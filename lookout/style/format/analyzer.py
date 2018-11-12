@@ -107,10 +107,12 @@ class FormatAnalyzer(Analyzer):
                         comment.append(comment)
                     log.warning("Failed to parse %s", file.path)
                     continue
-                X, y, vnodes_y, vnodes = res
+                X, y, vnodes_y, vnodes, vnodes_parents, parents = res
                 client = BblfshClient(self.config["bblfsh_address"])
-                y_pred, rule_winners = rules.predict(X, y, vnodes_y, vnodes, {file.path: file},
-                                                     fe, client)
+                y_pred, rule_winners = rules.predict(X=X, y=y, vnodes_y=vnodes_y, vnodes=vnodes,
+                                                     files={file.path: file}, feature_extractor=fe,
+                                                     client=client, vnodes_parents=vnodes_parents,
+                                                     parents=parents)
                 assert len(y) == len(y_pred)
 
                 code_lines = file.content.decode("utf-8", "replace").splitlines()

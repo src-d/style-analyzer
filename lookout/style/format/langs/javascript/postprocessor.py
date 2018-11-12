@@ -39,14 +39,14 @@ def _set_new_rule(feature_extractor: FeatureExtractor, labels: Tuple[int, ...], 
     y[y_i] = rules.rules[rule].stats.cls
 
 
-def postprocess(X: numpy.ndarray, y: numpy.ndarray, vnodes_y: Sequence[VirtualNode],
+def postprocess(X: numpy.ndarray, y_pred: numpy.ndarray, vnodes_y: Sequence[VirtualNode],
                 vnodes: Sequence[VirtualNode], winners: numpy.ndarray, rules: Rules,
                 feature_extractor: FeatureExtractor) -> Tuple[numpy.ndarray, numpy.ndarray]:
     """
     Post-process predictions to account for domain constraints.
 
     :param X: Feature matrix.
-    :param y: Predictions to correct.
+    :param y_pred: Predictions to correct.
     :param vnodes_y: Sequence of the predicted virtual nodes.
     :param vnodes: Sequence of virtual nodes representing the input.
     :param winners: Indices of the rules that were used to compute the predictions.
@@ -55,7 +55,7 @@ def postprocess(X: numpy.ndarray, y: numpy.ndarray, vnodes_y: Sequence[VirtualNo
     :return: Updated y and winners.
     """
     quotes_classes = {CLASS_INDEX[CLS_DOUBLE_QUOTE], CLASS_INDEX[CLS_SINGLE_QUOTE]}
-    processed_y = y.copy()
+    processed_y = y_pred.copy()
     processed_winners = winners.copy()
     y_indices = {id(vnode): i for i, vnode in enumerate(vnodes_y)}
     new_rules = {}
@@ -70,8 +70,8 @@ def postprocess(X: numpy.ndarray, y: numpy.ndarray, vnodes_y: Sequence[VirtualNo
         y_i_3 = y_indices[id(vnode3)]
         conf_vnode1 = rules.rules[winners[y_i_1]].stats.conf
         conf_vnode3 = rules.rules[winners[y_i_3]].stats.conf
-        labels1 = feature_extractor.labels_to_class_sequences[y[y_i_1]][:]
-        labels3 = feature_extractor.labels_to_class_sequences[y[y_i_3]][:]
+        labels1 = feature_extractor.labels_to_class_sequences[y_pred[y_i_1]][:]
+        labels3 = feature_extractor.labels_to_class_sequences[y_pred[y_i_3]][:]
         if labels1[-1] not in quotes_classes or labels3[0] not in quotes_classes:
             _set_new_rule(feature_extractor, vnode1.y, rules, new_rules, processed_winners,
                           processed_y, y_i_1)
