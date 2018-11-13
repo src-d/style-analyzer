@@ -1,6 +1,5 @@
 """Features and rules description utils."""
 from collections import defaultdict
-from copy import copy
 from functools import singledispatch
 from math import ceil, floor
 from typing import List, Optional, Sequence, Tuple
@@ -9,30 +8,32 @@ from numpy import flatnonzero, floating, ndarray
 
 from lookout.style.format.feature_extractor import FeatureExtractor, FEATURES_MAX, FEATURES_MIN
 from lookout.style.format.feature_utils import (
-    CLASS_INDEX, CLASSES, CLS_DOUBLE_QUOTE, CLS_NEWLINE, CLS_NOOP, CLS_SINGLE_QUOTE, CLS_SPACE,
-    CLS_SPACE_DEC, CLS_SPACE_INC, CLS_TAB, CLS_TAB_DEC, CLS_TAB_INC)
+    CLASS_INDEX, CLASS_PRINTABLES, CLASS_REPRESENTATIONS, CLS_NOOP)
 from lookout.style.format.feature_utils import VirtualNode
 from lookout.style.format.features import BagFeature, CategoricalFeature, OrdinalFeature
 from lookout.style.format.rules import Rule
 
 
-_CLASS_REPRESENTATIONS_MAPPING = {
-    CLS_DOUBLE_QUOTE: '"',
-    CLS_NEWLINE: "⏎",
-    CLS_NOOP: "∅",
-    CLS_SINGLE_QUOTE: "'",
-    CLS_SPACE: "␣",
-    CLS_SPACE_DEC: "␣⁻",
-    CLS_SPACE_INC: "␣⁺",
-    CLS_TAB: "⇥",
-    CLS_TAB_DEC: "⇥⁻",
-    CLS_TAB_INC: "⇥⁺",
-}
-CLASS_REPRESENTATIONS = [_CLASS_REPRESENTATIONS_MAPPING[cls] for cls in CLASSES]
-del _CLASS_REPRESENTATIONS_MAPPING
+def get_composite_class_representations(feature_extractor: FeatureExtractor) -> List[str]:
+    """
+    Return the class representations of composite classes.
 
-CLASS_PRINTABLES = copy(CLASS_REPRESENTATIONS)
-CLASS_PRINTABLES[CLASS_INDEX[CLS_NEWLINE]] += "\n"
+    :param feature_extractor: FeatureExtractor used to extract features.
+    :return: Strings representing the composite classes.
+    """
+    return ["".join(CLASS_REPRESENTATIONS[label] for label in labels)
+            for labels in feature_extractor.labels_to_class_sequences]
+
+
+def get_composite_class_printables(feature_extractor: FeatureExtractor) -> List[str]:
+    """
+    Return the class printables of composite classes.
+
+    :param feature_extractor: FeatureExtractor used to extract features.
+    :return: Strings that can be printed to represent the composite classes.
+    """
+    return ["".join(CLASS_PRINTABLES[label] for label in labels)
+            for labels in feature_extractor.labels_to_class_sequences]
 
 
 def describe_rules(rules: List[Rule], feature_extractor: FeatureExtractor) -> List[str]:
@@ -62,14 +63,15 @@ def describe_rule(rule: Rule, feature_extractor: FeatureExtractor) -> str:
         grouped[group][node_index][feature_name].append((cmp, threshold, index))
     descriptions = [
         describe_rule_splits(feature_extractor._features[feature_name],
-                             "%s.%s.%s" % (group.name, node, feature_name),
+                             "%s%s" % (group.format(node), feature_name),
                              splits)
         for group, nodes in grouped.items()
         for node, feature_names in nodes.items()
         for feature_name, splits in feature_names.items()]
-    return "%s\n\t→ y = %s\n\tConfidence: %.3f. Support: %d." % (
+    return "  %s\n\t⇒ y = %s\n\tConfidence: %.3f. Support: %d." % (
         "\n\t∧ ".join(descriptions),
-        CLASS_REPRESENTATIONS[rule.stats.cls],
+        "".join(CLASS_REPRESENTATIONS[c]
+                for c in feature_extractor.labels_to_class_sequences[rule.stats.cls]),
         rule.stats.conf,
         rule.stats.support)
 
@@ -207,21 +209,26 @@ def describe_rule_parts_ordinal(feature: OrdinalFeature, name: str,
     return "%s ≤ %d" % (name, floor(threshold))
 
 
-def get_error_description(vnode: VirtualNode, y_pred: int) -> str:
+def get_error_description(vnode: VirtualNode, y_pred: int, feature_extractor: FeatureExtractor
+                          ) -> str:
     """
     Return the comment with regard to the correct node class.
 
     :param vnode: Node to describe.
     :param y_pred: The index of the correct node class.
+    :param feature_extractor: FeatureExtractor used to extract features.
     :return: String comment.
     """
     column = vnode.start.col
-    if y_pred == CLASS_INDEX[CLS_NOOP]:
-        return "%s at column %d should be removed." % (CLASS_REPRESENTATIONS[vnode.y], column)
-    if vnode.y == CLASS_INDEX[CLS_NOOP]:
-        return "%s should be inserted at column %d." % (CLASS_REPRESENTATIONS[y_pred], column)
+    class_representations = get_composite_class_representations(feature_extractor)
+    y = feature_extractor.class_sequences_to_labels[vnode.y]
+    labels_pred = feature_extractor.labels_to_class_sequences[y_pred]
+    if labels_pred[0] == CLASS_INDEX[CLS_NOOP]:
+        return "%s at column %d should be removed." % (class_representations[y], column)
+    if vnode.y[0] == CLASS_INDEX[CLS_NOOP]:
+        return "%s should be inserted at column %d." % (class_representations[y_pred], column)
     return "Replace %s with %s at column %d." % (
-        CLASS_REPRESENTATIONS[vnode.y], CLASS_REPRESENTATIONS[y_pred], column)
+        class_representations[y], class_representations[y_pred], column)
 
 
 def get_code_chunk(lang: str, code_lines: Sequence[str], line_number: int) -> str:

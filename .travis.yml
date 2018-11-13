@@ -52,6 +52,8 @@ matrix:
       install:
         - pip install -r doc/requirements.txt -r requirements-lint.txt
         - cd lookout/style/format/visualizer && npm install && cd -
+    - python: 3.6
+      env: SCRIPT="make docker-build && make docker-test"
     - python: 3.7
       env: *_coverage
       install: *_install
@@ -78,8 +80,7 @@ matrix:
         - HELM_RELEASE=lookout-style-analyzer HELM_CHART=lookout-style-analyzer K8S_NAMESPACE=lookout HELM_ARGS="--tiller-namespace=lookout --repo https://src-d.github.io/charts/ --set image.tag=$TRAVIS_TAG -f .helm_staging.yml" make deploy
   fast_finish: true
 before_script:
-  - docker run -d --privileged -p 9432:9432 --name bblfshd bblfsh/bblfshd
-  - docker exec -it bblfshd bblfshctl driver install javascript bblfsh/javascript-driver:v1.2.0
+  - make bblfsh-start
 script:
   - (eval "$SCRIPT")
 notifications:

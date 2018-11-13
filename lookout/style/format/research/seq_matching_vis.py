@@ -50,7 +50,7 @@ def visualize(input_filename: str, bblfsh: str, language: str, model_path: str) 
     fe = FeatureExtractor(language=language, **rules.origin_config["feature_extractor"])
     X, y, vnodes_y, vnodes = fe.extract_features([file])
 
-    y_pred, _ = rules.predict(X, vnodes_y, vnodes, language)
+    y_pred, _ = rules.predict(X, vnodes_y, vnodes, fe)
 
     # collect lines with mispredictions - could be removed
     mispred_lines = set()

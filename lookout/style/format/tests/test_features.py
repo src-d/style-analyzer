@@ -1,4 +1,5 @@
 from collections import ChainMap, defaultdict
+from itertools import islice
 import lzma
 from pathlib import Path
 import unittest
@@ -39,6 +40,16 @@ class FeaturesTests(unittest.TestCase):
             filename="", language="javascript", contents=code.encode()).uast
         nodes, parents = self.extractor._parse_file(code, uast, test_js_code_filepath)
         self.assertEqual("".join(n.value for n in nodes), code)
+
+    def test_extract_features_exact_match(self):
+        file = File(content=bytes(self.contents, "utf-8"),
+                    uast=self.uast)
+        files = [file]
+        X, y, vnodes_y, vnodes = self.extractor.extract_features(files)
+        self.assertEqual("".join(vnode.value for vnode in vnodes), self.contents)
+
+        X, y, vnodes_y, vnodes = self.extractor_noops.extract_features(files)
+        self.assertEqual("".join(vnode.value for vnode in vnodes), self.contents)
 
     def test_parse_file_comment_after_regexp(self):
         code = "x = // comment\n/<regexp>/;"
@@ -131,15 +142,15 @@ class FeaturesTests(unittest.TestCase):
     def test_noop_vnodes(self):
         vnodes, parents = self.extractor_noops._parse_file(self.contents, self.uast, "test_file")
         vnodes = self.extractor_noops._classify_vnodes(vnodes, "test_file")
-        vnodes = self.extractor_noops._add_noops(vnodes, "test_file")
-        for i, vnode in enumerate(vnodes):
-            if i % 2:
-                self.assertNotEqual(vnode.y, CLASS_INDEX[CLS_NOOP])
-            else:
-                self.assertEqual(vnode.y, CLASS_INDEX[CLS_NOOP])
-                self.assertEqual(vnode.start.offset, vnode.end.offset)
-                self.assertEqual(vnode.start.col, vnode.end.col)
-                self.assertEqual(vnode.start.line, vnode.end.line)
+        vnodes = self.extractor_noops._merge_classes_to_composite_labels(
+            vnodes, "test_file", index_labels=True)
+        vnodes = self.extractor_noops._add_noops(list(vnodes), "test_file", index_labels=True)
+        for vnode1, vnode2, vnode3 in zip(vnodes,
+                                          islice(vnodes, 1, None),
+                                          islice(vnodes, 2, None)):
+            if vnode1.y is not None or vnode3.y is not None:
+                self.assertNotIn(CLASS_INDEX[CLS_NOOP], vnode2.y if vnode2.y else set(),
+                                 "\n".join(map(repr, [vnode1, vnode2, vnode3])))
 
 
 if __name__ == "__main__":

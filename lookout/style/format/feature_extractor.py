@@ -2,9 +2,10 @@
 from collections import OrderedDict
 from enum import Enum, unique
 import importlib
+from itertools import islice
 import logging
-from typing import (Dict, Iterable, List, Mapping, MutableMapping, Optional, Sequence, Set, Tuple,
-                    Union)
+from typing import (Dict, Iterable, List, Mapping, MutableMapping, Optional,
+                    Sequence, Set, Tuple, Union)
 
 import bblfsh
 import numpy
@@ -30,6 +31,24 @@ class FeatureGroup(Enum):
     left = 3
     right = 4
 
+    def format(self, value) -> str:
+        """
+        Represent the feature group for user interfaces. The trailing dot is appended as needed.
+
+        :param value: The feature group parameter. E.g., the index of the node for "left" \
+                      and "right".
+        :return: pretty-printed string, the trailing dot is appended as needed.
+        """
+        if self == FeatureGroup.node:
+            return "•••"
+        if self == FeatureGroup.parents:
+            return "^%d." % (value + 1)  # ↑ is displayed like shit in Ubuntu
+        if self == FeatureGroup.left:
+            return str(-value - 1) + "."
+        if self == FeatureGroup.right:
+            return "+%s." % (value + 1)
+        return "%s.%s." % (self.name, value)
+
 
 FeatureToIndex = MutableMapping[FeatureGroup, List[MutableMapping[str, List[int]]]]
 IndexToFeature = List[Tuple[FeatureGroup, int, str, int]]
@@ -49,8 +68,8 @@ class FeatureExtractor:
                  right_features: Sequence[str], parent_features: Sequence[str],
                  no_labels_on_right: bool, select_features_number: Optional[int],
                  remove_constant_features: bool, insert_noops: bool, debug_parsing: bool,
-                 return_sibling_indices: bool, selected_features: Optional[numpy.ndarray] = None
-                 ) -> None:
+                 return_sibling_indices: bool, selected_features: Optional[numpy.ndarray] = None,
+                 label_composites: Optional[List[Tuple[int, ...]]] = None) -> None:
         """
         Construct a `FeatureExtractor`.
 
@@ -69,7 +88,12 @@ class FeatureExtractor:
         :param debug_parsing: Whether to pause on parsing exceptions instead of skipping.
         :param return_sibling_indices: Whether to return the indices of siblings of the predicted \
                                        nodes.
-        :param selected_features: Features to use. Skips further feature selection.
+        :param selected_features: Feature indexes to use. If None ("train" stage), we learn them \
+                                  in select_features(). Otherwise, we are in "analyze" stage.
+        :param label_composites: Maps composite output classes to the corresponding sequences of \
+                                 "atomic" classes. If None or empty ("train" stage), we build \
+                                 this mapping inside `extract_features()`. Otherwise, we are in \
+                                 "analyze" stage.
         """
         self.language = language.lower()
         self.left_siblings_window = left_siblings_window
@@ -82,10 +106,13 @@ class FeatureExtractor:
         self.no_labels_on_right = no_labels_on_right
         self.select_features_number = select_features_number
         self.remove_constant_features = remove_constant_features
-        self.selected_features = selected_features
         self.insert_noops = insert_noops
         self.debug_parsing = debug_parsing
         self.return_sibling_indices = return_sibling_indices
+        self.selected_features = selected_features
+        self.labels_to_class_sequences = label_composites if label_composites is not None else []
+        self.class_sequences_to_labels = {
+            tuple(l): i for i, l in enumerate(self.labels_to_class_sequences)}
         self.tokens = importlib.import_module("lookout.style.format.langs.%s.tokens" % language)
         self.roles = importlib.import_module("lookout.style.format.langs.%s.roles" % language)
         try:
@@ -101,8 +128,9 @@ class FeatureExtractor:
         except ImportError:
             # It's normal for some languages not to have a uast_fixes module.
             self.node_fixtures = {}
-        self._features = get_features(self.language)
-        self._compute_feature_info()
+        if self.labels_to_class_sequences:
+            self._features = get_features(self.language, self.labels_to_class_sequences)
+            self._compute_feature_info()
 
     def _compute_feature_info(self) -> None:
         if self.selected_features is not None:
@@ -150,6 +178,7 @@ class FeatureExtractor:
                                        self.right_siblings_window, total_index)
         total_index = populate_indices(FeatureGroup.parents, self.parent_features,
                                        self.parents_depth, total_index)
+        # we don't need the last `total_index`
 
         self._feature_node_counts = {group: [sum(len(feature) for feature in node_index.values())
                                              for node_index in self.feature_to_indices[group]]
@@ -193,9 +222,10 @@ class FeatureExtractor:
 
     def extract_features(self, files: Iterable[File], lines: List[List[int]]=None
                          ) -> Optional[Union[
-                             Tuple[numpy.ndarray, numpy.ndarray, List[VirtualNode]],
-                             Tuple[numpy.ndarray, numpy.ndarray, List[VirtualNode],
-                                   List[List[int]]]]]:
+                             Tuple[numpy.ndarray, numpy.ndarray,
+                                   List[VirtualNode], List[VirtualNode]],
+                             Tuple[numpy.ndarray, numpy.ndarray,
+                                   List[VirtualNode], List[VirtualNode], List[List[int]]]]]:
         """
         Compute features and labels required by downstream models given a list of `File`-s.
 
@@ -206,12 +236,12 @@ class FeatureExtractor:
                  and the corresponding `VirtualNode`-s or None in case not extracting features.
         """
         parsed_files = []
-        labels = []
+        index_labels = not self.labels_to_class_sequences
         for i, file in enumerate(files):
             contents = file.content.decode("utf-8", "replace")
             uast = file.uast
             try:
-                vnodes, parents = self._parse_file(contents, uast, file.path)
+                file_vnodes, file_parents = self._parse_file(contents, uast, file.path)
             except AssertionError as e:
                 self._log.warning("could not parse file %s with error '%s', skipping",
                                   file.path, e)
@@ -220,29 +250,41 @@ class FeatureExtractor:
                     traceback.print_exc()
                     input("Press Enter to continue…")
                 continue
-            vnodes = self._classify_vnodes(vnodes, file.path)
+            file_vnodes = self._classify_vnodes(file_vnodes, file.path)
+            file_vnodes = self._merge_classes_to_composite_labels(
+                file_vnodes, file.path, index_labels=index_labels)
             if self.insert_noops:
-                vnodes = self._add_noops(vnodes, file.path)
+                file_vnodes = self._add_noops(list(file_vnodes), file.path,
+                                              index_labels=index_labels)
             else:
-                vnodes = list(vnodes)
+                file_vnodes = list(file_vnodes)
             file_lines = set(lines[i]) if lines is not None else None
-            parsed_files.append((vnodes, parents, file_lines))
-            labels.append([vnode.y for vnode in vnodes if vnode.y is not None and
-                           (vnode.start.line in file_lines if file_lines is not None else True)])
+            parsed_files.append((file_vnodes, file_parents, file_lines))
+
+        labels = [[self.class_sequences_to_labels[vnode.y]
+                   for vnode in file_vnodes if vnode.y is not None and (
+                       vnode.start.line in file_lines if file_lines is not None else True)]
+                  for file_vnodes, file_parents, file_lines in parsed_files]
 
         if not labels:
             # nothing was extracted
             return None
 
+        if index_labels:
+            self._features = get_features(self.language, self.labels_to_class_sequences)
+            self._compute_feature_info()
+
         y = numpy.concatenate(labels)
         X = numpy.zeros((y.shape[0], self.count_features()), dtype=FEATURES_NUMPY_TYPE)
+        vnodes = []
         vnodes_y = [None] * y.shape[0]
         offset = 0
         if self.return_sibling_indices:
             sibling_indices_list = []
-        for vnodes, parents, file_lines in parsed_files:
+        for file_vnodes, file_parents, file_lines in parsed_files:
+            vnodes.extend(file_vnodes)
             offset, sibling_indices = self._inplace_write_vnode_features(
-                vnodes, parents, file_lines, offset, X, vnodes_y)
+                file_vnodes, file_parents, file_lines, offset, X, vnodes_y)
             if self.return_sibling_indices:
                 sibling_indices_list.extend(sibling_indices)
         self._log.debug("Features shape: %s" % (X.shape,))
@@ -263,19 +305,18 @@ class FeatureExtractor:
         """
         if self.selected_features is not None:
             return X, self.selected_features
-        else:
-            if self.remove_constant_features:
-                feature_selector = VarianceThreshold()
-                X = feature_selector.fit_transform(X)
+        if self.remove_constant_features:
+            feature_selector = VarianceThreshold()
+            X = feature_selector.fit_transform(X)
+            self.selected_features = feature_selector.get_support(indices=True)
+        if self.select_features_number and self.select_features_number < X.shape[1]:
+            feature_selector = SelectKBest(k=self.select_features_number)
+            X = feature_selector.fit_transform(X, y)
+            if self.selected_features is not None:
+                self.selected_features = self.selected_features[feature_selector.get_support(
+                    indices=True)]
+            else:
                 self.selected_features = feature_selector.get_support(indices=True)
-            if self.select_features_number and self.select_features_number < X.shape[1]:
-                feature_selector = SelectKBest(k=self.select_features_number)
-                X = feature_selector.fit_transform(X, y)
-                if self.selected_features is not None:
-                    self.selected_features = self.selected_features[feature_selector.get_support(
-                        indices=True)]
-                else:
-                    self.selected_features = feature_selector.get_support(indices=True)
         self._log.debug("Features shape after selection: %s" % (X.shape,))
         if self.selected_features is None:
             self.selected_features = numpy.arange(X.shape[1])
@@ -394,22 +435,76 @@ class FeatureExtractor:
                 for char in my_indent:
                     indentation.append(char)
 
-    @staticmethod
-    def _add_noops(vnodes: Sequence[VirtualNode], path: str) -> List[VirtualNode]:
+    def _merge_classes_to_composite_labels(
+            self, vnodes: Iterable[VirtualNode], path: str, index_labels: bool = False
+            ) -> Iterable[VirtualNode]:
         """
-        Add CLS_NOOP nodes in between each node in the input sequence.
+        Pack successive predictable nodes into single "composite" labels.
+
+        :param vnodes: Iterable of `VirtualNode`-s to process.
+        :param path: Path to the file from which we are currently extracting features.
+        :param index_labels: Whether to index labels to define output classes or not.
+        :yield: The sequence of `VirtualNode`-s which is identical to the input but \
+                the successive Y-nodes are merged together.
+        """
+        start, end, value, current_class_seq = None, None, "", []
+        for vnode in vnodes:
+            if vnode.y is None:
+                if current_class_seq:
+                    class_seq = tuple(current_class_seq)
+                    if class_seq not in self.class_sequences_to_labels:
+                        if index_labels:
+                            self.class_sequences_to_labels[class_seq] = \
+                                len(self.class_sequences_to_labels)
+                            self.labels_to_class_sequences.append(class_seq)
+                        else:
+                            class_seq = None
+                    yield VirtualNode(value=value, start=start, end=end,
+                                      y=class_seq, path=path)
+                    start, end, value, current_class_seq = None, None, "", []
+                yield vnode
+            else:
+                if not current_class_seq:
+                    start = vnode.start
+                end = vnode.end
+                value += vnode.value
+                current_class_seq.append(vnode.y)
+        if value or current_class_seq:
+            yield VirtualNode(
+                value=value, start=start, end=end, y=tuple(current_class_seq), path=path)
+
+    def _add_noops(self, vnodes: Sequence[VirtualNode], path: str, index_labels: bool = False
+                   ) -> List[VirtualNode]:
+        """
+        Add CLS_NOOP nodes in between tokens without labeled nodes to allow for insertions.
 
         :param vnodes: The sequence of `VirtualNode`-s to augment with noop nodes.
         :param path: path to file.
+        :param index_labels: Whether to index labels to define output classes or not.
         :return: The augmented `VirtualNode`-s sequence.
         """
-        result = [VirtualNode(value="", start=Position(0, 1, 1), end=Position(0, 1, 1),
-                              y=CLASS_INDEX[CLS_NOOP], path=path)]
-        for vnode in vnodes:
-            result.append(vnode)
-            result.append(VirtualNode(value="", start=vnode.end, end=vnode.end,
-                                      y=CLASS_INDEX[CLS_NOOP], path=path))
-        return result
+        augmented_vnodes = []
+        noop_label = (CLASS_INDEX[CLS_NOOP],)
+        assert index_labels or noop_label in self.class_sequences_to_labels
+        if index_labels and noop_label not in self.class_sequences_to_labels:
+            self.class_sequences_to_labels[noop_label] = \
+                len(self.class_sequences_to_labels)
+            self.labels_to_class_sequences.append(noop_label)
+        if not len(vnodes):
+            return augmented_vnodes
+        if vnodes[0].y is None:
+            augmented_vnodes.append(VirtualNode(value="", start=Position(0, 1, 1),
+                                                end=Position(0, 1, 1), y=noop_label, path=path))
+        for vnode, next_vnode in zip(vnodes, islice(vnodes, 1, None)):
+            augmented_vnodes.append(vnode)
+            if vnode.y is None and next_vnode.y is None:
+                augmented_vnodes.append(VirtualNode(value="", start=vnode.end, end=vnode.end,
+                                                    y=noop_label, path=path))
+        augmented_vnodes.append(next_vnode)
+        if augmented_vnodes[-1].y is None:
+            augmented_vnodes.append(VirtualNode(value="", start=vnodes[-1].end, end=vnodes[-1].end,
+                                                y=noop_label, path=path))
+        return augmented_vnodes
 
     def _get_features(self, feature_group: FeatureGroup, node_index: int,
                       sibling: Union[VirtualNode, bblfsh.Node], node: VirtualNode
@@ -474,13 +569,12 @@ class FeatureExtractor:
         if not include_labeled and (
                 sibling.y is not None or sibling.node is None and sibling.value.isspace()):
             return False
-        if sibling.y == CLASS_INDEX[CLS_NOOP]:
+        if sibling.y == (CLASS_INDEX[CLS_NOOP],):
             return False
-        if ((vnode.y == CLASS_INDEX[CLS_DOUBLE_QUOTE] or vnode.y == CLASS_INDEX[CLS_SINGLE_QUOTE])
-                and (sibling.y == CLASS_INDEX[CLS_DOUBLE_QUOTE]
-                     or sibling.y == CLASS_INDEX[CLS_SINGLE_QUOTE])):
-            return False
-        return True
+        if sibling.y is None:
+            return True
+        quote_classes = set([CLASS_INDEX[CLS_DOUBLE_QUOTE], CLASS_INDEX[CLS_SINGLE_QUOTE]])
+        return not (quote_classes & set(vnode.y) and quote_classes & set(sibling.y))
 
     def _inplace_write_vnode_features(
             self, vnodes: Sequence[VirtualNode], parents: Mapping[int, bblfsh.Node],

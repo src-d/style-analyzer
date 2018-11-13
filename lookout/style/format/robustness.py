@@ -16,7 +16,6 @@ from lookout.style.format.model import FormatModel
 from lookout.style.format.quality_report import prepare_files
 from lookout.style.format.rules import Rules
 
-
 Misprediction = NamedTuple("Misprediction", [("y", numpy.ndarray), ("pred", numpy.ndarray),
                                              ("node", List[VirtualNode]), ("rule", numpy.ndarray)])
 
@@ -63,38 +62,35 @@ def get_difflib_changes(true_content: Mapping[str, str], noisy_content: Mapping[
     return sorted(true_files), sorted(noisy_files), lines_changed
 
 
-def files2vnodes(files: Iterable[str], rules: Rules, client: str, language: str
+def files2vnodes(files: Iterable[str], feature_extractor: FeatureExtractor, client: str
                  ) -> Iterable[VirtualNode]:
     """
     Return the `VirtualNode`-s extracted from a list of files.
 
     :param files: List of files to get `Misprediction`-s and `VirtualNode`-s from.
-    :param rules: rules of the style-analyzer model.
+    :param feature_extractor: FeatureExtractor to use.
     :param client: Babelfish client. Babelfish server should be started accordingly.
-    :param language: Language to consider, others will be discarded.
     :return: List of `VirtualNode`-s extracted from a given list of files.
     """
-    files = prepare_files(files, client, language)
-    fe = FeatureExtractor(language=language, **rules.origin_config["feature_extractor"])
-    X, y, vnodes_y, _ = fe.extract_features(files)
+    files = prepare_files(files, client, feature_extractor.language)
+    _, _, vnodes_y, _ = feature_extractor.extract_features(files)
     return vnodes_y
 
 
-def files2mispreds(files: Iterable[str], rules: Rules, client: str, language: str
-                   ) -> Iterable[Misprediction]:
+def files2mispreds(files: Iterable[str], feature_extractor: FeatureExtractor, rules: Rules,
+                   client: str) -> Iterable[Misprediction]:
     """
     Return the model's `Misprediction`-s on a list of files.
 
     :param files: List of files to get `Misprediction`-s from.
-    :param rules: rules of the style-analyzer model.
+    :param feature_extractor: FeatureExtractor to use.
+    :param rules: Rules to use for prediction.
     :param client: Babelfish client. Babelfish server should be started accordingly.
-    :param language: Language to consider, others will be discarded.
     :return: List of `Misprediction`-s extracted from a given list of files.
     """
-    files = prepare_files(files, client, language)
-    fe = FeatureExtractor(language=language, **rules.origin_config["feature_extractor"])
-    X, y, vnodes_y, vnodes = fe.extract_features(files)
-    y_pred, winners = rules.predict(X, vnodes_y, vnodes, language)
+    files = prepare_files(files, client, feature_extractor.language)
+    X, y, vnodes_y, vnodes = feature_extractor.extract_features(files)
+    y_pred, winners = rules.predict(X, vnodes_y, vnodes, feature_extractor)
     mispreds = get_mispreds(y, y_pred, vnodes_y, winners)
     return mispreds
 
@@ -140,8 +136,8 @@ def get_diff_mispreds(mispreds: Iterable[Misprediction], lines_changed: Mapping[
 
 
 def get_style_fixes(mispreds: Mapping[str, Misprediction], vnodes: Iterable[VirtualNode],
-                    true_files: Iterable[str], noisy_files: Iterable[str]
-                    ) -> Iterable[Misprediction]:
+                    true_files: Iterable[str], noisy_files: Iterable[str],
+                    feature_extractor: FeatureExtractor) -> Iterable[Misprediction]:
     """
     Return `Misprediction`-s that fix the style mistakes added.
 
@@ -154,6 +150,7 @@ def get_style_fixes(mispreds: Mapping[str, Misprediction], vnodes: Iterable[Virt
     :param vnodes: List of `VirtualNode`-s extracted from the list of `true_files`.
     :param true_files: list of files of the original repos where a style mistake has been added.
     :param noisy_files: list of files from the noisy repos where a modification has been made
+    :param feature_extractor: FeatureExtractor used to extract features.
     :return: List of `Misprediction`-s where the prediction on a noisy file matches the ground \
              truth label of the original file i.e. `Misprediction`-s actually fixing the mistakes \
              added.
@@ -166,7 +163,8 @@ def get_style_fixes(mispreds: Mapping[str, Misprediction], vnodes: Iterable[Virt
             continue
         for vn in vnodes:
             if vn.path == true_file and vn.start.offset == mispred.node.start.offset:
-                if mispred.pred == vn.y:
+                print(feature_extractor.labels_to_class_sequences[mispred.pred], vn.y)
+                if feature_extractor.labels_to_class_sequences[mispred.pred] == vn.y:
                     style_fixes.append(mispred)
                 break
     return style_fixes
@@ -186,12 +184,16 @@ def compute_metrics(changes_count: int, predictions_count: int, true_positive: i
     false_negative = changes_count - predictions_count
     try:
         precision = true_positive / (true_positive + false_positive)
-        recall = true_positive / (true_positive + false_negative)
     except ZeroDivisionError:
         precision = 1.
+    try:
+        recall = true_positive / (true_positive + false_negative)
+    except ZeroDivisionError:
         recall = 0.
+    try:
+        f1_score = 2 * precision * recall / (precision + recall)
+    except ZeroDivisionError:
         f1_score = 0.
-    f1_score = 2 * precision * recall / (precision + recall)
     return precision, recall, f1_score
 
 
@@ -223,13 +225,16 @@ def style_robustness_report(true_repo: str, noisy_repo: str, bblfsh: str, langua
     client = BblfshClient(bblfsh)
     analyzer = FormatModel().load(model_path)
     rules = analyzer[language]
-    vnodes_y_true = files2vnodes(true_files, rules, client, language)
-    mispreds_noise = files2mispreds(noisy_files, rules, client, language)
+    feature_extractor = FeatureExtractor(language=language,
+                                         **rules.origin_config["feature_extractor"])
+    vnodes_y_true = files2vnodes(true_files, feature_extractor, client)
+    mispreds_noise = files2mispreds(noisy_files, feature_extractor, rules, client)
     diff_mispreds = get_diff_mispreds(mispreds_noise, lines_changed)
     changes_count = len(lines_changed)
     log.info("Number of artificial mistakes potentially fixed by the model "
              "(diff of mispredictions): %d / %d", len(diff_mispreds), changes_count)
-    style_fixes = get_style_fixes(diff_mispreds, vnodes_y_true, true_files, noisy_files)
+    style_fixes = get_style_fixes(diff_mispreds, vnodes_y_true, true_files, noisy_files,
+                                  feature_extractor)
     log.info("style-analyzer fixes in the noisy repos: %d / %d -> %.1f %%",
              len(style_fixes), changes_count, 100 * len(style_fixes) / changes_count)
 
@@ -315,8 +320,10 @@ def plot_pr_curve(true_repo: str, noisy_repo: str, bblfsh: str, language: str,
     client = BblfshClient(bblfsh)
     analyzer = FormatModel().load(model_path)
     rules = analyzer[language]
-    vnodes_y_true = files2vnodes(true_files, rules, client, language)
-    mispreds_noise = files2mispreds(noisy_files, rules, client, language)
+    feature_extractor = FeatureExtractor(language=language,
+                                         **rules.origin_config["feature_extractor"])
+    vnodes_y_true = files2vnodes(true_files, feature_extractor, client)
+    mispreds_noise = files2mispreds(noisy_files, feature_extractor, rules, client)
     diff_mispreds = get_diff_mispreds(mispreds_noise, lines_changed)
     changes_count = len(lines_changed)
 
@@ -326,7 +333,7 @@ def plot_pr_curve(true_repo: str, noisy_repo: str, bblfsh: str, language: str,
         filtered_mispreds = {k: m for k, m in diff_mispreds.items()
                              if any(r[0] == m.rule for r in rules_selection[:i + 1])}
         style_fixes = get_style_fixes(filtered_mispreds, vnodes_y_true,
-                                      true_files, noisy_files)
+                                      true_files, noisy_files, feature_extractor)
         precision, recall, f1_score = compute_metrics(changes_count=changes_count,
                                                       predictions_count=len(filtered_mispreds),
                                                       true_positive=len(style_fixes))
@@ -334,7 +341,7 @@ def plot_pr_curve(true_repo: str, noisy_repo: str, bblfsh: str, language: str,
         recalls.append(round(recall, 3))
         log.debug("precision: %.3f", precision)
         log.debug("recall: %.3f", recall)
-        log.debug("F1 score: %.3f", f1_score, 3)
+        log.debug("F1 score: %.3f", f1_score)
 
     print("recall x:", recalls)
     print("precision y:", precisions)

@@ -107,7 +107,7 @@ class FormatAnalyzer(Analyzer):
                     log.warning("Failed to parse %s", file.path)
                     continue
                 X, y, vnodes_y, vnodes = res
-                y_pred, rule_winners = rules.predict(X, vnodes_y, vnodes, lang)
+                y_pred, rule_winners = rules.predict(X, vnodes_y, vnodes, fe)
                 assert len(y) == len(y_pred)
 
                 code_lines = file.content.decode("utf-8", "replace").splitlines()
@@ -118,14 +118,14 @@ class FormatAnalyzer(Analyzer):
                         if self.config["report_code_lines"]:
                             code_text = get_code_chunk(lang, code_lines, code_line_number)
                         vnodes_comments = [
-                            "%s\n%s" % (get_error_description(vnode, y_predi),
+                            "%s\n%s" % (get_error_description(vnode, y_predi, fe),
                                         rule_to_comment(rules.rules[winner], fe, winner))
                             for yi, y_predi, vnode, winner in line_nodes if yi != y_predi]
                         text = "format: style mismatch:\n%s%s\n" % (
                             code_text, "\n\n".join(vnodes_comments))
                     else:
                         vnodes_comments = [
-                            get_error_description(vnode, y_predi)
+                            get_error_description(vnode, y_predi, fe)
                             for yi, y_predi, vnode, winner in line_nodes if yi != y_predi]
                         text = "format: style mismatch:\n%s\n" % ("\n\n".join(vnodes_comments))
 
@@ -193,6 +193,7 @@ class FormatAnalyzer(Analyzer):
             X, y, _, _ = fe.extract_features(sorted(files, key=lambda x: x.path))
             X, selected_features = fe.select_features(X, y)
             lang_config["feature_extractor"]["selected_features"] = selected_features
+            lang_config["feature_extractor"]["label_composites"] = fe.labels_to_class_sequences
             lower_bound_instances = lang_config["lower_bound_instances"]
             if X.shape[0] < lower_bound_instances:
                 cls.log.warning("skipped %d %s files: too few samples (%d/%d)",
@@ -294,5 +295,10 @@ class FormatAnalyzer(Analyzer):
         }
         config = merge_dicts(defaults, config)
         global_config = config.pop("global")
-        return {lang: merge_dicts(global_config, lang_config)
-                for lang, lang_config in config.items()}
+        try:
+            return {lang: merge_dicts(global_config, lang_config)
+                    for lang, lang_config in config.items()}
+        except AttributeError as e:
+            raise ValueError("Config %s can not be merged with default values config: %s" % (
+                config, global_config
+            ))

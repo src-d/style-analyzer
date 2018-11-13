@@ -1,13 +1,13 @@
 """Facilities to report the quality and statistics of a given rules on a given dataset."""
 from collections import defaultdict
 import glob
+from typing import Iterable
 
 from bblfsh import BblfshClient
 from tqdm import tqdm
 
-from lookout.style.format.descriptions import describe_rule
+from lookout.style.format.descriptions import describe_rule, get_composite_class_representations
 from lookout.style.format.feature_extractor import FeatureExtractor
-from lookout.style.format.feature_utils import CLASSES
 from lookout.style.format.model import FormatModel
 from lookout.style.format.utils import prepare_files, profile
 
@@ -15,20 +15,22 @@ from lookout.style.format.utils import prepare_files, profile
 class RuleStat:
     """Stats about ground truth and predicted classes for a given rule."""
 
-    def __init__(self):
+    def __init__(self, feature_extractor: FeatureExtractor) -> None:
         """Construct a RuleStat."""
-        self.gt_classes = [0 for _ in range(len(CLASSES))]
-        self.pred_classes = [0 for _ in range(len(CLASSES))]
+        self.gt_classes = [0 for _ in feature_extractor.labels_to_class_sequences]
+        self.pred_classes = [0 for _ in feature_extractor.labels_to_class_sequences]
 
 
-def print_rule_table(rule_stat):
+def print_rule_table(rule_stat: Iterable[RuleStat], feature_extractor: FeatureExtractor) -> None:
     """
     Print a table to detail rules statistics.
 
     :param rule_stat: `RuleStats`-s for all the rules to detail.
+    :param feature_extractor: FeatureExtractor used to extract features.
     """
     print("Legend: predictions/ground truth")
-    report = [["#rule"] + list(CLASSES) + ["n_mistakes", "support"]]
+    class_names = get_composite_class_representations(feature_extractor)
+    report = [["#rule"] + class_names + ["n_mistakes", "support"]]
     for rule in sorted(rule_stat):
         line = ["Rule number %s: " % rule]
         line.extend(
@@ -87,13 +89,13 @@ def print_rules_report(input_pattern: str, bblfsh: str, language: str, model_pat
 
     X, y, vnodes_y, vnodes = res
 
-    y_pred, winners = rules.predict(X, vnodes_y, vnodes, language)
+    y_pred, winners = rules.predict(X, vnodes_y, vnodes, fe)
 
-    rule_stat = defaultdict(RuleStat)
+    rule_stat = defaultdict(lambda: RuleStat(fe))
 
     for gt, pred, rule in tqdm(zip(y, y_pred, winners), total=y.shape[0]):
         rule_stat[rule].gt_classes[gt] += 1
         rule_stat[rule].pred_classes[pred] += 1
 
     print("Overall statistics:")
-    print_rule_table(rule_stat)
+    print_rule_table(rule_stat, fe)

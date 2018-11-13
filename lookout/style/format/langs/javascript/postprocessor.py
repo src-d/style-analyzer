@@ -1,17 +1,47 @@
 """Prediction post processing module."""
-from typing import Sequence, Tuple
+from itertools import islice
+from typing import MutableMapping, Sequence, Tuple
 
 from bblfsh import role_name
 import numpy
 
+from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.feature_utils import (CLASS_INDEX, CLS_DOUBLE_QUOTE, CLS_SINGLE_QUOTE,
                                                 VirtualNode)
-from lookout.style.format.rules import Rules
+from lookout.style.format.rules import Rule, Rules, RuleStats
+
+
+def _get_composite(feature_extractor: FeatureExtractor, labels: Tuple[int, ...]) -> int:
+    if labels in feature_extractor.class_sequences_to_labels:
+        return feature_extractor.class_sequences_to_labels[labels]
+    feature_extractor.class_sequences_to_labels[labels] = \
+        len(feature_extractor.class_sequences_to_labels)
+    feature_extractor.labels_to_class_sequences.append(labels)
+    return len(feature_extractor.labels_to_class_sequences) - 1
+
+
+def _get_new_rule(feature_extractor: FeatureExtractor, labels: Tuple[int, ...], rules: Rules,
+                  new_rules: MutableMapping[Tuple[int, ...], int]) -> int:
+    if labels in new_rules:
+        return new_rules[labels]
+    rules._rules.append(Rule(tuple(), RuleStats(cls=_get_composite(feature_extractor, labels),
+                                                conf=1., support=1)))
+    rule_i = len(rules._rules) - 1
+    new_rules[labels] = rule_i
+    return rule_i
+
+
+def _set_new_rule(feature_extractor: FeatureExtractor, labels: Tuple[int, ...], rules: Rules,
+                  new_rules: MutableMapping[Tuple[int, ...], int], winners: numpy.ndarray,
+                  y: numpy.ndarray, y_i: int) -> None:
+    rule = _get_new_rule(feature_extractor, tuple(labels), rules, new_rules)
+    winners[y_i] = rule
+    y[y_i] = rules.rules[rule].stats.cls
 
 
 def postprocess(X: numpy.ndarray, y: numpy.ndarray, vnodes_y: Sequence[VirtualNode],
-                vnodes: Sequence[VirtualNode], winners: numpy.ndarray, rules: Rules
-                ) -> Tuple[numpy.ndarray, numpy.ndarray]:
+                vnodes: Sequence[VirtualNode], winners: numpy.ndarray, rules: Rules,
+                feature_extractor: FeatureExtractor) -> Tuple[numpy.ndarray, numpy.ndarray]:
     """
     Post-process predictions to account for domain constraints.
 
@@ -21,32 +51,40 @@ def postprocess(X: numpy.ndarray, y: numpy.ndarray, vnodes_y: Sequence[VirtualNo
     :param vnodes: Sequence of virtual nodes representing the input.
     :param winners: Indices of the rules that were used to compute the predictions.
     :param rules: Rules used to perform the prediction.
+    :param feature_extractor: FeatureExtractor used to extract features.
     :return: Updated y and winners.
     """
     quotes_classes = {CLASS_INDEX[CLS_DOUBLE_QUOTE], CLASS_INDEX[CLS_SINGLE_QUOTE]}
     processed_y = y.copy()
     processed_winners = winners.copy()
-    vnodes_y_set = set(id(vnode) for vnode in vnodes_y)
-    y_indices = {}
-    for i, vnode in enumerate(vnodes):
-        if id(vnode) in vnodes_y_set:
-            y_indices[i] = len(y_indices)
-    for i, y_i in y_indices.items():
-        if not i + 2 in y_indices:
+    y_indices = {id(vnode): i for i, vnode in enumerate(vnodes_y)}
+    new_rules = {}
+    for vnode1, vnode2, vnode3 in zip(vnodes, islice(vnodes, 1, None), islice(vnodes, 2, None)):
+        if (id(vnode1) not in y_indices or id(vnode3) not in y_indices or vnode2.node is None
+                or vnode1.y[-1] not in quotes_classes or vnode3.y[0] != vnode1.y[-1]):
             continue
-        y_i_paired = y_indices[i + 2]
-        vnode, vnode_in_between, vnode_paired = vnodes[i], vnodes[i + 1], vnodes[i + 2]
-        if vnode.y not in quotes_classes or vnode_paired.y not in quotes_classes:
+        vnode2_roles = frozenset(role_name(role_id) for role_id in vnode2.node.roles)
+        if "STRING" not in vnode2_roles:
             continue
-        if vnode_in_between.node is None:
-            continue
-        vnode_in_between_roles = {role_name(role_id) for role_id in vnode_in_between.node.roles}
-        if "STRING" in vnode_in_between_roles and y[y_i] != y[y_i_paired]:
-            conf_vnode = rules.rules[winners[y_i]].stats.conf
-            conf_vnode_paired = rules.rules[winners[y_i_paired]].stats.conf
-            winner, loser = ((y_i, y_i_paired)
-                             if conf_vnode > conf_vnode_paired
-                             else (y_i_paired, y_i))
-            processed_y[loser] = y[winner]
-            processed_winners[loser] = winners[winner]
+        y_i_1 = y_indices[id(vnode1)]
+        y_i_3 = y_indices[id(vnode3)]
+        conf_vnode1 = rules.rules[winners[y_i_1]].stats.conf
+        conf_vnode3 = rules.rules[winners[y_i_3]].stats.conf
+        labels1 = feature_extractor.labels_to_class_sequences[y[y_i_1]][:]
+        labels3 = feature_extractor.labels_to_class_sequences[y[y_i_3]][:]
+        if labels1[-1] not in quotes_classes or labels3[0] not in quotes_classes:
+            _set_new_rule(feature_extractor, vnode1.y, rules, new_rules, processed_winners,
+                          processed_y, y_i_1)
+            _set_new_rule(feature_extractor, vnode3.y, rules, new_rules, processed_winners,
+                          processed_y, y_i_3)
+        elif labels1[-1] != labels3[0]:
+            quote = labels1[-1] if conf_vnode1 >= conf_vnode3 else labels3[0]
+            if labels1[-1] != quote:
+                labels1[-1] = quote
+                _set_new_rule(feature_extractor, tuple(labels1), rules, new_rules,
+                              processed_winners, processed_y, y_i_1)
+            else:
+                labels3[0] = quote
+                _set_new_rule(feature_extractor, tuple(labels3), rules, new_rules,
+                              processed_winners, processed_y, y_i_3)
     return processed_y, processed_winners

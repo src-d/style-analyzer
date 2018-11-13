@@ -1,8 +1,7 @@
 """Facilities to create and use features."""
-from typing import Callable, Iterable, Mapping, NamedTuple, Tuple
+from typing import Callable, Iterable, Mapping, NamedTuple, Tuple, Union
 
 import bblfsh
-
 
 Position = NamedTuple("Position", (("offset", int), ("line", int), ("col", int)))
 """
@@ -14,7 +13,8 @@ class VirtualNode:
     """Represent either a real UAST node or an imaginary token."""
 
     def __init__(self, value: str, start: Position, end: Position,
-                 *, node: bblfsh.Node = None, y: int = None, path: str = None) -> None:
+                 *, node: bblfsh.Node = None, y: Union[int, Tuple[int]] = None,
+                 path: str = None) -> None:
         """
         Construct a VirtualNode.
 
@@ -22,13 +22,17 @@ class VirtualNode:
         :param start: Starting position of the token (0-based).
         :param end: Ending position of the token (0-based).
         :param node: Corresponding UAST node (if exists).
-        :param y: The label of the node.
+        :param y: The label of the node. It can be either a predicted token class from CLASSES \
+                  or a composite sequence of such classes. It is guaranteed that the final type \
+                  is Tuple[int]; the plain integer is an intermediate "unmerged" value which \
+                  is replaced during the class composition.
         :param path: Path to related file. Useful for debugging.
         """
         self.value = value
         assert start.line >= 1 and start.col >= 1, "start line and column are 1-based like UASTs"
         assert end.line >= 1 and end.col >= 1, "end line and column are 1-based like UASTs"
-        assert y in EMPTY_CLS or start.offset < end.offset, "illegal empty node"
+        ys = set(y) if isinstance(y, tuple) else set([y])
+        assert y is None or ys <= EMPTY_CLS or start.offset < end.offset, "illegal empty node"
         self.start = start
         self.end = end
         self.node = node
@@ -41,7 +45,9 @@ class VirtualNode:
     def __repr__(self) -> str:
         return ("VirtualNode(\"%s\", y=%s, start=%s, end=%s, node=%s, path=\"%s\")" % (
                     self.value.replace("\n", "\\n"),
-                    "None" if self.y is None else self.y,
+                    "None" if self.y is None else
+                    CLASS_REPRESENTATIONS[self.y] if isinstance(self.y, int) else
+                    "".join(CLASS_REPRESENTATIONS[yi] for yi in self.y),
                     tuple(self.start),
                     tuple(self.end),
                     id(self.node) if self.node is not None else "None",
@@ -116,6 +122,8 @@ class VirtualNode:
                               path=path)
 
 
+# TODO(zurk): refactor CLS related code into one class. Related issue:
+# https://github.com/src-d/style-analyzer/issues/286
 CLS_SPACE = "<space>"
 CLS_TAB = "<tab>"
 CLS_NEWLINE = "<newline>"
@@ -143,3 +151,20 @@ CLS_TO_STR = {
     CLS_TAB_DEC: "",
     CLS_TAB_INC: "\t",
 }
+_CLASS_REPRESENTATIONS_MAPPING = {
+    CLS_DOUBLE_QUOTE: '"',
+    CLS_NEWLINE: "⏎",
+    CLS_NOOP: "∅",
+    CLS_SINGLE_QUOTE: "'",
+    CLS_SPACE: "␣",
+    CLS_SPACE_DEC: "␣⁻",
+    CLS_SPACE_INC: "␣⁺",
+    CLS_TAB: "⇥",
+    CLS_TAB_DEC: "⇥⁻",
+    CLS_TAB_INC: "⇥⁺",
+}
+CLASS_REPRESENTATIONS = [_CLASS_REPRESENTATIONS_MAPPING[cls] for cls in CLASSES]
+del _CLASS_REPRESENTATIONS_MAPPING
+
+CLASS_PRINTABLES = CLASS_REPRESENTATIONS[:]
+CLASS_PRINTABLES[CLASS_INDEX[CLS_NEWLINE]] += "\n"
