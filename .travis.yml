@@ -69,12 +69,14 @@ matrix:
         - python3 setup.py bdist_wheel
       deploy: *_deploy
     - name: 'Push image to Docker Hub'
+      python: 3.5
       stage: deploy
       install: *_install
       script:
         - DOCKER_PUSH_LATEST=true make docker-push
     - name: 'Deploy to staging'
       stage: deploy-k8s
+      python: 3.5
       install:
         - make install-helm
       script:
