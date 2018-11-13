@@ -70,6 +70,7 @@ matrix:
       deploy: *_deploy
     - name: 'Push image to Docker Hub'
       stage: deploy
+      install: *_install
       script:
         - DOCKER_PUSH_LATEST=true make docker-push
     - name: 'Deploy to staging'
