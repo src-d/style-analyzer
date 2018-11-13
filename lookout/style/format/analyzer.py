@@ -108,11 +108,12 @@ class FormatAnalyzer(Analyzer):
                     log.warning("Failed to parse %s", file.path)
                     continue
                 X, y, vnodes_y, vnodes, vnodes_parents, parents = res
-                y_pred, rule_winners = rules.predict(X=X, y=y, vnodes_y=vnodes_y, vnodes=vnodes,
-                                                     files={file.path: file}, feature_extractor=fe,
-                                                     client=self.client,
-                                                     vnodes_parents=vnodes_parents,
-                                                     parents=parents)
+                y_pred, rule_winners, safe_preds = rules.predict(
+                    X=X, y=y, vnodes_y=vnodes_y, vnodes=vnodes, files={file.path: file},
+                    feature_extractor=fe, client=self.client, vnodes_parents=vnodes_parents,
+                    parents=parents)
+                y = y[safe_preds]
+                vnodes_y = [vn for i, vn in enumerate(list(vnodes_y)) if i in safe_preds]
                 assert len(y) == len(y_pred)
 
                 code_lines = file.content.decode("utf-8", "replace").splitlines()

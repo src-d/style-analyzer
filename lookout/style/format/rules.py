@@ -120,7 +120,7 @@ class Rules:
                 vnodes: Sequence[VirtualNode], files: Mapping[str, File],
                 feature_extractor: FeatureExtractor, client: BblfshClient,
                 vnodes_parents: Mapping[int, bblfsh.Node], parents: Mapping[str, bblfsh.Node],
-                return_originals: bool = False
+                return_originals: bool = False, return_all_preds: bool = False
                 ) -> Union[Tuple[numpy.ndarray, numpy.ndarray, numpy.ndarray, numpy.ndarray],
                            Tuple[numpy.ndarray, numpy.ndarray]]:
         """
@@ -138,6 +138,8 @@ class Rules:
         :param parents: Parents mapping of the input UASTs.
         :param return_originals: Whether to return the basic predictions (Rules.apply()) in \
                                  addition to the post-processed ones.
+        :param return_all_preds: Whether to return all the predictions or ony the valid ones \
+                                 that are not breaking the UAST.
         :return: The predictions, the winning rules and optionally the basic predictions from \
                  Rules.apply()
         """
@@ -155,13 +157,13 @@ class Rules:
             y=y, y_pred=postprocessed_y_pred, vnodes_y=vnodes_y, files=files,
             feature_extractor=feature_extractor, client=client, vnodes_parents=vnodes_parents,
             parents=parents)
-        safe_y_pred = postprocessed_y_pred[safe_preds]
-        safe_winners = postprocessed_winners[safe_preds]
         self._log.info("Non UAST breaking predictions: %d selected out of %d",
-                       safe_y_pred.shape[0], y_pred.shape[0])
+                       len(safe_preds), y_pred.shape[0])
         if return_originals:
-            return safe_y_pred, safe_winners, y_pred, winners
-        return safe_y_pred, safe_winners
+            return postprocessed_y_pred, postprocessed_winners, safe_preds, y_pred, winners
+        if return_all_preds:
+            return postprocessed_y_pred, postprocessed_winners, safe_preds
+        return postprocessed_y_pred[safe_preds], postprocessed_winners[safe_preds], safe_preds
 
     @property
     def rules(self) -> List[Rule]:

@@ -33,8 +33,10 @@ def quality_report(input_pattern: str, bblfsh: str, language: str, n_files: int,
         return
     X, y, vnodes_y, vnodes = res
 
-    y_pred, _ = rules.predict(X, vnodes_y, vnodes, fe)
+    y_pred, _, safe_preds = rules.predict(X, vnodes_y, vnodes, fe)
 
+    y = y[safe_preds]
+    vnodes_y = [vn for i, vn in enumerate(list(vnodes_y)) if i in safe_preds]
     target_names = get_composite_class_representations(fe)
     print("Classification report:\n" + classification_report(y, y_pred, target_names=target_names))
     print("Confusion matrix:\n" + str(confusion_matrix(y, y_pred)))

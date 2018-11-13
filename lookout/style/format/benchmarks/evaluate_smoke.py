@@ -7,6 +7,8 @@ from pathlib import Path
 import tempfile
 from typing import Any, List, Mapping
 
+from bblfsh import BblfshClient
+
 from lookout.core.analyzer import ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2_grpc import DataStub
@@ -54,6 +56,7 @@ class SmokeEvalFormatAnalyzer(FormatAnalyzer):
         """
         super().__init__(model, url, config)
         self.config = self._load_analyze_config(self.config)
+        self.client = BblfshClient(self.config["bblfsh_address"])
         self.report = None
 
     def _dump_report(self, outputpath):
@@ -96,8 +99,11 @@ class SmokeEvalFormatAnalyzer(FormatAnalyzer):
                 if res is None:
                     log.warning("Failed to parse %s", file.path)
                     continue
-                X, y, vnodes_y, vnodes = res
-                y_pred, rule_winners = rules.predict(X, vnodes_y, vnodes, fe)
+                X, y, vnodes_y, vnodes, vnodes_parents, parents = res
+                y_pred, _, _ = rules.predict(X=X, y=y, vnodes_y=vnodes_y, vnodes=vnodes,
+                                             files={file.path: file}, feature_extractor=fe,
+                                             client=self.client, vnodes_parents=vnodes_parents,
+                                             parents=parents, return_all_preds=True)
                 assert len(y) == len(y_pred)
 
                 correct_lines = prev_file.content.decode("utf-8", "replace").splitlines()

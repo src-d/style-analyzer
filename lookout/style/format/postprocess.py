@@ -62,7 +62,7 @@ def filter_uast_breaking_preds(y: numpy.ndarray, y_pred: numpy.ndarray,
         if gt != pred:
             content_before = files[vn_y.path].content
             parent = vnodes_parents[id(vn_y)]
-            pred_string = "".join(INDEX_CLS_TO_STR[i] for i in
+            pred_string = "".join(INDEX_CLS_TO_STR[j] for j in
                                   feature_extractor.labels_to_class_sequences[pred])
             if not (CLS_QUOTES.intersection(vn_y.value) and CLS_QUOTES.intersection(pred_string)):
                 errors_parsing = True
@@ -88,6 +88,8 @@ def filter_uast_breaking_preds(y: numpy.ndarray, y_pred: numpy.ndarray,
                                 safe_preds.append(i)
                     else:
                         parent = parents[id(parent)]
+            else:
+                safe_preds.append(i)
         else:
             safe_preds.append(i)
     return safe_preds

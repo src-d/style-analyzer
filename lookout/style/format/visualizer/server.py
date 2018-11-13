@@ -92,10 +92,12 @@ def return_features() -> Response:
     if res is None:
         abort(500)
     X, y, vnodes_y, vnodes, vnodes_parents, parents, sibling_indices = res
-    y_pred, winners = rules.predict(X=X, y=y, vnodes_y=vnodes_y, vnodes=vnodes,
-                                    files={file.path: file}, feature_extractor=fe,
-                                    client=client, vnodes_parents=vnodes_parents,
-                                    parents=parents)
+    y_pred, winners, safe_preds = rules.predict(X=X, y=y, vnodes_y=vnodes_y, vnodes=vnodes,
+                                                files={file.path: file}, feature_extractor=fe,
+                                                client=client, vnodes_parents=vnodes_parents,
+                                                parents=parents, return_all_preds=True)
+    wrong_preds = list(set(range(X.shape[0])) - set(safe_preds))
+    winners[wrong_preds] = -1
     app.logger.info("returning features of shape %d, %d" % X.shape)
     return jsonify({"code": code,
                     "features": _input_matrix_to_descriptions(X, fe),

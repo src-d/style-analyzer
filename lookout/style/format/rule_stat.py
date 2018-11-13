@@ -87,12 +87,13 @@ def print_rules_report(input_pattern: str, bblfsh: str, language: str, model_pat
         print("Failed to parse files, aborting report...")
         return
 
-    X, y, vnodes_y, vnodes = res
+    X, y, vnodes_y, vnodes, _, _ = res
 
-    y_pred, winners = rules.predict(X, vnodes_y, vnodes, fe)
+    y_pred, winners, safe_preds = rules.predict(X, vnodes_y, vnodes, fe)
 
     rule_stat = defaultdict(lambda: RuleStat(fe))
 
+    y = y[safe_preds]
     for gt, pred, rule in tqdm(zip(y, y_pred, winners), total=y.shape[0]):
         rule_stat[rule].gt_classes[gt] += 1
         rule_stat[rule].pred_classes[pred] += 1
