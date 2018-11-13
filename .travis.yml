@@ -59,19 +59,18 @@ matrix:
       install: *_install
       after_success:
         - codecov
-    - stage: deploy
-      python: 3.5
-      install:
-        - pip3 install --upgrade pip
-        - pip3 install twine
-      before_script: skip
-      script:
-        - python3 setup.py bdist_wheel
-      deploy: *_deploy
+    # - stage: deploy
+    #   python: 3.5
+    #   install:
+    #     - pip3 install --upgrade pip
+    #     - pip3 install twine
+    #   before_script: skip
+    #   script:
+    #     - python3 setup.py bdist_wheel
+    #   deploy: *_deploy
     - name: 'Push image to Docker Hub'
       python: 3.5
       stage: deploy
-      install: *_install
       script:
         - DOCKER_PUSH_LATEST=true make docker-push
     - name: 'Deploy to staging'
