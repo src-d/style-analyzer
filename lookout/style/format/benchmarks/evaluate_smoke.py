@@ -14,6 +14,7 @@ from lookout.core.data_requests import with_changed_uasts_and_contents
 from lookout.core.lib import files_by_language, filter_files, find_new_lines
 from lookout.core.tests import server
 from lookout.style.format.analyzer import FormatAnalyzer
+from lookout.style.format.code_generator import CodeGenerator
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.model import FormatModel
 from lookout.style.format.tests.test_analyzer_integration import TestAnalyzer
@@ -36,9 +37,9 @@ def _loss(head_lines, correct_lines, predicted_lines):
         edit_distance(head_lines, correct_lines)
 
 
-class SmokeEvalFormatAnalyser(FormatAnalyzer):
+class SmokeEvalFormatAnalyzer(FormatAnalyzer):
     """
-    Analyser for Smoke dataset evaluation.
+    Analyzer for Smoke dataset evaluation.
     """
 
     REPORT_COLNAMES = ["repo", "filepath", "style", "loss"]
@@ -101,12 +102,10 @@ class SmokeEvalFormatAnalyser(FormatAnalyzer):
 
                 correct_lines = prev_file.content.decode("utf-8", "replace").splitlines()
                 head_lines = file.content.decode("utf-8", "replace").splitlines()
-                try:
-                    predicted_lines = self.generate_file(vnodes_y, y_pred, vnodes)
-                    file_loss = _loss(head_lines, correct_lines, predicted_lines)
-                except NotImplementedError as e:
-                    self.log.warning("generate_file not implemented for indentation change.")
-                    file_loss = -1
+                code_generator = CodeGenerator(fe, skip_errors=True)
+                predicted_lines = code_generator.generate(
+                    vnodes_y=vnodes_y, y_pred=y_pred, vnodes=vnodes)
+                file_loss = _loss(head_lines, correct_lines, predicted_lines)
                 self.log.debug("Loss %d on file %s in the repo %s" % (
                     file_loss, file.path, self.config["repo_name"]))
                 self.report.append({"repo": self.config["repo_name"],
@@ -117,7 +116,7 @@ class SmokeEvalFormatAnalyser(FormatAnalyzer):
         return []
 
 
-analyzer_class = SmokeEvalFormatAnalyser
+analyzer_class = SmokeEvalFormatAnalyzer
 
 
 def report_summary(reportpath: str) -> None:
@@ -133,7 +132,7 @@ def report_summary(reportpath: str) -> None:
     rest_support = 0
     cases_number = 0
     with open(str(reportpath)) as index:
-        reader = csv.DictReader(index, fieldnames=SmokeEvalFormatAnalyser.REPORT_COLNAMES)
+        reader = csv.DictReader(index, fieldnames=SmokeEvalFormatAnalyzer.REPORT_COLNAMES)
         for row in reader:
             cases_number += 1
             loss = float(row["loss"])
