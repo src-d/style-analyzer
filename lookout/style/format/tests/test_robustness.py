@@ -17,7 +17,8 @@ class RobustnessTests(unittest.TestCase):
         cls.language = "javascript"
 
         cls.parent_loc = Path(__file__).parent.resolve()
-        cls.base_dir = str(cls.parent_loc)
+        cls.base_dir_ = tempfile.TemporaryDirectory(dir=str(cls.parent_loc))
+        cls.base_dir = cls.base_dir_.name
 
         with tarfile.open(str(cls.parent_loc / "jquery.tar.xz")) as tar:
             tar.extractall(path=cls.base_dir)
@@ -29,6 +30,10 @@ class RobustnessTests(unittest.TestCase):
         cls.input_pattern_noisy = os.path.join(cls.jquery_noisy_dir, "**", "*.js")
 
         cls.model_path = str(Path(__file__).parent.resolve() / "model_jquery5.asdf")
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.base_dir_.cleanup()
 
     @unittest.skipIf(sys.version_info.minor == 5, "Python 3.5 is not yet supported by difflib")
     @unittest.skip("To fix")
