@@ -2,6 +2,7 @@ current_dir = $(shell pwd)
 
 .PHONY: check
 check:
+	! grep -R /tmp lookout/style/*/tests
 	flake8 --config .flake8-code . --count
 	flake8 --config .flake8-doc . --count
 	pylint lookout
