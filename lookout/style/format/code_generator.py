@@ -6,8 +6,9 @@ import numpy
 
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.feature_utils import (
-    CLASS_INDEX, CLASSES, CLS_DOUBLE_QUOTE, CLS_NEWLINE, CLS_NOOP, CLS_SINGLE_QUOTE, CLS_SPACE_DEC,
-    CLS_SPACE_INC, CLS_TAB_DEC, CLS_TAB_INC, CLS_TO_STR, VirtualNode)
+    CLASS_INDEX, CLASS_REPRESENTATIONS, CLASSES, CLS_DOUBLE_QUOTE, CLS_NEWLINE, CLS_NOOP,
+    CLS_SINGLE_QUOTE, CLS_SPACE_DEC, CLS_SPACE_INC, CLS_TAB_DEC, CLS_TAB_INC, CLS_TO_STR,
+    VirtualNode)
 
 
 class CodeGenerationError(Exception):
@@ -35,7 +36,9 @@ class CodeGenerator:
                  feature_extractor: FeatureExtractor,
                  change_locally: bool = False,
                  skip_errors: bool = False,
-                 verbose: bool = False):
+                 verbose: bool = False,
+                 url: str = "<NA>",
+                 commit: str = "<NA>"):
         """
         Construct a CodeGenerator.
 
@@ -46,11 +49,16 @@ class CodeGenerator:
         :param skip_errors: Raise an exception in case of code generation failure if skip_errors \
                             is False. If skip_errors is True, ignore such model suggestions.
         :param verbose: Run code with additional verbose debug logging.
+        :param url: Repository url if applicable. Useful for more informative warning messages.
+        :param commit: Commit hash if applicable. Useful for more informative warning messages.
+
         """
         self.feature_extractor = feature_extractor
         self.change_locally = change_locally
         self.skip_errors = skip_errors
         self.verbose = verbose
+        self.url = url
+        self.commit = commit
 
     def generate(self,
                  vnodes_y: List[VirtualNode],
@@ -108,7 +116,7 @@ class CodeGenerator:
                         # We should modify existing indentation
                         if state.indent_delta < 0:
                             if len(vnode.value) < -state.indent_delta:
-                                self._error_handler("Indentation decrease excess.")
+                                self._handle_error("Indentation decrease excess.")
                                 state.reset_indentation()
                             else:
                                 state.accumulated_indentation = vnode.value[:state.indent_delta]
@@ -161,11 +169,13 @@ class CodeGenerator:
                 vnode.y[0] == CLASS_INDEX[CLS_NOOP]):
             return True
         if len(set(vnode.y) & self.QUOTES) > 0 and len(set(y_new) & self.QUOTES) == 0:
-            return self._error_handler("Quotes cannot be changed to non-quote tokens.\n"
-                                       "vnode: %s, y_new: %s" % (repr(vnode), y_new))
+            y_new_repr = "".join([CLASS_REPRESENTATIONS[y] for y in y_new])
+            return self._handle_error("Quotes cannot be changed to non-quote tokens.\n"
+                                      "vnode: %s, y_new: %s" % (repr(vnode), y_new_repr))
         if len(set(vnode.y) & self.QUOTES) == 0 and len(set(y_new) & self.QUOTES) > 0:
-            return self._error_handler("Non-Quote tokens cannot be changed to quote tokens.\n"
-                                       "vnode: %s, y_new: %s" % (repr(vnode), y_new))
+            y_new_repr = "".join([CLASS_REPRESENTATIONS[y] for y in y_new])
+            return self._handle_error("Non-Quote tokens cannot be changed to quote tokens.\n"
+                                      "vnode: %s, y_new: %s" % (repr(vnode), y_new_repr))
         return True
 
     def _iterate_vnodes(self, vnodes, vnodes_y, y_pred):
@@ -184,10 +194,10 @@ class CodeGenerator:
                 yield vnode, self.feature_extractor.labels_to_class_sequences[y_pred[y_index]]
                 y_index += 1
 
-    def _error_handler(self, msg):
-        msg += (" Skipping." if self.skip_errors else
-                "Set skip_errors=True to skip faulty suggestions.")
-        self.log.warning(msg)
+    def _handle_error(self, msg):
+        self.log.warning("%s url: %s, commit: %s. %s.",
+                         msg, self.url, self.commit, "Skipping" if self.skip_errors else
+                         "Set skip_errors=True to skip faulty suggestions")
         if not self.skip_errors:
             raise CodeGenerationError(msg)
         return False
