@@ -264,7 +264,7 @@ class FeatureExtractor:
                                               index_labels=index_labels)
             else:
                 file_vnodes = list(file_vnodes)
-            file_lines = set(lines[i]) if lines is not None else None
+            file_lines = set(lines[i]) if lines is not None and lines[i] is not None else None
             parsed_files.append((file_vnodes, file_parents, file_lines))
             parents.update(file_parents)
             closest_left_node_id = None

@@ -1,14 +1,17 @@
 """Facilities to report the quality and statistics of a given rules on a given dataset."""
 from collections import defaultdict
 import glob
-from typing import Iterable
+import io
+import logging
+from typing import Any, Iterable, Mapping, Union
 
 from bblfsh import BblfshClient
+import numpy
 from tqdm import tqdm
 
 from lookout.style.format.descriptions import describe_rule, get_composite_class_representations
 from lookout.style.format.feature_extractor import FeatureExtractor
-from lookout.style.format.model import FormatModel
+from lookout.style.format.quality_report import FormatModel, ReportAnalyzer
 from lookout.style.format.utils import prepare_files, profile
 
 
@@ -21,40 +24,106 @@ class RuleStat:
         self.pred_classes = [0 for _ in feature_extractor.labels_to_class_sequences]
 
 
-def print_rule_table(rule_stat: Iterable[RuleStat], feature_extractor: FeatureExtractor) -> None:
+def generate_rule_table(rule_stat: Mapping[Any, RuleStat], feature_extractor: FeatureExtractor) \
+        -> str:
     """
-    Print a table to detail rules statistics.
+    Generate table from statistics about rules.
 
-    :param rule_stat: `RuleStats`-s for all the rules to detail.
+    :param rule_stat: mapping {rule: RuleStat).
+    :param feature_extractor: FeatureExtractor used to extract features.
+    :return: table in str format.
+    """
+    class_names = get_composite_class_representations(feature_extractor)
+    with io.StringIO() as output:
+        print("Legend: predictions/ground truth", file=output)
+        report = [["#rule"] + class_names + ["n_mistakes", "support"]]
+        for rule in sorted(rule_stat):
+            line = ["Rule number %s: " % rule]
+            line.extend(
+                ["%s/%s" % (pred, gt) for gt, pred in zip(rule_stat[rule].gt_classes,
+                                                          rule_stat[rule].pred_classes)]
+            )
+
+            n_mistakes = int(sum(abs(pred - gt)
+                                 for gt, pred in zip(rule_stat[rule].gt_classes,
+                                                     rule_stat[rule].pred_classes)) / 2)
+            line.append(str(n_mistakes))
+            support = str(sum(rule_stat[rule].pred_classes))
+            line.append(support)
+            report.append(line)
+        max_cols = [0] * len(report[0])
+        for line in report:
+            for i, col in enumerate(line):
+                max_cols[i] = max(max_cols[i], len(col))
+        for line in report:
+            new_line = ""
+            for i, col in enumerate(line):
+                new_line += col.ljust(max_cols[i])
+                if i != len(line) - 1:
+                    new_line += "|"
+            print(new_line, file=output)
+        return output.getvalue()
+
+
+def print_rule_table(rule_stat: Mapping[Any, RuleStat], feature_extractor: FeatureExtractor) \
+        -> None:
+    """
+    Print table from statistics about rules.
+
+    :param rule_stat: mapping {rule: RuleStat).
     :param feature_extractor: FeatureExtractor used to extract features.
     """
-    print("Legend: predictions/ground truth")
-    class_names = get_composite_class_representations(feature_extractor)
-    report = [["#rule"] + class_names + ["n_mistakes", "support"]]
-    for rule in sorted(rule_stat):
-        line = ["Rule number %s: " % rule]
-        line.extend(
-            ["%s/%s" % (pred, gt) for gt, pred in zip(rule_stat[rule].gt_classes,
-                                                      rule_stat[rule].pred_classes)]
-        )
+    print(generate_rule_table(rule_stat=rule_stat, feature_extractor=feature_extractor))
 
-        n_mistakes = int(sum(abs(pred - gt) for gt, pred in zip(rule_stat[rule].gt_classes,
-                                                                rule_stat[rule].pred_classes)) / 2)
-        line.append(str(n_mistakes))
-        support = str(sum(rule_stat[rule].pred_classes))
-        line.append(support)
-        report.append(line)
-    max_cols = [0] * len(report[0])
-    for line in report:
-        for i, col in enumerate(line):
-            max_cols[i] = max(max_cols[i], len(col))
-    for line in report:
-        new_line = ""
-        for i, col in enumerate(line):
-            new_line += col.ljust(max_cols[i])
-            if i != len(line) - 1:
-                new_line += "|"
-        print(new_line)
+
+def generate_model_report(model: FormatModel, language: str,
+                          feature_extractor: FeatureExtractor) -> str:
+    """
+    Generate report about model - description for each rule, min/max support, min/max confidence.
+
+    :param model: trained format model.
+    :param language: language.
+    :param feature_extractor: feature extractor.
+    :return: report in str format.
+    """
+    rules = model[language]
+    min_support, max_support = float("inf"), -1
+    min_conf, max_conf = 1, 0
+    with io.StringIO() as output:
+        for i, rule in enumerate(rules.rules):
+            min_support = min(min_support, rule.stats.support)
+            max_support = max(max_support, rule.stats.support)
+            min_conf = min(min_conf, rule.stats.conf)
+            max_conf = max(max_conf, rule.stats.conf)
+            print("Rule %s: %s" % (i, describe_rule(rule, feature_extractor)), file=output)
+        print("Min/max support: %s/%s, min/max conf: %s/%s" % (min_support, max_support, min_conf,
+                                                               max_conf), file=output)
+        return output.getvalue()
+
+
+def generate_report(y: Union[numpy.ndarray, Iterable[Union[int, float]]],
+                    y_pred: Union[numpy.ndarray, Iterable[Union[int, float]]],
+                    winners: Union[numpy.ndarray, Iterable[Union[int, float]]],
+                    feature_extractor: FeatureExtractor) -> str:
+    """
+    Generate report about predictions and triggered rules.
+
+    Description: rule, predicted labels, true labels, support, number of errors.
+
+    :param y: labels from feature extractor.
+    :param y_pred: predicted labels.
+    :param winners: winner rules
+    :param feature_extractor: FeatureExtractor used to extract features.
+    :return: report in str format.
+    """
+    rule_stat = defaultdict(lambda: RuleStat(feature_extractor))
+
+    for gt, pred, rule in tqdm(zip(y, y_pred, winners), total=y.shape[0]):
+        rule_stat[rule].gt_classes[gt] += 1
+        rule_stat[rule].pred_classes[pred] += 1
+
+    return "Overall statistics:\n" + generate_rule_table(rule_stat=rule_stat,
+                                                         feature_extractor=feature_extractor)
 
 
 @profile
@@ -66,16 +135,7 @@ def print_rules_report(input_pattern: str, bblfsh: str, language: str, model_pat
     print("Stats about rules: %s" % rules)
 
     fe = FeatureExtractor(language=language, **rules.origin_config["feature_extractor"])
-    min_support, max_support = float("inf"), -1
-    min_conf, max_conf = 1, 0
-    for i, rule in enumerate(rules.rules):
-        min_support = min(min_support, rule.stats.support)
-        max_support = max(max_support, rule.stats.support)
-        min_conf = min(min_conf, rule.stats.conf)
-        max_conf = max(max_conf, rule.stats.conf)
-        print("Rule %s: %s" % (i, describe_rule(rule, fe)))
-    print("Min/max support: %s/%s, min/max conf: %s/%s" % (min_support, max_support, min_conf,
-                                                           max_conf))
+    print(generate_model_report(model, language, fe))
     client = BblfshClient(bblfsh)
     filenames = glob.glob(input_pattern, recursive=True)
     files = prepare_files(filenames, client, language)
@@ -87,16 +147,80 @@ def print_rules_report(input_pattern: str, bblfsh: str, language: str, model_pat
         print("Failed to parse files, aborting report...")
         return
 
-    X, y, vnodes_y, vnodes, _, _ = res
-
-    y_pred, winners, safe_preds = rules.predict(X, vnodes_y, vnodes, fe)
-
-    rule_stat = defaultdict(lambda: RuleStat(fe))
-
+    X, y, vnodes_y, vnodes, vnodes_parents, parents = res
+    y_pred, winners, safe_preds = rules.predict(X=X, y=y, vnodes_y=vnodes_y, vnodes=vnodes,
+                                                files={f.path: f for f in files},
+                                                feature_extractor=fe, client=client,
+                                                vnodes_parents=vnodes_parents, parents=parents)
     y = y[safe_preds]
-    for gt, pred, rule in tqdm(zip(y, y_pred, winners), total=y.shape[0]):
-        rule_stat[rule].gt_classes[gt] += 1
-        rule_stat[rule].pred_classes[pred] += 1
+    print(generate_report(y=y, y_pred=y_pred, winners=winners, feature_extractor=fe))
 
-    print("Overall statistics:")
-    print_rule_table(rule_stat, fe)
+
+class RuleStatAnalyzer(ReportAnalyzer):
+    """
+    Rules report analyzer.
+
+    * analyze - generate report per changed files or aggregated changes.
+    * train - generate report for all files.
+
+    How-to:
+
+    1) Launch analyzer: `analyzer run lookout.style.format.rule_stat -c config.yml`
+
+    2) Query analyzer
+
+    2.1) Rules report query for all files:
+    ```
+    lookout-sdk push ipv4://analyzer:port --git-dir /git/dir/ --from REV1 --to  REV2  \
+    --config-json='{"style.format.analyzer.RuleStatAnalyzer":  \
+    {"model_path": "/saved/model.asdf"}}'
+    ```
+
+    2.2) Rules report for changes per file:
+    ```
+    lookout-sdk review ipv4://analyzer:port --git-dir /git/dir/ --from REV1 --to  REV2  \
+    --config-json='{"style.format.analyzer.RuleStatAnalyzer":  \
+    {"model_path": "/saved/model.asdf"}}'
+    ```
+
+    2.3) Rules report for aggregated changes:
+    ```
+    lookout-sdk review ipv4://analyzer:port --git-dir /git/dir/ --from REV1 --to  REV2  \
+    --config-json='{"style.format.analyzer.RuleStatAnalyzer":  \
+    {"model_path": "/saved/model.asdf", "aggregate": true}}'
+    ```
+    """
+
+    log = logging.getLogger("RuleStatAnalyzer")
+    name = "style.format.analyzer.RuleStatAnalyzer"
+    version = "1"
+    description = "Source code formatting rule stats analysis: " \
+                  "support, triggered rules, errors, etc."
+
+    def __init__(self, model: FormatModel, url: str, config: Mapping[str, Any]) -> None:
+        """Initialize analyzer with pretrained model and configuration."""
+        super().__init__(model, url, config)
+        self.config = self._load_analysis_config(self.config)
+
+    @classmethod
+    def generate_report(cls, y: Union[numpy.ndarray, Iterable[Union[int, float]]],
+                        y_pred: Union[numpy.ndarray, Iterable[Union[int, float]]],
+                        rule_winners: Iterable[int], feature_extractor: FeatureExtractor,
+                        **kwargs) -> str:
+        """
+        Generate report about predictions and triggered rules.
+
+        Description: rule, predicted labels, true labels, number of errors, support.
+
+        :param y: labels.
+        :param y_pred: predicted labels.
+        :param rule_winners: rule winner.
+        :param feature_extractor: FeatureExtractor used to extract features.
+        :param kwargs: helper to handel additional parameters.
+        :return: report.
+        """
+        return generate_report(y=y, y_pred=y_pred, winners=rule_winners,
+                               feature_extractor=feature_extractor)
+
+
+analyzer_class = RuleStatAnalyzer

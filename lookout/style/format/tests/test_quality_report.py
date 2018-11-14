@@ -2,7 +2,6 @@ import glob
 import io
 import os
 from pathlib import Path
-import shutil
 import sys
 import tarfile
 import tempfile
@@ -10,7 +9,8 @@ import unittest
 
 from lookout.core.tests.server import find_port, run as launch_server
 from lookout.style.format.quality_report import quality_report
-from lookout.style.format.tests.test_analyzer_integration import TestAnalyzer
+from lookout.style.format.tests.test_analyzer_integration import (FROM_COMMIT, TestAnalyzer,
+                                                                  TO_COMMIT)
 
 
 class PretrainedModelTests(unittest.TestCase):
@@ -23,36 +23,48 @@ class PretrainedModelTests(unittest.TestCase):
 
         # analyzer
         cls.parent_loc = Path(__file__).parent.resolve()
-        cls.base_dir = str(cls.parent_loc)
+        cls.base_dir_ = tempfile.TemporaryDirectory(dir=str(cls.parent_loc))
+        cls.base_dir = cls.base_dir_.name
         cls.db = tempfile.NamedTemporaryFile(dir=cls.base_dir)
         cls.fs = tempfile.TemporaryDirectory(dir=cls.base_dir)
         cls.port = find_port()
-        cls.analyzer = TestAnalyzer(port=cls.port, db=cls.db.name, fs=cls.fs.name).__enter__()
-
         # extract repo
-        cls.jquery_dir = str(Path(__file__).parent.resolve() / "jquery")
+        cls.jquery_dir = os.path.join(cls.base_dir_.name, "jquery")
         # str() is needed for Python 3.5
         with tarfile.open(str(cls.parent_loc / "jquery.tar.xz")) as tar:
             tar.extractall(path=cls.base_dir)
+        assert len(glob.glob(os.path.join(cls.jquery_dir, "**", "*"), recursive=True)) > 49
+        with TestAnalyzer(port=cls.port, db=cls.db.name, fs=cls.fs.name):
+            # train the rules
+            launch_server(
+                "push",
+                FROM_COMMIT,
+                TO_COMMIT,
+                cls.port, git_dir=cls.jquery_dir)
 
-        # train the rules
-        launch_server(
-            "push",
-            "fbd32214d1b08e09278f39c77979658cabde6c4d",
-            "931442679ad04ebadad2b70a9f938fb0bc64d537",
-            cls.port, git_dir=cls.jquery_dir)
-
-        # find the saved model
-        filenames = glob.glob(os.path.join(cls.fs.name, "**", "*"), recursive=True)
-        res = [file for file in filenames if file.endswith(".asdf")]
-        cls.model_path = res[0]
+            # find the saved model
+            filenames = glob.glob(os.path.join(cls.fs.name, "**", "*"), recursive=True)
+            res = [file for file in filenames if file.endswith(".asdf")]
+            cls.model_path = res[0]
 
     @classmethod
     def tearDownClass(cls):
         """Remove temporary directory with jquery repository."""
-        shutil.rmtree(cls.jquery_dir)
-        cls.fs.cleanup()
-        cls.analyzer.__exit__(None, None, None)
+        cls.base_dir_.cleanup()
+
+    def setUp(self, fs=None):
+        self.port = find_port()
+        self.db = tempfile.NamedTemporaryFile(dir=self.base_dir)
+        if fs is None:
+            self.fs = tempfile.TemporaryDirectory(dir=self.base_dir)
+        else:
+            self.fs = fs
+
+    def tearDown(self, fs_cleanup=True):
+        if fs_cleanup:
+            self.fs.cleanup()
+        if hasattr(self, "test_analyzer"):
+            self.test_analyzer.__exit__(None, None, None)
 
 
 class Capturing(list):
@@ -98,6 +110,34 @@ class QualityReportTests(PretrainedModelTests):
                         input_pattern=input_pattern, bblfsh=self.bblfsh, language=self.language,
                         n_files=10, model_path=empty_model
                     )
+
+    def test_push_ananlyzer(self):
+        """Test push event to analyzer."""
+        try:
+            analyzer = "lookout.style.format.quality_report"
+            config_json = '{\"style.format.analyzer.QualityReportAnalyzer\": ' \
+                          '{\"model_path\": \"%s\", \"aggregate\":true}}' % self.model_path
+            self.test_analyzer = TestAnalyzer(port=self.port, db=self.db.name, fs=self.fs.name,
+                                              analyzer=analyzer)
+            self.test_analyzer.__enter__()
+            launch_server("push", FROM_COMMIT, TO_COMMIT, port=self.port,
+                          git_dir=self.jquery_dir, config_json=config_json)
+        except Exception as e:
+            self.fail("Unexpected exception %s" % e)
+
+    def test_review_ananlyzer(self):
+        """Test review event to analyzer."""
+        try:
+            analyzer = "lookout.style.format.quality_report"
+            config_json = '{\"style.format.analyzer.QualityReportAnalyzer\": ' \
+                          '{\"model_path\": \"%s\", \"aggregate\":true}}' % self.model_path
+            self.test_analyzer = TestAnalyzer(port=self.port, db=self.db.name, fs=self.fs.name,
+                                              analyzer=analyzer)
+            self.test_analyzer.__enter__()
+            launch_server("review", FROM_COMMIT, TO_COMMIT, port=self.port,
+                          git_dir=self.jquery_dir, config_json=config_json)
+        except Exception as e:
+            self.fail("Unexpected exception %s" % e)
 
 
 if __name__ == "__main__":
