@@ -4,12 +4,11 @@ import "./css/Input.css";
 import defaultCode from "./defaultCode";
 
 export interface IProps {
-  switchHandler: (code: string) => void,
+  switchHandler: (code: string) => void;
 }
 
 const Input = (props: IProps) => {
-  // @ts-ignore
-  const code = React.useRef(null);
+  const code = React.useRef<HTMLTextAreaElement>(null);
   return (
     <Grid fluid={true} className="Input">
       <Row>
@@ -20,7 +19,7 @@ const Input = (props: IProps) => {
       <Row>
         <Col sm={12}>
           <textarea
-          placeholder="Please enter the code here"
+            placeholder="Please enter the code here"
             ref={code}
             defaultValue={defaultCode}
           />
@@ -31,7 +30,11 @@ const Input = (props: IProps) => {
           <button
             type="button"
             className="btn btn-primary btn-lg btn-block"
-            onClick={() => props.switchHandler(code.current !== null ? code.current.value : "")}
+            onClick={() =>
+              props.switchHandler(
+                code.current !== null ? code.current.value : ""
+              )
+            }
           >
             Visualize
           </button>
@@ -39,6 +42,6 @@ const Input = (props: IProps) => {
       </Row>
     </Grid>
   );
-}
+};
 
 export default Input;
