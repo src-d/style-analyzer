@@ -262,8 +262,7 @@ class FeatureExtractor:
             parsed_files.append((file_vnodes, file_parents, file_lines))
 
         labels = [[self.class_sequences_to_labels[vnode.y]
-                   for vnode in file_vnodes if vnode.y is not None and (
-                       vnode.start.line in file_lines if file_lines is not None else True)]
+                   for vnode in file_vnodes if vnode.is_labeled_on_lines(file_lines)]
                   for file_vnodes, file_parents, file_lines in parsed_files]
 
         if not labels:
@@ -598,7 +597,7 @@ class FeatureExtractor:
         for i, vnode in enumerate(vnodes):
             if vnode.node:
                 closest_left_node_id = id(vnode.node)
-            if vnode.y is None or (lines is not None and vnode.start.line not in lines):
+            if not vnode.is_labeled_on_lines(lines):
                 continue
             if self.parents_depth:
                 parent = self._find_parent(i, vnodes, parents, closest_left_node_id)

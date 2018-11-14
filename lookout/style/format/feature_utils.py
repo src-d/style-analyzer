@@ -1,5 +1,5 @@
 """Facilities to create and use features."""
-from typing import Callable, Iterable, Mapping, NamedTuple, Tuple, Union
+from typing import Callable, Iterable, Mapping, NamedTuple, Optional, Set, Tuple, Union
 
 import bblfsh
 
@@ -76,6 +76,17 @@ class VirtualNode:
                 and self.node == other.node
                 and self.y == other.y
                 and self.path == other.path)
+
+    def is_labeled_on_lines(self, lines: Optional[Set[int]]) -> bool:
+        """
+        Return true for labeled VirtualNode instance that located on specified lines.
+
+        :param lines: list of lines or None. None is considered as all possible lines.
+        :return: Condition value
+        """
+        if self.y is None:
+            return False
+        return lines is None or bool(lines.intersection(range(self.start.line, self.end.line + 1)))
 
     @staticmethod
     def from_node(node: bblfsh.Node, file: str, path: str,
