@@ -7,8 +7,6 @@ import logging
 from typing import (Any, Dict, Iterable, List, Mapping, NamedTuple, Optional, Sequence, Set, Tuple,
                     Union)
 
-import bblfsh
-from bblfsh import BblfshClient
 import numpy
 from numpy import count_nonzero
 from scipy.sparse import csr_matrix
@@ -20,11 +18,9 @@ from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
 from sklearn.tree import _tree as Tree, DecisionTreeClassifier
 
-from lookout.core.api.service_data_pb2 import File
 from lookout.core.ports import Type
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.feature_utils import VirtualNode
-from lookout.style.format.postprocess import filter_uast_breaking_preds
 
 
 RuleAttribute = NamedTuple(
@@ -116,30 +112,20 @@ class Rules:
             return prediction, winner_indices
         return prediction
 
-    def predict(self, X: numpy.ndarray, y: numpy.ndarray, vnodes_y: Sequence[VirtualNode],
-                vnodes: Sequence[VirtualNode], files: Mapping[str, File],
-                feature_extractor: FeatureExtractor, client: BblfshClient,
-                vnodes_parents: Mapping[int, bblfsh.Node], parents: Mapping[str, bblfsh.Node],
-                return_originals: bool = False, return_all_preds: bool = False
+    def predict(self, X: numpy.ndarray, vnodes_y: Sequence[VirtualNode],
+                vnodes: Sequence[VirtualNode], feature_extractor: FeatureExtractor,
+                return_originals: bool = False
                 ) -> Union[Tuple[numpy.ndarray, numpy.ndarray, numpy.ndarray, numpy.ndarray],
                            Tuple[numpy.ndarray, numpy.ndarray]]:
         """
         Predict classes given the input features and metadata.
 
         :param X: Numpy 1-dimensional array of input features.
-        :param y: Numpy 1-dimensional array of labels.
         :param vnodes_y: Sequence of the labeled `VirtualNode`-s corresponding to labeled samples.
         :param vnodes: Sequence of all the `VirtualNode`-s corresponding to the input.
-        :param files: Dictionary of File-s with content, uast and path.
         :param feature_extractor: FeatureExtractor used to extract features.
-        :param client: Babelfish client.
-        :param vnodes_parents: Dict of vnodes' parents as the LCA of the closest left and right
-                               babelfish nodes.
-        :param parents: Parents mapping of the input UASTs.
         :param return_originals: Whether to return the basic predictions (Rules.apply()) in \
                                  addition to the post-processed ones.
-        :param return_all_preds: Whether to return all the predictions or ony the valid ones \
-                                 that are not breaking the UAST.
         :return: The predictions, the winning rules and optionally the basic predictions from \
                  Rules.apply()
         """
@@ -153,17 +139,9 @@ class Rules:
         postprocessed_y_pred, postprocessed_winners = postprocess(
             X=X, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, winners=winners, rules=self,
             feature_extractor=feature_extractor)
-        safe_preds = filter_uast_breaking_preds(
-            y=y, y_pred=postprocessed_y_pred, vnodes_y=vnodes_y, files=files,
-            feature_extractor=feature_extractor, client=client, vnodes_parents=vnodes_parents,
-            parents=parents)
-        self._log.info("Non UAST breaking predictions: %d selected out of %d",
-                       len(safe_preds), y_pred.shape[0])
         if return_originals:
-            return postprocessed_y_pred, postprocessed_winners, safe_preds, y_pred, winners
-        if return_all_preds:
-            return postprocessed_y_pred, postprocessed_winners, safe_preds
-        return postprocessed_y_pred[safe_preds], postprocessed_winners[safe_preds], safe_preds
+            return postprocessed_y_pred, postprocessed_winners, y_pred, winners
+        return postprocessed_y_pred, postprocessed_winners
 
     @property
     def rules(self) -> List[Rule]:

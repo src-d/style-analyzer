@@ -1,6 +1,6 @@
 """Visualize features of the format analyzer."""
 from collections.abc import Mapping as Mapping_abc
-from logging import basicConfig
+import logging
 from pathlib import Path
 from typing import Any, List, Mapping, MutableMapping
 
@@ -16,9 +16,10 @@ from lookout.style.format.descriptions import (describe_rules, describe_sample,
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.feature_utils import VirtualNode
 from lookout.style.format.model import FormatModel
+from lookout.style.format.postprocess import filter_uast_breaking_preds
 
 
-basicConfig(level="INFO")
+logging.basicConfig(level="INFO")
 app = Flask(__name__)
 CORS(app)
 
@@ -74,6 +75,7 @@ def _input_matrix_to_descriptions(X: numpy.ndarray, feature_extractor: FeatureEx
 @app.route("/", methods=["POST"])
 def return_features() -> Response:
     """Featurize the given code."""
+    log = logging.getLogger("visualizer")
     body = request.get_json()
     code = body["code"]
     babelfish_address = body["babelfish_address"]
@@ -91,11 +93,14 @@ def return_features() -> Response:
     res = fe.extract_features([file])
     if res is None:
         abort(500)
-    X, y, vnodes_y, vnodes, vnodes_parents, parents, sibling_indices = res
-    y_pred, winners, safe_preds = rules.predict(X=X, y=y, vnodes_y=vnodes_y, vnodes=vnodes,
-                                                files={file.path: file}, feature_extractor=fe,
-                                                client=client, vnodes_parents=vnodes_parents,
-                                                parents=parents, return_all_preds=True)
+    X, y, (vnodes_y, vnodes, vnode_parents, node_parents, sibling_indices) = res
+    y_pred, winners = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
+                                    feature_extractor=fe)
+    _, _, _, safe_preds = filter_uast_breaking_preds(y=y, y_pred=y_pred, vnodes_y=vnodes_y,
+                                                     files={file.path: file}, feature_extractor=fe,
+                                                     client=client,
+                                                     vnode_parents=vnode_parents,
+                                                     node_parents=node_parents, log=log)
     wrong_preds = list(set(range(X.shape[0])) - set(safe_preds))
     winners[wrong_preds] = -1
     app.logger.info("returning features of shape %d, %d" % X.shape)

@@ -99,11 +99,9 @@ class SmokeEvalFormatAnalyzer(FormatAnalyzer):
                 if res is None:
                     log.warning("Failed to parse %s", file.path)
                     continue
-                X, y, vnodes_y, vnodes, vnodes_parents, parents = res
-                y_pred, _, _ = rules.predict(X=X, y=y, vnodes_y=vnodes_y, vnodes=vnodes,
-                                             files={file.path: file}, feature_extractor=fe,
-                                             client=self.client, vnodes_parents=vnodes_parents,
-                                             parents=parents, return_all_preds=True)
+                X, y, (vnodes_y, vnodes, vnode_parents, node_parents) = res
+                y_pred, _ = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
+                                          feature_extractor=fe)
                 assert len(y) == len(y_pred)
 
                 correct_lines = prev_file.content.decode("utf-8", "replace").splitlines()

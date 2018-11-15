@@ -11,6 +11,7 @@ from tqdm import tqdm
 
 from lookout.style.format.descriptions import describe_rule, get_composite_class_representations
 from lookout.style.format.feature_extractor import FeatureExtractor
+from lookout.style.format.postprocess import filter_uast_breaking_preds
 from lookout.style.format.quality_report import FormatModel, ReportAnalyzer
 from lookout.style.format.utils import prepare_files, profile
 
@@ -129,6 +130,7 @@ def generate_report(y: Union[numpy.ndarray, Iterable[Union[int, float]]],
 @profile
 def print_rules_report(input_pattern: str, bblfsh: str, language: str, model_path: str) -> None:
     """Print several different reports for a given model on a given dataset."""
+    log = logging.getLogger("print_rules_report")
     model = FormatModel().load(model_path)
     rules = model[language]
     print("Model parameters: %s" % rules.origin_config)
@@ -147,12 +149,13 @@ def print_rules_report(input_pattern: str, bblfsh: str, language: str, model_pat
         print("Failed to parse files, aborting report...")
         return
 
-    X, y, vnodes_y, vnodes, vnodes_parents, parents = res
-    y_pred, winners, safe_preds = rules.predict(X=X, y=y, vnodes_y=vnodes_y, vnodes=vnodes,
-                                                files={f.path: f for f in files},
-                                                feature_extractor=fe, client=client,
-                                                vnodes_parents=vnodes_parents, parents=parents)
-    y = y[safe_preds]
+    X, y, (vnodes_y, vnodes, vnode_parents, node_parents) = res
+    y_pred, winners = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes, feature_extractor=fe)
+    y, y_pred, vnodes_y, safe_preds = filter_uast_breaking_preds(
+        y=y, y_pred=y_pred, vnodes_y=vnodes_y, files={f.path: f for f in files},
+        feature_extractor=fe, client=client, vnode_parents=vnode_parents,
+        node_parents=node_parents, log=log)
+
     print(generate_report(y=y, y_pred=y_pred, winners=winners, feature_extractor=fe))
 
 
