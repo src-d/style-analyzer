@@ -71,7 +71,7 @@ class AnalyzerTests(unittest.TestCase, metaclass=GeneratorTestsMeta):
                                                  label_composites=label_composites,
                                                  **fe_config["feature_extractor"])
         cls.file = File(content=bytes(contents, "utf-8"), uast=uast)
-        cls.X, cls.y, cls.vnodes_y, cls.vnodes = \
+        cls.X, cls.y, (cls.vnodes_y, cls.vnodes, cls.vnode_parents, cls.node_parents) = \
             cls.feature_extractor.extract_features([cls.file])
 
 

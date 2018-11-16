@@ -223,18 +223,24 @@ class FeatureExtractor:
     def extract_features(self, files: Iterable[File], lines: List[List[int]]=None
                          ) -> Optional[Union[
                              Tuple[numpy.ndarray, numpy.ndarray,
-                                   List[VirtualNode], List[VirtualNode]],
+                                   Tuple[List[VirtualNode], List[VirtualNode],
+                                         Mapping[int, bblfsh.Node], Mapping[int, bblfsh.Node]]],
                              Tuple[numpy.ndarray, numpy.ndarray,
-                                   List[VirtualNode], List[VirtualNode], List[List[int]]]]]:
+                                   Tuple[List[VirtualNode], List[VirtualNode],
+                                         Mapping[int, bblfsh.Node], Mapping[int, bblfsh.Node],
+                                         List[List[int]]]]]]:
         """
         Compute features and labels required by downstream models given a list of `File`-s.
 
         :param files: the list of `File`-s (see service_data.proto) of the same language.
         :param lines: the list of enabled line numbers per file. The lines which are not \
                       mentioned will not be extracted.
-        :return: tuple of numpy.ndarray (2 and 1 dimensional respectively): features and labels \
-                 and the corresponding `VirtualNode`-s or None in case not extracting features.
+        :return: tuple of numpy.ndarray (2 and 1 dimensional respectively): features and labels, \
+                 the corresponding `VirtualNode`-s and the parents mapping \
+                 or None in case not extracting features.
         """
+        node_parents = {}
+        vnode_parents = {}
         parsed_files = []
         index_labels = not self.labels_to_class_sequences
         for i, file in enumerate(files):
@@ -260,6 +266,15 @@ class FeatureExtractor:
                 file_vnodes = list(file_vnodes)
             file_lines = set(lines[i]) if lines is not None and lines[i] is not None else None
             parsed_files.append((file_vnodes, file_parents, file_lines))
+            node_parents.update(file_parents)
+            closest_left_node_id = None
+            for j, vn in enumerate(file_vnodes):
+                if vn.node:
+                    closest_left_node_id = id(vn.node)
+                parent = self._find_parent(j, file_vnodes, file_parents, closest_left_node_id)
+                if parent is None:
+                    parent = uast
+                vnode_parents[id(vn)] = parent
 
         labels = [[self.class_sequences_to_labels[vnode.y]
                    for vnode in file_vnodes if vnode.is_labeled_on_lines(file_lines)]
@@ -288,8 +303,8 @@ class FeatureExtractor:
                 sibling_indices_list.extend(sibling_indices)
         self._log.debug("Features shape: %s" % (X.shape,))
         if self.return_sibling_indices:
-            return X, y, vnodes_y, vnodes, sibling_indices_list
-        return X, y, vnodes_y, vnodes
+            return X, y, (vnodes_y, vnodes, vnode_parents, node_parents, sibling_indices_list)
+        return X, y, (vnodes_y, vnodes, vnode_parents, node_parents)
 
     def select_features(self, X: numpy.ndarray, y: numpy.ndarray) -> Tuple[numpy.ndarray,
                                                                            numpy.ndarray]:

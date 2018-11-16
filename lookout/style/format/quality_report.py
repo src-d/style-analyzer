@@ -20,6 +20,7 @@ from lookout.style.format.descriptions import get_composite_class_representation
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.feature_utils import VirtualNode
 from lookout.style.format.model import FormatModel
+from lookout.style.format.postprocess import filter_uast_breaking_preds
 from lookout.style.format.utils import generate_comment, merge_dicts, prepare_files, profile
 
 
@@ -50,6 +51,7 @@ def generate_report(y, y_pred, vnodes_y, n_files, target_names):
 def quality_report(input_pattern: str, bblfsh: str, language: str, n_files: int, model_path: str
                    ) -> None:
     """Print several different reports for a given model on a given dataset."""
+    log = logging.getLogger("quality_report")
     model = FormatModel().load(model_path)
     rules = model[language]
     print("Model parameters: %s" % rules.origin_config)
@@ -65,9 +67,13 @@ def quality_report(input_pattern: str, bblfsh: str, language: str, n_files: int,
     if res is None:
         print("Failed to parse files, aborting report...")
         return
-    X, y, vnodes_y, vnodes = res
+    X, y, (vnodes_y, vnodes, vnode_parents, node_parents) = res
     # predict with model and generate report
     y_pred, _ = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes, feature_extractor=fe)
+    y, y_pred, vnodes_y, safe_preds = filter_uast_breaking_preds(
+        y=y, y_pred=y_pred, vnodes_y=vnodes_y, files={f.path: f for f in files},
+        feature_extractor=fe, client=client, vnode_parents=vnode_parents,
+        node_parents=node_parents, log=log)
     target_names = get_composite_class_representations(fe)
     print(generate_report(y=y, y_pred=y_pred, target_names=target_names, vnodes_y=vnodes_y,
                           n_files=n_files))
@@ -122,6 +128,7 @@ class ReportAnalyzer(Analyzer):
         """Initialization."""
         super().__init__(model, url, config)
         self.config = self._load_analysis_config(self.config)
+        self.client = BblfshClient(self.config["bblfsh_address"])
 
     @classmethod
     def generate_report(cls, y: Union[numpy.ndarray, Iterable[Union[int, float]]],
@@ -201,9 +208,14 @@ class ReportAnalyzer(Analyzer):
                                                          line=1, text="Failed to parse this file"))
                     self.log.warning("Failed to parse %s", file.path)
                     continue
-                X, y, vnodes_y, vnodes = res
+                X, y, (vnodes_y, vnodes, vnode_parents, node_parents) = res
                 y_pred, rule_winners = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
                                                      feature_extractor=fe)
+                y, y_pred, vnodes_y, safe_preds = filter_uast_breaking_preds(
+                    y=y, y_pred=y_pred, vnodes_y=vnodes_y, files={file.path: file},
+                    feature_extractor=fe, client=self.client, vnode_parents=vnode_parents,
+                    node_parents=node_parents, log=self.log)
+                rule_winners = rule_winners[safe_preds]
                 self.log.debug("y.shape %s" % y.shape)
                 self.log.debug("len(vnodes_y) %s" % len(vnodes_y))
                 self.log.debug("y_pred.shape %s" % y_pred.shape)
@@ -269,9 +281,15 @@ class ReportAnalyzer(Analyzer):
             if res is None:
                 cls.log.warning("Failed to parse files")
                 continue
-            X, y, vnodes_y, vnodes = res
+            X, y, (vnodes_y, vnodes, vnode_parents, node_parents) = res
+
             y_pred, rule_winners = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
                                                  feature_extractor=fe)
+            y, y_pred, vnodes_y, safe_preds = filter_uast_breaking_preds(
+                y=y, y_pred=y_pred, vnodes_y=vnodes_y, files={f.path: f for f in filtered_files},
+                feature_extractor=fe, client=cls.client, vnode_parents=vnode_parents,
+                node_parents=node_parents, log=cls.log)
+            rule_winners = rule_winners[safe_preds]
             target_names = get_composite_class_representations(fe)
             assert len(y) == len(y_pred)
             report = cls.generate_report(y=y, y_pred=y_pred, vnodes_y=vnodes_y,

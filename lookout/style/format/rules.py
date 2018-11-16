@@ -120,7 +120,7 @@ class Rules:
         """
         Predict classes given the input features and metadata.
 
-        :param X: Input features.
+        :param X: Numpy 1-dimensional array of input features.
         :param vnodes_y: Sequence of the labeled `VirtualNode`-s corresponding to labeled samples.
         :param vnodes: Sequence of all the `VirtualNode`-s corresponding to the input.
         :param feature_extractor: FeatureExtractor used to extract features.
@@ -136,11 +136,12 @@ class Rules:
                 .postprocess
         except ImportError:
             return y_pred, winners
-        postprocessed_y, postprocessed_winners = postprocess(X, y_pred, vnodes_y, vnodes, winners,
-                                                             self, feature_extractor)
+        postprocessed_y_pred, postprocessed_winners = postprocess(
+            X=X, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, winners=winners, rules=self,
+            feature_extractor=feature_extractor)
         if return_originals:
-            return postprocessed_y, postprocessed_winners, y_pred, winners
-        return postprocessed_y, postprocessed_winners
+            return postprocessed_y_pred, postprocessed_winners, y_pred, winners
+        return postprocessed_y_pred, postprocessed_winners
 
     @property
     def rules(self) -> List[Rule]:

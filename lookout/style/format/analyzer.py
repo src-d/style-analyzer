@@ -5,6 +5,7 @@ from pprint import pformat
 import threading
 from typing import Any, List, Mapping
 
+from bblfsh.client import BblfshClient
 import numpy
 from skopt import BayesSearchCV
 from skopt.space import Categorical, Integer
@@ -19,6 +20,7 @@ from lookout.style.format.descriptions import get_code_chunk, get_error_descript
     rule_to_comment
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.model import FormatModel
+from lookout.style.format.postprocess import filter_uast_breaking_preds
 from lookout.style.format.rules import TrainableRules
 from lookout.style.format.utils import merge_dicts
 
@@ -42,6 +44,7 @@ class FormatAnalyzer(Analyzer):
         """
         super().__init__(model, url, config)
         self.config = self._load_analyze_config(self.config)
+        self.client = BblfshClient(self.config["bblfsh_address"])
 
     @with_changed_uasts_and_contents
     def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
@@ -105,8 +108,13 @@ class FormatAnalyzer(Analyzer):
                         comment.append(comment)
                     log.warning("Failed to parse %s", file.path)
                     continue
-                X, y, vnodes_y, vnodes = res
-                y_pred, rule_winners = rules.predict(X, vnodes_y, vnodes, fe)
+                X, y, (vnodes_y, vnodes, vnode_parents, node_parents) = res
+                y_pred, rule_winners = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
+                                                     feature_extractor=fe)
+                y, y_pred, vnodes_y, safe_preds = filter_uast_breaking_preds(
+                    y=y, y_pred=y_pred, vnodes_y=vnodes_y, files={file.path: file},
+                    feature_extractor=fe, client=self.client, vnode_parents=vnode_parents,
+                    node_parents=node_parents, log=log)
                 assert len(y) == len(y_pred)
 
                 code_lines = file.content.decode("utf-8", "replace").splitlines()
@@ -174,7 +182,7 @@ class FormatAnalyzer(Analyzer):
             else:
                 cls.log.info("training on %d %s files", len(files), language)
             # we sort to make the features reproducible
-            X, y, _, _ = fe.extract_features(sorted(files, key=lambda x: x.path))
+            X, y, _ = fe.extract_features(sorted(files, key=lambda x: x.path))
             X, selected_features = fe.select_features(X, y)
             lang_config["feature_extractor"]["selected_features"] = selected_features
             lang_config["feature_extractor"]["label_composites"] = fe.labels_to_class_sequences
@@ -233,6 +241,7 @@ class FormatAnalyzer(Analyzer):
         :return: Full config.
         """
         defaults = {
+            "bblfsh_address": "0.0.0.0:9432",
             "report_code_lines": True,
             "report_triggered_rules": True,
             "report_parse_failures": True,
