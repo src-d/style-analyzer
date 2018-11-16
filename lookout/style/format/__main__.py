@@ -150,6 +150,9 @@ def create_parser() -> ArgumentParser:
     eval_gen_styles_parser.add_argument(
         "reportpath", type=str,
         help="Path for report performance output.")
+    eval_gen_styles_parser.add_argument(
+        "--database", type=str, default=None,
+        help="Path to the sqlite3 database. Helps to reuse models that was trained before.")
 
     return parser
 
