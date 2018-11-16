@@ -1,3 +1,0 @@
-[submodule "lookout/core/server"]
-	path = lookout/core/server
-	url = https://github.com/src-d/lookout
