@@ -1,3 +1,4 @@
+import io
 from os.path import join
 import pathlib
 import unittest
@@ -45,7 +46,6 @@ class CandidatesRankerTest(unittest.TestCase):
         data = pandas.read_csv(join(TEST_DATA_PATH, "test_data.csv.xz"),
                                index_col=0).infer_objects()
         candidates = pandas.read_pickle(join(TEST_DATA_PATH, "test_data_candidates_full.pkl"))
-
         ranker = CandidatesRanker()
         ranker.fit(data[CORRECT_TOKEN_COLUMN], get_candidates_metadata(candidates),
                    get_candidates_features(candidates))
@@ -53,6 +53,31 @@ class CandidatesRankerTest(unittest.TestCase):
                                   get_candidates_features(candidates),
                                   n_candidates=3, return_all=True)
         self.assertSetEqual(set(suggestions.keys()), set(data.index))
+
+    def test_save_load(self):
+        data = pandas.read_csv(join(TEST_DATA_PATH, "test_data.csv.xz"),
+                               index_col=0).infer_objects()
+        candidates = pandas.read_pickle(join(TEST_DATA_PATH, "test_data_candidates_full.pkl"))
+        ranker = CandidatesRanker()
+        ranker.fit(data[CORRECT_TOKEN_COLUMN], get_candidates_metadata(candidates),
+                   get_candidates_features(candidates))
+        with io.BytesIO() as buffer:
+            ranker.save(buffer)
+            print(buffer.tell())
+            buffer.seek(0)
+            ranker2 = CandidatesRanker().load(buffer)
+        print(ranker)
+        self.assertTrue(ranker == ranker2)
+
+    def test_eq(self):
+        self.assertTrue(CandidatesRanker() == CandidatesRanker())
+        data = pandas.read_csv(join(TEST_DATA_PATH, "test_data.csv.xz"),
+                               index_col=0).infer_objects()
+        candidates = pandas.read_pickle(join(TEST_DATA_PATH, "test_data_candidates_full.pkl"))
+        ranker = CandidatesRanker()
+        ranker.fit(data[CORRECT_TOKEN_COLUMN], get_candidates_metadata(candidates),
+                   get_candidates_features(candidates))
+        self.assertFalse(ranker == CandidatesRanker())
 
 
 if __name__ == "__main__":

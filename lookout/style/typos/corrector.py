@@ -21,13 +21,10 @@ class TyposCorrector(Model):
     NAME = "typos_correction"
     VENDOR = "source{d}"
 
-    DEFAULT_THREADS_NUMBER = 16
-
     DEFAULT_RADIUS = 3
     DEFAULT_MAX_DISTANCE = 2
     DEFAULT_NEIGHBORS_NUMBER = 0
-    DEFAULT_TAKEN_FOR_DISTANCE = 20
-
+    DEFAULT_EDIT_CANDIDATES = 20
     DEFAULT_TRAIN_ROUNDS = 4000
     DEFAULT_EARLY_STOPPING = 200
     DEFAULT_BOOST_PARAM = {"max_depth": 6,
@@ -38,40 +35,44 @@ class TyposCorrector(Model):
                            "subsample": 0.5,
                            "colsample_bytree": 0.5,
                            "alpha": 1,
-                           "eval_metric": ["error"]}
+                           "eval_metric": ["error"],
+                           "nthread": 0}
 
-    def __init__(self, threads_number: int = DEFAULT_THREADS_NUMBER):
+    def __init__(self, **kwargs):
         """
         Initialize a new instance of TyposCorrector class.
 
-        :param threads_number: Number of training threads.
+        :param kwargs: extra keyword arguments which are consumed by Model.
         """
-        super().__init__()
+        super().__init__(**kwargs)
         self.generator = CandidatesGenerator()
         self.ranker = CandidatesRanker()
-        self.threads_number = threads_number
-        self.set_ranker_params()
 
-    def set_ranker_params(self, train_rounds: int = DEFAULT_TRAIN_ROUNDS,
+    @property
+    def threads_number(self):
+        """Return the number of threads used to train and to predict."""
+        return self.ranker.boost_param["nthread"]
+
+    def initialize_ranker(self, train_rounds: int = DEFAULT_TRAIN_ROUNDS,
                           early_stopping: int = DEFAULT_EARLY_STOPPING,
-                          boost_param: dict = DEFAULT_BOOST_PARAM) -> None:
+                          boost_params: dict = None) -> None:
         """
         Apply the ranking parameters - see XGBoost docs for details.
 
         :param train_rounds: Number of training rounds.
         :param early_stopping: Early stopping parameter.
-        :param boost_param: Boosting parameters.
+        :param boost_params: Boosting parameters. The defaults are DEFAULT_BOOST_PARAM.
         :return: Nothing
         """
-        boost_param["nthread"] = self.threads_number
-        self.ranker.set_boost_params(train_rounds, early_stopping, boost_param)
+        boost_params = boost_params or self.DEFAULT_BOOST_PARAM
+        self.ranker.construct(train_rounds, early_stopping, boost_params)
 
-    def create_model(self, vocabulary_file: str, frequencies_file: str,
-                     embeddings_file: str = None,
-                     neighbors_number: int = DEFAULT_NEIGHBORS_NUMBER,
-                     edit_candidates: int = DEFAULT_TAKEN_FOR_DISTANCE,
-                     max_distance: int = DEFAULT_MAX_DISTANCE,
-                     radius: int = DEFAULT_RADIUS) -> None:
+    def initialize_generator(self, vocabulary_file: str, frequencies_file: str,
+                             embeddings_file: str = None,
+                             neighbors_number: int = DEFAULT_NEIGHBORS_NUMBER,
+                             edit_candidates: int = DEFAULT_EDIT_CANDIDATES,
+                             max_distance: int = DEFAULT_MAX_DISTANCE,
+                             radius: int = DEFAULT_RADIUS) -> None:
         """
         Construct a new CandidatesGenerator.
 
@@ -92,30 +93,29 @@ class TyposCorrector(Model):
     def train(self, typos: pandas.DataFrame, candidates: pandas.DataFrame = None,
               save_candidates_file: str = None) -> None:
         """
-        Train corrector on given dataset of typos inside identifiers.
+        Train corrector on the given dataset of typos inside identifiers.
 
         :param typos: DataFrame containing columns "typo" and "identifier",
-                      column "token_split" is optional, but used when present
-        :param candidates: DataFrame with precalculated candidates
-        :param save_candidates_file: Path to file to save candidates to
+                      column "token_split" is optional, but used when present.
+        :param candidates: DataFrame with precalculated candidates.
+        :param save_candidates_file: Path to file where to save the candidates.
         """
         if candidates is None:
-            candidates = self.generator.generate_candidates(typos, self.threads_number,
-                                                            save_candidates_file)
+            candidates = self.generator.generate_candidates(
+                typos, self.threads_number, save_candidates_file)
         self.ranker.fit(typos[CORRECT_TOKEN_COLUMN], get_candidates_metadata(candidates),
                         get_candidates_features(candidates))
 
     def train_on_file(self, typos_file: str, candidates_file: str = None,
                       save_candidates_file: str = None) -> None:
         """
-        Train corrector on given dataset of typos inside identifiers.
+        Train corrector on the given dataset of typos inside identifiers.
 
-        :param typos_file: csv file containing pandas.DataFrame with
-                           columns "typo" and "identifier", column "token_split" is optional,
-                           but used when present
-        :param candidates_file: Pickle dump of pandas.DataFrame with precalculated
+        :param typos_file: CSV file with columns "typo" and "identifier",
+                           column "token_split" is optional, but used when present.
+        :param candidates_file: Pickle dump of pandas.DataFrame with precalculated \
                                 candidates and features
-        :param save_candidates_file: Path to file to save candidates to
+        :param save_candidates_file: Path to file where to save the candidates.
         """
         typos = pandas.read_csv(typos_file, index_col=0)
         candidates = None
@@ -191,11 +191,16 @@ class TyposCorrector(Model):
 
         return dict(chain.from_iterable(all_suggestions))
 
+    def __eq__(self, other: "TyposCorrector") -> bool:
+        return self.generator == other.generator and self.ranker == other.ranker
+
     def dump(self) -> str:
         """Model.__str__ to format the object."""
-        return ("Candidates and features generator parameters:\n%s"
-                "XGBoost classifier is used for ranking candidates" %
-                str(self.finder))
+        return ("# Generator\n"
+                "%s\n\n"
+                "# Ranker\n"
+                "%s" %
+                (self.generator.dump(), self.ranker.dump()))
 
     def _generate_tree(self) -> dict:
         return {"generator": self.generator._generate_tree(),

@@ -2,11 +2,11 @@
 
 from itertools import chain
 from multiprocessing import Pool
-import pickle
 from typing import List, NamedTuple, Set, Union
 
 from gensim.models import FastText
-from modelforge import merge_strings, split_strings
+from gensim.models.keyedvectors import FastTextKeyedVectors, Vocab
+from modelforge import merge_strings, Model, split_strings
 import numpy
 import pandas
 from scipy.spatial.distance import cosine
@@ -29,7 +29,7 @@ Features = NamedTuple("Features", (("index", int),
                                    ("vec", numpy.ndarray)))
 
 
-class CandidatesGenerator:
+class CandidatesGenerator(Model):
     """
     Looks for candidates for correction of typos and generates features \
     for them. Candidates are generated in three ways: \
@@ -38,15 +38,19 @@ class CandidatesGenerator:
     3. Closest by the edit distance and most frequent tokens from vocabulary.
     """
 
+    NAME = "candidates_generator"
+    VENDOR = "source{d}"
+    NO_COMPRESSION = ("/wv/vectors/",)
     DEFAULT_RADIUS = 3
     DEFAULT_MAX_DISTANCE = 2
     DEFAULT_NEIGHBORS_NUMBER = 0
     DEFAULT_EDIT_DISTANCE = 20
 
-    def __init__(self):
+    def __init__(self, **kwargs):
         """Initialize a new instance of CandidatesGenerator."""
+        super().__init__(**kwargs)
         self.checker = None
-        self.fasttext = None
+        self.wv = None
         self.neighbors_number = self.DEFAULT_NEIGHBORS_NUMBER
         self.edit_candidates_number = self.DEFAULT_EDIT_DISTANCE
         self.max_distance = self.DEFAULT_MAX_DISTANCE
@@ -79,7 +83,7 @@ class CandidatesGenerator:
         self.checker = SymSpell(max_dictionary_edit_distance=max_distance,
                                 prefix_length=max_corrected_length)
         self.checker.load_dictionary(vocabulary_file)
-        self.fasttext = FastText.load_fasttext_format(embeddings_file)
+        self.wv = FastText.load_fasttext_format(embeddings_file).wv
         self.neighbors_number = neighbors
         self.edit_candidates_number = edit_candidates
         self.max_distance = max_distance
@@ -97,32 +101,72 @@ class CandidatesGenerator:
         :param threads_number: Number of threads for multiprocessing.
         :param save_candidates_file: File to save candidates to.
         :param start_pool_size: Length of data, starting from which multiprocessing is desired.
-        :return: DataFrame containing candidates for corrections
+        :return: DataFrame containing candidates for corrections \
                  and features for their ranking for each typo.
         """
         data = add_context_info(data)
-
         typos = [TypoInfo(index, data.loc[index].typo, data.loc[index].before,
                           data.loc[index].after)
                  for i, index in enumerate(data.index)]
-
-        if len(typos) > start_pool_size:
+        if len(typos) > start_pool_size and threads_number > 1:
             with Pool(min(threads_number, len(typos))) as pool:
-                candidates = list(tqdm(pool.imap(self._lookup_corrections_for_token, typos,
-                                                 chunksize=min(256, 1 + len(typos) //
-                                                               threads_number)),
+                candidates = list(tqdm(pool.imap(
+                    self._lookup_corrections_for_token, typos,
+                    chunksize=min(256, 1 + len(typos) // threads_number)),
                                        total=len(typos)))
         else:
-            candidates = list(map(self._lookup_corrections_for_token, typos))
-
+            candidates = [self._lookup_corrections_for_token(t) for t in typos]
         candidates = pandas.DataFrame(list(chain.from_iterable(candidates)))
         candidates.columns = [ID_COLUMN, TYPO_COLUMN, CANDIDATE_COLUMN, FEATURES_COLUMN]
         candidates[ID_COLUMN] = candidates[ID_COLUMN].astype(data.index.dtype)
-
         if save_candidates_file is not None:
             candidates.to_pickle(save_candidates_file)
-
         return candidates
+
+    def dump(self) -> str:
+        """
+        Represent the candidates generator.
+        """
+        return "\n".join((
+            "Vocabulary_size %d." % len(self.tokens),
+            "Neighbors number %d." % self.neighbors_number,
+            "Maximum distance for search %d." % self.max_distance,
+            "Maximum distance allowed %d." % self.radius,
+            "Token for distance %d." % self.edit_candidates_number
+        ))
+
+    def __eq__(self, other: "CandidatesGenerator") -> bool:
+        def compare(first, second) -> bool:
+            if isinstance(first, numpy.ndarray):
+                if (first != second).any():
+                    return False
+            if isinstance(first, dict):
+                for key, val in first.items():
+                    val2 = second[key]
+                    if hasattr(val, "__dict__"):
+                        if type(val) != type(val2):
+                            return False
+                        if val.__dict__ != val2.__dict__:
+                            return False
+                    elif val != val2:
+                        return False
+                return True
+            if first != second:
+                return False
+            return True
+
+        for key in vars(self):
+            if key == "_source":
+                continue
+            origin = getattr(self, key)
+            peak = getattr(other, key)
+            if key in ("checker", "wv"):
+                for key2 in vars(origin):
+                    if not compare(getattr(origin, key2), getattr(peak, key2)):
+                        return False
+            elif not compare(origin, peak):
+                return False
+            return True
 
     def _lookup_corrections_for_token(self, typo_info: TypoInfo) -> List[Features]:
         candidates = []
@@ -130,7 +174,7 @@ class CandidatesGenerator:
         typo_vec = self._vec(typo_info.typo)
         dist_calc = EditDistance(typo_info.typo, "damerau")
         for candidate in set(candidate_tokens):
-            candidate_vec = self.fasttext.wv[candidate]
+            candidate_vec = self.wv[candidate]
             dist = dist_calc.damerau_levenshtein_distance(candidate, self.radius)
 
             if dist < 0:
@@ -188,26 +232,29 @@ class CandidatesGenerator:
         before_vec = self._compound_vec(typo_info.before)
         after_vec = self._compound_vec(typo_info.after)
         context_vec = self._compound_vec(typo_info.before + typo_info.after)
-        return Features(typo_info.index, typo_info.typo, candidate, numpy.concatenate(((
-            self._freq(typo_info.typo),
-            self._freq(candidate),
-            self._freq_relation(typo_info.typo, candidate),
-            self._cos(typo_vec, before_vec),
-            self._cos(typo_vec, after_vec),
-            self._cos(typo_vec, context_vec),
-            self._cos(candidate_vec, before_vec),
-            self._cos(candidate_vec, after_vec),
-            self._cos(candidate_vec, context_vec),
-            self._cos(typo_vec, candidate_vec),
-            dist),
+        return Features(typo_info.index, typo_info.typo, candidate, numpy.concatenate((
+            (
+                self._freq(typo_info.typo),
+                self._freq(candidate),
+                self._freq_relation(typo_info.typo, candidate),
+                self._cos(typo_vec, before_vec),
+                self._cos(typo_vec, after_vec),
+                self._cos(typo_vec, context_vec),
+                self._cos(candidate_vec, before_vec),
+                self._cos(candidate_vec, after_vec),
+                self._cos(candidate_vec, context_vec),
+                self._cos(typo_vec, candidate_vec),
+                dist
+            ),
             before_vec,
             after_vec,
             typo_vec,
             candidate_vec,
-            context_vec)).astype(numpy.float32))
+            context_vec)
+        ).astype(numpy.float32))
 
     def _vec(self, token: str) -> numpy.ndarray:
-        return self.fasttext.wv[token]
+        return self.wv[token]
 
     def _freq(self, token: str) -> float:
         return float(self.frequencies.get(token, 0))
@@ -219,50 +266,112 @@ class CandidatesGenerator:
         return 1.0
 
     def _closest(self, item: Union[numpy.ndarray, str], quantity: int) -> List[str]:
-        return [token for token, _ in self.fasttext.wv.most_similar([item], topn=quantity)]
+        return [token for token, _ in self.wv.most_similar([item], topn=quantity)]
 
     def _freq_relation(self, first_token: str, second_token: str) -> float:
         return -numpy.log((1.0 * self._freq(first_token) + 1e-5) /
                           (1.0 * self._freq(second_token) + 1e-5))
 
     def _compound_vec(self, split: List[str]) -> numpy.ndarray:
-        compound_vec = numpy.zeros(self.fasttext.wv["a"].shape)
+        compound_vec = numpy.zeros(self.wv["a"].shape)
         if len(split) == 0:
             return compound_vec
         else:
             for token in split:
-                compound_vec += self.fasttext.wv[token]
+                compound_vec += self.wv[token]
         return compound_vec
 
     def _generate_tree(self) -> dict:
         tree = self.__dict__.copy()
+        for key in vars(Model()):
+            del tree[key]
+        freqkeys = [""] * len(self.frequencies)
+        freqvals = numpy.zeros(len(self.frequencies), dtype=numpy.uint32)
+        for i, (key, val) in enumerate(sorted(self.frequencies.items())):
+            freqkeys[i] = key
+            freqvals[i] = val
+        tree["frequencies"] = {"keys": merge_strings(freqkeys), "vals": freqvals}
         tree["checker"] = self.checker.__dict__.copy()
+        delstrs = set()
+        delindexes = numpy.zeros(len(self.checker._deletes), dtype=numpy.uint32)
+        dellengths = numpy.zeros_like(delindexes)
+        for i, (key, dss) in enumerate(self.checker._deletes.items()):
+            delindexes[i] = key
+            dellengths[i] = len(dss)
+            for ds in dss:
+                delstrs.add(ds)
+        delstrs = sorted(delstrs)
+        delstrs_map = {s: i for i, s in enumerate(delstrs)}
+        deldata = numpy.zeros(sum(dellengths), dtype=numpy.uint32)
+        offset = 0
+        for di in delindexes:
+            dss = self.checker._deletes[di]
+            for j, ds in enumerate(dss):
+                deldata[offset + j] = delstrs_map[ds]
+            offset += len(dss)
+        tree["checker"]["_deletes"] = {
+            "strings": merge_strings(delstrs),
+            "indexes": delindexes,
+            "lengths": dellengths,
+            "data": deldata,
+        }
+        wordvals = numpy.zeros(len(self.checker._words), dtype=numpy.uint32)
+        for key, val in self.checker._words.items():
+            wordvals[delstrs_map[key]] = val
+        tree["checker"]["_words"] = wordvals
         tree["tokens"] = merge_strings(self.tokens)
-        tree["fasttext"] = pickle.dumps(self.fasttext)
+        vocab_strings = [""] * len(self.wv.vocab)
+        vocab_counts = numpy.zeros(len(vocab_strings), dtype=numpy.uint32)
+        for key, val in self.wv.vocab.items():
+            vocab_strings[val.index] = key
+            vocab_counts[val.index] = val.count
+        hash2index = numpy.zeros(len(self.wv.hash2index), dtype=numpy.uint32)
+        for key, val in self.wv.hash2index.items():
+            hash2index[val] = key
+        tree["wv"] = {
+            "vocab": {"strings": merge_strings(vocab_strings), "counts": vocab_counts},
+            "vectors": self.wv.vectors,
+            "min_n": self.wv.min_n,
+            "max_n": self.wv.max_n,
+            "bucket": self.wv.bucket,
+            "num_ngram_vectors": self.wv.num_ngram_vectors,
+            "vectors_ngrams": self.wv.vectors_ngrams,
+            "hash2index": hash2index,
+        }
         return tree
 
     def _load_tree(self, tree: dict) -> None:
         self.__dict__.update(tree)
-
         self.tokens = split_strings(self.tokens)
-        self.fasttext = pickle.loads(self.fasttext)
+        self.frequencies = {
+            w: self.frequencies["vals"][i]
+            for i, w in enumerate(split_strings(self.frequencies["keys"]))}
         self.checker = SymSpell(max_dictionary_edit_distance=self.max_distance)
-        checker_tree = tree["checker"]
-        checker_tree["_deletes"] = {int(h): deletes
-                                    for h, deletes in checker_tree["_deletes"].items()}
-        self.checker.__dict__.update(checker_tree)
-
-    def __str__(self):
-        """
-        Represent the candidates generator.
-        """
-        return ("Vocabulary_size %d. \n"
-                "Neighbors number %d. \n"
-                "Maximum distance for search %d. \n"
-                "Maximum distance allowed %d. \n"
-                "Token for distance %d.") % (len(self.tokens), self.neighbors_number,
-                                             self.max_distance, self.radius,
-                                             self.edit_candidates_number)
+        self.checker.__dict__.update(tree["checker"])
+        deletes = {}
+        words = split_strings(self.checker._deletes["strings"])
+        lengths = self.checker._deletes["lengths"]
+        data = self.checker._deletes["data"]
+        offset = 0
+        for i, delindex in enumerate(self.checker._deletes["indexes"]):
+            length = lengths[i]
+            deletes[delindex] = [words[j] for j in data[offset:offset + length]]
+            offset += length
+        self.checker._deletes = deletes
+        self.checker._words = {w: self.checker._words[i] for i, w in enumerate(words)}
+        vectors = self.wv["vectors"]
+        wv = FastTextKeyedVectors(vectors.shape[1], self.wv["min_n"], self.wv["max_n"])
+        wv.vectors = vectors
+        vocab = split_strings(self.wv["vocab"]["strings"])
+        wv.vocab = {
+            s: Vocab(index=i, count=self.wv["vocab"]["counts"][i])
+            for i, s in enumerate(vocab)}
+        wv.bucket = self.wv["bucket"]
+        wv.index2word = wv.index2entity = vocab
+        wv.num_ngram_vectors = self.wv["num_ngram_vectors"]
+        wv.vectors_ngrams = self.wv["vectors_ngrams"]
+        wv.hash2index = {k: v for v, k in enumerate(self.wv["hash2index"])}
+        self.wv = wv
 
 
 def get_candidates_features(candidates: pandas.DataFrame) -> numpy.ndarray:

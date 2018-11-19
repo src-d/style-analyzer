@@ -5,11 +5,12 @@ from typing import Iterable, NamedTuple, Optional
 import unittest
 
 import bblfsh
-from lookout.core.analyzer import ReferencePointer
+from lookout.core.analyzer import DummyAnalyzerModel, ReferencePointer
 from lookout.core.api.service_data_pb2 import File
+import pandas
 
 from lookout.style.typos.analyzer import IdTyposAnalyzer
-from lookout.style.typos.model import IdTyposModel
+from lookout.style.typos.utils import SPLIT_COLUMN, TYPO_COLUMN
 
 Change = NamedTuple("Change", [("base", File), ("head", File)])
 
@@ -48,7 +49,7 @@ class AnalyzerTests(unittest.TestCase):
     def test_train(self):
         datastub = FakeDataStub(files=self.base_files, changes=None)
         model = IdTyposAnalyzer.train(self.ptr, {}, datastub)
-        self.assertIsInstance(model, IdTyposModel)
+        self.assertIsInstance(model, DummyAnalyzerModel)
 
     @unittest.skip
     def test_analyze(self):
@@ -58,6 +59,36 @@ class AnalyzerTests(unittest.TestCase):
         analyzer = IdTyposAnalyzer(model, self.ptr.url, {})
         comments = analyzer.analyze(self.ptr, self.ptr, datastub)
         self.assertGreater(len(comments), 0)
+
+
+@unittest.skip("sample_corrector.asdf needs to be generated")
+class AnalyzerPayloadTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.checker = IdTyposAnalyzer(
+            DummyAnalyzerModel(), "", config=dict(
+                model=str(Path(__file__).parent / "sample_corrector.asdf"),
+                confidence_threshold=0.2, n_candidates=3))
+        cls.identifiers = ["get", "gpt_tokeb"]
+        cls.test_df = pandas.DataFrame(
+            [[0, "get", "get"], [1, "gpt tokeb", "gpt"], [1, "gpt tokeb", "tokeb"]],
+            columns=[IdTyposAnalyzer.INDEX_COLUMN, SPLIT_COLUMN, TYPO_COLUMN])
+        cls.suggestions = {1: [("get", 0.9),
+                               ("gpt", 0.3)],
+                           2: [("token", 0.98),
+                               ("taken", 0.3),
+                               ("tokem", 0.01)]}
+        cls.filtered_suggestions = {1: [("get", 0.9)],
+                                    2: [("token", 0.98),
+                                        ("taken", 0.3)]}
+
+    def test_filter_suggestions(self):
+        self.assertDictEqual(self.checker.filter_suggestions(self.test_df, self.suggestions),
+                             self.filtered_suggestions)
+
+    def test_check_identifiers(self):
+        suggestions = self.checker.check_identifiers(self.identifiers)
+        self.assertTrue(set(suggestions.keys()).issubset(set(range(len(self.identifiers)))))
 
 
 if __name__ == "__main__":
