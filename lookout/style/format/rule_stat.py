@@ -3,17 +3,16 @@ from collections import defaultdict
 import glob
 import io
 import logging
-from typing import Any, Iterable, Mapping, Union
+from typing import Any, Iterable, Mapping, MutableMapping, Union
 
 from bblfsh import BblfshClient
 import numpy
 from tqdm import tqdm
 
 from lookout.style.format.benchmarks.time_profile import profile
-from lookout.style.format.descriptions import describe_rule
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.postprocess import filter_uast_breaking_preds
-from lookout.style.format.quality_report import FormatModel, ReportAnalyzer
+from lookout.style.format.quality_report import FormatModel, generate_model_report, ReportAnalyzer
 from lookout.style.format.utils import prepare_files
 
 
@@ -74,31 +73,6 @@ def print_rule_table(rule_stat: Mapping[Any, RuleStat], feature_extractor: Featu
     :param feature_extractor: FeatureExtractor used to extract features.
     """
     print(generate_rule_table(rule_stat=rule_stat, feature_extractor=feature_extractor))
-
-
-def generate_model_report(model: FormatModel, language: str,
-                          feature_extractor: FeatureExtractor) -> str:
-    """
-    Generate report about model - description for each rule, min/max support, min/max confidence.
-
-    :param model: trained format model.
-    :param language: language.
-    :param feature_extractor: feature extractor.
-    :return: report in str format.
-    """
-    rules = model[language]
-    min_support, max_support = float("inf"), -1
-    min_conf, max_conf = 1, 0
-    with io.StringIO() as output:
-        for i, rule in enumerate(rules.rules):
-            min_support = min(min_support, rule.stats.support)
-            max_support = max(max_support, rule.stats.support)
-            min_conf = min(min_conf, rule.stats.conf)
-            max_conf = max(max_conf, rule.stats.conf)
-            print("Rule %s: %s" % (i, describe_rule(rule, feature_extractor)), file=output)
-        print("Min/max support: %s/%s, min/max conf: %s/%s" % (min_support, max_support, min_conf,
-                                                               max_conf), file=output)
-        return output.getvalue()
 
 
 def generate_report(y: Union[numpy.ndarray, Iterable[Union[int, float]]],
@@ -204,6 +178,23 @@ class RuleStatAnalyzer(ReportAnalyzer):
         """Initialize analyzer with pretrained model and configuration."""
         super().__init__(model, url, config)
         self.config = self._load_analysis_config(self.config)
+
+    @classmethod
+    def generate_model_report(cls, model: FormatModel, config: MutableMapping[str, Any],
+                              feature_extractor: FeatureExtractor):
+        """
+        Generate report about model. Has to be implemented in child class.
+
+        :param model: model that should be described in report.
+        :param config: configuration.
+        :param feature_extractor: feature extractor.
+        :return: report.
+        """
+        res = []
+        for lang in model:
+            res.append(generate_model_report(model=model, language=lang,
+                                             feature_extractor=feature_extractor))
+        return "\n".join(res)
 
     @classmethod
     def generate_report(cls, y: Union[numpy.ndarray, Iterable[Union[int, float]]],

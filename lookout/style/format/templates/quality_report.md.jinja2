@@ -1,0 +1,25 @@
+
+# Quality report
+
+### Classification report:
+| class | precision | recall | f1-score | support |
+|----:|:-----|:-------|:-----|:-----|
+{% for class in cl_report %}
+| `{{ class }}` | `{{ "%.2f" % cl_report[class]["precision"] }}` | `{{ "%.2f" % cl_report[class]["recall"] }}` | `{{ "%.2f" % cl_report[class]["f1-score"] }}` | `{{ cl_report[class]["support"] }}` |
+{% endfor %}
+
+### Confusion matrix:
+| {% for i in target_names %} {{ "%s|" % i }}{% endfor %} {{ '\n' -}}
+| {%- for el in conf_mat[0] -%} {{ ":---|" }}{%- endfor -%} {{ '\n' -}}
+{% for row in conf_mat %}
+| {%- for el in row -%}
+    `{{ el }}` |
+{%- endfor -%} {{ '\n' -}}
+{%- endfor %}
+
+### Files with most errors:
+| filename | number of errors|
+|:----:|:-----|
+{% for file in files %}
+| `{{ file[0] }}` | `{{ file[1] }}` |
+{% endfor %}

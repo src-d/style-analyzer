@@ -6,6 +6,7 @@ import tarfile
 import tempfile
 import threading
 from threading import Thread
+from typing import Sequence, Union
 import unittest
 from unittest.mock import patch
 
@@ -21,25 +22,31 @@ TO_COMMIT = "HEAD"
 
 class TestAnalyzer:
     """Context manager for launching analyzer."""
-    def __init__(self, port: int, db: str, fs: str, analyzer: str = "lookout.style.format"):
+    def __init__(self, port: int, db: str, fs: str, config: str = "",
+                 analyzer: Union[str, Sequence] = "lookout.style.format"):
         """
         :param port: port to use for analyzer.
         :param db: database location.
         :param fs: location where to store results of launched analyzer.
-        :param analyzer: analyzer to use
+        :param config: Path to the configuration file with option defaults. If empty - skip.
+        :param analyzer: analyzer(s) to use.
         """
         self.port = port
         self.db = db
         self.fs = fs
-        self.analyzer = analyzer
+        self.config = config
+        self.analyzer = analyzer if type(analyzer) is str else " ".join(analyzer)
 
     def __enter__(self):
         command = "analyzer init --db sqlite:///%s --fs %s" % (self.db, self.fs)
         with patch("sys.argv", command.split(" ")):
             launch_analyzer()
-        command = ("analyzer run %s --db sqlite:///%s "
-                   "--server localhost:%d --fs %s --log-level DEBUG"
-                   ) % (self.analyzer, self.db, self.port, self.fs)
+
+        command = "analyzer run %s " % self.analyzer
+        if self.config:
+            command += " --config %s " % self.config
+        command += "--db sqlite:///%s --server localhost:%d --fs %s --log-level DEBUG"  \
+                   % (self.db, self.port, self.fs)
         self.logs = logs = []
 
         class ShadowHandler(logging.Handler):

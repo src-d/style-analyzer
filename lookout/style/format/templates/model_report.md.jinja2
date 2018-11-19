@@ -1,0 +1,21 @@
+
+# Model report for {{ language }}
+
+### Rules summary:
+`{{ "%s" % rules }}` {{ "\n" }}
+`{{ "Min/max support: %s/%s, min/max conf: %s/%s" % (min_support, max_support, min_conf,
+max_conf) }}`
+
+### Rules description:
+| rule number | description |
+|----:|:-----|
+{% for rule_desc in rules_desc %}
+| `{{rule_desc[0]}}` | {{rule_desc[1]}} |
+{% endfor %}
+
+### Packages:
+| package | version |
+|----:|:-----|
+{% for package in packages %}
+| `{{package[0]}}` | {{package[1]}} |
+{% endfor %}

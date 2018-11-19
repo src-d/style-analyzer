@@ -1,21 +1,26 @@
 """Facilities to report the quality of a given model on a given dataset."""
-from collections import Counter
+from collections import Counter, OrderedDict
 import glob
-import io
 import logging
+import os
 from typing import Any, Iterable, List, MutableMapping, Union
+import warnings
 
 from bblfsh import BblfshClient
+import jinja2
 from lookout.core.analyzer import Analyzer, AnalyzerModel, ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.data_requests import DataService, \
     with_changed_uasts_and_contents, with_uasts_and_contents
 from lookout.core.lib import files_by_language, filter_files, find_new_lines
 import numpy
-from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.metrics import confusion_matrix, precision_recall_fscore_support
+from sklearn.metrics.classification import _check_targets
+from sklearn.utils.multiclass import unique_labels
 
 from lookout.style.format.analyzer import FormatAnalyzer
 from lookout.style.format.benchmarks.time_profile import profile
+from lookout.style.format.descriptions import describe_rule
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.model import FormatModel
 from lookout.style.format.postprocess import filter_uast_breaking_preds
@@ -23,34 +28,270 @@ from lookout.style.format.utils import generate_comment, merge_dicts, prepare_fi
 from lookout.style.format.virtual_node import VirtualNode
 
 
+def classification_report(y_true, y_pred, labels=None, target_names=None, sample_weight=None,
+                          digits=2, output_dict=False):  # noqa: W9015,W9011
+    """
+    Fake classification report docstring to avoid bug https://gitlab.com/pycqa/flake8/issues/375.
+
+    :param y_true: 1d array-like, or label indicator array / sparse matrix
+        Ground truth (correct) target values.
+    :param y_pred: 1d array-like, or label indicator array / sparse matrix
+        Estimated targets as returned by a classifier.
+    :param labels: array, shape = [n_labels]
+        Optional list of label indices to include in the report.
+    :param target_names: list of strings
+        Optional display names matching the labels (same order).
+    :param sample_weight: array-like of shape = [n_samples], optional
+        Sample weights.
+    :param digits: int
+        Number of digits for formatting output floating point values.
+        When ``output_dict`` is ``True``, this will be ignored and the
+        returned values will not be rounded.
+    :param output_dict: bool (default = False)
+        If True, return output as dict
+    :return: string / dict
+        Text summary of the precision, recall, F1 score for each class.
+        Dictionary returned if output_dict is True. Dictionary has the
+        following structure::
+            {'label 1': {'precision':0.5,
+                         'recall':1.0,
+                         'f1-score':0.67,
+                         'support':1},
+             'label 2': { ... },
+              ...
+            }
+        The reported averages include micro average (averaging the
+        total true positives, false negatives and false positives), macro
+        average (averaging the unweighted mean per label), weighted average
+        (averaging the support-weighted mean per label) and sample average
+        (only for multilabel classification). See also
+        :func:`precision_recall_fscore_support` for more details on averages.
+        Note that in binary classification, recall of the positive class
+        is also known as "sensitivity"; recall of the negative class is
+        "specificity".
+    """
+    """Build a text report showing the main classification metrics
+    Read more in the :ref:`User Guide <classification_report>`.
+
+    Parameters
+    ----------
+    y_true : 1d array-like, or label indicator array / sparse matrix
+        Ground truth (correct) target values.
+    y_pred : 1d array-like, or label indicator array / sparse matrix
+        Estimated targets as returned by a classifier.
+    labels : array, shape = [n_labels]
+        Optional list of label indices to include in the report.
+    target_names : list of strings
+        Optional display names matching the labels (same order).
+    sample_weight : array-like of shape = [n_samples], optional
+        Sample weights.
+    digits : int
+        Number of digits for formatting output floating point values.
+        When ``output_dict`` is ``True``, this will be ignored and the
+        returned values will not be rounded.
+    output_dict : bool (default = False)
+        If True, return output as dict
+    Returns
+    -------
+    report : string / dict
+        Text summary of the precision, recall, F1 score for each class.
+        Dictionary returned if output_dict is True. Dictionary has the
+        following structure::
+            {'label 1': {'precision':0.5,
+                         'recall':1.0,
+                         'f1-score':0.67,
+                         'support':1},
+             'label 2': { ... },
+              ...
+            }
+        The reported averages include micro average (averaging the
+        total true positives, false negatives and false positives), macro
+        average (averaging the unweighted mean per label), weighted average
+        (averaging the support-weighted mean per label) and sample average
+        (only for multilabel classification). See also
+        :func:`precision_recall_fscore_support` for more details on averages.
+        Note that in binary classification, recall of the positive class
+        is also known as "sensitivity"; recall of the negative class is
+        "specificity".
+    Examples
+    --------
+    >>> from sklearn.metrics import classification_report
+    >>> y_true = [0, 1, 2, 2, 2]
+    >>> y_pred = [0, 0, 2, 2, 1]
+    >>> target_names = ['class 0', 'class 1', 'class 2']
+    >>> print(classification_report(y_true, y_pred, target_names=target_names))
+                  precision    recall  f1-score   support
+    <BLANKLINE>
+         class 0       0.50      1.00      0.67         1
+         class 1       0.00      0.00      0.00         1
+         class 2       1.00      0.67      0.80         3
+    <BLANKLINE>
+       micro avg       0.60      0.60      0.60         5
+       macro avg       0.50      0.56      0.49         5
+    weighted avg       0.70      0.60      0.61         5
+    <BLANKLINE>
+    """ # noqa: D202,D205,D400,D413,E261,E501,W9015,W9011,Q000
+
+    y_type, y_true, y_pred = _check_targets(y_true, y_pred)
+
+    labels_given = True
+    if labels is None:
+        labels = unique_labels(y_true, y_pred)
+        labels_given = False
+    else:
+        labels = numpy.asarray(labels)
+
+    if target_names is not None and len(labels) != len(target_names):
+        if labels_given:
+            warnings.warn(
+                "labels size, {0}, does not match size of target_names, {1}"
+                .format(len(labels), len(target_names))
+            )
+        else:
+            raise ValueError(
+                "Number of classes, {0}, does not match size of "
+                "target_names, {1}. Try specifying the labels "
+                "parameter".format(len(labels), len(target_names))
+            )
+    if target_names is None:
+        target_names = [u"%s" % l for l in labels]
+
+    headers = ["precision", "recall", "f1-score", "support"]
+    # compute per-class results without averaging
+    p, r, f1, s = precision_recall_fscore_support(y_true, y_pred,
+                                                  labels=labels,
+                                                  average=None,
+                                                  sample_weight=sample_weight)
+    rows = zip(target_names, p, r, f1, s)
+
+    if y_type.startswith("multilabel"):
+        average_options = ("micro", "macro", "weighted", "samples")
+    else:
+        average_options = ("micro", "macro", "weighted")
+
+    if output_dict:
+        report_dict = {label[0]: label[1:] for label in rows}
+        for label, scores in report_dict.items():
+            report_dict[label] = dict(zip(headers,
+                                          [i.item() for i in scores]))
+    else:
+        longest_last_line_heading = "weighted avg"
+        name_width = max(len(cn) for cn in target_names)
+        width = max(name_width, len(longest_last_line_heading), digits)
+        head_fmt = u"{:>{width}s} ' + u' {:>9}" * len(headers)
+        report = head_fmt.format(u"", *headers, width=width)
+        report += u"\n\n"
+        row_fmt = u"{:>{width}s} " + u" {:>9.{digits}f}" * 3 + u" {:>9}\n"
+        for row in rows:
+            report += row_fmt.format(*row, width=width, digits=digits)
+        report += u"\n"
+
+    # compute all applicable averages
+    for average in average_options:
+        line_heading = average + " avg"
+        # compute averages with specified averaging method
+        avg_p, avg_r, avg_f1, _ = precision_recall_fscore_support(
+            y_true, y_pred, labels=labels,
+            average=average, sample_weight=sample_weight)
+        avg = [avg_p, avg_r, avg_f1, numpy.sum(s)]
+
+        if output_dict:
+            report_dict[line_heading] = dict(
+                zip(headers, [i.item() for i in avg]))
+        else:
+            report += row_fmt.format(line_heading, *avg,
+                                     width=width, digits=digits)
+
+    if output_dict:
+        return report_dict
+    else:
+        return report
+
+
 def generate_report(y, y_pred, vnodes_y, n_files, target_names):
     """Generate report: classification report, confusion matrix, files with most errors."""
-    with io.StringIO() as output:
-        print("Classification report:\n" + classification_report(y, y_pred,
-                                                                 target_names=target_names),
-              file=output)
-        print("Confusion matrix:\n" + str(confusion_matrix(y, y_pred)), file=output)
+    # classification report
+    c_report = classification_report(y, y_pred, output_dict=True, target_names=target_names,
+                                     labels=unique_labels(y, y_pred))
 
-        # sort files by mispredictions and print them
-        file_mispred = []
-        for gt, pred, vn in zip(y, y_pred, vnodes_y):
-            if gt != pred:
-                file_mispred.append(vn.path)
-        file_stat = Counter(file_mispred)
+    avr_keys = ["macro avg", "micro avg", "weighted avg"]
+    c_sorted = OrderedDict((key, c_report[key])
+                           for key in sorted(c_report, key=lambda k: -c_report[k]["support"])
+                           if key not in avr_keys)
+    for key in avr_keys:
+        c_sorted[key] = c_report[key]
 
-        to_show = file_stat.most_common()
-        if n_files > 0:
-            to_show = to_show[:n_files]
+    # confusion matrix
+    mat = confusion_matrix(y, y_pred)
 
-        print("Files with most errors:\n" + "\n".join(map(str, to_show)), file=output)
-        return output.getvalue()
+    # sort files by mispredictions
+    file_mispred = []
+    for gt, pred, vn in zip(y, y_pred, vnodes_y):
+        if gt != pred:
+            file_mispred.append(vn.path)
+    file_stat = Counter(file_mispred)
+
+    to_show = file_stat.most_common()
+    if n_files > 0:
+        to_show = to_show[:n_files]
+
+    loader = jinja2.FileSystemLoader(("/", os.path.dirname(__file__), os.getcwd()),
+                                     followlinks=True)
+    env = jinja2.Environment(
+        trim_blocks=True,
+        lstrip_blocks=True,
+        keep_trailing_newline=True,
+    )
+    env.globals.update(range=range)
+
+    template = loader.load(env, "templates/quality_report.md.jinja2")
+    res = template.render(cl_report=c_sorted, conf_mat=mat, target_names=target_names,
+                          files=to_show)
+    return res
+
+
+def generate_model_report(model: FormatModel, language: str,
+                          feature_extractor: FeatureExtractor) -> str:
+    """
+    Generate report about model - description for each rule, min/max support, min/max confidence.
+
+    :param model: trained format model.
+    :param language: language.
+    :param feature_extractor: feature extractor.
+    :return: report in str format.
+    """
+    rules = model[language]
+    min_support, max_support = float("inf"), -1
+    min_conf, max_conf = 1, 0
+    rules_desc = []
+    packages = model.meta["environment"]["packages"]
+    for i, rule in enumerate(rules.rules):
+        min_support = min(min_support, rule.stats.support)
+        max_support = max(max_support, rule.stats.support)
+        min_conf = min(min_conf, rule.stats.conf)
+        max_conf = max(max_conf, rule.stats.conf)
+        rules_desc.append((i, describe_rule(rule, feature_extractor).replace("\n", "<br>")))
+
+    loader = jinja2.FileSystemLoader(("/", os.path.dirname(__file__), os.getcwd()),
+                                     followlinks=True)
+    env = jinja2.Environment(
+        trim_blocks=True,
+        lstrip_blocks=True,
+        keep_trailing_newline=True,
+    )
+    env.globals.update(range=range)
+
+    template = loader.load(env, "templates/model_report.md.jinja2")
+    res = template.render(rules_desc=rules_desc, min_support=min_support, max_support=max_support,
+                          min_conf=min_conf, max_conf=max_conf, language=language, rules=rules,
+                          packages=packages)
+    return res
 
 
 @profile
 def quality_report(input_pattern: str, bblfsh: str, language: str, n_files: int, model_path: str,
                    ) -> None:
     """Print several different reports for a given model on a given dataset."""
-    log = logging.getLogger("quality_report")
     model = FormatModel().load(model_path)
     rules = model[language]
     print("Model parameters: %s" % rules.origin_config)
@@ -73,8 +314,10 @@ def quality_report(input_pattern: str, bblfsh: str, language: str, n_files: int,
     y, y_pred, vnodes_y, rule_winners, safe_preds = filter_uast_breaking_preds(
         y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, files={f.path: f for f in files},
         feature_extractor=fe, stub=client._stub, vnode_parents=vnode_parents,
-        node_parents=node_parents, rule_winners=rule_winners, log=log)
+        node_parents=node_parents, rule_winners=rule_winners,
+        log=logging.getLogger("quality_report"))
     target_names = fe.composite_class_representations
+    target_names = [target_names[label] for label in unique_labels(y, y_pred)]
     print(generate_report(y=y, y_pred=y_pred, target_names=target_names, vnodes_y=vnodes_y,
                           n_files=n_files))
 
@@ -330,21 +573,21 @@ class QualityReportAnalyzer(ReportAnalyzer):
 
     2.1) Quality report query for all files:
     ```
-    lookout-sdk push ipv4://analyzer:port --git-dir /git/dir/ --from REV1 --to  REV2  \
+    >>> lookout-sdk push ipv4://analyzer:port --git-dir /git/dir/ --from REV1 --to  REV2  \
     --config-json='{"style.format.analyzer.QualityReportAnalyzer":  \
     {"model_path": "/saved/model.asdf"}}'
     ```
 
     2.2) Quality report for changes per file:
     ```
-    lookout-sdk review ipv4://analyzer:port --git-dir /git/dir/ --from REV1 --to  REV2  \
+    >>> lookout-sdk review ipv4://analyzer:port --git-dir /git/dir/ --from REV1 --to  REV2  \
     --config-json='{"style.format.analyzer.QualityReportAnalyzer":  \
     {"model_path": "/saved/model.asdf"}}'
     ```
 
     2.3) Quality report for aggregated changes:
     ```
-    lookout-sdk review ipv4://analyzer:port --git-dir /git/dir/ --from REV1 --to  REV2  \
+    >>> lookout-sdk review ipv4://analyzer:port --git-dir /git/dir/ --from REV1 --to  REV2  \
     --config-json='{"style.format.analyzer.QualityReportAnalyzer":  \
     {"model_path": "/saved/model.asdf", "aggregate": true}}'
     ```
@@ -361,6 +604,24 @@ class QualityReportAnalyzer(ReportAnalyzer):
         """Initialize QualityReportAnalyzer with pretrained model and configuration."""
         super().__init__(model, url, config)
         self.config = self._load_analysis_config(self.config)
+
+    @classmethod
+    def generate_model_report(cls, model: FormatModel, config: MutableMapping[str, Any],
+                              feature_extractor: FeatureExtractor):
+        """
+        Generate report about model. Has to be implemented in child class.
+
+        :param model: model that should be described in report.
+        :param config: configuration.
+        :param feature_extractor: feature extractor.
+        :return: report.
+        """
+        res = []
+        for lang in model:
+            res.append(generate_model_report(model=model,
+                                             feature_extractor=feature_extractor,
+                                             language=lang))
+        return "\n".join(res)
 
     @classmethod
     def generate_report(cls, y: Union[numpy.ndarray, Iterable[Union[int, float]]],
