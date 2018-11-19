@@ -137,10 +137,11 @@ class CandidatesGenerator(Model):
 
     def __eq__(self, other: "CandidatesGenerator") -> bool:
         def compare(first, second) -> bool:
-            if isinstance(first, numpy.ndarray):
+            if isinstance(first, numpy.ndarray) or isinstance(second, numpy.ndarray):
                 if (first != second).any():
                     return False
             if isinstance(first, dict):
+                assert isinstance(second, dict)
                 for key, val in first.items():
                     val2 = second[key]
                     if hasattr(val, "__dict__"):
