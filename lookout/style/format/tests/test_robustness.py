@@ -22,21 +22,19 @@ class RobustnessTests(unittest.TestCase):
 
         with tarfile.open(str(cls.parent_loc / "jquery.tar.xz")) as tar:
             tar.extractall(path=cls.base_dir)
-        cls.jquery_dir = str(Path(__file__).parent.resolve() / "jquery")
+        cls.jquery_dir = os.path.join(cls.base_dir, "jquery")
         with tarfile.open(str(cls.parent_loc / "jquery_noisy.tar.xz")) as tar:
             tar.extractall(path=cls.base_dir)
-        cls.jquery_noisy_dir = str(Path(__file__).parent.resolve() / "jquery_noisy")
+        cls.jquery_noisy_dir = os.path.join(cls.base_dir, "jquery_noisy")
         cls.input_pattern = os.path.join(cls.jquery_dir, "**", "*.js")
         cls.input_pattern_noisy = os.path.join(cls.jquery_noisy_dir, "**", "*.js")
-
-        cls.model_path = str(Path(__file__).parent.resolve() / "model_jquery5.asdf")
+        cls.model_path = str(Path(__file__).parent.resolve() / "model_jquery.asdf")
 
     @classmethod
     def tearDownClass(cls):
         cls.base_dir_.cleanup()
 
     @unittest.skipIf(sys.version_info.minor == 5, "Python 3.5 is not yet supported by difflib")
-    @unittest.skip("To fix")
     def test_style_robustness_report(self):
         with Capturing() as output:
             style_robustness_report(true_repo=self.input_pattern,
@@ -56,7 +54,6 @@ class RobustnessTests(unittest.TestCase):
         self.assertGreater(metrics["precision"], 0)
 
     @unittest.skipIf(sys.version_info.minor == 5, "Python 3.5 is not yet supported by difflib")
-    @unittest.skip("To fix")
     def test_plot_pr_curve(self):
         with tempfile.NamedTemporaryFile(prefix="output-figure", suffix=".png") as tmpf:
             with Capturing() as output:

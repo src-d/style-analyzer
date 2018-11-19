@@ -172,8 +172,7 @@ def get_style_fixes(mispreds: Mapping[str, Misprediction], vnodes: Iterable[Virt
             continue
         for vn in vnodes:
             if vn.path == true_file and vn.start.offset == mispred.node.start.offset:
-                print(feature_extractor.labels_to_class_sequences[mispred.pred], vn.y)
-                if feature_extractor.labels_to_class_sequences[mispred.pred] == vn.y:
+                if tuple(feature_extractor.labels_to_class_sequences[mispred.pred]) == vn.y:
                     style_fixes.append(mispred)
                 break
     return style_fixes
