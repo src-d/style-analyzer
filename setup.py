@@ -27,7 +27,7 @@ setup(
     install_requires=[
         "sourced-ml>=0.7.0,<0.8",
         "lookout-sdk-ml>=0.1.2,<0.2",
-        "scikit-learn>=0.19,<2.0",
+        "scikit-learn>=0.19,<0.20.0",
         "tqdm>=4.0,<5.0",
         "scikit-optimize>=0.5,<2.0",
         "pandas>=0.22,<2.0",
