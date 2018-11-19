@@ -7,17 +7,16 @@ from typing import Any, List, Mapping, MutableMapping
 from bblfsh import BblfshClient
 from flask import abort, Flask, jsonify, request, Response
 from flask_cors import CORS
+from lookout.core.api.service_data_pb2 import File
 import numpy
 
-from lookout.core.api.service_data_pb2 import File
-from lookout.style.format.descriptions import (describe_rules, describe_sample,
-                                               get_composite_class_printables,
-                                               get_composite_class_representations)
+from lookout.style.format.descriptions import (
+    describe_rules, describe_sample, get_composite_class_printables,
+    get_composite_class_representations)
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.feature_utils import VirtualNode
 from lookout.style.format.model import FormatModel
 from lookout.style.format.postprocess import filter_uast_breaking_preds
-
 
 logging.basicConfig(level="INFO")
 app = Flask(__name__)

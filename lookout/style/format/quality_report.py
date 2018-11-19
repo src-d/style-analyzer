@@ -6,22 +6,23 @@ import logging
 from typing import Any, Iterable, List, MutableMapping, Union
 
 from bblfsh import BblfshClient
-import numpy
-from sklearn.metrics import classification_report, confusion_matrix
-
 from lookout.core.analyzer import Analyzer, AnalyzerModel, ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2_grpc import DataStub
 from lookout.core.data_requests import (with_changed_uasts_and_contents,
                                         with_uasts_and_contents)
 from lookout.core.lib import files_by_language, filter_files, find_new_lines
+import numpy
+from sklearn.metrics import classification_report, confusion_matrix
+
 from lookout.style.format.analyzer import FormatAnalyzer
+from lookout.style.format.benchmarks.profile import profile
 from lookout.style.format.descriptions import get_composite_class_representations
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.feature_utils import VirtualNode
 from lookout.style.format.model import FormatModel
 from lookout.style.format.postprocess import filter_uast_breaking_preds
-from lookout.style.format.utils import generate_comment, merge_dicts, prepare_files, profile
+from lookout.style.format.utils import generate_comment, merge_dicts, prepare_files
 
 
 def generate_report(y, y_pred, vnodes_y, n_files, target_names):

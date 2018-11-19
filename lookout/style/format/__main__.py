@@ -5,6 +5,7 @@ from typing import Any
 
 from lookout.core.cmdline import ArgumentDefaultsHelpFormatterNoNone
 from lookout.core.slogging import setup as setup_slogging
+
 from lookout.style.format.benchmarks.evaluate_smoke import evaluate_smoke_entry
 from lookout.style.format.benchmarks.generate_smoke import generate_smoke_entry
 from lookout.style.format.quality_report import quality_report

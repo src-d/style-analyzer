@@ -3,12 +3,12 @@
 import logging
 
 import bblfsh
-from sourced.ml.algorithms import uast2sequence
-
 from lookout.core.analyzer import Analyzer, AnalyzerModel, ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2_grpc import DataStub
 from lookout.core.data_requests import with_changed_uasts_and_contents, with_uasts_and_contents
+from sourced.ml.algorithms import uast2sequence
+
 from lookout.style.typos.model import IdTyposModel
 
 

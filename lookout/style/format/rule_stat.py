@@ -9,11 +9,12 @@ from bblfsh import BblfshClient
 import numpy
 from tqdm import tqdm
 
+from lookout.style.format.benchmarks.profile import profile
 from lookout.style.format.descriptions import describe_rule, get_composite_class_representations
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.postprocess import filter_uast_breaking_preds
 from lookout.style.format.quality_report import FormatModel, ReportAnalyzer
-from lookout.style.format.utils import prepare_files, profile
+from lookout.style.format.utils import prepare_files
 
 
 class RuleStat:

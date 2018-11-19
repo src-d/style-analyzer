@@ -5,9 +5,9 @@ from typing import Iterable, NamedTuple, Optional
 import unittest
 
 import bblfsh
-
 from lookout.core.analyzer import ReferencePointer
 from lookout.core.api.service_data_pb2 import File
+
 from lookout.style.typos.analyzer import IdTyposAnalyzer
 from lookout.style.typos.model import IdTyposModel
 

@@ -10,7 +10,6 @@ from lookout.style.typos.ranking import CandidatesRanker
 from lookout.style.typos.utils import (CANDIDATE_COLUMN, CORRECT_TOKEN_COLUMN, ID_COLUMN,
                                        SPLIT_COLUMN, TYPO_COLUMN)
 
-
 TEST_DATA_PATH = str(pathlib.Path(__file__).parent)
 
 

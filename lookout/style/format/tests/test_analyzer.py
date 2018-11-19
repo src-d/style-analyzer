@@ -8,9 +8,9 @@ from typing import Dict, Iterable, NamedTuple, Optional
 import unittest
 
 import bblfsh
-
 from lookout.core.analyzer import ReferencePointer
 from lookout.core.api.service_data_pb2 import File
+
 from lookout.style.format.analyzer import FormatAnalyzer
 from lookout.style.format.model import FormatModel
 from lookout.style.format.tests.test_model import compare_models

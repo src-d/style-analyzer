@@ -8,10 +8,10 @@ from typing import (Dict, Iterable, List, Mapping, MutableMapping, Optional,
                     Sequence, Set, Tuple, Union)
 
 import bblfsh
+from lookout.core.api.service_data_pb2 import File
 import numpy
 from sklearn.feature_selection import SelectKBest, VarianceThreshold
 
-from lookout.core.api.service_data_pb2 import File
 from lookout.style.format.feature_utils import (
     CLASS_INDEX, CLS_DOUBLE_QUOTE, CLS_NEWLINE, CLS_NOOP, CLS_SINGLE_QUOTE, CLS_SPACE,
     CLS_SPACE_DEC, CLS_SPACE_INC, CLS_TAB, CLS_TAB_DEC, CLS_TAB_INC, Position, VirtualNode)

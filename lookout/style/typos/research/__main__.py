@@ -4,8 +4,9 @@ import sys
 
 from lookout.core import slogging
 from lookout.core.cmdline import ArgumentDefaultsHelpFormatterNoNone
-from lookout.style.typos.research.nn_prediction import create_and_train_nn_prediction_from_file, \
-    DEFAULT_NUM_NEURONS, DEFAULT_BATCH_SIZE, DEFAULT_LR, DEFAULT_DECAY, DEFAULT_NUM_EPOCHS
+
+from lookout.style.typos.research.nn_prediction import DEFAULT_BATCH_SIZE, DEFAULT_DECAY, \
+    DEFAULT_LR, DEFAULT_NUM_EPOCHS, DEFAULT_NUM_NEURONS, create_and_train_nn_prediction_from_file
 from lookout.style.typos.utils import CORRECT_TOKEN_COLUMN, TYPO_COLUMN
 
 

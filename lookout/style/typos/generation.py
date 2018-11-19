@@ -13,9 +13,10 @@ from scipy.spatial.distance import cosine
 from tqdm import tqdm
 
 from lookout.style.typos.symspell import EditDistance, SymSpell
-from lookout.style.typos.utils import (add_context_info, CANDIDATE_COLUMN, FEATURES_COLUMN,
-                                       ID_COLUMN, read_frequencies, read_vocabulary, TYPO_COLUMN)
-
+from lookout.style.typos.utils import (
+    add_context_info, CANDIDATE_COLUMN, FEATURES_COLUMN, ID_COLUMN, read_frequencies,
+    read_vocabulary, TYPO_COLUMN
+)
 
 TypoInfo = NamedTuple("TypoInfo", (("index", int),
                                    ("typo", str),
