@@ -5,7 +5,7 @@ from typing import Iterable, NamedTuple, Optional
 import unittest
 
 import bblfsh
-from lookout.core.analyzer import ReferencePointer, DummyAnalyzerModel
+from lookout.core.analyzer import DummyAnalyzerModel, ReferencePointer
 from lookout.core.api.service_data_pb2 import File
 import pandas
 

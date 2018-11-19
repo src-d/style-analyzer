@@ -1,19 +1,19 @@
 """Identifier typos analyzer."""
 from collections import defaultdict
 import logging
-from typing import Mapping, Any, List, Dict, Tuple
+from typing import Any, Dict, List, Mapping, Tuple
 
 import bblfsh
-from lookout.core.analyzer import Analyzer, AnalyzerModel, ReferencePointer, DummyAnalyzerModel
+from lookout.core.analyzer import Analyzer, AnalyzerModel, DummyAnalyzerModel, ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2_grpc import DataStub
 from lookout.core.data_requests import with_changed_uasts_and_contents, with_uasts_and_contents
-from lookout.core.lib import extract_changed_nodes, find_new_lines, files_by_language, filter_files
+from lookout.core.lib import extract_changed_nodes, files_by_language, filter_files, find_new_lines
 import pandas
-from sourced.ml.algorithms import uast2sequence, TokenParser
+from sourced.ml.algorithms import TokenParser, uast2sequence
 
 from lookout.style.typos.corrector_manager import TyposCorrectorManager
-from lookout.style.typos.utils import SPLIT_COLUMN, TYPO_COLUMN, flatten_data
+from lookout.style.typos.utils import flatten_data, SPLIT_COLUMN, TYPO_COLUMN
 
 
 class IdTyposAnalyzer(Analyzer):

@@ -6,7 +6,7 @@ from typing import List, NamedTuple, Set, Union
 
 from gensim.models import FastText
 from gensim.models.keyedvectors import FastTextKeyedVectors, Vocab
-from modelforge import merge_strings, split_strings, Model
+from modelforge import merge_strings, Model, split_strings
 import numpy
 import pandas
 from scipy.spatial.distance import cosine
