@@ -5,14 +5,15 @@ from pathlib import Path
 import unittest
 
 import bblfsh
+from lookout.core.api.service_data_pb2 import File
 import numpy
 
-from lookout.core.api.service_data_pb2 import File
 from lookout.style.format.analyzer import FormatAnalyzer
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.feature_utils import (
     CLASS_INDEX, CLASSES, CLS_NEWLINE, CLS_NOOP, CLS_SINGLE_QUOTE, CLS_SPACE, CLS_SPACE_DEC,
-    CLS_SPACE_INC, VirtualNode)
+    CLS_SPACE_INC, VirtualNode
+)
 
 
 class FeaturesTests(unittest.TestCase):

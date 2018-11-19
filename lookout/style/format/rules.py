@@ -7,6 +7,7 @@ import logging
 from typing import (Any, Dict, Iterable, List, Mapping, NamedTuple, Optional, Sequence, Set, Tuple,
                     Union)
 
+from lookout.core.ports import Type
 import numpy
 from numpy import count_nonzero
 from scipy.sparse import csr_matrix
@@ -18,10 +19,8 @@ from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
 from sklearn.tree import _tree as Tree, DecisionTreeClassifier
 
-from lookout.core.ports import Type
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.feature_utils import VirtualNode
-
 
 RuleAttribute = NamedTuple(
     "RuleAttribute", (("feature", int), ("cmp", bool), ("threshold", float)))

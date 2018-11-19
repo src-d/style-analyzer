@@ -1,17 +1,13 @@
 """Commonly used utils."""
 from copy import deepcopy
-import cProfile
-from functools import wraps
-import io
-import pstats
-from typing import Callable, Iterable, Mapping
+from typing import Iterable, Mapping
 
 from bblfsh import BblfshClient
 from bblfsh.client import NonUTF8ContentException
-from tqdm import tqdm
-
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2 import File
+from tqdm import tqdm
+
 from lookout.style.format.files_filtering import filter_filepaths
 
 
@@ -74,29 +70,6 @@ def prepare_data_stub(input_pattern: str, client: BblfshClient, language: str):
     :return: Iterator of File-s with content, uast, path and language set.
     """
     return FakeDataStub(files=prepare_files(input_pattern, client, language))
-
-
-def profile(func: Callable) -> Callable:
-    """
-    Profiling decorator.
-
-    :param func: Function to be wrapped.
-    :return: Wrapped function.
-    """
-    @wraps(func)
-    def wrapped_profile(*args, **kwargs):
-        pr = cProfile.Profile()
-        pr.enable()
-        try:
-            res = func(*args, **kwargs)
-        finally:
-            pr.disable()
-            s = io.StringIO()
-            ps = pstats.Stats(pr, stream=s).strip_dirs().sort_stats("cumulative", "time")
-            ps.print_stats(20)
-            print(s.getvalue())
-        return res
-    return wrapped_profile
 
 
 def merge_dicts(*dicts: Mapping) -> Mapping:

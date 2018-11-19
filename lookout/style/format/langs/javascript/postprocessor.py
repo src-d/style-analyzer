@@ -6,8 +6,8 @@ from bblfsh import role_name
 import numpy
 
 from lookout.style.format.feature_extractor import FeatureExtractor
-from lookout.style.format.feature_utils import (CLASS_INDEX, CLS_DOUBLE_QUOTE, CLS_SINGLE_QUOTE,
-                                                VirtualNode)
+from lookout.style.format.feature_utils import (
+    CLASS_INDEX, CLS_DOUBLE_QUOTE, CLS_SINGLE_QUOTE, VirtualNode)
 from lookout.style.format.rules import Rule, Rules, RuleStats
 
 

@@ -4,13 +4,12 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Tuple
 
+from lookout.core.analyzer import AnalyzerModel
 import pandas
 from sourced.ml.algorithms import TokenParser
 
-from lookout.core.analyzer import AnalyzerModel
 from lookout.style.typos.corrector import TyposCorrector
 from lookout.style.typos.utils import flatten_data, SPLIT_COLUMN, TYPO_COLUMN
-
 
 NODE_ID_COLUMN = "node_id"
 

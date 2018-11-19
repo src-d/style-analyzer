@@ -4,13 +4,13 @@ import glob
 from os.path import join
 
 from bblfsh.client import BblfshClient
-from yaml import safe_load
-
 from lookout.core.analyzer import ReferencePointer
 from lookout.core.slogging import setup
+from yaml import safe_load
+
 from lookout.style.format.analyzer import FormatAnalyzer
-from lookout.style.format.utils import FakeDataStub
 from lookout.style.format.quality_report import prepare_files
+from lookout.style.format.utils import FakeDataStub
 
 
 def train(training_dir: str, output_path: str, language: str, bblfsh: str, config: str

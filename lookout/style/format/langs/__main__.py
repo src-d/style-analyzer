@@ -13,11 +13,10 @@ import threading
 import bblfsh
 from google.protobuf.message import DecodeError
 from jinja2 import Template
+from lookout.core import slogging
 import pandas
 from sourced.ml.cmd.args import ArgumentDefaultsHelpFormatterNoNone, handle_input_arg
 from tqdm import tqdm
-
-from lookout.core import slogging
 
 
 def parse_args() -> argparse.Namespace:

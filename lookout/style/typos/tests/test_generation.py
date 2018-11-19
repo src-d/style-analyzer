@@ -11,7 +11,6 @@ from lookout.style.typos.generation import (CandidatesGenerator, get_candidates_
 from lookout.style.typos.utils import (CANDIDATE_COLUMN, CORRECT_TOKEN_COLUMN, FEATURES_COLUMN,
                                        ID_COLUMN, SPLIT_COLUMN, TYPO_COLUMN)
 
-
 TEST_DATA_PATH = pathlib.Path(__file__).parent
 FASTTEXT_DUMP_FILE = str(TEST_DATA_PATH / "id_vecs_10.bin")
 VOCABULARY_FILE = str(TEST_DATA_PATH / "test_frequencies.csv.xz")

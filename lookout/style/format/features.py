@@ -5,8 +5,8 @@ from typing import (Callable, Iterable, List, Mapping, MutableMapping, Sequence,
                     Tuple, Union)
 
 import bblfsh
-
 from lookout.core.ports import Type
+
 from lookout.style.format.feature_utils import CLASSES, VirtualNode
 
 

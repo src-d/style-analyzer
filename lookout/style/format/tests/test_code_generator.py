@@ -4,8 +4,8 @@ from pathlib import Path
 import unittest
 
 import bblfsh
-
 from lookout.core.api.service_data_pb2 import File
+
 from lookout.style.format.analyzer import FormatAnalyzer
 from lookout.style.format.code_generator import CodeGenerator
 from lookout.style.format.feature_extractor import FeatureExtractor

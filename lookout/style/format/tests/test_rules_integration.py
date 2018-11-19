@@ -3,9 +3,9 @@ from pathlib import Path
 import unittest
 
 import bblfsh
+from lookout.core.api.service_data_pb2 import File
 from sklearn import model_selection, tree
 
-from lookout.core.api.service_data_pb2 import File
 from lookout.style.format.analyzer import FormatAnalyzer
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.rules import TrainableRules

@@ -8,13 +8,13 @@ import tempfile
 from typing import Any, List, Mapping
 
 from bblfsh import BblfshClient
-
 from lookout.core.analyzer import ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2_grpc import DataStub
 from lookout.core.data_requests import with_changed_uasts_and_contents
 from lookout.core.lib import files_by_language, filter_files, find_new_lines
-from lookout.core.tests import server
+from lookout.core.test_helpers import server
+
 from lookout.style.format.analyzer import FormatAnalyzer
 from lookout.style.format.code_generator import CodeGenerator
 from lookout.style.format.feature_extractor import FeatureExtractor

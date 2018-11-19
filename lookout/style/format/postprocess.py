@@ -4,9 +4,9 @@ from typing import Iterable, Mapping, Sequence
 
 import bblfsh
 from bblfsh.client import BblfshClient
+from lookout.core.api.service_data_pb2 import File
 import numpy
 
-from lookout.core.api.service_data_pb2 import File
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.feature_utils import CLS_DOUBLE_QUOTE, CLS_SINGLE_QUOTE, \
     INDEX_CLS_TO_STR, VirtualNode

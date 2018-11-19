@@ -8,7 +8,6 @@ from gensim.models.fasttext import FastText
 import numpy
 import pandas
 
-
 AFTER_COLUMN = "after"
 BEFORE_COLUMN = "before"
 CANDIDATE_COLUMN = "candidate"

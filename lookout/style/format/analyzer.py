@@ -6,16 +6,16 @@ import threading
 from typing import Any, List, Mapping
 
 from bblfsh.client import BblfshClient
-import numpy
-from skopt import BayesSearchCV
-from skopt.space import Categorical, Integer
-
 from lookout.core import slogging
 from lookout.core.analyzer import Analyzer, ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2_grpc import DataStub
 from lookout.core.data_requests import with_changed_uasts_and_contents, with_uasts_and_contents
 from lookout.core.lib import files_by_language, filter_files, find_deleted_lines, find_new_lines
+import numpy
+from skopt import BayesSearchCV
+from skopt.space import Categorical, Integer
+
 from lookout.style.format.descriptions import get_code_chunk, get_error_description, \
     rule_to_comment
 from lookout.style.format.feature_extractor import FeatureExtractor
