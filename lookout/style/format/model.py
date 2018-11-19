@@ -4,9 +4,9 @@ import io
 from itertools import islice
 from typing import Dict, Iterable, List  # noqa: F401
 
+from lookout.core.analyzer import AnalyzerModel
 import numpy
 
-from lookout.core.analyzer import AnalyzerModel
 from lookout.style.format.rules import Rule, RuleAttribute, Rules, RuleStats
 
 

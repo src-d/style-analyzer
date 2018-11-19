@@ -3,7 +3,6 @@ import unittest
 
 from lookout.style.typos.symspell import EditDistance, SymSpell
 
-
 TEST_DATA_PATH = str(pathlib.Path(__file__).parent)
 VOCABULARY_FILE = str(pathlib.Path(__file__).parent / "test_frequencies.csv.xz")
 

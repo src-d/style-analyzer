@@ -2,24 +2,15 @@
 from argparse import ArgumentParser
 import glob
 from os.path import join
-from typing import Iterable
 
 from bblfsh.client import BblfshClient
+from lookout.core.analyzer import ReferencePointer
+from lookout.core.slogging import setup
 from yaml import safe_load
 
-from lookout.core.analyzer import ReferencePointer
-from lookout.core.api.service_data_pb2 import File
-from lookout.core.slogging import setup
 from lookout.style.format.analyzer import FormatAnalyzer
 from lookout.style.format.quality_report import prepare_files
-
-
-class _FakeDataStub:
-    def __init__(self, files: Iterable[File]) -> None:
-        self.files = files
-
-    def GetFiles(self, _) -> Iterable[File]:
-        return self.files
+from lookout.style.format.utils import FakeDataStub
 
 
 def train(training_dir: str, output_path: str, language: str, bblfsh: str, config: str
@@ -43,7 +34,7 @@ def train(training_dir: str, output_path: str, language: str, bblfsh: str, confi
     model = FormatAnalyzer.train(
         ReferencePointer("someurl", "someref", "somecommit"),
         config,
-        _FakeDataStub(files=prepare_files(filenames, bblfsh_client, language))
+        FakeDataStub(prepare_files(filenames, bblfsh_client, language))
     )
     model.save(output_path)
 

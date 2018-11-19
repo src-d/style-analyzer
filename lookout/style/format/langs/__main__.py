@@ -13,17 +13,16 @@ import threading
 import bblfsh
 from google.protobuf.message import DecodeError
 from jinja2 import Template
+from lookout.core import slogging
 import pandas
 from sourced.ml.cmd.args import ArgumentDefaultsHelpFormatterNoNone, handle_input_arg
 from tqdm import tqdm
-
-from lookout.core import slogging
 
 
 def parse_args() -> argparse.Namespace:
     """Parse arguments into an argparse.Namespace."""
     parser = argparse.ArgumentParser(description="Generates a new language description for the "
-                                                 "format analyser based on the sample files.",
+                                                 "format analyzer based on the sample files.",
                                      formatter_class=ArgumentDefaultsHelpFormatterNoNone)
     parser.add_argument("--log-level", default="INFO", choices=logging._nameToLevel,
                         help="Logging verbosity.")
@@ -45,7 +44,7 @@ def parse_args() -> argparse.Namespace:
                              "'path', 'content', 'uast'")
     languages = ["java", "python", "go", "javascript", "typescript", "ruby", "bash", "php"]
     parser.add_argument("--parquet-language", choices=languages, default="",
-                        help="The programming language to analyse. Requires --parquet.")
+                        help="The programming language to analyze. Requires --parquet.")
     return parser.parse_args()
 
 

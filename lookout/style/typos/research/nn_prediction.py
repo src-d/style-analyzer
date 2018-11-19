@@ -2,11 +2,12 @@ import sys
 from typing import Iterable, Sequence, Tuple
 
 from gensim.models.fasttext import FastText
+
 try:
     import keras
 except ImportError:
     sys.exit("TensorFlow is required for this analyzer")
-from keras.layers import Dense, BatchNormalization, Activation
+from keras.layers import Dense, BatchNormalization
 from keras.models import Sequential
 import numpy
 import pandas

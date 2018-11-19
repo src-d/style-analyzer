@@ -7,13 +7,16 @@ from pathlib import Path
 import tempfile
 from typing import Any, List, Mapping
 
+from bblfsh import BblfshClient
 from lookout.core.analyzer import ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2_grpc import DataStub
 from lookout.core.data_requests import with_changed_uasts_and_contents
 from lookout.core.lib import files_by_language, filter_files, find_new_lines
-from lookout.core.tests import server
+from lookout.core.test_helpers import server
+
 from lookout.style.format.analyzer import FormatAnalyzer
+from lookout.style.format.code_generator import CodeGenerator
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.model import FormatModel
 from lookout.style.format.tests.test_analyzer_integration import TestAnalyzer
@@ -36,9 +39,9 @@ def _loss(head_lines, correct_lines, predicted_lines):
         edit_distance(head_lines, correct_lines)
 
 
-class SmokeEvalFormatAnalyser(FormatAnalyzer):
+class SmokeEvalFormatAnalyzer(FormatAnalyzer):
     """
-    Analyser for Smoke dataset evaluation.
+    Analyzer for Smoke dataset evaluation.
     """
 
     REPORT_COLNAMES = ["repo", "filepath", "style", "loss"]
@@ -53,6 +56,7 @@ class SmokeEvalFormatAnalyser(FormatAnalyzer):
         """
         super().__init__(model, url, config)
         self.config = self._load_analyze_config(self.config)
+        self.client = BblfshClient(self.config["bblfsh_address"])
         self.report = None
 
     def _dump_report(self, outputpath):
@@ -95,18 +99,17 @@ class SmokeEvalFormatAnalyser(FormatAnalyzer):
                 if res is None:
                     log.warning("Failed to parse %s", file.path)
                     continue
-                X, y, vnodes_y, vnodes = res
-                y_pred, rule_winners = rules.predict(X, vnodes_y, vnodes, fe)
+                X, y, (vnodes_y, vnodes, vnode_parents, node_parents) = res
+                y_pred, _ = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
+                                          feature_extractor=fe)
                 assert len(y) == len(y_pred)
 
                 correct_lines = prev_file.content.decode("utf-8", "replace").splitlines()
                 head_lines = file.content.decode("utf-8", "replace").splitlines()
-                try:
-                    predicted_lines = self.generate_file(vnodes_y, y_pred, vnodes)
-                    file_loss = _loss(head_lines, correct_lines, predicted_lines)
-                except NotImplementedError as e:
-                    self.log.warning("generate_file not implemented for indentation change.")
-                    file_loss = -1
+                code_generator = CodeGenerator(fe, skip_errors=True)
+                predicted_lines = code_generator.generate(
+                    vnodes_y=vnodes_y, y_pred=y_pred, vnodes=vnodes)
+                file_loss = _loss(head_lines, correct_lines, predicted_lines)
                 self.log.debug("Loss %d on file %s in the repo %s" % (
                     file_loss, file.path, self.config["repo_name"]))
                 self.report.append({"repo": self.config["repo_name"],
@@ -117,7 +120,7 @@ class SmokeEvalFormatAnalyser(FormatAnalyzer):
         return []
 
 
-analyzer_class = SmokeEvalFormatAnalyser
+analyzer_class = SmokeEvalFormatAnalyzer
 
 
 def report_summary(reportpath: str) -> None:
@@ -133,7 +136,7 @@ def report_summary(reportpath: str) -> None:
     rest_support = 0
     cases_number = 0
     with open(str(reportpath)) as index:
-        reader = csv.DictReader(index, fieldnames=SmokeEvalFormatAnalyser.REPORT_COLNAMES)
+        reader = csv.DictReader(index, fieldnames=SmokeEvalFormatAnalyzer.REPORT_COLNAMES)
         for row in reader:
             cases_number += 1
             loss = float(row["loss"])

@@ -1,5 +1,5 @@
-import pandas
 import numpy
+import pandas
 
 
 def check_split(split, tokens_set):

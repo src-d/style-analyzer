@@ -1,17 +1,16 @@
-import pickle
-from os import path
 from multiprocessing import Pool
+from os import path
+import pickle
 
-import pandas
 import numpy
+import pandas
 from sklearn.ensemble import RandomForestClassifier
-import lookout.style.typos.symspell as symspell
 
 from lookout.style.typos.research.typos_functions import (correct as typos_functions_correct,
                                                           print_suggestion_results,
                                                           read_frequencies,
                                                           suggest_corrections)
-
+import lookout.style.typos.symspell as symspell
 
 MAX_DISTANCE = 2
 

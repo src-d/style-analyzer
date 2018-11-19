@@ -1,19 +1,9 @@
-sourced-ml==0.6.4
-xxhash==1.2.0
-stringcase==1.2.0
-sqlalchemy==1.2.10
-sqlalchemy-utils==0.33.3
-pympler==0.5
-cachetools==2.0.1
-configargparse==0.13.0
-humanfriendly==4.16.1
-psycopg2-binary==2.7.5
+sourced-ml==0.7.0
+lookout-sdk-ml==0.1.2
 scikit-learn==0.19.2
-tqdm==4.11.2
 scikit-optimize==0.5.2
 pandas==0.22.0
 gensim==3.6.0
 # gensim implicitly requires this
 google-compute-engine==2.8.3
 xgboost==0.72.1
-bblfsh==2.12.3

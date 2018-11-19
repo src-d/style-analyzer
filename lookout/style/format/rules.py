@@ -7,6 +7,7 @@ import logging
 from typing import (Any, Dict, Iterable, List, Mapping, NamedTuple, Optional, Sequence, Set, Tuple,
                     Union)
 
+from lookout.core.ports import Type
 import numpy
 from numpy import count_nonzero
 from scipy.sparse import csr_matrix
@@ -18,10 +19,8 @@ from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
 from sklearn.tree import _tree as Tree, DecisionTreeClassifier
 
-from lookout.core.ports import Type
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.feature_utils import VirtualNode
-
 
 RuleAttribute = NamedTuple(
     "RuleAttribute", (("feature", int), ("cmp", bool), ("threshold", float)))
@@ -120,7 +119,7 @@ class Rules:
         """
         Predict classes given the input features and metadata.
 
-        :param X: Input features.
+        :param X: Numpy 1-dimensional array of input features.
         :param vnodes_y: Sequence of the labeled `VirtualNode`-s corresponding to labeled samples.
         :param vnodes: Sequence of all the `VirtualNode`-s corresponding to the input.
         :param feature_extractor: FeatureExtractor used to extract features.
@@ -136,11 +135,12 @@ class Rules:
                 .postprocess
         except ImportError:
             return y_pred, winners
-        postprocessed_y, postprocessed_winners = postprocess(X, y_pred, vnodes_y, vnodes, winners,
-                                                             self, feature_extractor)
+        postprocessed_y_pred, postprocessed_winners = postprocess(
+            X=X, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, winners=winners, rules=self,
+            feature_extractor=feature_extractor)
         if return_originals:
-            return postprocessed_y, postprocessed_winners, y_pred, winners
-        return postprocessed_y, postprocessed_winners
+            return postprocessed_y_pred, postprocessed_winners, y_pred, winners
+        return postprocessed_y_pred, postprocessed_winners
 
     @property
     def rules(self) -> List[Rule]:

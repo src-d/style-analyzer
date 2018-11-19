@@ -13,8 +13,9 @@ from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.feature_utils import VirtualNode
 from lookout.style.format.files_filtering import filter_filepaths
 from lookout.style.format.model import FormatModel
-from lookout.style.format.quality_report import prepare_files
+from lookout.style.format.postprocess import filter_uast_breaking_preds
 from lookout.style.format.rules import Rules
+from lookout.style.format.utils import prepare_files
 
 Misprediction = NamedTuple("Misprediction", [("y", numpy.ndarray), ("pred", numpy.ndarray),
                                              ("node", List[VirtualNode]), ("rule", numpy.ndarray)])
@@ -73,12 +74,12 @@ def files2vnodes(files: Iterable[str], feature_extractor: FeatureExtractor, clie
     :return: List of `VirtualNode`-s extracted from a given list of files.
     """
     files = prepare_files(files, client, feature_extractor.language)
-    _, _, vnodes_y, _ = feature_extractor.extract_features(files)
+    _, _, (vnodes_y, _, _, _) = feature_extractor.extract_features(files)
     return vnodes_y
 
 
 def files2mispreds(files: Iterable[str], feature_extractor: FeatureExtractor, rules: Rules,
-                   client: str) -> Iterable[Misprediction]:
+                   client: BblfshClient, log: logging.Logger) -> Iterable[Misprediction]:
     """
     Return the model's `Misprediction`-s on a list of files.
 
@@ -86,11 +87,19 @@ def files2mispreds(files: Iterable[str], feature_extractor: FeatureExtractor, ru
     :param feature_extractor: FeatureExtractor to use.
     :param rules: Rules to use for prediction.
     :param client: Babelfish client. Babelfish server should be started accordingly.
+    :param log: Logger.
     :return: List of `Misprediction`-s extracted from a given list of files.
     """
     files = prepare_files(files, client, feature_extractor.language)
-    X, y, vnodes_y, vnodes = feature_extractor.extract_features(files)
-    y_pred, winners = rules.predict(X, vnodes_y, vnodes, feature_extractor)
+    X, y, (vnodes_y, vnodes, vnode_parents, node_parents) = feature_extractor \
+        .extract_features(files)
+    y_pred, winners = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
+                                    feature_extractor=feature_extractor)
+    y, y_pred, vnodes_y, safe_preds = filter_uast_breaking_preds(
+        y=y, y_pred=y_pred, vnodes_y=vnodes_y, files={f.path: f for f in files},
+        feature_extractor=feature_extractor, client=client, vnode_parents=vnode_parents,
+        node_parents=node_parents, log=log)
+    winners = winners[safe_preds]
     mispreds = get_mispreds(y, y_pred, vnodes_y, winners)
     return mispreds
 
@@ -163,8 +172,7 @@ def get_style_fixes(mispreds: Mapping[str, Misprediction], vnodes: Iterable[Virt
             continue
         for vn in vnodes:
             if vn.path == true_file and vn.start.offset == mispred.node.start.offset:
-                print(feature_extractor.labels_to_class_sequences[mispred.pred], vn.y)
-                if feature_extractor.labels_to_class_sequences[mispred.pred] == vn.y:
+                if tuple(feature_extractor.labels_to_class_sequences[mispred.pred]) == vn.y:
                     style_fixes.append(mispred)
                 break
     return style_fixes
@@ -228,7 +236,7 @@ def style_robustness_report(true_repo: str, noisy_repo: str, bblfsh: str, langua
     feature_extractor = FeatureExtractor(language=language,
                                          **rules.origin_config["feature_extractor"])
     vnodes_y_true = files2vnodes(true_files, feature_extractor, client)
-    mispreds_noise = files2mispreds(noisy_files, feature_extractor, rules, client)
+    mispreds_noise = files2mispreds(noisy_files, feature_extractor, rules, client, log)
     diff_mispreds = get_diff_mispreds(mispreds_noise, lines_changed)
     changes_count = len(lines_changed)
     log.info("Number of artificial mistakes potentially fixed by the model "
@@ -323,7 +331,7 @@ def plot_pr_curve(true_repo: str, noisy_repo: str, bblfsh: str, language: str,
     feature_extractor = FeatureExtractor(language=language,
                                          **rules.origin_config["feature_extractor"])
     vnodes_y_true = files2vnodes(true_files, feature_extractor, client)
-    mispreds_noise = files2mispreds(noisy_files, feature_extractor, rules, client)
+    mispreds_noise = files2mispreds(noisy_files, feature_extractor, rules, client, log)
     diff_mispreds = get_diff_mispreds(mispreds_noise, lines_changed)
     changes_count = len(lines_changed)
 

@@ -5,8 +5,8 @@ from random import randint
 import unittest
 
 import bblfsh
-
 from lookout.core.api.service_data_pb2 import File
+
 from lookout.style.format.analyzer import FormatAnalyzer
 from lookout.style.format.descriptions import describe_rule, get_composite_class_representations
 from lookout.style.format.feature_extractor import FeatureExtractor, FeatureGroup

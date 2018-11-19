@@ -1,3 +1,4 @@
+import io
 import pathlib
 import unittest
 
@@ -10,7 +11,6 @@ from lookout.style.typos.generation import (CandidatesGenerator, get_candidates_
                                             get_candidates_metadata)
 from lookout.style.typos.utils import (CANDIDATE_COLUMN, CORRECT_TOKEN_COLUMN, FEATURES_COLUMN,
                                        ID_COLUMN, SPLIT_COLUMN, TYPO_COLUMN)
-
 
 TEST_DATA_PATH = pathlib.Path(__file__).parent
 FASTTEXT_DUMP_FILE = str(TEST_DATA_PATH / "id_vecs_10.bin")
@@ -41,6 +41,18 @@ class CandidatesSplitTest(unittest.TestCase):
 
 
 class GeneratorTest(unittest.TestCase):
+    def test_save_load(self):
+        generator = CandidatesGenerator()
+        generator.construct(VOCABULARY_FILE, VOCABULARY_FILE, FASTTEXT_DUMP_FILE,
+                            neighbors=3, edit_candidates=3, max_distance=3, radius=3)
+        with io.BytesIO() as buffer:
+            generator.save(buffer)
+            print(buffer.tell())
+            buffer.seek(0)
+            generator2 = CandidatesGenerator().load(buffer)
+
+        self.assertTrue(generator == generator2)
+
     def test_generate_candidates(self):
         generator = CandidatesGenerator()
         generator.construct(VOCABULARY_FILE, VOCABULARY_FILE, FASTTEXT_DUMP_FILE,

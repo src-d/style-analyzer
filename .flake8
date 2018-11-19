@@ -1,13 +1,13 @@
 [flake8]
-ignore=B008,E121,E123,E126,E226,E24,E704,W503,W504
+ignore=B008,E121,E123,E126,E226,E24,E704,W503,W504,D100,D105,D200,D301,D402
 max-line-length=99
 exclude=
     .git
-    lookout/core/api
-    .eggs
     doc
-    lookout/style/format/research
-    lookout/style/typos/research
+    **/research
 inline-quotes="
 import-order-style=appnexus
-application-package-names=lookout
+application-package-names=lookout.style
+per-file-ignores=
+    **/tests/*:D
+    lookout/style/typos/symspell.py:D

@@ -2,7 +2,6 @@ import logging
 import os
 from pathlib import Path
 import re
-import shutil
 import tarfile
 import tempfile
 import threading
@@ -10,9 +9,14 @@ from threading import Thread
 import unittest
 from unittest.mock import patch
 
-from lookout.__main__ import main as launch_analyzer
 from lookout.core.event_listener import EventListener
-from lookout.core.tests.server import find_port, run as launch_server
+from lookout.core.test_helpers.server import find_port, run as launch_server
+
+# PyCharm has a bug and inserts a new line here
+from lookout.__main__ import main as launch_analyzer  # noqa: I202, I100
+
+FROM_COMMIT = "HEAD" + "^" * 8
+TO_COMMIT = "HEAD"
 
 
 class TestAnalyzer:
@@ -67,7 +71,7 @@ class TestAnalyzer:
 
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type=None, exc_val=None, exc_tb=None):
         logging.getLogger().removeHandler(self.log_handler)
         self.listener.stop()
         self.process.join()
@@ -85,7 +89,6 @@ class BaseAnalyzerIntegrationTests(unittest.TestCase):
         self.analyzer = TestAnalyzer(port=self.port, db=self.db.name, fs=self.fs.name).__enter__()
 
     def tearDown(self, fs_cleanup=True):
-        shutil.rmtree(self.jquery_dir)
         if fs_cleanup:
             self.fs.cleanup()
         self.analyzer.__exit__()
@@ -97,23 +100,24 @@ class AnalyzerIntegrationTests(BaseAnalyzerIntegrationTests):
     @classmethod
     def setUpClass(cls):
         parent = Path(__file__).parent.resolve()
-        cls.base_dir = str(parent)
-        cls.jquery_dir = str(parent / "jquery")
+        cls.base_dir_ = tempfile.TemporaryDirectory(dir=str(parent))
+        cls.base_dir = cls.base_dir_.name
+        cls.jquery_dir = os.path.join(cls.base_dir, "jquery")
         # str() is needed for Python 3.5
         with tarfile.open(str(parent / "jquery.tar.xz")) as tar:
             tar.extractall(path=cls.base_dir)
 
     @classmethod
     def tearDownClass(cls):
-        shutil.rmtree(cls.jquery_dir)
+        cls.base_dir_.cleanup()
 
     def test_review(self):
         launch_server(
             "review",
-            "fbd32214d1b08e09278f39c77979658cabde6c4d",
-            "931442679ad04ebadad2b70a9f938fb0bc64d537",
+            FROM_COMMIT,
+            TO_COMMIT,
             self.port, git_dir=self.jquery_dir)
-        matches = re.search(r"FormatAnalyzer: (\d+) comments", "".join(self.logs))
+        matches = re.search(r"FormatAnalyzer: (\d+) comments", "".join(self.analyzer.logs))
         self.assertTrue(matches)
         self.assertGreater(int(matches.group(1)), 0)
 
