@@ -72,9 +72,9 @@ def prepare_data_stub(input_pattern: str, client: BblfshClient, language: str):
     return FakeDataStub(files=prepare_files(input_pattern, client, language))
 
 
-def merge_dicts(*dicts: Mapping) -> Mapping:
+def merge_dicts(*dicts: Mapping) -> dict:
     """
-    Deep merge of nested dictionaries.
+    Merge several mappings together; nested values are merged recursively.
 
     Operation is not commutative, each next dictionary overrides values of the previous one for
     the same keys sequence.
@@ -91,8 +91,8 @@ def merge_dicts(*dicts: Mapping) -> Mapping:
     if len(dicts) == 0:
         raise ValueError("At least one argument is required.")
     if len(dicts) == 1:
-        return deepcopy(dicts[0])
-    res = deepcopy(dicts[0])
+        return dict(deepcopy(dicts[0]))
+    res = dict(deepcopy(dicts[0]))
     stack = [(res, d) for d in dicts[:0:-1]]
     while stack:
         d1, d2 = stack.pop()
