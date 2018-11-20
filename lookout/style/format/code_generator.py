@@ -1,6 +1,6 @@
 """Code generator that able to generate new source code from format model style suggestions."""
 import logging
-from typing import List, Sequence, Union
+from typing import Sequence, Union
 
 import numpy
 
@@ -62,9 +62,9 @@ class CodeGenerator:
         self.commit = commit
 
     def generate(self,
-                 vnodes_y: List[VirtualNode],
+                 vnodes_y: Sequence[VirtualNode],
                  y_pred: numpy.ndarray,
-                 vnodes: List[VirtualNode],
+                 vnodes: Sequence[VirtualNode],
                  ) -> str:
         """
         Generate new source code from format model suggestions.
