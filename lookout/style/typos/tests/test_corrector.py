@@ -42,7 +42,7 @@ class TyposCorrectorTest(unittest.TestCase):
             print(buffer.tell())
             buffer.seek(0)
             corrector2 = TyposCorrector().load(buffer)
-        self.assertTrue(self.corrector, corrector2)
+        self.assertEqual(self.corrector, corrector2)
 
 
 if __name__ == "__main__":
