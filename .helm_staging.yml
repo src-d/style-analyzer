@@ -1,0 +1,16 @@
+app:
+  requestServer: lookout-work:10301
+  log:
+    level: DEBUG
+  volume:
+    pvcName: lookout-style-analyzer
+
+databases:
+  postgres:
+    cloudSQL: true
+    instanceConnectionName: srcd-public-staging:europe-west1:lookout-staging-primary
+    serviceAccountSecret: cloudsql-proxy-credentials
+    connectionDetailsSecret: lookout-style-analyzer-postgres-connection-details
+
+nodeSelector:
+  srcd.host/app: lookout
