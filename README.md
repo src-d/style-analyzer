@@ -1,6 +1,6 @@
 ![Format man](doc/logo.png)
 # style-analyzer
-Fix code style faults using 🤖.
+Fix code style faults using 🤖
 
 
 [![Read the Docs](https://img.shields.io/readthedocs/style-analyzer.svg)](https://readthedocs.org/projects/style-analyzer/)
