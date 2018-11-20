@@ -33,6 +33,48 @@ class FormatAnalyzer(Analyzer):
     name = "style.format.analyzer.FormatAnalyzer"
     version = "1"
     description = "Source code formatting: whitespace, new lines, quotes, braces."
+    defaults_for_analyze = {
+        "bblfsh_address": "0.0.0.0:9432",
+        "report_code_lines": True,
+        "report_triggered_rules": True,
+        "report_parse_failures": True,
+    }
+    defaults_for_train = {
+        "global": {
+            "feature_extractor": {
+                "left_siblings_window": 5,
+                "right_siblings_window": 5,
+                "parents_depth": 2,
+                "node_features": ["start_line", "start_col"],
+                "left_features": ["length", "diff_offset", "diff_col", "diff_line",
+                                  "internal_type", "label", "reserved", "roles"],
+                "right_features": ["length", "internal_type", "reserved", "roles"],
+                "parent_features": ["internal_type", "roles"],
+                "no_labels_on_right": True,
+                "debug_parsing": False,
+                "select_features_number": 500,
+                "remove_constant_features": True,
+                "insert_noops": False,
+                "return_sibling_indices": False,
+            },
+            "trainable_rules": {
+                "prune_branches_algorithms": ["reduced-error"],
+                "top_down_greedy_budget": [False, .5],
+                "prune_attributes": False,
+                "uncertain_attributes": True,
+                "prune_dataset_ratio": .2,
+                "n_estimators": 10,
+                "random_state": 42,
+            },
+            "n_jobs": -1,
+            "n_iter": 5,
+            "line_length_limit": 500,
+            "lower_bound_instances": 500,
+        },
+        # selected settings for each particular language which overwrite "global"
+        # empty {} is still required if we do not have any adjustments
+        "javascript": {},
+    }
 
     def __init__(self, model: FormatModel, url: str, config: Mapping[str, Any]) -> None:
         """
@@ -169,10 +211,14 @@ class FormatAnalyzer(Analyzer):
         model = FormatModel().construct(cls, ptr)
         config = cls._load_train_config(config)
         for language, files in files_by_language(data["files"]).items():
-            lang_config = config[language]
+            try:
+                lang_config = config[language]
+            except KeyError:
+                cls.log.warning("Language %s is not supported, skipped", language)
+                continue
             files = filter_files(files, lang_config["line_length_limit"], cls.log)
             if len(files) == 0:
-                cls.log.info("Zero files after filtering, %s language is skipped.", language)
+                cls.log.info("Zero files after filtering, language %s is skipped.", language)
                 continue
             try:
                 fe = FeatureExtractor(language=language, **lang_config["feature_extractor"])
@@ -235,58 +281,22 @@ class FormatAnalyzer(Analyzer):
     @classmethod
     def _load_analyze_config(cls, config: Mapping[str, Any]) -> Mapping[str, Any]:
         """
-        Merge config for analyze call with default config values stored inside this function.
+        Merge config for `analyze()` with the default config.
 
         :param config: User-defined config.
         :return: Full config.
         """
-        defaults = {
-            "bblfsh_address": "0.0.0.0:9432",
-            "report_code_lines": True,
-            "report_triggered_rules": True,
-            "report_parse_failures": True,
-        }
-        return merge_dicts(defaults, config)
+        return merge_dicts(cls.defaults_for_analyze, config)
 
     @classmethod
     def _load_train_config(cls, config: Mapping[str, Any]) -> Mapping[str, Any]:
-        defaults = {
-            "global": {
-                "feature_extractor": {
-                    "left_siblings_window": 5,
-                    "right_siblings_window": 5,
-                    "parents_depth": 2,
-                    "node_features": ["start_line", "start_col"],
-                    "left_features": ["length", "diff_offset", "diff_col", "diff_line",
-                                      "internal_type", "label", "reserved", "roles"],
-                    "right_features": ["length", "internal_type", "reserved", "roles"],
-                    "parent_features": ["internal_type", "roles"],
-                    "no_labels_on_right": True,
-                    "debug_parsing": False,
-                    "select_features_number": 500,
-                    "remove_constant_features": True,
-                    "insert_noops": False,
-                    "return_sibling_indices": False,
-                },
-                "trainable_rules": {
-                    "prune_branches_algorithms": ["reduced-error"],
-                    "top_down_greedy_budget": [False, .5],
-                    "prune_attributes": False,
-                    "uncertain_attributes": True,
-                    "prune_dataset_ratio": .2,
-                    "n_estimators": 10,
-                    "random_state": 42,
-                },
-                "n_jobs": -1,
-                "n_iter": 5,
-                "line_length_limit": 500,
-                "lower_bound_instances": 500,
-            },
-            "javascript": {
-                # The same structure here
-            },
-        }
-        config = merge_dicts(defaults, config)
+        """
+        Merge config for `train()` with the default config.
+
+        :param config: User-defined config.
+        :return: Full config.
+        """
+        config = merge_dicts(cls.defaults_for_train, config)
         global_config = config.pop("global")
         try:
             return {lang: merge_dicts(global_config, lang_config)
