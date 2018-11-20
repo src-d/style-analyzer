@@ -10,13 +10,11 @@ from flask_cors import CORS
 from lookout.core.api.service_data_pb2 import File
 import numpy
 
-from lookout.style.format.descriptions import (
-    describe_rules, describe_sample, get_composite_class_printables,
-    get_composite_class_representations)
+from lookout.style.format.descriptions import describe_rules, describe_sample
 from lookout.style.format.feature_extractor import FeatureExtractor
-from lookout.style.format.feature_utils import VirtualNode
 from lookout.style.format.model import FormatModel
 from lookout.style.format.postprocess import filter_uast_breaking_preds
+from lookout.style.format.virtual_node import VirtualNode
 
 logging.basicConfig(level="INFO")
 app = Flask(__name__)
@@ -113,7 +111,7 @@ def return_features() -> Response:
                     "supports": [int(rule.stats.support) for rule in rules.rules],
                     "winners": winners.tolist(),
                     "feature_names": fe.feature_names,
-                    "class_representations": get_composite_class_representations(fe),
-                    "class_printables": get_composite_class_printables(fe),
+                    "class_representations": fe.get_composite_class_representations(),
+                    "class_printables": fe.get_composite_class_printables(),
                     "vnodes": list(map(_vnode_to_dict, vnodes)),
                     "config": _convert_to_jsonable(rules.origin_config)})

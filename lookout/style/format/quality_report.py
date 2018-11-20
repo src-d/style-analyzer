@@ -17,12 +17,11 @@ from sklearn.metrics import classification_report, confusion_matrix
 
 from lookout.style.format.analyzer import FormatAnalyzer
 from lookout.style.format.benchmarks.profile import profile
-from lookout.style.format.descriptions import get_composite_class_representations
 from lookout.style.format.feature_extractor import FeatureExtractor
-from lookout.style.format.feature_utils import VirtualNode
 from lookout.style.format.model import FormatModel
 from lookout.style.format.postprocess import filter_uast_breaking_preds
 from lookout.style.format.utils import generate_comment, merge_dicts, prepare_files
+from lookout.style.format.virtual_node import VirtualNode
 
 
 def generate_report(y, y_pred, vnodes_y, n_files, target_names):
@@ -75,7 +74,7 @@ def quality_report(input_pattern: str, bblfsh: str, language: str, n_files: int,
         y=y, y_pred=y_pred, vnodes_y=vnodes_y, files={f.path: f for f in files},
         feature_extractor=fe, client=client, vnode_parents=vnode_parents,
         node_parents=node_parents, log=log)
-    target_names = get_composite_class_representations(fe)
+    target_names = fe.get_composite_class_representations()
     print(generate_report(y=y, y_pred=y_pred, target_names=target_names, vnodes_y=vnodes_y,
                           n_files=n_files))
 
@@ -225,7 +224,7 @@ class ReportAnalyzer(Analyzer):
                     agg_vnodes_y.extend(vnodes_y)
                     agg_y_pred.append(y_pred)
                 else:
-                    target_names = get_composite_class_representations(fe)
+                    target_names = fe.get_composite_class_representations()
                     assert len(y) == len(y_pred)
 
                     report = self.generate_report(
@@ -241,7 +240,7 @@ class ReportAnalyzer(Analyzer):
                                                  line=0, text=model_report))
             if self.config["aggregate"]:
                 agg_y = numpy.hstack(agg_y)
-                target_names = get_composite_class_representations(fe)
+                target_names = fe.get_composite_class_representations()
                 report = self.generate_report(
                     y=agg_y, y_pred=numpy.hstack(agg_y_pred), vnodes_y=agg_vnodes_y,
                     target_names=target_names, config=self.config, model=self.model,
@@ -291,7 +290,7 @@ class ReportAnalyzer(Analyzer):
                 feature_extractor=fe, client=cls.client, vnode_parents=vnode_parents,
                 node_parents=node_parents, log=cls.log)
             rule_winners = rule_winners[safe_preds]
-            target_names = get_composite_class_representations(fe)
+            target_names = fe.get_composite_class_representations()
             assert len(y) == len(y_pred)
             report = cls.generate_report(y=y, y_pred=y_pred, vnodes_y=vnodes_y,
                                          target_names=target_names, config=config, model=model,

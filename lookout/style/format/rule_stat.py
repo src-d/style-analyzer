@@ -10,7 +10,7 @@ import numpy
 from tqdm import tqdm
 
 from lookout.style.format.benchmarks.profile import profile
-from lookout.style.format.descriptions import describe_rule, get_composite_class_representations
+from lookout.style.format.descriptions import describe_rule
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.postprocess import filter_uast_breaking_preds
 from lookout.style.format.quality_report import FormatModel, ReportAnalyzer
@@ -35,7 +35,7 @@ def generate_rule_table(rule_stat: Mapping[Any, RuleStat], feature_extractor: Fe
     :param feature_extractor: FeatureExtractor used to extract features.
     :return: table in str format.
     """
-    class_names = get_composite_class_representations(feature_extractor)
+    class_names = feature_extractor.get_composite_class_representations()
     with io.StringIO() as output:
         print("Legend: predictions/ground truth", file=output)
         report = [["#rule"] + class_names + ["n_mistakes", "support"]]

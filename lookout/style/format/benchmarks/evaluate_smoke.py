@@ -24,9 +24,9 @@ from tqdm import tqdm
 from lookout.style.format.analyzer import FormatAnalyzer
 from lookout.style.format.code_generator import CodeGenerator
 from lookout.style.format.feature_extractor import FeatureExtractor
-from lookout.style.format.feature_utils import VirtualNode
 from lookout.style.format.model import FormatModel
 from lookout.style.format.tests.test_analyzer_integration import TestAnalyzer
+from lookout.style.format.virtual_node import VirtualNode
 
 log = logging.getLogger("report_summary")
 

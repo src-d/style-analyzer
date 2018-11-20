@@ -9,11 +9,10 @@ from lookout.core.api.service_data_pb2 import File
 import numpy
 
 from lookout.style.format.analyzer import FormatAnalyzer
+from lookout.style.format.classes import CLS_SPACE, CLS_NEWLINE, CLS_SPACE_INC, CLS_SPACE_DEC, \
+    CLS_SINGLE_QUOTE, CLS_NOOP, CLASSES, CLASS_INDEX
 from lookout.style.format.feature_extractor import FeatureExtractor
-from lookout.style.format.feature_utils import (
-    CLASS_INDEX, CLASSES, CLS_NEWLINE, CLS_NOOP, CLS_SINGLE_QUOTE, CLS_SPACE, CLS_SPACE_DEC,
-    CLS_SPACE_INC, VirtualNode
-)
+from lookout.style.format.virtual_node import VirtualNode
 
 
 class FeaturesTests(unittest.TestCase):

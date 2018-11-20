@@ -7,7 +7,8 @@ from typing import (Callable, Iterable, List, Mapping, MutableMapping, Sequence,
 import bblfsh
 from lookout.core.ports import Type
 
-from lookout.style.format.feature_utils import CLASSES, VirtualNode
+from lookout.style.format.classes import CLASSES
+from lookout.style.format.virtual_node import VirtualNode
 
 
 @unique

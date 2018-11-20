@@ -6,8 +6,8 @@ import os
 from bblfsh import BblfshClient
 from lookout.core.api.service_data_pb2 import File
 
+from lookout.style.format.classes import CLASSES
 from lookout.style.format.feature_extractor import FeatureExtractor
-from lookout.style.format.feature_utils import CLASSES
 from lookout.style.format.model import FormatModel
 from lookout.style.format.robustness import Misprediction
 

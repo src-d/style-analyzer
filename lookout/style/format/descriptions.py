@@ -6,33 +6,11 @@ from typing import List, Optional, Sequence, Tuple
 
 from numpy import flatnonzero, floating, ndarray
 
+from lookout.style.format.classes import CLS_NOOP, CLASS_INDEX, CLASS_REPRESENTATIONS
 from lookout.style.format.feature_extractor import FeatureExtractor, FEATURES_MAX, FEATURES_MIN
-from lookout.style.format.feature_utils import CLASS_INDEX, CLASS_PRINTABLES, \
-    CLASS_REPRESENTATIONS, CLS_NOOP, VirtualNode
 from lookout.style.format.features import BagFeature, CategoricalFeature, OrdinalFeature
 from lookout.style.format.rules import Rule
-
-
-def get_composite_class_representations(feature_extractor: FeatureExtractor) -> List[str]:
-    """
-    Return the class representations of composite classes.
-
-    :param feature_extractor: FeatureExtractor used to extract features.
-    :return: Strings representing the composite classes.
-    """
-    return ["".join(CLASS_REPRESENTATIONS[label] for label in labels)
-            for labels in feature_extractor.labels_to_class_sequences]
-
-
-def get_composite_class_printables(feature_extractor: FeatureExtractor) -> List[str]:
-    """
-    Return the class printables of composite classes.
-
-    :param feature_extractor: FeatureExtractor used to extract features.
-    :return: Strings that can be printed to represent the composite classes.
-    """
-    return ["".join(CLASS_PRINTABLES[label] for label in labels)
-            for labels in feature_extractor.labels_to_class_sequences]
+from lookout.style.format.virtual_node import VirtualNode
 
 
 def describe_rules(rules: List[Rule], feature_extractor: FeatureExtractor) -> List[str]:
@@ -219,7 +197,7 @@ def get_error_description(vnode: VirtualNode, y_pred: int, feature_extractor: Fe
     :return: String comment.
     """
     column = vnode.start.col
-    class_representations = get_composite_class_representations(feature_extractor)
+    class_representations = feature_extractor.get_composite_class_representations()
     y = feature_extractor.class_sequences_to_labels[vnode.y]
     labels_pred = feature_extractor.labels_to_class_sequences[y_pred]
     if labels_pred[0] == CLASS_INDEX[CLS_NOOP]:

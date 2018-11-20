@@ -56,6 +56,7 @@ class FormatAnalyzer(Analyzer):
                 "remove_constant_features": True,
                 "insert_noops": False,
                 "return_sibling_indices": False,
+                "cutoff_label_support": 50,
             },
             "trainable_rules": {
                 "prune_branches_algorithms": ["reduced-error"],
@@ -70,6 +71,7 @@ class FormatAnalyzer(Analyzer):
             "n_iter": 5,
             "line_length_limit": 500,
             "lower_bound_instances": 500,
+            "cutoff_label_precision": 0.95,
         },
         # selected settings for each particular language which overwrite "global"
         # empty {} is still required if we do not have any adjustments
@@ -228,7 +230,8 @@ class FormatAnalyzer(Analyzer):
             else:
                 cls.log.info("training on %d %s files", len(files), language)
             # we sort to make the features reproducible
-            X, y, _ = fe.extract_features(sorted(files, key=lambda x: x.path))
+            X, y, _ = fe.extract_features(sorted(files, key=lambda x: x.path),
+                                          lang_config["feature_extractor"]["cutoff_label_support"])
             X, selected_features = fe.select_features(X, y)
             lang_config["feature_extractor"]["selected_features"] = selected_features
             lang_config["feature_extractor"]["label_composites"] = fe.labels_to_class_sequences
@@ -274,6 +277,14 @@ class FormatAnalyzer(Analyzer):
                 lang_config["trainable_rules"]["base_model_name"],
                 "\n\t".join("%-55s %.5E" % (fe.feature_names[i], importances[i])
                             for i in numpy.argsort(-importances)[:25] if importances[i] > 1e-5))
+            # throw away imprecise classes
+            scores = trainable_rules.full_score(X, y)
+            cutoff_precision = lang_config["cutoff_label_precision"]
+            erased_classes = [label for label, score in scores.items()
+                              if score.precision < cutoff_precision]
+            cls.log.debug("Removed %d / %d classes by precision %f", len(erased_classes),
+                          len(fe.labels_to_class_sequences), cutoff_precision)
+            trainable_rules.erase_classes(erased_classes)
             model[language] = trainable_rules.rules
         cls.log.info("trained %s", model)
         return model

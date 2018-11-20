@@ -1,5 +1,5 @@
 """Feature extraction module."""
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 from enum import Enum, unique
 import importlib
 from itertools import islice
@@ -12,10 +12,11 @@ from lookout.core.api.service_data_pb2 import File
 import numpy
 from sklearn.feature_selection import SelectKBest, VarianceThreshold
 
-from lookout.style.format.feature_utils import (
-    CLASS_INDEX, CLS_DOUBLE_QUOTE, CLS_NEWLINE, CLS_NOOP, CLS_SINGLE_QUOTE, CLS_SPACE,
-    CLS_SPACE_DEC, CLS_SPACE_INC, CLS_TAB, CLS_TAB_DEC, CLS_TAB_INC, Position, VirtualNode)
+from lookout.style.format.classes import CLASS_INDEX, CLASS_PRINTABLES, CLASS_REPRESENTATIONS, \
+    CLS_SPACE, CLS_TAB, CLS_NEWLINE, CLS_SPACE_INC, CLS_SPACE_DEC, CLS_TAB_INC, CLS_TAB_DEC, \
+    CLS_SINGLE_QUOTE, CLS_DOUBLE_QUOTE, CLS_NOOP
 from lookout.style.format.features import get_features, MultipleValuesFeature
+from lookout.style.format.virtual_node import Position, VirtualNode
 
 
 @unique
@@ -220,7 +221,7 @@ class FeatureExtractor:
             return self._feature_group_counts[feature_group]
         return self._feature_node_counts[feature_group][neighbour_index]
 
-    def extract_features(self, files: Iterable[File], lines: List[List[int]]=None
+    def extract_features(self, files: Iterable[File], lines: List[List[int]]=None, min_support=0
                          ) -> Optional[Union[
                              Tuple[numpy.ndarray, numpy.ndarray,
                                    Tuple[List[VirtualNode], List[VirtualNode],
@@ -235,6 +236,7 @@ class FeatureExtractor:
         :param files: the list of `File`-s (see service_data.proto) of the same language.
         :param lines: the list of enabled line numbers per file. The lines which are not \
                       mentioned will not be extracted.
+        :param min_support: minimum number of samples for each class.
         :return: tuple of numpy.ndarray (2 and 1 dimensional respectively): features and labels, \
                  the corresponding `VirtualNode`-s and the parents mapping \
                  or None in case not extracting features.
@@ -267,19 +269,15 @@ class FeatureExtractor:
             file_lines = set(lines[i]) if lines is not None and lines[i] is not None else None
             parsed_files.append((file_vnodes, file_parents, file_lines))
             node_parents.update(file_parents)
-            closest_left_node_id = None
-            for j, vn in enumerate(file_vnodes):
-                if vn.node:
-                    closest_left_node_id = id(vn.node)
-                parent = self._find_parent(j, file_vnodes, file_parents, closest_left_node_id)
-                if parent is None:
-                    parent = uast
-                vnode_parents[id(vn)] = parent
+            self._fill_vnode_parents(file_parents, file_vnodes, uast, vnode_parents)
+
+        # filter composite labels by support
+        if min_support > 0:
+            self._remove_labels_with_low_support([vn for vn, _, _ in parsed_files], min_support)
 
         labels = [[self.class_sequences_to_labels[vnode.y]
                    for vnode in file_vnodes if vnode.is_labeled_on_lines(file_lines)]
                   for file_vnodes, file_parents, file_lines in parsed_files]
-
         if not labels:
             # nothing was extracted
             return None
@@ -336,6 +334,24 @@ class FeatureExtractor:
             self.selected_features = numpy.arange(X.shape[1])
         self._compute_feature_info()
         return X, self.selected_features
+
+    def get_composite_class_representations(self) -> List[str]:
+        """
+        Return the class representations of composite classes.
+
+        :return: Strings representing the composite classes.
+        """
+        return ["".join(CLASS_REPRESENTATIONS[label] for label in labels)
+                for labels in self.labels_to_class_sequences]
+
+    def get_composite_class_printables(self) -> List[str]:
+        """
+        Return the class printables of composite classes.
+
+        :return: Strings that can be printed to represent the composite classes.
+        """
+        return ["".join(CLASS_PRINTABLES[label] for label in labels)
+                for labels in self.labels_to_class_sequences]
 
     def _classify_vnodes(self, nodes: Iterable[VirtualNode], path: str) -> Iterable[VirtualNode]:
         """
@@ -751,3 +767,34 @@ class FeatureExtractor:
             result.extend(VirtualNode.from_node(node, contents, path, self.token_unwrappers))
             pos = node.end_position.offset
         return result, parents
+
+    def _remove_labels_with_low_support(self, parsed_files: Sequence[Sequence[VirtualNode]],
+                                        min_support: int):
+        """
+        Calculate the support for each label and discard those with too little value.
+
+        :param parsed_files: The virtual nodes for each file.
+        :param min_support: The minimum value of the supprot for a label to stay.
+        :return: None
+        """
+        label_support = defaultdict(int)
+        for file_vnodes in parsed_files:
+            for vnode in file_vnodes:
+                if vnode.y is not None:
+                    label_support[vnode.y] += 1
+        unsupported = {key for key, sup in label_support.items() if sup < min_support}
+        for file_vnodes in parsed_files:
+            for vnode in file_vnodes:
+                if vnode.y in unsupported:
+                    vnode.y = None
+
+    def _fill_vnode_parents(self, file_parents: dict, file_vnodes: List[VirtualNode],
+                            uast: bblfsh.Node, vnode_parents: dict):
+        closest_left_node_id = None
+        for j, vn in enumerate(file_vnodes):
+            if vn.node:
+                closest_left_node_id = id(vn.node)
+            parent = self._find_parent(j, file_vnodes, file_parents, closest_left_node_id)
+            if parent is None:
+                parent = uast
+            vnode_parents[id(vn)] = parent
