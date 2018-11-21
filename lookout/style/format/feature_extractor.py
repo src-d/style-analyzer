@@ -225,13 +225,13 @@ class FeatureExtractor:
         return self._feature_node_counts[feature_group][neighbour_index]
 
     def extract_features(self, files: Iterable[File], lines: List[List[int]]=None) \
-            -> Union[Tuple[numpy.ndarray, numpy.ndarray,
-                           Tuple[List[VirtualNode], List[VirtualNode],
-                                 Mapping[int, bblfsh.Node], Mapping[int, bblfsh.Node]]],
-                     Tuple[numpy.ndarray, numpy.ndarray,
-                           Tuple[List[VirtualNode], List[VirtualNode],
-                                 Mapping[int, bblfsh.Node], Mapping[int, bblfsh.Node],
-                                 List[List[int]]]]]:
+            -> Optional[Union[Tuple[numpy.ndarray, numpy.ndarray,
+                                    Tuple[List[VirtualNode], List[VirtualNode],
+                                          Mapping[int, bblfsh.Node], Mapping[int, bblfsh.Node]]],
+                              Tuple[numpy.ndarray, numpy.ndarray,
+                                    Tuple[List[VirtualNode], List[VirtualNode],
+                                          Mapping[int, bblfsh.Node], Mapping[int, bblfsh.Node],
+                                          List[List[int]]]]]]:
         """
         Compute features and labels required by downstream models given a list of `File`-s.
 
@@ -240,7 +240,7 @@ class FeatureExtractor:
                       mentioned will not be extracted.
         :return: tuple of numpy.ndarray (2 and 1 dimensional respectively): features and labels, \
                  the corresponding `VirtualNode`-s and the parents mapping \
-                 or None in case not extracting features.
+                 or None in case no features were extracted.
         """
         node_parents = {}
         vnode_parents = {}
