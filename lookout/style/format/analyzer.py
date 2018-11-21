@@ -280,7 +280,7 @@ class FormatAnalyzer(Analyzer):
             scores = trainable_rules.full_score(X, y)
             cutoff_precision = lang_config["cutoff_label_precision"]
             erased_labels = [label for label, score in scores.items()
-                              if score.precision < cutoff_precision]
+                             if score.precision < cutoff_precision]
             if len(erased_labels) > 0:
                 cls._log.debug("Removed %d/%d labels by precision %f", len(erased_labels),
                                len(fe.labels_to_class_sequences), cutoff_precision)

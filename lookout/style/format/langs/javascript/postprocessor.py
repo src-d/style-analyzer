@@ -5,11 +5,10 @@ from typing import MutableMapping, Sequence, Tuple
 from bblfsh import role_name
 import numpy
 
+from lookout.style.format.classes import CLASS_INDEX, CLS_DOUBLE_QUOTE, CLS_SINGLE_QUOTE
 from lookout.style.format.feature_extractor import FeatureExtractor
-from lookout.style.format.virtual_node import (
-    VirtualNode)
-from lookout.style.format.classes import CLS_SINGLE_QUOTE, CLS_DOUBLE_QUOTE, CLASS_INDEX
 from lookout.style.format.rules import Rule, Rules, RuleStats
+from lookout.style.format.virtual_node import VirtualNode
 
 
 def _get_composite(feature_extractor: FeatureExtractor, labels: Tuple[int, ...]) -> int:

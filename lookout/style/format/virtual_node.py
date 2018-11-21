@@ -3,7 +3,7 @@ from typing import Callable, Iterable, Mapping, NamedTuple, Optional, Set, Tuple
 
 import bblfsh
 
-from lookout.style.format.classes import EMPTY_CLS, INTENDATION_INC_STRS, CLASS_REPRESENTATIONS
+from lookout.style.format.classes import CLASS_REPRESENTATIONS, EMPTY_CLS, INTENDATION_INC_STRS
 
 Position = NamedTuple("Position", (("offset", int), ("line", int), ("col", int)))
 """

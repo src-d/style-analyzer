@@ -1,7 +1,7 @@
 from collections import OrderedDict
 
-from lookout.style.format.classes import CLS_SPACE, CLS_NEWLINE, CLS_SPACE_INC, CLS_SPACE_DEC, \
-    CLS_SINGLE_QUOTE, CLS_DOUBLE_QUOTE, CLS_NOOP, CLASS_INDEX
+from lookout.style.format.classes import CLASS_INDEX, CLS_DOUBLE_QUOTE, CLS_NEWLINE, CLS_NOOP, \
+    CLS_SINGLE_QUOTE, CLS_SPACE, CLS_SPACE_DEC, CLS_SPACE_INC
 
 composite_to_label_names = [
     (CLS_SPACE,),

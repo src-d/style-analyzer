@@ -7,7 +7,7 @@ from bblfsh.client import BblfshClient
 from lookout.core.api.service_data_pb2 import File
 import numpy
 
-from lookout.style.format.classes import CLS_SINGLE_QUOTE, CLS_DOUBLE_QUOTE, INDEX_CLS_TO_STR
+from lookout.style.format.classes import CLS_DOUBLE_QUOTE, CLS_SINGLE_QUOTE, INDEX_CLS_TO_STR
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.virtual_node import VirtualNode
 

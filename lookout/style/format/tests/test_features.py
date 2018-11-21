@@ -9,10 +9,10 @@ from lookout.core.api.service_data_pb2 import File
 import numpy
 
 from lookout.style.format.analyzer import FormatAnalyzer
-from lookout.style.format.classes import CLS_SPACE, CLS_NEWLINE, CLS_SPACE_INC, CLS_SPACE_DEC, \
-    CLS_SINGLE_QUOTE, CLS_NOOP, CLASSES, CLASS_INDEX
+from lookout.style.format.classes import CLASS_INDEX, CLASSES, CLS_NEWLINE, CLS_NOOP, \
+    CLS_SINGLE_QUOTE, CLS_SPACE, CLS_SPACE_DEC, CLS_SPACE_INC
 from lookout.style.format.feature_extractor import FeatureExtractor
-from lookout.style.format.virtual_node import VirtualNode, Position
+from lookout.style.format.virtual_node import Position, VirtualNode
 
 
 class FeaturesTests(unittest.TestCase):
@@ -102,8 +102,8 @@ class FeaturesTests(unittest.TestCase):
              VirtualNode("", pos1, pos2, y=3)]
         self.extractor.cutoff_label_support = 2
         self.extractor._remove_labels_with_low_support(files)
-        self.assertEqual(files,
-                         [VirtualNode("", pos1, pos2, y=1)] * 2 + [VirtualNode("", pos1, pos2)] * 3)
+        self.assertEqual(
+            files, [VirtualNode("", pos1, pos2, y=1)] * 2 + [VirtualNode("", pos1, pos2)] * 3)
 
     def test_extract_features(self):
         file = File(content=bytes(self.contents, "utf-8"),

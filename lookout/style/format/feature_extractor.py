@@ -1,8 +1,8 @@
 """Feature extraction module."""
-from collections import OrderedDict, defaultdict
+from collections import defaultdict, OrderedDict
 from enum import Enum, unique
 import importlib
-from itertools import islice, chain
+from itertools import chain, islice
 import logging
 from typing import (Dict, Iterable, List, Mapping, MutableMapping, Optional,
                     Sequence, Set, Tuple, Union)
@@ -12,9 +12,9 @@ from lookout.core.api.service_data_pb2 import File
 import numpy
 from sklearn.feature_selection import SelectKBest, VarianceThreshold
 
-from lookout.style.format.classes import CLASS_INDEX, CLASS_PRINTABLES, CLASS_REPRESENTATIONS, \
-    CLS_SPACE, CLS_TAB, CLS_NEWLINE, CLS_SPACE_INC, CLS_SPACE_DEC, CLS_TAB_INC, CLS_TAB_DEC, \
-    CLS_SINGLE_QUOTE, CLS_DOUBLE_QUOTE, CLS_NOOP
+from lookout.style.format.classes import (
+    CLASS_INDEX, CLASS_PRINTABLES, CLASS_REPRESENTATIONS, CLS_DOUBLE_QUOTE, CLS_NEWLINE, CLS_NOOP,
+    CLS_SINGLE_QUOTE, CLS_SPACE, CLS_SPACE_DEC, CLS_SPACE_INC, CLS_TAB, CLS_TAB_DEC, CLS_TAB_INC)
 from lookout.style.format.features import get_features, MultipleValuesFeature
 from lookout.style.format.virtual_node import Position, VirtualNode
 

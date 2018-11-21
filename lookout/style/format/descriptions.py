@@ -6,7 +6,7 @@ from typing import List, Optional, Sequence, Tuple
 
 from numpy import flatnonzero, floating, ndarray
 
-from lookout.style.format.classes import CLS_NOOP, CLASS_INDEX, CLASS_REPRESENTATIONS
+from lookout.style.format.classes import CLASS_INDEX, CLASS_REPRESENTATIONS, CLS_NOOP
 from lookout.style.format.feature_extractor import FeatureExtractor, FEATURES_MAX, FEATURES_MIN
 from lookout.style.format.features import BagFeature, CategoricalFeature, OrdinalFeature
 from lookout.style.format.rules import Rule

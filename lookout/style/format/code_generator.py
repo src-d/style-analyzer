@@ -4,9 +4,9 @@ from typing import Sequence, Union
 
 import numpy
 
-from lookout.style.format.classes import CLS_NEWLINE, CLS_SPACE_INC, CLS_SPACE_DEC, CLS_TAB_INC, \
-    CLS_TAB_DEC, CLS_SINGLE_QUOTE, CLS_DOUBLE_QUOTE, CLS_NOOP, CLASSES, CLASS_INDEX, CLS_TO_STR, \
-    CLASS_REPRESENTATIONS
+from lookout.style.format.classes import (
+    CLASS_INDEX, CLASS_REPRESENTATIONS, CLASSES, CLS_DOUBLE_QUOTE, CLS_NEWLINE, CLS_NOOP,
+    CLS_SINGLE_QUOTE, CLS_SPACE_DEC, CLS_SPACE_INC, CLS_TAB_DEC, CLS_TAB_INC, CLS_TO_STR)
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.virtual_node import VirtualNode
 
