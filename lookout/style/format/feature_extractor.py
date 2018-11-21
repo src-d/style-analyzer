@@ -2,7 +2,7 @@
 from collections import OrderedDict, defaultdict
 from enum import Enum, unique
 import importlib
-from itertools import islice
+from itertools import islice, chain
 import logging
 from typing import (Dict, Iterable, List, Mapping, MutableMapping, Optional,
                     Sequence, Set, Tuple, Union)
@@ -70,7 +70,8 @@ class FeatureExtractor:
                  no_labels_on_right: bool, select_features_number: Optional[int],
                  remove_constant_features: bool, insert_noops: bool, debug_parsing: bool,
                  return_sibling_indices: bool, selected_features: Optional[numpy.ndarray] = None,
-                 label_composites: Optional[List[Tuple[int, ...]]] = None) -> None:
+                 label_composites: Optional[List[Tuple[int, ...]]] = None,
+                 cutoff_label_support: int = 0) -> None:
         """
         Construct a `FeatureExtractor`.
 
@@ -95,6 +96,7 @@ class FeatureExtractor:
                                  "atomic" classes. If None or empty ("train" stage), we build \
                                  this mapping inside `extract_features()`. Otherwise, we are in \
                                  "analyze" stage.
+        :param cutoff_label_support: Minimum number of samples for each class to be included.
         """
         self.language = language.lower()
         self.left_siblings_window = left_siblings_window
@@ -111,6 +113,7 @@ class FeatureExtractor:
         self.debug_parsing = debug_parsing
         self.return_sibling_indices = return_sibling_indices
         self.selected_features = selected_features
+        self.cutoff_label_support = cutoff_label_support
         self.labels_to_class_sequences = label_composites if label_composites is not None else []
         self.class_sequences_to_labels = {
             tuple(l): i for i, l in enumerate(self.labels_to_class_sequences)}
@@ -221,22 +224,20 @@ class FeatureExtractor:
             return self._feature_group_counts[feature_group]
         return self._feature_node_counts[feature_group][neighbour_index]
 
-    def extract_features(self, files: Iterable[File], lines: List[List[int]]=None, min_support=0
-                         ) -> Optional[Union[
-                             Tuple[numpy.ndarray, numpy.ndarray,
-                                   Tuple[List[VirtualNode], List[VirtualNode],
-                                         Mapping[int, bblfsh.Node], Mapping[int, bblfsh.Node]]],
-                             Tuple[numpy.ndarray, numpy.ndarray,
-                                   Tuple[List[VirtualNode], List[VirtualNode],
-                                         Mapping[int, bblfsh.Node], Mapping[int, bblfsh.Node],
-                                         List[List[int]]]]]]:
+    def extract_features(self, files: Iterable[File], lines: List[List[int]]=None) \
+            -> Union[Tuple[numpy.ndarray, numpy.ndarray,
+                           Tuple[List[VirtualNode], List[VirtualNode],
+                                 Mapping[int, bblfsh.Node], Mapping[int, bblfsh.Node]]],
+                     Tuple[numpy.ndarray, numpy.ndarray,
+                           Tuple[List[VirtualNode], List[VirtualNode],
+                                 Mapping[int, bblfsh.Node], Mapping[int, bblfsh.Node],
+                                 List[List[int]]]]]:
         """
         Compute features and labels required by downstream models given a list of `File`-s.
 
         :param files: the list of `File`-s (see service_data.proto) of the same language.
         :param lines: the list of enabled line numbers per file. The lines which are not \
                       mentioned will not be extracted.
-        :param min_support: minimum number of samples for each class.
         :return: tuple of numpy.ndarray (2 and 1 dimensional respectively): features and labels, \
                  the corresponding `VirtualNode`-s and the parents mapping \
                  or None in case not extracting features.
@@ -271,9 +272,11 @@ class FeatureExtractor:
             node_parents.update(file_parents)
             self._fill_vnode_parents(file_parents, file_vnodes, uast, vnode_parents)
 
+        self._log.debug("Parsed %d vnodes", sum(len(vn) for vn, _, _ in parsed_files))
         # filter composite labels by support
-        if min_support > 0:
-            self._remove_labels_with_low_support([vn for vn, _, _ in parsed_files], min_support)
+        if self.cutoff_label_support > 0:
+            self._remove_labels_with_low_support(
+                chain.from_iterable(vn for vn, _, _ in parsed_files))
 
         labels = [[self.class_sequences_to_labels[vnode.y]
                    for vnode in file_vnodes if vnode.is_labeled_on_lines(file_lines)]
@@ -299,7 +302,7 @@ class FeatureExtractor:
                 file_vnodes, file_parents, file_lines, offset, X, vnodes_y)
             if self.return_sibling_indices:
                 sibling_indices_list.extend(sibling_indices)
-        self._log.debug("Features shape: %s" % (X.shape,))
+        self._log.debug("Features shape: %s", X.shape)
         if self.return_sibling_indices:
             return X, y, (vnodes_y, vnodes, vnode_parents, node_parents, sibling_indices_list)
         return X, y, (vnodes_y, vnodes, vnode_parents, node_parents)
@@ -768,25 +771,22 @@ class FeatureExtractor:
             pos = node.end_position.offset
         return result, parents
 
-    def _remove_labels_with_low_support(self, parsed_files: Sequence[Sequence[VirtualNode]],
-                                        min_support: int):
+    def _remove_labels_with_low_support(self, vnodes: Iterable[VirtualNode]):
         """
         Calculate the support for each label and discard those with too little value.
 
-        :param parsed_files: The virtual nodes for each file.
-        :param min_support: The minimum value of the supprot for a label to stay.
-        :return: None
+        :param vnodes: The virtual nodes extracted from all the files.
         """
         label_support = defaultdict(int)
-        for file_vnodes in parsed_files:
-            for vnode in file_vnodes:
-                if vnode.y is not None:
-                    label_support[vnode.y] += 1
-        unsupported = {key for key, sup in label_support.items() if sup < min_support}
-        for file_vnodes in parsed_files:
-            for vnode in file_vnodes:
-                if vnode.y in unsupported:
-                    vnode.y = None
+        for vnode in vnodes:
+            if vnode.y is not None:
+                label_support[vnode.y] += 1
+        unsupported = {k for k, v in label_support.items() if v < self.cutoff_label_support}
+        for vnode in vnodes:
+            if vnode.y in unsupported:
+                vnode.y = None
+        self._log.debug("Removed %d/%d labels by support %d", len(unsupported), len(label_support),
+                        self.cutoff_label_support)
 
     def _fill_vnode_parents(self, file_parents: dict, file_vnodes: List[VirtualNode],
                             uast: bblfsh.Node, vnode_parents: dict):

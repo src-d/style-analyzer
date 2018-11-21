@@ -298,7 +298,7 @@ class SmokeEvalFormatAnalyzer(FormatAnalyzer):
         :return: List of comments.
         """
         self.report = []
-        log = self.log
+        log = self._log
         changes = list(data["changes"])
         base_files_by_lang = files_by_language(c.base for c in changes)
         head_files_by_lang = files_by_language(c.head for c in changes)

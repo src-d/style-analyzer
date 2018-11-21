@@ -391,7 +391,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         y_pred = self.predict(X)
         labels = numpy.unique(y)
         cm = confusion_matrix(y_true=y, y_pred=y_pred, labels=labels)
-        accuracy = (cm / cm.sum(axis=1)[:, -1]).diagonal()
+        accuracy = (cm / cm.sum(axis=1)[:, numpy.newaxis]).diagonal()
         precision, recall, fs, support = precision_recall_fscore_support(
             y_true=y, y_pred=y_pred, labels=labels)
         return {cls: LabelScore(accuracy=acc, precision=prec, recall=rec, f=f, support=sup)
@@ -399,9 +399,9 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
                 in zip(labels, accuracy, precision, recall, fs, support)}
 
     @_check_fitted
-    def erase_classes(self, erased: Sequence[int]):
+    def erase_labels(self, erased: Sequence[int]):
         """
-        Remove the rules which predict certain classes.
+        Remove the rules which predict certain labels.
 
         :param erased: The labels to remove.
         """

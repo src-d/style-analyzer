@@ -12,6 +12,7 @@ from lookout.core.analyzer import ReferencePointer
 from lookout.core.api.service_data_pb2 import File
 
 from lookout.style.format.analyzer import FormatAnalyzer
+from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.model import FormatModel
 from lookout.style.format.tests.test_model import compare_models
 
@@ -61,15 +62,34 @@ class AnalyzerTests(unittest.TestCase):
         cls.base_files = cls.get_files_from_tar(str(base / "freecodecamp-base.tar.xz"))
         cls.head_files = cls.get_files_from_tar(str(base / "freecodecamp-head.tar.xz"))
         cls.ptr = ReferencePointer("someurl", "someref", "somecommit")
+        FeatureExtractor._log.level = logging.DEBUG
 
     def test_train(self):
         datastub = FakeDataStub(files=self.base_files.values(), changes=None)
-        config = {"global": {"n_iter": 1}}
+        config = {"global": {"n_iter": 1, "cutoff_label_precision": 0,
+                             "feature_extractor": {"cutoff_label_support": 0}}}
         model1 = FormatAnalyzer.train(self.ptr, config, datastub)
         self.assertIsInstance(model1, FormatModel)
         self.assertIn("javascript", model1, str(model1))
         datastub = FakeDataStub(files=self.base_files.values(), changes=None)
-        config = {"global": {"n_iter": 1}}
+        model2 = FormatAnalyzer.train(self.ptr, config, datastub)
+        self.assertEqual(model1["javascript"].rules, model2["javascript"].rules)
+        self.assertGreater(len(model1["javascript"]), 10)
+        # Check that model can be saved without problems and then load back
+        with TemporaryFile(prefix="analyzer_model-", suffix=".asdf") as f:
+            model2.save(f)
+            f.seek(0)
+            model3 = FormatModel().load(f)
+            compare_models(self, model2, model3)
+
+    def test_train_cutoff_labels(self):
+        datastub = FakeDataStub(files=self.base_files.values(), changes=None)
+        config = {"global": {"n_iter": 1, "cutoff_label_precision": 0.8,
+                             "feature_extractor": {"cutoff_label_support": 50}}}
+        model1 = FormatAnalyzer.train(self.ptr, config, datastub)
+        self.assertIsInstance(model1, FormatModel)
+        self.assertIn("javascript", model1, str(model1))
+        datastub = FakeDataStub(files=self.base_files.values(), changes=None)
         model2 = FormatAnalyzer.train(self.ptr, config, datastub)
         self.assertEqual(model1["javascript"].rules, model2["javascript"].rules)
         self.assertGreater(len(model1["javascript"]), 10)
