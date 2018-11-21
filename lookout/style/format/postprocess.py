@@ -7,9 +7,9 @@ from bblfsh.client import BblfshClient
 from lookout.core.api.service_data_pb2 import File
 import numpy
 
+from lookout.style.format.classes import CLS_DOUBLE_QUOTE, CLS_SINGLE_QUOTE, INDEX_CLS_TO_STR
 from lookout.style.format.feature_extractor import FeatureExtractor
-from lookout.style.format.feature_utils import CLS_DOUBLE_QUOTE, CLS_SINGLE_QUOTE, \
-    INDEX_CLS_TO_STR, VirtualNode
+from lookout.style.format.virtual_node import VirtualNode
 
 
 def check_uasts_are_equal(uast1: bblfsh.Node, uast2: bblfsh.Node) -> bool:

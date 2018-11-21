@@ -15,12 +15,12 @@ from scipy.stats import fisher_exact
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.exceptions import NotFittedError
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, confusion_matrix, precision_recall_fscore_support
 from sklearn.model_selection import train_test_split
 from sklearn.tree import _tree as Tree, DecisionTreeClassifier
 
 from lookout.style.format.feature_extractor import FeatureExtractor
-from lookout.style.format.feature_utils import VirtualNode
+from lookout.style.format.virtual_node import VirtualNode
 
 RuleAttribute = NamedTuple(
     "RuleAttribute", (("feature", int), ("cmp", bool), ("threshold", float)))
@@ -205,8 +205,10 @@ class Rules:
         return numpy.nonzero(triggered)[0]
 
 
-TopDownGreedyBudget = NamedTuple("TopDownGreedyBudget", (("absolute", bool),
-                                                         ("value", Union[float, int])))
+TopDownGreedyBudget = NamedTuple("TopDownGreedyBudget", (
+    ("absolute", bool), ("value", Union[float, int])))
+LabelScore = NamedTuple("LabelScore", (
+    ("accuracy", float), ("precision", float), ("recall", float), ("f", float), ("support", int)))
 
 
 class TrainableRules(BaseEstimator, ClassifierMixin):
@@ -376,6 +378,36 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         :return: Array of the same length as X with predictions.
         """
         return self._rules.apply(X)
+
+    @_check_fitted
+    def full_score(self, X: numpy.ndarray, y: numpy.ndarray) -> Dict[int, LabelScore]:
+        """
+        Evaluate the trained rules and return the metrics.
+
+        :param X: Input data.
+        :param y: Output labels.
+        :return: Mapping from labels to `ClassScore`-s.
+        """
+        y_pred = self.predict(X)
+        labels = numpy.unique(y)
+        cm = confusion_matrix(y_true=y, y_pred=y_pred, labels=labels)
+        accuracy = (cm / cm.sum(axis=1)[:, numpy.newaxis]).diagonal()
+        precision, recall, fs, support = precision_recall_fscore_support(
+            y_true=y, y_pred=y_pred, labels=labels)
+        return {cls: LabelScore(accuracy=acc, precision=prec, recall=rec, f=f, support=sup)
+                for (cls, acc, prec, rec, f, sup)
+                in zip(labels, accuracy, precision, recall, fs, support)}
+
+    @_check_fitted
+    def erase_labels(self, erased: Sequence[int]):
+        """
+        Remove the rules which predict certain labels.
+
+        :param erased: The labels to remove.
+        """
+        erased = set(erased)
+        new_rules = [r for r in self._rules.rules if r.stats.cls not in erased]
+        self._rules = Rules(new_rules, self._rules.origin_config)
 
     _check_fitted = staticmethod(_check_fitted)
 

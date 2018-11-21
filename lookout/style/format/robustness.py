@@ -10,12 +10,12 @@ from bblfsh import BblfshClient
 import numpy
 
 from lookout.style.format.feature_extractor import FeatureExtractor
-from lookout.style.format.feature_utils import VirtualNode
 from lookout.style.format.files_filtering import filter_filepaths
 from lookout.style.format.model import FormatModel
 from lookout.style.format.postprocess import filter_uast_breaking_preds
 from lookout.style.format.rules import Rules
 from lookout.style.format.utils import prepare_files
+from lookout.style.format.virtual_node import VirtualNode
 
 Misprediction = NamedTuple("Misprediction", [("y", numpy.ndarray), ("pred", numpy.ndarray),
                                              ("node", List[VirtualNode]), ("rule", numpy.ndarray)])

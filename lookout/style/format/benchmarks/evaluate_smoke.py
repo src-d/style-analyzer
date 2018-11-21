@@ -24,9 +24,9 @@ from tqdm import tqdm
 from lookout.style.format.analyzer import FormatAnalyzer
 from lookout.style.format.code_generator import CodeGenerator
 from lookout.style.format.feature_extractor import FeatureExtractor
-from lookout.style.format.feature_utils import VirtualNode
 from lookout.style.format.model import FormatModel
 from lookout.style.format.tests.test_analyzer_integration import TestAnalyzer
+from lookout.style.format.virtual_node import VirtualNode
 
 log = logging.getLogger("report_summary")
 
@@ -298,7 +298,7 @@ class SmokeEvalFormatAnalyzer(FormatAnalyzer):
         :return: List of comments.
         """
         self.report = []
-        log = self.log
+        log = self._log
         changes = list(data["changes"])
         base_files_by_lang = files_by_language(c.base for c in changes)
         head_files_by_lang = files_by_language(c.head for c in changes)

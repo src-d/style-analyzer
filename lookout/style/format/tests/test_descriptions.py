@@ -8,7 +8,7 @@ import bblfsh
 from lookout.core.api.service_data_pb2 import File
 
 from lookout.style.format.analyzer import FormatAnalyzer
-from lookout.style.format.descriptions import describe_rule, get_composite_class_representations
+from lookout.style.format.descriptions import describe_rule
 from lookout.style.format.feature_extractor import FeatureExtractor, FeatureGroup
 from lookout.style.format.rules import Rule, RuleStats
 
@@ -43,7 +43,7 @@ class DescriptionsTests(unittest.TestCase):
         cls.fe = FeatureExtractor(language="javascript",
                                   **config["javascript"]["feature_extractor"])
         cls.fe.extract_features(files)
-        cls.class_representations = get_composite_class_representations(cls.fe)
+        cls.class_representations = cls.fe.composite_class_representations
         cls.n_classes = len(cls.fe.labels_to_class_sequences)
         cls.ordinal = cls.return_node_feature("start_line")
         cls.categorical = cls.return_node_feature("reserved")

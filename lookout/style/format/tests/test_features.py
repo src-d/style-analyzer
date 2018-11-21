@@ -9,11 +9,10 @@ from lookout.core.api.service_data_pb2 import File
 import numpy
 
 from lookout.style.format.analyzer import FormatAnalyzer
+from lookout.style.format.classes import CLASS_INDEX, CLASSES, CLS_NEWLINE, CLS_NOOP, \
+    CLS_SINGLE_QUOTE, CLS_SPACE, CLS_SPACE_DEC, CLS_SPACE_INC
 from lookout.style.format.feature_extractor import FeatureExtractor
-from lookout.style.format.feature_utils import (
-    CLASS_INDEX, CLASSES, CLS_NEWLINE, CLS_NOOP, CLS_SINGLE_QUOTE, CLS_SPACE, CLS_SPACE_DEC,
-    CLS_SPACE_INC, VirtualNode
-)
+from lookout.style.format.virtual_node import Position, VirtualNode
 
 
 class FeaturesTests(unittest.TestCase):
@@ -95,6 +94,16 @@ class FeaturesTests(unittest.TestCase):
         self.assertGreater(cls_counts[CLS_NEWLINE], 0)
         self.assertGreater(cls_counts[CLS_SINGLE_QUOTE], 0)
         self.assertTrue(cls_counts[CLS_SINGLE_QUOTE] % 2 == 0)
+
+    def test_remove_labels_with_low_support(self):
+        pos1, pos2 = Position(1, 1, 1), Position(10, 2, 1)
+        files = [VirtualNode("", pos1, pos2, y=1)] * 2 + \
+            [VirtualNode("", pos1, pos2), VirtualNode("", pos1, pos2, y=2),
+             VirtualNode("", pos1, pos2, y=3)]
+        self.extractor.cutoff_label_support = 2
+        self.extractor._remove_labels_with_low_support(files)
+        self.assertEqual(
+            files, [VirtualNode("", pos1, pos2, y=1)] * 2 + [VirtualNode("", pos1, pos2)] * 3)
 
     def test_extract_features(self):
         file = File(content=bytes(self.contents, "utf-8"),

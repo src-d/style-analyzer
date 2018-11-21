@@ -1,8 +1,8 @@
 """Feature extraction module."""
-from collections import OrderedDict
+from collections import defaultdict, OrderedDict
 from enum import Enum, unique
 import importlib
-from itertools import islice
+from itertools import chain, islice
 import logging
 from typing import (Dict, Iterable, List, Mapping, MutableMapping, Optional,
                     Sequence, Set, Tuple, Union)
@@ -12,10 +12,11 @@ from lookout.core.api.service_data_pb2 import File
 import numpy
 from sklearn.feature_selection import SelectKBest, VarianceThreshold
 
-from lookout.style.format.feature_utils import (
-    CLASS_INDEX, CLS_DOUBLE_QUOTE, CLS_NEWLINE, CLS_NOOP, CLS_SINGLE_QUOTE, CLS_SPACE,
-    CLS_SPACE_DEC, CLS_SPACE_INC, CLS_TAB, CLS_TAB_DEC, CLS_TAB_INC, Position, VirtualNode)
+from lookout.style.format.classes import (
+    CLASS_INDEX, CLASS_PRINTABLES, CLASS_REPRESENTATIONS, CLS_DOUBLE_QUOTE, CLS_NEWLINE, CLS_NOOP,
+    CLS_SINGLE_QUOTE, CLS_SPACE, CLS_SPACE_DEC, CLS_SPACE_INC, CLS_TAB, CLS_TAB_DEC, CLS_TAB_INC)
 from lookout.style.format.features import get_features, MultipleValuesFeature
+from lookout.style.format.virtual_node import Position, VirtualNode
 
 
 @unique
@@ -69,7 +70,8 @@ class FeatureExtractor:
                  no_labels_on_right: bool, select_features_number: Optional[int],
                  remove_constant_features: bool, insert_noops: bool, debug_parsing: bool,
                  return_sibling_indices: bool, selected_features: Optional[numpy.ndarray] = None,
-                 label_composites: Optional[List[Tuple[int, ...]]] = None) -> None:
+                 label_composites: Optional[List[Tuple[int, ...]]] = None,
+                 cutoff_label_support: int = 0) -> None:
         """
         Construct a `FeatureExtractor`.
 
@@ -94,6 +96,7 @@ class FeatureExtractor:
                                  "atomic" classes. If None or empty ("train" stage), we build \
                                  this mapping inside `extract_features()`. Otherwise, we are in \
                                  "analyze" stage.
+        :param cutoff_label_support: Minimum number of samples for each class to be included.
         """
         self.language = language.lower()
         self.left_siblings_window = left_siblings_window
@@ -110,6 +113,7 @@ class FeatureExtractor:
         self.debug_parsing = debug_parsing
         self.return_sibling_indices = return_sibling_indices
         self.selected_features = selected_features
+        self.cutoff_label_support = cutoff_label_support
         self.labels_to_class_sequences = label_composites if label_composites is not None else []
         self.class_sequences_to_labels = {
             tuple(l): i for i, l in enumerate(self.labels_to_class_sequences)}
@@ -220,15 +224,14 @@ class FeatureExtractor:
             return self._feature_group_counts[feature_group]
         return self._feature_node_counts[feature_group][neighbour_index]
 
-    def extract_features(self, files: Iterable[File], lines: List[List[int]]=None
-                         ) -> Optional[Union[
-                             Tuple[numpy.ndarray, numpy.ndarray,
-                                   Tuple[List[VirtualNode], List[VirtualNode],
-                                         Mapping[int, bblfsh.Node], Mapping[int, bblfsh.Node]]],
-                             Tuple[numpy.ndarray, numpy.ndarray,
-                                   Tuple[List[VirtualNode], List[VirtualNode],
-                                         Mapping[int, bblfsh.Node], Mapping[int, bblfsh.Node],
-                                         List[List[int]]]]]]:
+    def extract_features(self, files: Iterable[File], lines: List[List[int]]=None) \
+            -> Optional[Union[Tuple[numpy.ndarray, numpy.ndarray,
+                                    Tuple[List[VirtualNode], List[VirtualNode],
+                                          Mapping[int, bblfsh.Node], Mapping[int, bblfsh.Node]]],
+                              Tuple[numpy.ndarray, numpy.ndarray,
+                                    Tuple[List[VirtualNode], List[VirtualNode],
+                                          Mapping[int, bblfsh.Node], Mapping[int, bblfsh.Node],
+                                          List[List[int]]]]]]:
         """
         Compute features and labels required by downstream models given a list of `File`-s.
 
@@ -237,7 +240,7 @@ class FeatureExtractor:
                       mentioned will not be extracted.
         :return: tuple of numpy.ndarray (2 and 1 dimensional respectively): features and labels, \
                  the corresponding `VirtualNode`-s and the parents mapping \
-                 or None in case not extracting features.
+                 or None in case no features were extracted.
         """
         node_parents = {}
         vnode_parents = {}
@@ -267,19 +270,17 @@ class FeatureExtractor:
             file_lines = set(lines[i]) if lines is not None and lines[i] is not None else None
             parsed_files.append((file_vnodes, file_parents, file_lines))
             node_parents.update(file_parents)
-            closest_left_node_id = None
-            for j, vn in enumerate(file_vnodes):
-                if vn.node:
-                    closest_left_node_id = id(vn.node)
-                parent = self._find_parent(j, file_vnodes, file_parents, closest_left_node_id)
-                if parent is None:
-                    parent = uast
-                vnode_parents[id(vn)] = parent
+            self._fill_vnode_parents(file_parents, file_vnodes, uast, vnode_parents)
+
+        self._log.debug("Parsed %d vnodes", sum(len(vn) for vn, _, _ in parsed_files))
+        # filter composite labels by support
+        if self.cutoff_label_support > 0:
+            self._remove_labels_with_low_support(
+                chain.from_iterable(vn for vn, _, _ in parsed_files))
 
         labels = [[self.class_sequences_to_labels[vnode.y]
                    for vnode in file_vnodes if vnode.is_labeled_on_lines(file_lines)]
                   for file_vnodes, file_parents, file_lines in parsed_files]
-
         if not labels:
             # nothing was extracted
             return None
@@ -301,7 +302,7 @@ class FeatureExtractor:
                 file_vnodes, file_parents, file_lines, offset, X, vnodes_y)
             if self.return_sibling_indices:
                 sibling_indices_list.extend(sibling_indices)
-        self._log.debug("Features shape: %s" % (X.shape,))
+        self._log.debug("Features shape: %s", X.shape)
         if self.return_sibling_indices:
             return X, y, (vnodes_y, vnodes, vnode_parents, node_parents, sibling_indices_list)
         return X, y, (vnodes_y, vnodes, vnode_parents, node_parents)
@@ -336,6 +337,26 @@ class FeatureExtractor:
             self.selected_features = numpy.arange(X.shape[1])
         self._compute_feature_info()
         return X, self.selected_features
+
+    @property
+    def composite_class_representations(self) -> List[str]:
+        """
+        Return the class representations of composite classes.
+
+        :return: Strings representing the composite classes.
+        """
+        return ["".join(CLASS_REPRESENTATIONS[label] for label in labels)
+                for labels in self.labels_to_class_sequences]
+
+    @property
+    def composite_class_printables(self) -> List[str]:
+        """
+        Return the class printables of composite classes.
+
+        :return: Strings that can be printed to represent the composite classes.
+        """
+        return ["".join(CLASS_PRINTABLES[label] for label in labels)
+                for labels in self.labels_to_class_sequences]
 
     def _classify_vnodes(self, nodes: Iterable[VirtualNode], path: str) -> Iterable[VirtualNode]:
         """
@@ -751,3 +772,31 @@ class FeatureExtractor:
             result.extend(VirtualNode.from_node(node, contents, path, self.token_unwrappers))
             pos = node.end_position.offset
         return result, parents
+
+    def _remove_labels_with_low_support(self, vnodes: Iterable[VirtualNode]):
+        """
+        Calculate the support for each label and discard those with too little value.
+
+        :param vnodes: The virtual nodes extracted from all the files.
+        """
+        label_support = defaultdict(int)
+        for vnode in vnodes:
+            if vnode.y is not None:
+                label_support[vnode.y] += 1
+        unsupported = {k for k, v in label_support.items() if v < self.cutoff_label_support}
+        for vnode in vnodes:
+            if vnode.y in unsupported:
+                vnode.y = None
+        self._log.debug("Removed %d/%d labels by support %d", len(unsupported), len(label_support),
+                        self.cutoff_label_support)
+
+    def _fill_vnode_parents(self, file_parents: dict, file_vnodes: List[VirtualNode],
+                            uast: bblfsh.Node, vnode_parents: dict):
+        closest_left_node_id = None
+        for j, vn in enumerate(file_vnodes):
+            if vn.node:
+                closest_left_node_id = id(vn.node)
+            parent = self._find_parent(j, file_vnodes, file_parents, closest_left_node_id)
+            if parent is None:
+                parent = uast
+            vnode_parents[id(vn)] = parent

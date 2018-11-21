@@ -28,7 +28,7 @@ from lookout.style.format.utils import merge_dicts
 class FormatAnalyzer(Analyzer):
     """Detect bad formatting by training on existing code and analyzing pull requests."""
 
-    log = logging.getLogger("FormatAnalyzer")
+    _log = logging.getLogger("FormatAnalyzer")
     model_type = FormatModel
     name = "style.format.analyzer.FormatAnalyzer"
     version = "1"
@@ -56,6 +56,7 @@ class FormatAnalyzer(Analyzer):
                 "remove_constant_features": True,
                 "insert_noops": False,
                 "return_sibling_indices": False,
+                "cutoff_label_support": 50,
             },
             "trainable_rules": {
                 "prune_branches_algorithms": ["reduced-error"],
@@ -70,6 +71,7 @@ class FormatAnalyzer(Analyzer):
             "n_iter": 5,
             "line_length_limit": 500,
             "lower_bound_instances": 500,
+            "cutoff_label_precision": 0.95,
         },
         # selected settings for each particular language which overwrite "global"
         # empty {} is still required if we do not have any adjustments
@@ -116,7 +118,7 @@ class FormatAnalyzer(Analyzer):
                     generate_comment = yi != y_predi
                     line_nodes = [(yi, y_predi, vnode_y, winner)]
 
-        log = self.log
+        log = self._log
         comments = []
         changes = list(data["changes"])
         base_files_by_lang = files_by_language(c.base for c in changes)
@@ -206,27 +208,27 @@ class FormatAnalyzer(Analyzer):
         :param data_request_stub: connection to the Lookout data retrieval service, not used.
         :return: AnalyzerModel containing the learned rules, per language.
         """
-        cls.log.info("train %s %s %s", ptr.url, ptr.commit,
-                     pformat(config, width=4096, compact=True))
+        cls._log.info("train %s %s %s", ptr.url, ptr.commit,
+                      pformat(config, width=4096, compact=True))
         model = FormatModel().construct(cls, ptr)
         config = cls._load_train_config(config)
         for language, files in files_by_language(data["files"]).items():
             try:
                 lang_config = config[language]
             except KeyError:
-                cls.log.warning("Language %s is not supported, skipped", language)
+                cls._log.warning("Language %s is not supported, skipped", language)
                 continue
-            files = filter_files(files, lang_config["line_length_limit"], cls.log)
+            files = filter_files(files, lang_config["line_length_limit"], cls._log)
             if len(files) == 0:
-                cls.log.info("Zero files after filtering, language %s is skipped.", language)
+                cls._log.info("Zero files after filtering, language %s is skipped.", language)
                 continue
             try:
                 fe = FeatureExtractor(language=language, **lang_config["feature_extractor"])
             except ImportError:
-                cls.log.warning("skipped %d %s files - not supported", len(files), language)
+                cls._log.warning("skipped %d %s files - not supported", len(files), language)
                 continue
             else:
-                cls.log.info("training on %d %s files", len(files), language)
+                cls._log.info("training on %d %s files", len(files), language)
             # we sort to make the features reproducible
             X, y, _ = fe.extract_features(sorted(files, key=lambda x: x.path))
             X, selected_features = fe.select_features(X, y)
@@ -234,10 +236,10 @@ class FormatAnalyzer(Analyzer):
             lang_config["feature_extractor"]["label_composites"] = fe.labels_to_class_sequences
             lower_bound_instances = lang_config["lower_bound_instances"]
             if X.shape[0] < lower_bound_instances:
-                cls.log.warning("skipped %d %s files: too few samples (%d/%d)",
-                                len(files), language, X.shape[0], lower_bound_instances)
+                cls._log.warning("skipped %d %s files: too few samples (%d/%d)",
+                                 len(files), language, X.shape[0], lower_bound_instances)
                 continue
-            cls.log.debug("training the rules model")
+            cls._log.debug("training the rules model")
             if not slogging.logs_are_structured:
                 # workaround the check in joblib - everything still works without it
                 threading._MainThread = threading.Thread
@@ -257,25 +259,34 @@ class FormatAnalyzer(Analyzer):
                 # this trick allows to run parallel bscv.fit()
                 from unittest.mock import patch
                 with patch("threading._MainThread", threading.Thread):
-                    cls.log.debug("patched joblib")
+                    cls._log.debug("patched joblib")
                     bscv.fit(X, y)
             else:
                 bscv.fit(X, y)
-            cls.log.debug("score of the best estimator found: %.6f", bscv.best_score_)
-            cls.log.debug("params of the best estimator found: %s", str(bscv.best_params_))
-            cls.log.debug("training the model with complete data")
+            cls._log.debug("score of the best estimator found: %.6f", bscv.best_score_)
+            cls._log.debug("params of the best estimator found: %s", str(bscv.best_params_))
+            cls._log.debug("training the model with complete data")
             lang_config["trainable_rules"].update(bscv.best_params_)
             trainable_rules = TrainableRules(**lang_config["trainable_rules"],
                                              origin_config=lang_config)
             trainable_rules.fit(X, y)
             importances = trainable_rules.feature_importances_
-            cls.log.debug(
+            cls._log.debug(
                 "Feature importances from %s:\n\t%s",
                 lang_config["trainable_rules"]["base_model_name"],
                 "\n\t".join("%-55s %.5E" % (fe.feature_names[i], importances[i])
                             for i in numpy.argsort(-importances)[:25] if importances[i] > 1e-5))
+            # throw away imprecise classes
+            scores = trainable_rules.full_score(X, y)
+            cutoff_precision = lang_config["cutoff_label_precision"]
+            erased_labels = [label for label, score in scores.items()
+                             if score.precision < cutoff_precision]
+            if len(erased_labels) > 0:
+                cls._log.debug("Removed %d/%d labels by precision %f", len(erased_labels),
+                               len(fe.labels_to_class_sequences), cutoff_precision)
+            trainable_rules.erase_labels(erased_labels)
             model[language] = trainable_rules.rules
-        cls.log.info("trained %s", model)
+        cls._log.info("trained %s", model)
         return model
 
     @classmethod
