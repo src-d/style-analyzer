@@ -111,7 +111,7 @@ def return_features() -> Response:
                     "supports": [int(rule.stats.support) for rule in rules.rules],
                     "winners": winners.tolist(),
                     "feature_names": fe.feature_names,
-                    "class_representations": fe.get_composite_class_representations(),
-                    "class_printables": fe.get_composite_class_printables(),
+                    "class_representations": fe.composite_class_representations,
+                    "class_printables": fe.composite_class_printables,
                     "vnodes": list(map(_vnode_to_dict, vnodes)),
                     "config": _convert_to_jsonable(rules.origin_config)})

@@ -197,7 +197,7 @@ def get_error_description(vnode: VirtualNode, y_pred: int, feature_extractor: Fe
     :return: String comment.
     """
     column = vnode.start.col
-    class_representations = feature_extractor.get_composite_class_representations()
+    class_representations = feature_extractor.composite_class_representations
     y = feature_extractor.class_sequences_to_labels[vnode.y]
     labels_pred = feature_extractor.labels_to_class_sequences[y_pred]
     if labels_pred[0] == CLASS_INDEX[CLS_NOOP]:

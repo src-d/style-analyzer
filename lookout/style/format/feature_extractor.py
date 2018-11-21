@@ -338,7 +338,8 @@ class FeatureExtractor:
         self._compute_feature_info()
         return X, self.selected_features
 
-    def get_composite_class_representations(self) -> List[str]:
+    @property
+    def composite_class_representations(self) -> List[str]:
         """
         Return the class representations of composite classes.
 
@@ -347,7 +348,8 @@ class FeatureExtractor:
         return ["".join(CLASS_REPRESENTATIONS[label] for label in labels)
                 for labels in self.labels_to_class_sequences]
 
-    def get_composite_class_printables(self) -> List[str]:
+    @property
+    def composite_class_printables(self) -> List[str]:
         """
         Return the class printables of composite classes.
 

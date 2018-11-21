@@ -35,7 +35,7 @@ def generate_rule_table(rule_stat: Mapping[Any, RuleStat], feature_extractor: Fe
     :param feature_extractor: FeatureExtractor used to extract features.
     :return: table in str format.
     """
-    class_names = feature_extractor.get_composite_class_representations()
+    class_names = feature_extractor.composite_class_representations
     with io.StringIO() as output:
         print("Legend: predictions/ground truth", file=output)
         report = [["#rule"] + class_names + ["n_mistakes", "support"]]
