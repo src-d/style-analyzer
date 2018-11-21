@@ -147,8 +147,8 @@ def calc_aligned_metrics(init: str, correct: str, model_out: str) -> Tuple[int, 
 
 
 def calc_losses(init_file: str, correct_file: str, fe: FeatureExtractor,
-                vnodes_y: numpy.ndarray, y_pred: numpy.ndarray, vnodes: Sequence[VirtualNode],
-                url: str, commit: str) -> Dict[str, Any]:
+                vnodes: Sequence[VirtualNode], vnodes_y: Sequence[VirtualNode],
+                y_pred: numpy.ndarray, url: str, commit: str) -> Dict[str, Any]:
     """
     Calculate loss and quality functions for model output.
 
@@ -198,45 +198,33 @@ def calc_losses(init_file: str, correct_file: str, fe: FeatureExtractor,
     :param correct_file: The file from base revision. In ideal case, we should be able to restore \
                          it.
     :param fe: Feature extraction class that was used to generate corresponding data.
+    :param vnodes: Sequence of all the `VirtualNode`-s corresponding to the input code file. \
+                   Should be ordered by position.
     :param vnodes_y: Sequence of the labeled `VirtualNode`-s corresponding to labeled samples.\
                      Should be ordered by start position value.
     :param y_pred: The model predictions for `vnodes_y` `VirtualNode`-s.
-    :param vnodes: Sequence of all the `VirtualNode`-s corresponding to the input code file. \
-                   Should be ordered by start position value.
     :param url: Repository url if applicable. Useful for more informative warning messages.
     :param commit: Commit hash if applicable. Useful for more informative warning messages.
 
-    :return: A dictionary with losses and file data.
+    :return: A dictionary with losses and file data for "global" and "local" indentation \
+             strategies.
     """
-    predicted_file = CodeGenerator(
-        fe, skip_errors=True, url=url, commit=commit).generate(
-        vnodes_y=vnodes_y, y_pred=y_pred, vnodes=vnodes)
-    local_predicted_file = CodeGenerator(
-        fe, skip_errors=True, change_locally=True, url=url, commit=commit).generate(
-        vnodes_y=vnodes_y, y_pred=y_pred, vnodes=vnodes)
-
-    misdetection, undetected, detected_wrong_fix, detected_correct_fix = \
-        calc_aligned_metrics(*align3(init_file, correct_file, local_predicted_file))
-    losses = {
-        "local_misdetection": misdetection,
-        "local_undetected": undetected,
-        "local_detected_wrong_fix": detected_wrong_fix,
-        "local_detected_correct_fix": detected_correct_fix,
-        "local_predicted_file": local_predicted_file,
-        "local_init_file": init_file,
-        "local_correct_file": correct_file,
-    }
-    misdetection, undetected, detected_wrong_fix, detected_correct_fix = \
-        calc_aligned_metrics(*align3(init_file, correct_file, predicted_file))
-    losses.update({
-        "misdetection": misdetection,
-        "undetected": undetected,
-        "detected_wrong_fix": detected_wrong_fix,
-        "detected_correct_fix": detected_correct_fix,
-        "predicted_file": predicted_file,
-        "init_file": init_file,
-        "correct_file": correct_file,
-    })
+    losses = {}
+    for indentation in ("global", "local"):
+        generator = CodeGenerator(fe, skip_errors=True, url=url, commit=commit)
+        predicted_vnodes = generator.apply_predicted_y(vnodes, vnodes_y, y_pred)
+        predicted_file = generator.generate(predicted_vnodes, indentation)
+        misdetection, undetected, detected_wrong_fix, detected_correct_fix = \
+            calc_aligned_metrics(*align3(init_file, correct_file, predicted_file))
+        losses[indentation] = {
+            "misdetection": misdetection,
+            "undetected": undetected,
+            "detected_wrong_fix": detected_wrong_fix,
+            "detected_correct_fix": detected_correct_fix,
+            "predicted_file": predicted_file,
+            "init_file": init_file,
+            "correct_file": correct_file,
+        }
     return losses
 
 
@@ -263,26 +251,23 @@ class SmokeEvalFormatAnalyzer(FormatAnalyzer):
         super().__init__(model, url, config)
         self.config = self._load_analyze_config(self.config)
         self.client = BblfshClient(self.config["bblfsh_address"])
-        self.report = None
 
-    def _dump_report(self, outputpath):
+    def _dump_report(self, report: List[dict], outputpath):
         files_dir = os.path.join(outputpath, "files")
         os.makedirs(files_dir, exist_ok=True)
         with open(os.path.join(outputpath, "report.csv"), "a") as f:
             writer = csv.DictWriter(f, fieldnames=self.REPORT_COLNAMES)
-            for report_line in self.report:
-                for filename in ["predicted_file",
-                                 "init_file",
-                                 "correct_file",
-                                 "local_predicted_file",
-                                 "local_init_file",
-                                 "local_correct_file"]:
-                    code = report_line[filename]
-                    report_line[filename] = "%s_%s_%s_%s" % (
-                        report_line["repo"], report_line["style"],
-                        filename, report_line["filepath"].replace("/", "_"))
-                    with open(os.path.join(files_dir, report_line[filename]), "w") as f:
-                        f.write(code)
+            for report_line in report:
+                for indentation in ("global", "local"):
+                    for filename in ["predicted_file",
+                                     "init_file",
+                                     "correct_file"]:
+                        code = report_line[indentation][filename]
+                        report_line[filename] = "%s_%s_%s_%s" % (
+                            report_line["repo"], report_line["style"],
+                            filename, report_line["filepath"].replace("/", "_"))
+                        with open(os.path.join(files_dir, report_line[filename]), "w") as f:
+                            f.write(code)
                 writer.writerow(report_line)
 
     @with_changed_uasts_and_contents
@@ -297,7 +282,7 @@ class SmokeEvalFormatAnalyzer(FormatAnalyzer):
         :param data: Contains "changes" - the list of changes in the pointed state.
         :return: List of comments.
         """
-        self.report = []
+        report = []
         log = self._log
         changes = list(data["changes"])
         base_files_by_lang = files_by_language(c.base for c in changes)
@@ -339,11 +324,11 @@ class SmokeEvalFormatAnalyzer(FormatAnalyzer):
                 row.update(calc_losses(
                     init_file,
                     correct_file,
-                    fe, vnodes_y, y_pred, vnodes,
+                    fe, vnodes, vnodes_y, y_pred,
                     url=ptr_to.url, commit=ptr_to.commit
                 ))
-                self.report.append(row)
-        self._dump_report(self.config["report_path"])
+                report.append(row)
+        self._dump_report(report, self.config["report_path"])
         return []
 
 
