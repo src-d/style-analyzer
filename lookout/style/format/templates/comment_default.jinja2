@@ -1,0 +1,23 @@
+format: style mismatch:
+{% if config.report_code_lines %}
+```{{ lang }}
+{% for l in range([0, line_number - 2]|max, [line_number + 1, code_lines|length]|min ) %}
+{{ "%d|%s" % (l + 1, code_lines[l]) }}
+{% endfor %}
+```
+{% endif %}
+{% if new_code_line != code_lines[line_number - 1] %}
+```suggestion
+{{ new_code_line }}
+```
+
+{% endif %}
+{% for rule_number, change_description, rule_description in change_descriptions %}
+{{ change_description }}
+    {% if config.report_triggered_rules %}
+Triggered rule # {{ rule_number or "<N/A>" }}
+```
+{{ rule_description }}
+```
+    {% endif %}
+{% endfor %}
