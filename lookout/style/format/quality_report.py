@@ -71,7 +71,7 @@ def quality_report(input_pattern: str, bblfsh: str, language: str, n_files: int,
     # predict with model and generate report
     y_pred, _ = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes, feature_extractor=fe)
     y, y_pred, vnodes_y, safe_preds = filter_uast_breaking_preds(
-        y=y, y_pred=y_pred, vnodes_y=vnodes_y, files={f.path: f for f in files},
+        y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, files={f.path: f for f in files},
         feature_extractor=fe, client=client, vnode_parents=vnode_parents,
         node_parents=node_parents, log=log)
     target_names = fe.composite_class_representations
@@ -212,7 +212,7 @@ class ReportAnalyzer(Analyzer):
                 y_pred, rule_winners = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
                                                      feature_extractor=fe)
                 y, y_pred, vnodes_y, safe_preds = filter_uast_breaking_preds(
-                    y=y, y_pred=y_pred, vnodes_y=vnodes_y, files={file.path: file},
+                    y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, files={file.path: file},
                     feature_extractor=fe, client=self.client, vnode_parents=vnode_parents,
                     node_parents=node_parents, log=self.log)
                 rule_winners = rule_winners[safe_preds]
@@ -286,9 +286,10 @@ class ReportAnalyzer(Analyzer):
             y_pred, rule_winners = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
                                                  feature_extractor=fe)
             y, y_pred, vnodes_y, safe_preds = filter_uast_breaking_preds(
-                y=y, y_pred=y_pred, vnodes_y=vnodes_y, files={f.path: f for f in filtered_files},
-                feature_extractor=fe, client=cls.client, vnode_parents=vnode_parents,
-                node_parents=node_parents, log=cls.log)
+                y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes,
+                files={f.path: f for f in filtered_files}, feature_extractor=fe,
+                client=cls.client, vnode_parents=vnode_parents, node_parents=node_parents,
+                log=cls.log)
             rule_winners = rule_winners[safe_preds]
             target_names = fe.composite_class_representations
             assert len(y) == len(y_pred)

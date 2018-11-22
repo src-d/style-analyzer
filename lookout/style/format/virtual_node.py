@@ -3,7 +3,7 @@ from typing import Callable, Iterable, Mapping, NamedTuple, Optional, Set, Tuple
 
 import bblfsh
 
-from lookout.style.format.classes import CLASS_REPRESENTATIONS, EMPTY_CLS, INTENDATION_INC_STRS
+from lookout.style.format.classes import CLASS_REPRESENTATIONS, EMPTY_CLS
 
 Position = NamedTuple("Position", (("offset", int), ("line", int), ("col", int)))
 """
@@ -44,18 +44,6 @@ class VirtualNode:
         self.node = node
         self.y = y
         self.path = path
-        self.is_accumulated_indentation = self._is_accumulated_indentation()
-
-    def _is_accumulated_indentation(self) -> bool:
-        """
-        Check if node represents virtual node with accumulated indentation.
-
-        :return: True if the node represents accumulated indentation else False.
-        """
-        for v in self.value:
-            if v not in INTENDATION_INC_STRS:
-                return False
-        return self.y is None and self.node is None
 
     def __str__(self) -> str:
         return self.value
@@ -78,6 +66,13 @@ class VirtualNode:
                 and self.node == other.node
                 and self.y == other.y
                 and self.path == other.path)
+
+    def copy(self) -> "VirtualNode":
+        """
+        Produce a full clone of the node.
+        """
+        return VirtualNode(
+            self.value, self.start, self.end, node=self.node, y=self.y, path=self.path)
 
     def is_labeled_on_lines(self, lines: Optional[Set[int]]) -> bool:
         """

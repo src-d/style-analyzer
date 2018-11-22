@@ -16,7 +16,7 @@ class GeneratorTestsMeta(type):
     def __new__(mcs, name, bases, attrs):
         for case in cases:
             name = case.replace(" ", "_")
-            attrs["test_%s" % name] = mcs.generate_test(case)
+            attrs["test_global_%s" % name] = mcs.generate_global_test(case)
         for case in cases:
             name = case.replace(" ", "_")
             attrs["test_local_%s" % name] = mcs.generate_local_test(case)
@@ -24,7 +24,7 @@ class GeneratorTestsMeta(type):
         return super(GeneratorTestsMeta, mcs).__new__(mcs, name, bases, attrs)
 
     @classmethod
-    def generate_test(cls, case_name):
+    def generate_global_test(cls, case_name):
         y_indexes, y_pred, result, *_ = cases[case_name]
 
         def _test(self):
@@ -32,8 +32,8 @@ class GeneratorTestsMeta(type):
             for i, yi in zip(y_indexes, y_pred):
                 y_cur[i] = yi
             code_generator = CodeGenerator(self.feature_extractor)
-            generated_file = code_generator.generate(
-                self.vnodes_y, y_cur, self.vnodes)
+            pred_vnodes = code_generator.apply_predicted_y(self.vnodes, self.vnodes_y, y_cur)
+            generated_file = code_generator.generate(pred_vnodes, "global")
             self.assertEqual(generated_file, result)
         return _test
 
@@ -46,15 +46,15 @@ class GeneratorTestsMeta(type):
             y_cur = deepcopy(self.y)
             for i, yi in zip(y_indexes, y_pred):
                 y_cur[i] = yi
-            code_generator = CodeGenerator(self.feature_extractor, change_locally=True)
-            generated_file = code_generator.generate(
-                self.vnodes_y, y_cur, self.vnodes)
+            code_generator = CodeGenerator(self.feature_extractor)
+            pred_vnodes = code_generator.apply_predicted_y(self.vnodes, self.vnodes_y, y_cur)
+            generated_file = code_generator.generate(pred_vnodes, "local")
             self.assertEqual(generated_file, result_local)
 
         return _test
 
 
-class AnalyzerTests(unittest.TestCase, metaclass=GeneratorTestsMeta):
+class CodeGeneratorTests(unittest.TestCase, metaclass=GeneratorTestsMeta):
     @classmethod
     def setUpClass(cls):
         cls.maxDiff = None
@@ -73,6 +73,12 @@ class AnalyzerTests(unittest.TestCase, metaclass=GeneratorTestsMeta):
         cls.file = File(content=bytes(contents, "utf-8"), uast=uast)
         cls.X, cls.y, (cls.vnodes_y, cls.vnodes, cls.vnode_parents, cls.node_parents) = \
             cls.feature_extractor.extract_features([cls.file])
+
+    def test_reproduction(self):
+        for indent in ("local", "global"):
+            code_generator = CodeGenerator(self.feature_extractor)
+            generated_file = code_generator.generate(self.vnodes, indent)
+            self.assertEqual(generated_file, self.file.content.decode("utf-8"))
 
 
 if __name__ == "__main__":

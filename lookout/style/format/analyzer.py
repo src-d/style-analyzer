@@ -160,7 +160,7 @@ class FormatAnalyzer(Analyzer):
                 y_pred, rule_winners = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
                                                      feature_extractor=fe)
                 y, y_pred, vnodes_y, safe_preds = filter_uast_breaking_preds(
-                    y=y, y_pred=y_pred, vnodes_y=vnodes_y, files={file.path: file},
+                    y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, files={file.path: file},
                     feature_extractor=fe, client=self.client, vnode_parents=vnode_parents,
                     node_parents=node_parents, log=log)
                 assert len(y) == len(y_pred)
