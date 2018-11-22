@@ -39,9 +39,8 @@ def check_uasts_are_equal(uast1: bblfsh.Node, uast2: bblfsh.Node) -> bool:
 
 def filter_uast_breaking_preds(y: numpy.ndarray, y_pred: numpy.ndarray,
                                vnodes_y: Sequence[VirtualNode], vnodes: Sequence[VirtualNode],
-                               files: Mapping[str, File],
-                               feature_extractor: FeatureExtractor, client: BblfshClient,
-                               vnode_parents: Mapping[int, bblfsh.Node],
+                               files: Mapping[str, File], feature_extractor: FeatureExtractor,
+                               client: BblfshClient, vnode_parents: Mapping[int, bblfsh.Node],
                                node_parents: Mapping[str, bblfsh.Node], log: logging.Logger
                                ) -> Iterable[int]:
     """
@@ -80,8 +79,13 @@ def filter_uast_breaking_preds(y: numpy.ndarray, y_pred: numpy.ndarray,
             parse_response_before = client.parse(filename="", contents=content_before[start:end],
                                                  language=feature_extractor.language)
             if parse_response_before.errors:
-                parent = node_parents[id(parent)]
-                continue
+                try:
+                    parent = node_parents[id(parent)]
+                    continue
+                except KeyError:
+                    log.warning("skipped file %s, due to errors when parsing the whole content",
+                                vn_y.path)
+                    break
             errors_parsing = parse_response_before.errors
             cur_i = vnodes.index(vnodes_y[i])
             output_pred = "".join(n.value for n in vnodes[cur_i:cur_i+2]).replace(vn_y.value,
