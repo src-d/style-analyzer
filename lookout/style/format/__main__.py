@@ -148,8 +148,8 @@ def create_parser() -> ArgumentParser:
         help="Path to the directory where the generated dataset is stored. "
              "To generate a dataset run gen-smoke-dataset command.")
     eval_gen_styles_parser.add_argument(
-        "reportpath", type=str,
-        help="Path for report performance output.")
+        "reportdir", type=str,
+        help="Path for report performance output directory.")
     eval_gen_styles_parser.add_argument(
         "--database", type=str, default=None,
         help="Path to the sqlite3 database with trained models metadata. "

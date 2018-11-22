@@ -26,6 +26,7 @@ from lookout.style.format.code_generator import CodeGenerator
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.model import FormatModel
 from lookout.style.format.tests.test_analyzer_integration import TestAnalyzer
+from lookout.style.format.utils import flatten_dict
 from lookout.style.format.virtual_node import VirtualNode
 
 log = logging.getLogger("report_summary")
@@ -222,8 +223,6 @@ def calc_losses(init_file: str, correct_file: str, fe: FeatureExtractor,
             "detected_wrong_fix": detected_wrong_fix,
             "detected_correct_fix": detected_correct_fix,
             "predicted_file": predicted_file,
-            "init_file": init_file,
-            "correct_file": correct_file,
         }
     return losses
 
@@ -234,10 +233,10 @@ class SmokeEvalFormatAnalyzer(FormatAnalyzer):
     """
 
     REPORT_COLNAMES = [
-        "repo", "filepath", "style", "misdetection", "undetected", "detected_wrong_fix",
-        "detected_correct_fix", "local_misdetection", "local_undetected",
-        "local_detected_wrong_fix", "local_detected_correct_fix", "predicted_file", "init_file",
-        "correct_file", "local_predicted_file", "local_init_file", "local_correct_file",
+        "repo", "filepath", "style", "global_misdetection", "global_undetected",
+        "global_detected_wrong_fix", "global_detected_correct_fix", "local_misdetection",
+        "local_undetected", "local_detected_wrong_fix", "local_detected_correct_fix",
+        "init_file", "correct_file", "local_predicted_file", "global_predicted_file",
     ]
 
     def __init__(self, model: FormatModel, url: str, config: Mapping[str, Any]) -> None:
@@ -252,22 +251,21 @@ class SmokeEvalFormatAnalyzer(FormatAnalyzer):
         self.config = self._load_analyze_config(self.config)
         self.client = BblfshClient(self.config["bblfsh_address"])
 
-    def _dump_report(self, report: List[dict], outputpath):
-        files_dir = os.path.join(outputpath, "files")
-        os.makedirs(files_dir, exist_ok=True)
-        with open(os.path.join(outputpath, "report.csv"), "a") as f:
+    def _dump_report(self, report: List[dict], outputpath: Path):
+        files_dir = outputpath / "files"
+        os.makedirs(str(files_dir), exist_ok=True)
+        with open(str(outputpath / "report.csv"), "a") as f:
             writer = csv.DictWriter(f, fieldnames=self.REPORT_COLNAMES)
             for report_line in report:
-                for indentation in ("global", "local"):
-                    for filename in ["predicted_file",
-                                     "init_file",
-                                     "correct_file"]:
-                        code = report_line[indentation][filename]
-                        report_line[filename] = "%s_%s_%s_%s" % (
-                            report_line["repo"], report_line["style"],
-                            filename, report_line["filepath"].replace("/", "_"))
-                        with open(os.path.join(files_dir, report_line[filename]), "w") as f:
-                            f.write(code)
+                report_line = flatten_dict(report_line)
+                for code_file in ["init_file", "correct_file",
+                                  "global_predicted_file", "local_predicted_file"]:
+                    code = report_line[code_file]
+                    report_line[code_file] = "_".join((
+                        report_line["repo"], report_line["style"], code_file,
+                        report_line["filepath"].replace("/", "_")))
+                with open(str(files_dir / report_line[code_file]), "w") as f:
+                    f.write(code)
                 writer.writerow(report_line)
 
     @with_changed_uasts_and_contents
@@ -320,6 +318,8 @@ class SmokeEvalFormatAnalyzer(FormatAnalyzer):
                     "repo": self.config["repo_name"],
                     "filepath": file.path,
                     "style": self.config["style_name"],
+                    "init_file": init_file,
+                    "correct_file": correct_file,
                 }
                 row.update(calc_losses(
                     init_file,
@@ -328,21 +328,22 @@ class SmokeEvalFormatAnalyzer(FormatAnalyzer):
                     url=ptr_to.url, commit=ptr_to.commit
                 ))
                 report.append(row)
-        self._dump_report(report, self.config["report_path"])
+        self._dump_report(report, Path(self.config["report_path"]))
         return []
 
 
 analyzer_class = SmokeEvalFormatAnalyzer
 
 
-def evaluate_smoke_entry(inputpath: str, reportpath: str, database: str) -> None:
+def evaluate_smoke_entry(inputpath: str, reportdir: str, database: str) -> None:
     """
     CLI entry point.
     """
     start_time = time.time()
-    report_filename = os.path.join(reportpath, "report.csv")
+    report_filename = os.path.join(reportdir, "report.csv")
     log = logging.getLogger("evaluate_smoke")
     port = server.find_port()
+    train_config = {analyzer_class.name: {"global": {"cutoff_label_precision": 0}}}
     if database is None:
         db = tempfile.NamedTemporaryFile(dir=inputpath, prefix="db", suffix=".sqlite3")
         database = db.name
@@ -361,7 +362,7 @@ def evaluate_smoke_entry(inputpath: str, reportpath: str, database: str) -> None
             if not server.exefile.exists():
                 server.fetch()
             index_file = inputpath / "index.csv"
-            os.makedirs(reportpath, exist_ok=True)
+            os.makedirs(reportdir, exist_ok=True)
             with open(report_filename, "w") as report:
                 csv.DictWriter(report, fieldnames=SmokeEvalFormatAnalyzer.REPORT_COLNAMES
                                ).writeheader()
@@ -373,15 +374,15 @@ def evaluate_smoke_entry(inputpath: str, reportpath: str, database: str) -> None
                         analyzer_class.name: {
                             "repo_name": row["repo"],
                             "style_name": row["style"],
-                            "report_path": reportpath
+                            "report_path": reportdir
                         }
                     }
                     server.run("push", fr=row["from"], to=row["to"], port=port,
-                               git_dir=str(repopath), )
+                               git_dir=str(repopath), config_json=json.dumps(train_config))
                     server.run("review", fr=row["from"], to=row["to"], port=port,
                                git_dir=str(repopath),
                                config_json=json.dumps(config_json))
-            log.info("Quality report saved to %s", reportpath)
+            log.info("Quality report saved to %s", reportdir)
 
     report = pandas.read_csv(report_filename)
     with pandas.option_context("display.max_columns", 10, "display.expand_frame_repr", False):

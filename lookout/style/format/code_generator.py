@@ -74,13 +74,7 @@ class CodeGenerator:
         result = []
         for vnode, y_new in self._iterate_vnodes(vnodes, vnodes_y, y_pred):
             vnode = vnode.copy()
-            # if there is no prediction (y_new) for current VirtualNode (vnode)
-            # its value is set to None.
-            if y_new == vnode.y and not vnode.value:
-                # Skipping all unmodified NOOPS and empty tokens
-                # No need to finalize
-                continue
-            else:
+            if y_new != vnode.y or vnode.value:
                 vnode.y, vnode.y_old = y_new, vnode.y
             result.append(vnode)
         return result
