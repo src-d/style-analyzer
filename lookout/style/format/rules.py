@@ -142,6 +142,22 @@ class Rules:
             return postprocessed_y_pred, postprocessed_winners, y_pred, winners
         return postprocessed_y_pred, postprocessed_winners
 
+    def filter_by_relevance(self, confidence_threshold: float, support_threshold: int) -> "Rules":
+        """
+        Filter rules according to confidence and support thresholds.
+
+        :param confidence_threshold: Minimum confidence value.
+        :param support_threshold: Minimum support value.
+        :return: `Rules` class with filtered rules.
+        """
+        self._log.debug("Filtering rules with confidence and support higher than %d and %d",
+                        confidence_threshold, support_threshold)
+        rules = [rule for rule in self._rules if rule.stats.conf > confidence_threshold
+                 and rule.stats.support > support_threshold]
+        self._log.debug("Number of rules decreased from %d to %d", len(self._rules), len(rules))
+        self._rules = Rules(rules, self._origin_config)
+        return self
+
     @property
     def rules(self) -> List[Rule]:
         """Return the list of rules."""

@@ -35,6 +35,8 @@ class FormatAnalyzer(Analyzer):
     description = "Source code formatting: whitespace, new lines, quotes, braces."
     defaults_for_analyze = {
         "bblfsh_address": "0.0.0.0:9432",
+        "confidence_threshold": 0.95,
+        "support_threshold": 100,
         "report_code_lines": True,
         "report_triggered_rules": True,
         "report_parse_failures": True,
@@ -129,6 +131,8 @@ class FormatAnalyzer(Analyzer):
                             len(head_files), lang, lang)
                 continue
             rules = self.model[lang]
+            rules.filter_by_relevance(self.config["confidence_threshold"],
+                                      self.config["support_threshold"])
             for file in filter_files(head_files, rules.origin_config["line_length_limit"], log):
                 log.debug("Analyze %s file", file.path)
                 try:
