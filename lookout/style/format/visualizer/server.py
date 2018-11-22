@@ -96,8 +96,8 @@ def return_features() -> Response:
     y_pred, winners = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
                                     feature_extractor=fe)
     _, _, _, safe_preds = filter_uast_breaking_preds(y=y, y_pred=y_pred, vnodes_y=vnodes_y,
-                                                     files={file.path: file}, feature_extractor=fe,
-                                                     client=client,
+                                                     vnodes=vnodes, files={file.path: file},
+                                                     feature_extractor=fe, client=client,
                                                      vnode_parents=vnode_parents,
                                                      node_parents=node_parents, log=log)
     wrong_preds = list(set(range(X.shape[0])) - set(safe_preds))

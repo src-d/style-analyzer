@@ -38,7 +38,8 @@ def check_uasts_are_equal(uast1: bblfsh.Node, uast2: bblfsh.Node) -> bool:
 
 
 def filter_uast_breaking_preds(y: numpy.ndarray, y_pred: numpy.ndarray,
-                               vnodes_y: Sequence[VirtualNode], files: Mapping[str, File],
+                               vnodes_y: Sequence[VirtualNode], vnodes: Sequence[VirtualNode],
+                               files: Mapping[str, File],
                                feature_extractor: FeatureExtractor, client: BblfshClient,
                                vnode_parents: Mapping[int, bblfsh.Node],
                                node_parents: Mapping[str, bblfsh.Node], log: logging.Logger
@@ -49,6 +50,7 @@ def filter_uast_breaking_preds(y: numpy.ndarray, y_pred: numpy.ndarray,
     :param y: Numpy 1-dimensional array of labels.
     :param y_pred: Numpy 1-dimensional array of predicted labels by the model.
     :param vnodes_y: Sequence of the labeled `VirtualNode`-s corresponding to labeled samples.
+    :param vnodes: Sequence of all the `VirtualNode`-s corresponding to the input.
     :param files: Dictionary of File-s with content, uast and path.
     :param feature_extractor: FeatureExtractor used to extract features.
     :param client: Babelfish client.
@@ -81,10 +83,14 @@ def filter_uast_breaking_preds(y: numpy.ndarray, y_pred: numpy.ndarray,
                 parent = node_parents[id(parent)]
                 continue
             errors_parsing = parse_response_before.errors
+            cur_i = vnodes.index(vnodes_y[i])
+            output_pred = "".join(n.value for n in vnodes[cur_i:cur_i+2]).replace(vn_y.value,
+                                                                                  pred_string)
             diff_pred_offset = len(pred_string) - len(vn_y.value)
+            next_vnode = vnodes[cur_i + 1].value
             content_after = content_before[:vn_y.start.offset] \
-                + pred_string.encode() \
-                + content_before[vn_y.start.offset - diff_pred_offset + 1:]
+                + output_pred.encode() \
+                + content_before[vn_y.start.offset + len(vn_y.value) + len(next_vnode):]
             content_after = content_after[start:end + diff_pred_offset]
             parse_response_after = client.parse(filename="", contents=content_after,
                                                 language=feature_extractor.language)
