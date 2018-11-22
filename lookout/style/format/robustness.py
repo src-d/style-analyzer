@@ -96,9 +96,9 @@ def files2mispreds(files: Iterable[str], feature_extractor: FeatureExtractor, ru
     y_pred, winners = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
                                     feature_extractor=feature_extractor)
     y, y_pred, vnodes_y, safe_preds = filter_uast_breaking_preds(
-        y=y, y_pred=y_pred, vnodes_y=vnodes_y, files={f.path: f for f in files},
-        feature_extractor=feature_extractor, client=client, vnode_parents=vnode_parents,
-        node_parents=node_parents, log=log)
+        y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes,
+        files={f.path: f for f in files}, feature_extractor=feature_extractor, client=client,
+        vnode_parents=vnode_parents, node_parents=node_parents, log=log)
     winners = winners[safe_preds]
     mispreds = get_mispreds(y, y_pred, vnodes_y, winners)
     return mispreds
@@ -347,9 +347,6 @@ def plot_pr_curve(true_repo: str, noisy_repo: str, bblfsh: str, language: str,
                                                       true_positive=len(style_fixes))
         precisions.append(round(precision, 3))
         recalls.append(round(recall, 3))
-        log.debug("precision: %.3f", precision)
-        log.debug("recall: %.3f", recall)
-        log.debug("F1 score: %.3f", f1_score)
 
     print("recall x:", recalls)
     print("precision y:", precisions)
