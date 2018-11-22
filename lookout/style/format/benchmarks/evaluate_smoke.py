@@ -38,7 +38,7 @@ def align2(seq1: Sequence, seq2: Sequence, seq2_ghost: Sequence = None
            ) -> Union[Tuple[Sequence, Sequence],
                       Tuple[Sequence, Sequence, Sequence]]:
     """
-    Align two sequences using levenshtein distance.
+    Align two sequences using Levenshtein distance.
 
     For example:
     In[1]: align("aabc", "abbcc")
@@ -49,10 +49,10 @@ def align2(seq1: Sequence, seq2: Sequence, seq2_ghost: Sequence = None
     :param seq2: Second sequence to align.
     :param seq2_ghost: All changes to the second sequence are applied to seq2_ghost. \
                        Used by align3 function. Example: \
-                       In[1]: align("aabbbc", "abbcc", "xxxxx")
+                       In[1]: align("aabbbc", "abbcc", "xxxxx") \
                        Out[1]: ("aabbbc␣", "␣abb␣cc", "␣xxx␣xx")
 
-    :return: Aligned sequences and seq3 modification if specified.
+    :return: Aligned sequences and seq2_ghost modification if specified.
     """
     matcher = SequenceMatcher(a=seq1, b=seq2)
     res1, res2, res3 = [], [], []
@@ -87,7 +87,7 @@ def align2(seq1: Sequence, seq2: Sequence, seq2_ghost: Sequence = None
 
 def align3(seq1: Sequence, seq2: Sequence, seq3: Sequence) -> Tuple[Sequence, Sequence, Sequence]:
     """
-    Align three sequences using levenshtein distance.
+    Align three sequences using Levenshtein distance.
 
     For example:
     In[1]: align("aabc", "abbcc", "ccdd")
@@ -95,7 +95,7 @@ def align3(seq1: Sequence, seq2: Sequence, seq3: Sequence) -> Tuple[Sequence, Se
              "␣abbcc␣␣",
              "␣␣␣␣ccdd")
 
-    It can be suboptimal because heuristic is used because true calculation requires
+    The result can be suboptimal because heuristic is used. True calculation requires
     ~ len(seq1) * len(seq2) * len(seq3) time.
 
     :param seq1: First sequence to align.
@@ -108,23 +108,33 @@ def align3(seq1: Sequence, seq2: Sequence, seq3: Sequence) -> Tuple[Sequence, Se
     return res1, res2, res3
 
 
-def calc_aligned_metrics(init: str, correct: str, model_out: str) -> Tuple[int, int, int, int]:
+def calc_aligned_metrics(bad_style_code: str, correct_style_code: str, generated_code: str
+                         ) -> Tuple[int, int, int, int]:
     """
     Calculate model quality metrics for aligned sequences.
 
     Metrics description:
     1. Amount of characters misdetected by the model as a style mistake. That is nothing needed to
        be changed but model did.
-    2. Amount of characters undetected by model. That is the character needed to be changed
+    2. Amount of characters undetected by model. That is the character has to be changed
        but model did not.
     3. Amount of characters detected by model as a style mistake but fix was wrong. That is
-       the character needed to be changed and model did but did it wrongly.
+       the character has to be changed and model did but did it wrongly.
     4. Amount of characters detected by model as a style mistake and fix was correct. That is
-       the character needed to be changed model did it in a correct way :tada:.
+       the character has to be changed and model did it in a correct way :tada:.
 
-    :param init: Initial file with style violations from head revision.
-    :param correct: File with correct style from base revision.
-    :param model_out: Format Analyser model output. File with fixed style.
+    In scientific words:
+    1. False positive.
+    2 + 3. False negative. We have two types of false negatives. First one is when the error was
+           missed and there is no fix. Second one is when the error was found but wrongly
+           fixed.
+    4. True positive.
+
+    :param bad_style_code: The file with style violations. It is files from head revision in the \
+                           smoke dataset.
+    :param correct_style_code: File with correct style. It is files from base revision in  the \
+                               smoke dataset.
+    :param generated_code: Format Analyser model output. The code with fixed style.
 
     :return: Tuple with 4 metric values.
     """
@@ -132,97 +142,110 @@ def calc_aligned_metrics(init: str, correct: str, model_out: str) -> Tuple[int, 
     detected_correct_fix = 0
     misdetection = 0
     undetected = 0
-    for init_c, correct_c, model_out_c in zip(init, correct, model_out):
-        if init_c == correct_c == model_out_c:
+    for bad_style_c, correct_style_c, generated_c in zip(
+            bad_style_code, correct_style_code, generated_code):
+        if bad_style_c == correct_style_c == generated_c:
             continue
-        elif init_c == correct_c and init_c != model_out_c:
+        assert bad_style_c in {"\t", " ", "\n", "'", '"', "␣"}
+        assert correct_style_c in {"\t", " ", "\n", "'", '"', "␣"}
+        assert generated_c in {"\t", " ", "\n", "'", '"', "␣"}
+        if bad_style_c == correct_style_c and bad_style_c != generated_c:
             misdetection += 1
-        elif init_c == model_out_c and init_c != correct_c:
+        elif bad_style_c == generated_c and bad_style_c != correct_style_c:
             undetected += 1
-        elif correct_c == model_out_c and init_c != correct_c:
+        elif correct_style_c == generated_c and bad_style_c != correct_style_c:
             detected_correct_fix += 1
         else:
             detected_wrong_fix += 1
 
+    # TODO (zurk): Add proper class for benchmark metrics
+    # https://github.com/src-d/style-analyzer/issues/333
     return misdetection, undetected, detected_wrong_fix, detected_correct_fix
 
 
-def calc_losses(init_file: str, correct_file: str, fe: FeatureExtractor,
-                vnodes: Sequence[VirtualNode], vnodes_y: Sequence[VirtualNode],
-                y_pred: numpy.ndarray, url: str, commit: str) -> Dict[str, Any]:
+def calc_metrics(bad_style_code: str, correct_style_code: str, fe: FeatureExtractor,
+                 vnodes: Sequence[VirtualNode], y_pred: numpy.ndarray, vnodes_y: numpy.ndarray,
+                 url: str, commit: str) -> Dict[str, Any]:
     """
-    Calculate loss and quality functions for model output.
+    Calculate metrics for model output.
 
     Algorithm description:
-    1. For a given model predictions `y_pred` generate a new file.
+    1. For a given model predictions `y_pred` we generate a new file.
        Now we have 3 files we should compare:
-       1. `init_file`. The file from head revision where style mistakes where applied. We inspect
-          this file to find them.
-       2. `correct_file` The file from base revision. We use this file to train repo format model.
-           In the ideal case, we should be able to restore this file.
-       3. `predicted_file`. The file we get as format model output.
-    3. We will compare them on a character level. To do it we should align them first.
+       1. `bad_style_code`. The file from head revision where style mistakes where applied.
+          We inspect this file to find them.
+       2. `correct_style_code` The file from base revision. We use this file to train repo format
+          model. In the ideal case, we should be able to restore this file.
+       3. `predicted_style`. The file we get as format model output.
+    2. We compare files on a character level. To do so we has to align them first.
        `align3` function is used for that. There is an example:
-    >>> init_file = "import   abcd"
-    >>> correct_file = "import abcd"
-    >>> predicted_file = "import  abcd,"
-    >>> print(align3(init_file, correct_file, predicted_file))
+    >>> bad_style_code = "import   abcd"
+    >>> correct_style_code = "import abcd"
+    >>> predicted_code = "import  abcd,"
+    >>> print(align3(bad_style_code, correct_style_code, predicted_code))
     >>> Out[1]: ("import   abcd␣",
     >>>          "import ␣␣abcd␣",
     >>>          "import  ␣abcd,")
-    4. Now we can compare sequences character by character. `calc_aligned_metrics` function is
-       used for that. We can have 5 situations here. Let's consider them in previous example:
-       ("import   abcd␣",  # aligned init_file
-        "import ␣␣abcd␣",  # aligned correct_file
-        "import  ␣abcd,")  # aligned predicted_file
+    4. Now we are able to compare sequences character by character. `calc_aligned_metrics` function
+       is used for that. We can have 5 cases here. Let's consider them in the same example:
+       ("import   abcd␣",  # aligned bad_style_code
+        "import ␣␣abcd␣",  # aligned correct_style_code
+        "import  ␣abcd,")  # aligned predicted_code
          ^      ^^    ^
          1      23    4
 
          1. All characters are equal. Everything is fine.
-         2. Characters in init file and predicted file are equal, but it is different in correct
-            file. So, style mistake is undetected.
-         3. Characters in correct file and predicted file are equal, but it is different in init
+         2. Characters in bad style and predicted code are equal, but it is different in correct
+            code. So, style mistake is undetected.
+         3. Characters in correct style and predicted code are equal, but it is different in wrong
             file. So, style mistake is detected and correctly fixed.
-         4. Characters in init file and correct file are equal, but it is different in predicted
-            file. So, new style mistake is introduced. We call this situation as misdetection and
-            want to avoid it as much as possible.
+         4. Characters in wrong style and correct style code are equal, but it is different in
+            predicted code. So, new style mistake is introduced. We call this situation
+            misdetection and want to avoid it as much as possible.
          5. All characters are different. There is no such case in the example, but this means that
             style mistake is detected but wrongly fixed.
 
          Thus, as output we have 4 numbers:
-         1. mistake misdetection
-         2. undetected mistake,
-         3. detected mistake with the wrong fix
-         4. detected mistake with the correct fix
+         1. style mistake misdetection
+         2. undetected style mistake,
+         3. detected style mistake with the wrong fix
+         4. detected style mistake with the correct fix
 
-    :param init_file: The file from head revision where style mistakes where applied.
-    :param correct_file: The file from base revision. In ideal case, we should be able to restore \
-                         it.
+         In scientific words:
+         1. False positive.
+         2 + 3. False negative. We have two types of false negatives. First one is when the error
+                was missed and there is no fix. Second one is when the error was found but wrongly
+                fixed.
+         4. True positive.
+
+    :param bad_style_code: The file from head revision where style mistakes where applied.
+    :param correct_style_code: The file from base revision. In ideal case, we should be able to \
+                               restore it.
     :param fe: Feature extraction class that was used to generate corresponding data.
     :param vnodes: Sequence of all the `VirtualNode`-s corresponding to the input code file. \
                    Should be ordered by position.
-    :param vnodes_y: Sequence of the labeled `VirtualNode`-s corresponding to labeled samples.\
-                     Should be ordered by start position value.
     :param y_pred: The model predictions for `vnodes_y` `VirtualNode`-s.
+    :param vnodes_y: Sequence of the labeled `VirtualNode`-s corresponding to labeled samples. \
+                     Should be ordered by start position value.
     :param url: Repository url if applicable. Useful for more informative warning messages.
     :param commit: Commit hash if applicable. Useful for more informative warning messages.
 
-    :return: A dictionary with losses and file data for "global" and "local" indentation \
+    :return: A dictionary with losses and predicted code for "global" and "local" indentation \
              strategies.
     """
     losses = {}
     for indentation in ("global", "local"):
         generator = CodeGenerator(fe, skip_errors=True, url=url, commit=commit)
         predicted_vnodes = generator.apply_predicted_y(vnodes, vnodes_y, y_pred)
-        predicted_file = generator.generate(predicted_vnodes, indentation)
+        predicted_code = generator.generate(predicted_vnodes, indentation)
         misdetection, undetected, detected_wrong_fix, detected_correct_fix = \
-            calc_aligned_metrics(*align3(init_file, correct_file, predicted_file))
+            calc_aligned_metrics(*align3(bad_style_code, correct_style_code, predicted_code))
         losses[indentation] = {
             "misdetection": misdetection,
             "undetected": undetected,
             "detected_wrong_fix": detected_wrong_fix,
             "detected_correct_fix": detected_correct_fix,
-            "predicted_file": predicted_file,
+            "predicted_file": predicted_code,
         }
     return losses
 
@@ -236,7 +259,7 @@ class SmokeEvalFormatAnalyzer(FormatAnalyzer):
         "repo", "filepath", "style", "global_misdetection", "global_undetected",
         "global_detected_wrong_fix", "global_detected_correct_fix", "local_misdetection",
         "local_undetected", "local_detected_wrong_fix", "local_detected_correct_fix",
-        "init_file", "correct_file", "local_predicted_file", "global_predicted_file",
+        "bad_style_file", "correct_style_file", "local_predicted_file", "global_predicted_file",
     ]
 
     def __init__(self, model: FormatModel, url: str, config: Mapping[str, Any]) -> None:
@@ -280,6 +303,7 @@ class SmokeEvalFormatAnalyzer(FormatAnalyzer):
         :param data: Contains "changes" - the list of changes in the pointed state.
         :return: List of comments.
         """
+        # TODO (zurk): reuse code from FormatAnalyzer.analyze()
         report = []
         log = self._log
         changes = list(data["changes"])
@@ -312,18 +336,17 @@ class SmokeEvalFormatAnalyzer(FormatAnalyzer):
                                           feature_extractor=fe)
                 assert len(y) == len(y_pred)
 
-                correct_file = base_file.content.decode("utf-8", "replace")
-                init_file = file.content.decode("utf-8", "replace")
+                correct_style_code = base_file.content.decode("utf-8", "replace")
+                bad_style_code = file.content.decode("utf-8", "replace")
                 row = {
                     "repo": self.config["repo_name"],
                     "filepath": file.path,
                     "style": self.config["style_name"],
-                    "init_file": init_file,
-                    "correct_file": correct_file,
+                    "bad_style_file": bad_style_code,
+                    "correct_style_file": correct_style_code,
                 }
-                row.update(calc_losses(
-                    init_file,
-                    correct_file,
+                row.update(calc_metrics(
+                    bad_style_code, correct_style_code,
                     fe, vnodes, vnodes_y, y_pred,
                     url=ptr_to.url, commit=ptr_to.commit
                 ))
