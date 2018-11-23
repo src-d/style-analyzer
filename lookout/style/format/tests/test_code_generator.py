@@ -66,7 +66,6 @@ class CodeGeneratorTests(unittest.TestCase, metaclass=GeneratorTestsMeta):
             uast = bblfsh.Node.FromString(fin.read())
         config = FormatAnalyzer._load_train_config({})
         fe_config = config["javascript"]
-        fe_config["feature_extractor"]["insert_noops"] = True
         cls.feature_extractor = FeatureExtractor(language="javascript",
                                                  label_composites=label_composites,
                                                  **fe_config["feature_extractor"])

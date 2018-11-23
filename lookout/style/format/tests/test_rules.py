@@ -4,6 +4,7 @@ import unittest
 import numpy
 import pandas
 from scipy import sparse
+from scipy.sparse import csr_matrix
 from sklearn import ensemble, model_selection, tree
 from sklearn.exceptions import NotFittedError
 from sklearn.tree import _tree
@@ -20,7 +21,7 @@ def load_abalone_data(filepath=os.path.join(os.path.dirname(__file__), "abalone.
     del data["sex"]
     y = data.rings.values
     del data["rings"]
-    x = data.values.astype(numpy.float32)
+    x = csr_matrix(data.values.astype(numpy.float32))
     interval = len(y) / 2
     ymap = {}
     accum = 0

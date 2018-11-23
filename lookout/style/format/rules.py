@@ -79,16 +79,17 @@ class Rules:
     def __len__(self):
         return len(self._rules)
 
-    def apply(self, X: numpy.ndarray, return_winner_indices=False
+    def apply(self, X_csr: csr_matrix, return_winner_indices=False
               ) -> Union[numpy.ndarray, Tuple[numpy.ndarray, numpy.ndarray]]:
         """
         Evaluate the rules against the given features.
 
-        :param X: input features.
+        :param X_csr: input features.
         :param return_winner_indices: whether to return the winning rule index for each sample.
         :return: array of the same length as X with predictions or tuple of two arrays of the same\
                  length as X containing (predictions, winner rule indices).
         """
+        X = X_csr.toarray()
         self._log.debug("predicting %d samples using %d rules", len(X), len(self._rules))
         rules = self._rules
         _compute_triggered = self._compute_triggered
@@ -365,7 +366,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         self._rules = None  # type: Rules
         self._origin_config = origin_config
 
-    def fit(self, X: numpy.ndarray, y: numpy.ndarray) -> "TrainableRules":
+    def fit(self, X: csr_matrix, y: numpy.ndarray) -> "TrainableRules":
         """
         Train the rules using the base tree model and the samples (X, y).
 
@@ -386,7 +387,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
                 X, y, test_size=self.prune_dataset_ratio, random_state=42)
         else:
             X_train, y_train = X, y
-        base_model.fit(csr_matrix(X_train), y_train)
+        base_model.fit(X_train, y_train)
         self.feature_importances_ = base_model.feature_importances_
 
         if isinstance(base_model, DecisionTreeClassifier):
@@ -473,7 +474,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         return wrapped_check_fitted
 
     @_check_fitted
-    def predict(self, X: numpy.ndarray) -> numpy.ndarray:
+    def predict(self, X: csr_matrix) -> numpy.ndarray:
         """
         Evaluate the rules against the given features.
 
@@ -483,7 +484,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         return self._rules.apply(X)
 
     @_check_fitted
-    def full_score(self, X: numpy.ndarray, y: numpy.ndarray) -> Dict[int, LabelScore]:
+    def full_score(self, X: csr_matrix, y: numpy.ndarray) -> Dict[int, LabelScore]:
         """
         Evaluate the trained rules and return the metrics.
 
@@ -707,7 +708,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
 
     @classmethod
     def _prune_attributes(cls, rules: Iterable[Rule],
-                          X: numpy.ndarray, Y: numpy.ndarray,
+                          X: csr_matrix, Y: numpy.ndarray,
                           prune_uncertain: bool) -> List[Rule]:
         """
         Remove the attribute comparisons which do not influence the rule decision.
@@ -739,7 +740,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
             attrs[key] = numpy.array(sorted(vals))
             intervals[key] = [defaultdict(int) for _ in range(len(vals) + 1)]
         searchsorted = numpy.searchsorted
-        for x, y in zip(X, Y):
+        for x, y in zip(X.toarray(), Y):
             for attr, val in enumerate(x):
                 interval = intervals.get(attr)
                 if interval is not None:

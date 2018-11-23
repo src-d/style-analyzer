@@ -76,9 +76,11 @@ class Capturing(list):
         return self
 
     def __exit__(self, *args):
-        self.extend(self._stringio.getvalue().splitlines())
+        value = self._stringio.getvalue()
+        self.extend(value.splitlines())
         del self._stringio    # free up some memory
         sys.stdout = self._stdout
+        print(value)
 
 
 @unittest.skipUnless(os.getenv("LONG_TESTS", False),

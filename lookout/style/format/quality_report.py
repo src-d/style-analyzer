@@ -69,11 +69,12 @@ def quality_report(input_pattern: str, bblfsh: str, language: str, n_files: int,
         return
     X, y, (vnodes_y, vnodes, vnode_parents, node_parents) = res
     # predict with model and generate report
-    y_pred, _ = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes, feature_extractor=fe)
-    y, y_pred, vnodes_y, safe_preds = filter_uast_breaking_preds(
+    y_pred, rule_winners = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
+                                         feature_extractor=fe)
+    y, y_pred, vnodes_y, rule_winners, safe_preds = filter_uast_breaking_preds(
         y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, files={f.path: f for f in files},
         feature_extractor=fe, stub=client._stub, vnode_parents=vnode_parents,
-        node_parents=node_parents, log=log)
+        node_parents=node_parents, rule_winners=rule_winners, log=log)
     target_names = fe.composite_class_representations
     print(generate_report(y=y, y_pred=y_pred, target_names=target_names, vnodes_y=vnodes_y,
                           n_files=n_files))
@@ -211,11 +212,10 @@ class ReportAnalyzer(Analyzer):
                 X, y, (vnodes_y, vnodes, vnode_parents, node_parents) = res
                 y_pred, rule_winners = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
                                                      feature_extractor=fe)
-                y, y_pred, vnodes_y, safe_preds = filter_uast_breaking_preds(
+                y, y_pred, vnodes_y, rule_winners, safe_preds = filter_uast_breaking_preds(
                     y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, files={file.path: file},
                     feature_extractor=fe, client=self.client, vnode_parents=vnode_parents,
-                    node_parents=node_parents, log=self.log)
-                rule_winners = rule_winners[safe_preds]
+                    node_parents=node_parents, rule_winners=rule_winners, log=self.log)
                 self.log.debug("y.shape %s" % y.shape)
                 self.log.debug("len(vnodes_y) %s" % len(vnodes_y))
                 self.log.debug("y_pred.shape %s" % y_pred.shape)
@@ -285,12 +285,11 @@ class ReportAnalyzer(Analyzer):
 
             y_pred, rule_winners = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
                                                  feature_extractor=fe)
-            y, y_pred, vnodes_y, safe_preds = filter_uast_breaking_preds(
+            y, y_pred, vnodes_y, rule_winners, safe_preds = filter_uast_breaking_preds(
                 y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes,
                 files={f.path: f for f in filtered_files}, feature_extractor=fe,
                 client=cls.client, vnode_parents=vnode_parents, node_parents=node_parents,
-                log=cls.log)
-            rule_winners = rule_winners[safe_preds]
+                rule_winners=rule_winners, log=cls.log)
             target_names = fe.composite_class_representations
             assert len(y) == len(y_pred)
             report = cls.generate_report(y=y, y_pred=y_pred, vnodes_y=vnodes_y,

@@ -5,6 +5,7 @@ import bblfsh
 
 from lookout.style.format.classes import CLASS_REPRESENTATIONS, EMPTY_CLS
 
+
 Position = NamedTuple("Position", (("offset", int), ("line", int), ("col", int)))
 """
 `line` and `col` are 1-based to match UAST!
@@ -19,8 +20,8 @@ class VirtualNode:
     """
 
     def __init__(self, value: str, start: Position, end: Position,
-                 *, node: bblfsh.Node = None, y: Union[int, Tuple[int]] = None,
-                 path: str = None) -> None:
+                 *, node: bblfsh.Node = None, y: Union[int, Tuple[int]] = None, path: str = None
+                 ) -> None:
         """
         Construct a VirtualNode.
 
@@ -68,9 +69,7 @@ class VirtualNode:
                 and self.path == other.path)
 
     def copy(self) -> "VirtualNode":
-        """
-        Produce a full clone of the node.
-        """
+        """Produce a full clone of the node."""
         return VirtualNode(
             self.value, self.start, self.end, node=self.node, y=self.y, path=self.path)
 
@@ -144,3 +143,6 @@ class VirtualNode:
                                        line=node.end_position.line,
                                        col=node.end_position.col),
                               path=path)
+
+
+AnyNode = Union[VirtualNode, bblfsh.Node]
