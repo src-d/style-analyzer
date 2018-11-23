@@ -107,7 +107,8 @@ class AnalyzerTests(unittest.TestCase):
                                          for k in common])
         config = {"global": {"n_iter": 1}}
         model = FormatAnalyzer.train(self.ptr, config, datastub)
-        analyzer = FormatAnalyzer(model, self.ptr.url, {})
+        analyzer = FormatAnalyzer(model, self.ptr.url, {"confidence_threshold": 0.90,
+                                                        "support_threshold": 50})
         comments = analyzer.analyze(self.ptr, self.ptr, datastub)
         self.assertGreater(len(comments), 0)
 
