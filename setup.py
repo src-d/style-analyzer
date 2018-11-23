@@ -9,6 +9,12 @@ with open(os.path.join(os.path.dirname(__file__), "README.md")) as f:
     long_description = f.read()
 
 tests_require = ["docker>=3.4.0,<4.0"]
+tf_requires = ["tensorflow>=1.0,<2.0"]
+tf_gpu_requires = ["tensorflow-gpu>=1.0,<2.0"]
+plot_requires = ["matplotlib>=2.0,<3.0"]
+web_requires = ["Flask>=1.0.0,<2.0", "Flask-Cors>=3.0.0,<4.0"]
+all_cpu_requires = tests_require + tf_requires + plot_requires + web_requires
+all_gpu_requires = tests_require + tf_gpu_requires + plot_requires + web_requires
 
 setup(
     name="lookout-style",
@@ -26,7 +32,7 @@ setup(
     keywords=["machine learning on source code", "babelfish", "lookout"],
     install_requires=[
         "sourced-ml>=0.7.0,<0.8",
-        "lookout-sdk-ml>=0.1.2,<0.2",
+        "lookout-sdk-ml>=0.1.3,<0.2",
         "scikit-learn>=0.19,<0.20.0",
         "scikit-optimize>=0.5,<2.0",
         "pandas>=0.22,<2.0",
@@ -35,11 +41,13 @@ setup(
         "xgboost>=0.72,<2.0",
     ],
     extras_require={
-        "tf": ["tensorflow>=1.0,<2.0"],
-        "tf_gpu": ["tensorflow-gpu>=1.0,<2.0"],
-        "plot": ["matplotlib>=2.0,<3.0"],
+        "tf": tf_requires,
+        "tf_gpu": tf_gpu_requires,
+        "plot": plot_requires,
         "test": tests_require,
-        "web": ["Flask>=1.0.0,<2.0", "Flask-Cors>=3.0.0,<4.0"],
+        "web": web_requires,
+        "all_gpu": all_gpu_requires,
+        "all_cpu": all_cpu_requires,
     },
     tests_require=tests_require,
     package_data={"": ["LICENSE.md", "README.md"], },
