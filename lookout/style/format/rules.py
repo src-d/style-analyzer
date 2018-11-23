@@ -3,10 +3,12 @@ from collections import defaultdict
 from copy import deepcopy
 import functools
 from importlib import import_module
+from itertools import islice
 import logging
-from typing import (Any, Dict, Iterable, List, Mapping, NamedTuple, Optional, Sequence, Set, Tuple,
-                    Union)
+from typing import (Any, Dict, Iterable, List, Mapping, MutableMapping, NamedTuple, Optional,
+                    Sequence, Set, Tuple, Union)
 
+from bblfsh import role_name
 from lookout.core.ports import Type
 import numpy
 from numpy import count_nonzero
@@ -19,6 +21,7 @@ from sklearn.metrics import accuracy_score, confusion_matrix, precision_recall_f
 from sklearn.model_selection import train_test_split
 from sklearn.tree import _tree as Tree, DecisionTreeClassifier
 
+from lookout.style.format.classes import CLASS_INDEX, CLS_DOUBLE_QUOTE, CLS_SINGLE_QUOTE
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.virtual_node import VirtualNode
 
@@ -129,18 +132,94 @@ class Rules:
                  Rules.apply()
         """
         y_pred, winners = self.apply(X, True)
-        try:
-            postprocess = import_module(
-                "lookout.style.format.langs.%s.postprocessor" % feature_extractor.language) \
-                .postprocess
-        except ImportError:
-            return y_pred, winners
-        postprocessed_y_pred, postprocessed_winners = postprocess(
-            X=X, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, winners=winners, rules=self,
+        postprocessed_y_pred, postprocessed_winners = self.harmonize_quotes(
+            X=X, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, winners=winners,
             feature_extractor=feature_extractor)
         if return_originals:
             return postprocessed_y_pred, postprocessed_winners, y_pred, winners
         return postprocessed_y_pred, postprocessed_winners
+
+    @staticmethod
+    def _get_composite(feature_extractor: FeatureExtractor, labels: Tuple[int, ...]) -> int:
+        if labels in feature_extractor.class_sequences_to_labels:
+            return feature_extractor.class_sequences_to_labels[labels]
+        feature_extractor.class_sequences_to_labels[labels] = \
+            len(feature_extractor.class_sequences_to_labels)
+        feature_extractor.labels_to_class_sequences.append(labels)
+        return len(feature_extractor.labels_to_class_sequences) - 1
+
+    def _get_new_rule(self, feature_extractor: FeatureExtractor, labels: Tuple[int, ...],
+                      new_rules: MutableMapping[Tuple[int, ...], int]) -> int:
+        if labels in new_rules:
+            return new_rules[labels]
+        self._rules.append(Rule(tuple(),
+                                RuleStats(cls=self._get_composite(feature_extractor, labels),
+                                          conf=1., support=1)))
+        rule_i = len(self.rules) - 1
+        new_rules[labels] = rule_i
+        return rule_i
+
+    def _set_new_rule(self, feature_extractor: FeatureExtractor, labels: Tuple[int, ...],
+                      new_rules: MutableMapping[Tuple[int, ...], int], winners: numpy.ndarray,
+                      y: numpy.ndarray, y_i: int) -> None:
+        rule = self._get_new_rule(feature_extractor, tuple(labels), new_rules)
+        winners[y_i] = rule
+        y[y_i] = self._rules[rule].stats.cls
+
+    def harmonize_quotes(self, X: numpy.ndarray, y_pred: numpy.ndarray,
+                         vnodes_y: Sequence[VirtualNode], vnodes: Sequence[VirtualNode],
+                         winners: numpy.ndarray, feature_extractor: FeatureExtractor
+                         ) -> Tuple[numpy.ndarray, numpy.ndarray]:
+        """
+        Post-process predictions to correct mis-matched quotes.
+
+        To do so, we consider only the tuples (', STRING, ') or (", STRING, ") in the input. We
+        then create fake rules as needed (because a rule going from the input to the corrected
+        quote might not exist in the trained rules).
+
+        :param X: Feature matrix.
+        :param y_pred: Predictions to correct.
+        :param vnodes_y: Sequence of the predicted virtual nodes.
+        :param vnodes: Sequence of virtual nodes representing the input.
+        :param winners: Indices of the rules that were used to compute the predictions.
+        :param feature_extractor: FeatureExtractor used to extract features.
+        :return: Updated y and winners.
+        """
+        quotes_classes = {CLASS_INDEX[CLS_DOUBLE_QUOTE], CLASS_INDEX[CLS_SINGLE_QUOTE]}
+        processed_y = y_pred.copy()
+        processed_winners = winners.copy()
+        y_indices = {id(vnode): i for i, vnode in enumerate(vnodes_y)}
+        new_rules = {}
+        for vnode1, vnode2, vnode3 in zip(vnodes, islice(vnodes, 1, None),
+                                          islice(vnodes, 2, None)):
+            if (id(vnode1) not in y_indices or id(vnode3) not in y_indices or vnode2.node is None
+                    or vnode1.y[-1] not in quotes_classes or vnode3.y[0] != vnode1.y[-1]):
+                continue
+            vnode2_roles = frozenset(role_name(role_id) for role_id in vnode2.node.roles)
+            if "STRING" not in vnode2_roles:
+                continue
+            y_i_1 = y_indices[id(vnode1)]
+            y_i_3 = y_indices[id(vnode3)]
+            conf_vnode1 = self._rules[winners[y_i_1]].stats.conf
+            conf_vnode3 = self._rules[winners[y_i_3]].stats.conf
+            labels1 = list(feature_extractor.labels_to_class_sequences[y_pred[y_i_1]])
+            labels3 = list(feature_extractor.labels_to_class_sequences[y_pred[y_i_3]])
+            if labels1[-1] not in quotes_classes or labels3[0] not in quotes_classes:
+                self._set_new_rule(feature_extractor, vnode1.y, new_rules, processed_winners,
+                                   processed_y, y_i_1)
+                self._set_new_rule(feature_extractor, vnode3.y, new_rules, processed_winners,
+                                   processed_y, y_i_3)
+            elif labels1[-1] != labels3[0]:
+                quote = labels1[-1] if conf_vnode1 >= conf_vnode3 else labels3[0]
+                if labels1[-1] != quote:
+                    labels1[-1] = quote
+                    self._set_new_rule(feature_extractor, tuple(labels1), new_rules,
+                                       processed_winners, processed_y, y_i_1)
+                else:
+                    labels3[0] = quote
+                    self._set_new_rule(feature_extractor, tuple(labels3), new_rules,
+                                       processed_winners, processed_y, y_i_3)
+        return processed_y, processed_winners
 
     @property
     def rules(self) -> List[Rule]:
