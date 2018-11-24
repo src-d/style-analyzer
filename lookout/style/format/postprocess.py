@@ -3,8 +3,8 @@ import logging
 from typing import Iterable, Mapping, Sequence
 
 import bblfsh
-from bblfsh.client import BblfshClient
 from lookout.core.api.service_data_pb2 import File
+from lookout.core.data_requests import parse_uast
 import numpy
 
 from lookout.style.format.classes import CLS_DOUBLE_QUOTE, CLS_SINGLE_QUOTE, INDEX_CLS_TO_STR
@@ -37,12 +37,12 @@ def check_uasts_are_equal(uast1: bblfsh.Node, uast2: bblfsh.Node) -> bool:
     return True
 
 
-def filter_uast_breaking_preds(y: numpy.ndarray, y_pred: numpy.ndarray,
-                               vnodes_y: Sequence[VirtualNode], vnodes: Sequence[VirtualNode],
-                               files: Mapping[str, File], feature_extractor: FeatureExtractor,
-                               client: BblfshClient, vnode_parents: Mapping[int, bblfsh.Node],
-                               node_parents: Mapping[str, bblfsh.Node], log: logging.Logger
-                               ) -> Iterable[int]:
+def filter_uast_breaking_preds(
+        y: numpy.ndarray, y_pred: numpy.ndarray, vnodes_y: Sequence[VirtualNode],
+        vnodes: Sequence[VirtualNode], files: Mapping[str, File],
+        feature_extractor: FeatureExtractor, stub: "bblfsh.aliases.ProtocolServiceStub",
+        vnode_parents: Mapping[int, bblfsh.Node], node_parents: Mapping[str, bblfsh.Node],
+        log: logging.Logger) -> Iterable[int]:
     """
     Filter the model's predictions that modify the UAST apart from changing positions.
 
@@ -52,7 +52,7 @@ def filter_uast_breaking_preds(y: numpy.ndarray, y_pred: numpy.ndarray,
     :param vnodes: Sequence of all the `VirtualNode`-s corresponding to the input.
     :param files: Dictionary of File-s with content, uast and path.
     :param feature_extractor: FeatureExtractor used to extract features.
-    :param client: Babelfish client.
+    :param stub: Babelfish GRPC service stub.
     :param vnode_parents: `VirtualNode`-s' parents mapping as the LCA of the closest
                            left and right babelfish nodes.
     :param node_parents: Parents mapping of the input UASTs.
@@ -73,20 +73,18 @@ def filter_uast_breaking_preds(y: numpy.ndarray, y_pred: numpy.ndarray,
             continue
         content_before = files[vn_y.path].content
         parent = vnode_parents[id(vn_y)]
-        errors_parsing = True
-        while errors_parsing:
+        while True:
             start, end = parent.start_position.offset, parent.end_position.offset
-            parse_response_before = client.parse(filename="", contents=content_before[start:end],
-                                                 language=feature_extractor.language)
-            if parse_response_before.errors:
+            parent_before, errors_before = parse_uast(
+                stub, content_before[start:end], filename="", language=feature_extractor.language)
+            if errors_before:
                 try:
                     parent = node_parents[id(parent)]
                     continue
                 except KeyError:
-                    log.warning("skipped file %s, due to errors when parsing the whole content",
+                    log.warning("skipped file %s, due to errors in parsing the whole content",
                                 vn_y.path)
                     break
-            errors_parsing = parse_response_before.errors
             cur_i = vnodes.index(vnodes_y[i])
             output_pred = "".join(n.value for n in vnodes[cur_i:cur_i+2]).replace(vn_y.value,
                                                                                   pred_string)
@@ -96,13 +94,12 @@ def filter_uast_breaking_preds(y: numpy.ndarray, y_pred: numpy.ndarray,
                 + output_pred.encode() \
                 + content_before[vn_y.start.offset + len(vn_y.value) + len(next_vnode):]
             content_after = content_after[start:end + diff_pred_offset]
-            parse_response_after = client.parse(filename="", contents=content_after,
-                                                language=feature_extractor.language)
-            if not parse_response_after.errors:
-                parent_after = parse_response_after.uast
-                parent_before = parse_response_before.uast
+            parent_after, errors_after = parse_uast(
+                stub, content_after, filename="", language=feature_extractor.language)
+            if not errors_after:
                 if check_uasts_are_equal(parent_before, parent_after):
                     safe_preds.append(i)
+            break
     log.info("Non UAST breaking predictions: %d selected out of %d",
              len(safe_preds), y_pred.shape[0])
     vnodes_y = [vn for i, vn in enumerate(list(vnodes_y)) if i in safe_preds]

@@ -9,8 +9,8 @@ from bblfsh.client import BblfshClient
 from lookout.core import slogging
 from lookout.core.analyzer import Analyzer, ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
-from lookout.core.api.service_data_pb2_grpc import DataStub
-from lookout.core.data_requests import with_changed_uasts_and_contents, with_uasts_and_contents
+from lookout.core.data_requests import DataService, \
+    with_changed_uasts_and_contents, with_uasts_and_contents
 from lookout.core.lib import files_by_language, filter_files, find_deleted_lines, find_new_lines
 import numpy
 from skopt import BayesSearchCV
@@ -94,13 +94,13 @@ class FormatAnalyzer(Analyzer):
 
     @with_changed_uasts_and_contents
     def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
-                data_request_stub: DataStub, **data) -> List[Comment]:
+                data_service: DataService, **data) -> List[Comment]:
         """
         Analyze a set of changes from one revision to another.
 
         :param ptr_from: Git repository state pointer to the base revision.
         :param ptr_to: Git repository state pointer to the head revision.
-        :param data_request_stub: Connection to the Lookout data retrieval service, not used.
+        :param data_service: Connection to the Lookout data retrieval service, not used.
         :param data: Contains "changes" - the list of changes in the pointed state.
         :return: List of comments.
         """
@@ -161,8 +161,8 @@ class FormatAnalyzer(Analyzer):
                                                      feature_extractor=fe)
                 y, y_pred, vnodes_y, safe_preds = filter_uast_breaking_preds(
                     y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, files={file.path: file},
-                    feature_extractor=fe, client=self.client, vnode_parents=vnode_parents,
-                    node_parents=node_parents, log=log)
+                    feature_extractor=fe, stub=data_service.get_bblfsh(),
+                    vnode_parents=vnode_parents, node_parents=node_parents, log=log)
                 assert len(y) == len(y_pred)
 
                 code_lines = file.content.decode("utf-8", "replace").splitlines()
@@ -201,7 +201,7 @@ class FormatAnalyzer(Analyzer):
 
     @classmethod
     @with_uasts_and_contents
-    def train(cls, ptr: ReferencePointer, config: Mapping[str, Any], data_request_stub: DataStub,
+    def train(cls, ptr: ReferencePointer, config: Mapping[str, Any], data_service: DataService,
               **data) -> FormatModel:
         """
         Train a model given the files available.
@@ -209,7 +209,7 @@ class FormatAnalyzer(Analyzer):
         :param ptr: Git repository state pointer.
         :param config: configuration dict.
         :param data: contains "files" - the list of files in the pointed state.
-        :param data_request_stub: connection to the Lookout data retrieval service, not used.
+        :param data_service: connection to the Lookout data retrieval service, not used.
         :return: AnalyzerModel containing the learned rules, per language.
         """
         cls._log.info("train %s %s %s", ptr.url, ptr.commit,
