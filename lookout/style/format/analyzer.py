@@ -36,7 +36,7 @@ class FormatAnalyzer(Analyzer):
     defaults_for_analyze = {
         "bblfsh_address": "0.0.0.0:9432",
         "confidence_threshold": 0.95,
-        "support_threshold": 100,
+        "support_threshold": 80,
         "report_code_lines": True,
         "report_triggered_rules": True,
         "report_parse_failures": True,
@@ -58,7 +58,7 @@ class FormatAnalyzer(Analyzer):
                 "remove_constant_features": True,
                 "insert_noops": False,
                 "return_sibling_indices": False,
-                "cutoff_label_support": 50,
+                "cutoff_label_support": 80,
             },
             "trainable_rules": {
                 "prune_branches_algorithms": ["reduced-error"],
@@ -73,7 +73,7 @@ class FormatAnalyzer(Analyzer):
             "n_iter": 5,
             "line_length_limit": 500,
             "lower_bound_instances": 500,
-            "cutoff_label_precision": 0.95,
+            "cutoff_label_precision": 0.85,
         },
         # selected settings for each particular language which overwrite "global"
         # empty {} is still required if we do not have any adjustments
