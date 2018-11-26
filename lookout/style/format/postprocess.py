@@ -99,6 +99,8 @@ def filter_uast_breaking_preds(
             if not errors_after:
                 if check_uasts_are_equal(parent_before, parent_after):
                     safe_preds.append(i)
+            # TODO(vmarkovtsev): extract the loop body to a separate function
+            # we have checked for AST match - exit the loop
             break
     log.info("Non UAST breaking predictions: %d selected out of %d",
              len(safe_preds), y_pred.shape[0])
