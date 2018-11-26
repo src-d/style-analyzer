@@ -26,6 +26,11 @@ class PostprocessingTests(unittest.TestCase):
             tar.extractall(path=cls.base_dir)
         cls.jquery_noisy_dir = os.path.join(cls.base_dir, "jquery_noisy")
         cls.input_file = os.path.join(cls.jquery_noisy_dir, "28-xhr.js")
+        # model trained on https://github.com/jquery/jquery repo with the following
+        # non default parameters: left_siblings_window: 4, right_siblings_window: 4,
+        # parents_depth: 1, left_features: ["length", "diff_offset", "diff_col",
+        # "diff_line", "label", "reserved", "roles"], right_features: ["length",
+        # "reserved", "roles"], parent_features: ["roles"]
         cls.model_path = str(Path(__file__).parent.resolve() / "model_jquery.asdf")
 
     @classmethod
@@ -47,6 +52,7 @@ class PostprocessingTests(unittest.TestCase):
             feature_extractor=fe, stub=self.data_service.get_bblfsh(), vnode_parents=vnode_parents,
             node_parents=node_parents, log=log)
         bad_preds = set(range(winners.shape[0])) - set(safe_preds)
+        # On this file, the model makes exactly one prediction that is breaking the uast: X[15]
         self.assertEqual(bad_preds, {15})
 
 
