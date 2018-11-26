@@ -91,10 +91,14 @@ def filter_uast_breaking_preds(y: numpy.ndarray, y_pred: numpy.ndarray,
             output_pred = "".join(n.value for n in vnodes[cur_i:cur_i+2]).replace(vn_y.value,
                                                                                   pred_string)
             diff_pred_offset = len(pred_string) - len(vn_y.value)
-            next_vnode = vnodes[cur_i + 1].value
-            content_after = content_before[:vn_y.start.offset] \
-                + output_pred.encode() \
-                + content_before[vn_y.start.offset + len(vn_y.value) + len(next_vnode):]
+            try:
+                content_after = content_before[:vn_y.start.offset] \
+                    + output_pred.encode() \
+                    + content_before[vn_y.start.offset + len(vn_y.value)
+                                     + len(vnodes[cur_i + 1].value):]
+            except IndexError:
+                content_after = content_before[:vn_y.start.offset] \
+                    + output_pred.encode()
             content_after = content_after[start:end + diff_pred_offset]
             parse_response_after = client.parse(filename="", contents=content_after,
                                                 language=feature_extractor.language)
