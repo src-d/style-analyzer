@@ -80,7 +80,7 @@ matrix:
         - HELM_RELEASE=lookout-style-analyzer HELM_CHART=lookout-style-analyzer K8S_NAMESPACE=lookout HELM_ARGS="--tiller-namespace=lookout --repo https://src-d.github.io/charts/ --set image.tag=$TRAVIS_TAG -f .helm_staging.yml" make deploy
   fast_finish: true
 before_script:
-  - make bblfsh-start
+  - travis_retry make bblfsh-start
 script:
   - (eval "$SCRIPT")
 notifications:

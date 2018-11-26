@@ -6,8 +6,8 @@ from typing import Any, Dict, List, Mapping, Tuple
 import bblfsh
 from lookout.core.analyzer import Analyzer, AnalyzerModel, DummyAnalyzerModel, ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
-from lookout.core.api.service_data_pb2_grpc import DataStub
-from lookout.core.data_requests import with_changed_uasts_and_contents, with_uasts_and_contents
+from lookout.core.data_requests import DataService, \
+    with_changed_uasts_and_contents, with_uasts_and_contents
 from lookout.core.lib import extract_changed_nodes, files_by_language, filter_files, find_new_lines
 import pandas
 from sourced.ml.algorithms import TokenParser, uast2sequence
@@ -49,15 +49,15 @@ class IdTyposAnalyzer(Analyzer):
 
     @with_changed_uasts_and_contents
     def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
-                data_request_stub: DataStub, **data) -> [Comment]:
+                data_service: DataService, **data) -> [Comment]:
         """
         Return the list of `Comment`-s - found typo corrections.
 
         :param ptr_from: The Git revision of the fork point. Exists in both the original and \
                          the forked repositories.
         :param ptr_to: The Git revision to analyze. Exists only in the forked repository.
-        :param data_request_stub: The channel to the data service in Lookout server to query for \
-                                  UASTs, file contents, etc.
+        :param data_service: The channel to the data service in Lookout server to query for \
+                             UASTs, file contents, etc.
         :param data: Extra data passed into the method. Used by the decorators to simplify \
                      the data retrieval.
         :return: List of found review suggestions. Refer to \
@@ -109,15 +109,15 @@ class IdTyposAnalyzer(Analyzer):
 
     @classmethod
     @with_uasts_and_contents
-    def train(cls, ptr: ReferencePointer, config: dict, data_request_stub: DataStub,
+    def train(cls, ptr: ReferencePointer, config: dict, data_service: DataService,
               **data) -> AnalyzerModel:
         """
         Generate a new model on top of the specified source code.
 
         :param ptr: Git repository state pointer.
         :param config: Configuration of the training of unspecified structure.
-        :param data_request_stub: The channel to the data service in Lookout server to query for \
-                                  UASTs, file contents, etc.
+        :param data_service: The channel to the data service in Lookout server to query for \
+                             UASTs, file contents, etc.
         :param data: Extra data passed into the method. Used by the decorators to simplify \
                      the data retrieval.
         :return: Instance of `AnalyzerModel` (`model_type`, to be precise).

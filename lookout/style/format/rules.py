@@ -146,8 +146,9 @@ class Rules:
         :param confidence_threshold: Minimum confidence value.
         :return: Filtered rules.
         """
-        self._log.debug("Filtering rules with confidence higher than %d", confidence_threshold)
         rules = [rule for rule in self._rules if rule.stats.conf > confidence_threshold]
+        self._log.debug("Filtered rules by confidence >= %f: %d -> %d",
+                        confidence_threshold, len(self._rules), len(rules))
         return Rules(rules, self._origin_config)
 
     def filter_by_support(self, support_threshold: int) -> Sequence[Rule]:
@@ -157,8 +158,9 @@ class Rules:
         :param support_threshold: Minimum support value.
         :return: Filtered rules.
         """
-        self._log.debug("Filtering rules with support higher than %d", support_threshold)
         rules = [rule for rule in self._rules if rule.stats.support > support_threshold]
+        self._log.debug("Filtered rules by support >= %d: %d -> %d",
+                        support_threshold, len(self._rules), len(rules))
         return Rules(rules, self._origin_config)
 
     @staticmethod

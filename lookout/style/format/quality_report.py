@@ -72,7 +72,7 @@ def quality_report(input_pattern: str, bblfsh: str, language: str, n_files: int,
     y_pred, _ = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes, feature_extractor=fe)
     y, y_pred, vnodes_y, safe_preds = filter_uast_breaking_preds(
         y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, files={f.path: f for f in files},
-        feature_extractor=fe, client=client, vnode_parents=vnode_parents,
+        feature_extractor=fe, stub=client._stub, vnode_parents=vnode_parents,
         node_parents=node_parents, log=log)
     target_names = fe.composite_class_representations
     print(generate_report(y=y, y_pred=y_pred, target_names=target_names, vnodes_y=vnodes_y,
