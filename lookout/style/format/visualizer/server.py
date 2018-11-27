@@ -95,7 +95,7 @@ def return_features() -> Response:
                                     feature_extractor=fe)
     _, _, _, safe_preds = filter_uast_breaking_preds(y=y, y_pred=y_pred, vnodes_y=vnodes_y,
                                                      vnodes=vnodes, files={file.path: file},
-                                                     feature_extractor=fe, client=client,
+                                                     feature_extractor=fe, stub=client._stub,
                                                      vnode_parents=vnode_parents,
                                                      node_parents=node_parents, log=log)
     wrong_preds = list(set(range(X.shape[0])) - set(safe_preds))
