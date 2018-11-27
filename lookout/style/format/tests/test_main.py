@@ -2,7 +2,7 @@ import argparse
 import sys
 import unittest
 
-import lookout.style.format.__main__ as main
+import lookout.style.format.cmdline_tools as main
 
 
 class MainTests(unittest.TestCase):
