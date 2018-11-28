@@ -6,8 +6,7 @@ import numpy
 
 from lookout.style.format.classes import (
     CLASS_INDEX, CLASS_REPRESENTATIONS, CLASSES, CLS_DOUBLE_QUOTE, CLS_NEWLINE, CLS_NOOP,
-    CLS_SINGLE_QUOTE, CLS_SPACE_DEC, CLS_SPACE_INC, CLS_TAB_DEC, CLS_TAB_INC, CLS_TO_STR,
-    INTENDATION_INC_STRS)
+    CLS_SINGLE_QUOTE, CLS_SPACE_DEC, CLS_SPACE_INC, CLS_TAB_DEC, CLS_TAB_INC, CLS_TO_STR)
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.virtual_node import VirtualNode
 
@@ -74,7 +73,7 @@ class CodeGenerator:
         result = []
         for vnode, y_new in self._iterate_vnodes(vnodes, vnodes_y, y_pred):
             vnode = vnode.copy()
-            if y_new != vnode.y or vnode.value:
+            if y_new != vnode.y:
                 vnode.y, vnode.y_old = y_new, vnode.y
             result.append(vnode)
         return result
@@ -100,7 +99,7 @@ class CodeGenerator:
                 # Check unexpected situations.
                 # If skip_errors is False `self.check()` raises an exception.
                 tokens.append(vnode.value)
-            elif state.line_removed and self.is_accumulated_indentation(vnode):
+            elif state.line_removed and vnode.is_accumulated_indentation:
                 # Skip accumulated indentation for the line that was removed
                 pass
             elif state.line_added:
@@ -112,18 +111,18 @@ class CodeGenerator:
                     tokens.append(state.accumulated_indentation)
                     tokens.extend(state.indent_increase_tokens)
                 tokens.append(vnode.value)
-            elif not (y_changed or self.is_accumulated_indentation(vnode) or state.line_beginning):
+            elif not (y_changed or vnode.is_accumulated_indentation or state.line_beginning):
                 # Nothing should be changed
                 tokens.append(vnode.value)
             elif state.line_beginning and y_new is None:
                 # line beginning should be handled super carefully
                 if state.indent_delta == 0:
                     # Nothing should be changed, just save accumulated_indentation
-                    if self.is_accumulated_indentation(vnode):
+                    if vnode.is_accumulated_indentation:
                         state.accumulated_indentation = vnode.value
                     tokens.append(vnode.value)
                 else:
-                    if self.is_accumulated_indentation(vnode):
+                    if vnode.is_accumulated_indentation:
                         # We should modify existing indentation
                         if state.indent_delta < 0:
                             if len(vnode.value) < -state.indent_delta:
@@ -163,7 +162,6 @@ class CodeGenerator:
                 assert y_new is not None
                 tokens.append("".join(CLS_TO_STR[CLASSES[yi]] for yi in y_new))
             state.update(y_old, y_new)
-            continue
 
         return "".join(tokens)
 
@@ -213,18 +211,6 @@ class CodeGenerator:
         if not self.skip_errors:
             raise CodeGenerationError(msg)
         return False
-
-    @staticmethod
-    def is_accumulated_indentation(vnode) -> bool:
-        """
-        Check if the node represents an accumulated indentation.
-
-        :return: True if the node represents accumulated indentation else False.
-        """
-        for v in vnode.value:
-            if v not in INTENDATION_INC_STRS:
-                return False
-        return getattr(vnode, "y_old", vnode.y) is None and vnode.node is None
 
 
 class _State:

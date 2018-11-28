@@ -20,8 +20,8 @@ class VirtualNode:
     """
 
     def __init__(self, value: str, start: Position, end: Position,
-                 *, node: bblfsh.Node = None, y: Union[int, Tuple[int]] = None, path: str = None
-                 ) -> None:
+                 *, node: bblfsh.Node = None, y: Union[int, Tuple[int]] = None,
+                 is_accumulated_indentation: bool=False,  path: str = None) -> None:
         """
         Construct a VirtualNode.
 
@@ -33,6 +33,7 @@ class VirtualNode:
                   or a composite sequence of such classes. It is guaranteed that the final type \
                   is Tuple[int]; the plain integer is an intermediate "unmerged" value which \
                   is replaced during the class composition.
+        :param is_accumulated_indentation: Marks virtual node as node with accumulated indentation.
         :param path: Path to related file. Useful for debugging.
         """
         self.value = value
@@ -40,10 +41,13 @@ class VirtualNode:
         assert end.line >= 1 and end.col >= 1, "end line and column are 1-based like UASTs"
         ys = set(y) if isinstance(y, tuple) else set([y])
         assert y is None or ys <= EMPTY_CLS or start.offset < end.offset, "illegal empty node"
+        assert not is_accumulated_indentation or y is None, "y can not be set for accumulated " \
+                                                            "indentation node."
         self.start = start
         self.end = end
         self.node = node
         self.y = y
+        self.is_accumulated_indentation = is_accumulated_indentation
         self.path = path
 
     def __str__(self) -> str:
@@ -71,7 +75,8 @@ class VirtualNode:
     def copy(self) -> "VirtualNode":
         """Produce a full clone of the node."""
         return VirtualNode(
-            self.value, self.start, self.end, node=self.node, y=self.y, path=self.path)
+            self.value, self.start, self.end, node=self.node, y=self.y,
+            is_accumulated_indentation=self.is_accumulated_indentation, path=self.path)
 
     def is_labeled_on_lines(self, lines: Optional[Set[int]]) -> bool:
         """
