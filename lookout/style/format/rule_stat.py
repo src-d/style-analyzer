@@ -9,7 +9,7 @@ from bblfsh import BblfshClient
 import numpy
 from tqdm import tqdm
 
-from lookout.style.format.benchmarks.profile import profile
+from lookout.style.format.benchmarks.time_profile import profile
 from lookout.style.format.descriptions import describe_rule
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.postprocess import filter_uast_breaking_preds

@@ -16,7 +16,7 @@ import numpy
 from sklearn.metrics import classification_report, confusion_matrix
 
 from lookout.style.format.analyzer import FormatAnalyzer
-from lookout.style.format.benchmarks.profile import profile
+from lookout.style.format.benchmarks.time_profile import profile
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.model import FormatModel
 from lookout.style.format.postprocess import filter_uast_breaking_preds
