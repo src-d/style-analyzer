@@ -50,7 +50,7 @@ class VirtualNode:
 
     def __repr__(self) -> str:
         return ("VirtualNode(\"%s\", y=%s, start=%s, end=%s, node=%s, path=\"%s\")" % (
-                    self.value.replace("\n", "\\n"),
+                    self.value.replace("\n", "\\n").replace("\t", "\\t"),
                     "None" if self.y is None else
                     CLASS_REPRESENTATIONS[self.y] if isinstance(self.y, int) else
                     "".join(CLASS_REPRESENTATIONS[yi] for yi in self.y),
