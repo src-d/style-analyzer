@@ -2,15 +2,47 @@
 from argparse import ArgumentParser
 import glob
 from os.path import join
+from typing import Iterable, Optional
 
 from bblfsh.client import BblfshClient
 from lookout.core.analyzer import ReferencePointer
+from lookout.core.api.service_data_pb2 import Change, File
 from lookout.core.slogging import setup
 from yaml import safe_load
 
 from lookout.style.format.analyzer import FormatAnalyzer
 from lookout.style.format.quality_report import prepare_files
-from lookout.style.format.utils import FakeDataStub
+
+
+class FakeDataService:
+    """Fake data service to replace lookout one."""
+
+    def __init__(self, bblfsh_client: BblfshClient, files: Optional[Iterable[File]],
+                 changes: Optional[Iterable[Change]]) -> None:
+        """Construct a fake data service."""
+        self.data_stub = FakeDataStub(files, changes)
+        self.bblfsh_client = bblfsh_client
+
+    def get_data(self):
+        return self.data_stub
+
+    def get_bblfsh(self):
+        return self.bblfsh_client._stub
+
+
+class FakeDataStub:
+    """Fake data stub to replace lookout one."""
+
+    def __init__(self, files: Optional[Iterable[File]], changes: Optional[Iterable[Change]]):
+        """Construct a fake data stub."""
+        self.files = files
+        self.changes = changes
+
+    def GetFiles(self, _):
+        return self.files
+
+    def GetChanges(self, _):
+        return self.changes
 
 
 def train(training_dir: str, output_path: str, language: str, bblfsh: str, config: str
@@ -34,7 +66,7 @@ def train(training_dir: str, output_path: str, language: str, bblfsh: str, confi
     model = FormatAnalyzer.train(
         ReferencePointer("someurl", "someref", "somecommit"),
         config,
-        FakeDataStub(prepare_files(filenames, bblfsh_client, language))
+        FakeDataService(bblfsh_client, prepare_files(filenames, bblfsh_client, language), None)
     )
     model.save(output_path)
 

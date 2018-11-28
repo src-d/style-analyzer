@@ -1,8 +1,8 @@
 """Javascript specific fixes for babelfish UASTs."""
-from bblfsh import Node
+import bblfsh
 
 
-def fix_regexp_node(node: Node) -> Node:
+def fix_regexp_node(node: bblfsh.Node) -> bblfsh.Node:
     """
     Workaround https://github.com/bblfsh/javascript-driver/issues/37.
 

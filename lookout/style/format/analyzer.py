@@ -55,8 +55,6 @@ class FormatAnalyzer(Analyzer):
                 "no_labels_on_right": True,
                 "debug_parsing": False,
                 "select_features_number": 500,
-                "remove_constant_features": True,
-                "insert_noops": False,
                 "return_sibling_indices": False,
                 "cutoff_label_support": 80,
             },
@@ -159,11 +157,13 @@ class FormatAnalyzer(Analyzer):
                 X, y, (vnodes_y, vnodes, vnode_parents, node_parents) = res
                 y_pred, rule_winners = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
                                                      feature_extractor=fe)
-                y, y_pred, vnodes_y, safe_preds = filter_uast_breaking_preds(
+                y, y_pred, vnodes_y, rule_winners, safe_preds = filter_uast_breaking_preds(
                     y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, files={file.path: file},
                     feature_extractor=fe, stub=data_service.get_bblfsh(),
-                    vnode_parents=vnode_parents, node_parents=node_parents, log=log)
+                    vnode_parents=vnode_parents, node_parents=node_parents,
+                    rule_winners=rule_winners, log=log)
                 assert len(y) == len(y_pred)
+                assert len(y) == len(rule_winners)
 
                 code_lines = file.content.decode("utf-8", "replace").splitlines()
                 for line_nodes in group_line_nodes(y, y_pred, vnodes_y, rule_winners):

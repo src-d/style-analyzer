@@ -26,11 +26,7 @@ class PostprocessingTests(unittest.TestCase):
             tar.extractall(path=cls.base_dir)
         cls.jquery_noisy_dir = os.path.join(cls.base_dir, "jquery_noisy")
         cls.input_file = os.path.join(cls.jquery_noisy_dir, "28-xhr.js")
-        # model trained on https://github.com/jquery/jquery repo with the following
-        # non default parameters: left_siblings_window: 4, right_siblings_window: 4,
-        # parents_depth: 1, left_features: ["length", "diff_offset", "diff_col",
-        # "diff_line", "label", "reserved", "roles"], right_features: ["length",
-        # "reserved", "roles"], parent_features: ["roles"]
+        # model trained on https://github.com/jquery/jquery repo with the default parameters
         cls.model_path = str(Path(__file__).parent.resolve() / "model_jquery.asdf")
 
     @classmethod
@@ -45,15 +41,15 @@ class PostprocessingTests(unittest.TestCase):
         fe = FeatureExtractor(language=self.language, **rules.origin_config["feature_extractor"])
         res = fe.extract_features(files)
         X, y, (vnodes_y, vnodes, vnode_parents, node_parents) = res
-        y_pred, winners = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
-                                        feature_extractor=fe)
-        y, y_pred, vnodes_y, safe_preds = filter_uast_breaking_preds(
+        y_pred, rule_winners = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
+                                             feature_extractor=fe)
+        y, y_pred, vnodes_y, _, safe_preds = filter_uast_breaking_preds(
             y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, files={f.path: f for f in files},
             feature_extractor=fe, stub=self.data_service.get_bblfsh(), vnode_parents=vnode_parents,
-            node_parents=node_parents, log=log)
-        bad_preds = set(range(winners.shape[0])) - set(safe_preds)
-        # On this file, the model makes exactly one prediction that is breaking the uast: X[15]
-        self.assertEqual(bad_preds, {15})
+            node_parents=node_parents, rule_winners=rule_winners, log=log)
+        bad_preds = set(range(rule_winners.shape[0])) - set(safe_preds)
+        # On this file, the model makes some breaking prediction, including X[19]
+        self.assertIn(19, bad_preds)
 
 
 if __name__ == "__main__":

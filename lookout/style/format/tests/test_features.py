@@ -1,4 +1,4 @@
-from collections import ChainMap, defaultdict
+from collections import defaultdict
 from itertools import islice
 import lzma
 from pathlib import Path
@@ -28,9 +28,6 @@ class FeaturesTests(unittest.TestCase):
         final_config = config["javascript"]
         cls.extractor = FeatureExtractor(language="javascript",
                                          **final_config["feature_extractor"])
-        cls.extractor_noops = FeatureExtractor(language="javascript",
-                                               **ChainMap({"insert_noops": True},
-                                                          final_config["feature_extractor"]))
 
     def test_parse_file_exact_match(self):
         test_js_code_filepath = Path(__file__).parent / "for_parse_test.js.xz"
@@ -46,9 +43,6 @@ class FeaturesTests(unittest.TestCase):
                     uast=self.uast)
         files = [file]
         X, y, (vnodes_y, vnodes, _, _) = self.extractor.extract_features(files)
-        self.assertEqual("".join(vnode.value for vnode in vnodes), self.contents)
-
-        X, y, (vnodes_y, vnodes, _, _) = self.extractor_noops.extract_features(files)
         self.assertEqual("".join(vnode.value for vnode in vnodes), self.contents)
 
     def test_parse_file_comment_after_regexp(self):
@@ -114,7 +108,8 @@ class FeaturesTests(unittest.TestCase):
         self.assertIsNotNone(res, "Failed to parse files.")
         self.check_X_y(*res)
 
-    def check_X_y(self, X, y, secondary_features):
+    def check_X_y(self, X_csr, y, secondary_features):
+        X = X_csr.toarray()
         vnodes_y, vnodes, vnode_parents, node_parents = secondary_features
         self.assertEqual(X.shape[0], y.shape[0])
         self.assertEqual(X.shape[0], len(vnodes_y))
@@ -145,21 +140,22 @@ class FeaturesTests(unittest.TestCase):
                     uast=self.uast)
         files = [file]
 
-        X1, y1, (vn1_y, vn1, vn1_parents, n1_parents) = self.extractor.extract_features(
+        X1_csr, y1, (vn1_y, vn1, vn1_parents, n1_parents) = self.extractor.extract_features(
             files, [list(range(1, self.contents.count("\n") // 2 + 1))] * 2)
-        self.check_X_y(X1, y1, (vn1_y, vn1, vn1_parents, n1_parents))
-        X2, y2, (vn2_y, vn2, _, _) = self.extractor.extract_features(files)
+        self.check_X_y(X1_csr, y1, (vn1_y, vn1, vn1_parents, n1_parents))
+        X2_csr, y2, (vn2_y, vn2, _, _) = self.extractor.extract_features(files)
+        X1, X2 = X1_csr.toarray(), X2_csr.toarray()
         self.assertTrue((X1 == X2[:len(X1)]).all())
         self.assertTrue((y1 == y2[:len(y1)]).all())
         self.assertTrue(vn1_y == vn2_y[:len(vn1_y)])
         self.assertLess(len(y1), len(y2))
 
     def test_noop_vnodes(self):
-        vnodes, parents = self.extractor_noops._parse_file(self.contents, self.uast, "test_file")
-        vnodes = self.extractor_noops._classify_vnodes(vnodes, "test_file")
-        vnodes = self.extractor_noops._merge_classes_to_composite_labels(
+        vnodes, parents = self.extractor._parse_file(self.contents, self.uast, "test_file")
+        vnodes = self.extractor._classify_vnodes(vnodes, "test_file")
+        vnodes = self.extractor._merge_classes_to_composite_labels(
             vnodes, "test_file", index_labels=True)
-        vnodes = self.extractor_noops._add_noops(list(vnodes), "test_file", index_labels=True)
+        vnodes = self.extractor._add_noops(list(vnodes), "test_file", index_labels=True)
         for vnode1, vnode2, vnode3 in zip(vnodes,
                                           islice(vnodes, 1, None),
                                           islice(vnodes, 2, None)):

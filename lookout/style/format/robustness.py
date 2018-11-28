@@ -93,14 +93,13 @@ def files2mispreds(files: Iterable[str], feature_extractor: FeatureExtractor, ru
     files = prepare_files(files, client, feature_extractor.language)
     X, y, (vnodes_y, vnodes, vnode_parents, node_parents) = feature_extractor \
         .extract_features(files)
-    y_pred, winners = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
-                                    feature_extractor=feature_extractor)
-    y, y_pred, vnodes_y, safe_preds = filter_uast_breaking_preds(
+    y_pred, rule_winners = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
+                                         feature_extractor=feature_extractor)
+    y, y_pred, vnodes_y, rule_winners, safe_preds = filter_uast_breaking_preds(
         y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes,
         files={f.path: f for f in files}, feature_extractor=feature_extractor, stub=client._stub,
-        vnode_parents=vnode_parents, node_parents=node_parents, log=log)
-    winners = winners[safe_preds]
-    mispreds = get_mispreds(y, y_pred, vnodes_y, winners)
+        vnode_parents=vnode_parents, node_parents=node_parents, rule_winners=rule_winners, log=log)
+    mispreds = get_mispreds(y, y_pred, vnodes_y, rule_winners)
     return mispreds
 
 

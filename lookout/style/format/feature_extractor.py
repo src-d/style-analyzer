@@ -1,58 +1,27 @@
 """Feature extraction module."""
 from collections import defaultdict, OrderedDict
-from enum import Enum, unique
 import importlib
-from itertools import chain, islice
+from itertools import chain, islice, zip_longest
 import logging
-from typing import (Dict, Iterable, List, Mapping, MutableMapping, Optional,
-                    Sequence, Set, Tuple, Union)
+from typing import (Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Union)
 
 import bblfsh
 from lookout.core.api.service_data_pb2 import File
 import numpy
+from scipy.sparse import csr_matrix, hstack, vstack
+from sklearn.exceptions import NotFittedError
 from sklearn.feature_selection import SelectKBest, VarianceThreshold
 
 from lookout.style.format.classes import (
     CLASS_INDEX, CLASS_PRINTABLES, CLASS_REPRESENTATIONS, CLS_DOUBLE_QUOTE, CLS_NEWLINE, CLS_NOOP,
     CLS_SINGLE_QUOTE, CLS_SPACE, CLS_SPACE_DEC, CLS_SPACE_INC, CLS_TAB, CLS_TAB_DEC, CLS_TAB_INC)
-from lookout.style.format.features import get_features, MultipleValuesFeature
-from lookout.style.format.virtual_node import Position, VirtualNode
+from lookout.style.format.features import (  # noqa: F401
+    Feature, FEATURE_CLASSES, FeatureGroup, FeatureId, FeatureLayout, Layout,
+    MultipleValuesFeature, MutableFeatureLayout, MutableLayout)
+from lookout.style.format.virtual_node import AnyNode, Position, VirtualNode
 
 
-@unique
-class FeatureGroup(Enum):
-    """
-    Feature groups.
-
-    Each feature belongs to one and only one of these classes.
-    """
-
-    node = 1
-    parents = 2
-    left = 3
-    right = 4
-
-    def format(self, value) -> str:
-        """
-        Represent the feature group for user interfaces. The trailing dot is appended as needed.
-
-        :param value: The feature group parameter. E.g., the index of the node for "left" \
-                      and "right".
-        :return: pretty-printed string, the trailing dot is appended as needed.
-        """
-        if self == FeatureGroup.node:
-            return "•••"
-        if self == FeatureGroup.parents:
-            return "^%d." % (value + 1)  # ↑ is displayed like shit in Ubuntu
-        if self == FeatureGroup.left:
-            return str(-value - 1) + "."
-        if self == FeatureGroup.right:
-            return "+%s." % (value + 1)
-        return "%s.%s." % (self.name, value)
-
-
-FeatureToIndex = MutableMapping[FeatureGroup, List[MutableMapping[str, List[int]]]]
-IndexToFeature = List[Tuple[FeatureGroup, int, str, int]]
+IndexToFeature = List[Tuple[FeatureGroup, int, FeatureId, int]]
 
 FEATURES_NUMPY_TYPE = numpy.uint8
 FEATURES_MIN = numpy.iinfo(FEATURES_NUMPY_TYPE).min
@@ -68,8 +37,8 @@ class FeatureExtractor:
                  parents_depth: int, node_features: Sequence[str], left_features: Sequence[str],
                  right_features: Sequence[str], parent_features: Sequence[str],
                  no_labels_on_right: bool, select_features_number: Optional[int],
-                 remove_constant_features: bool, insert_noops: bool, debug_parsing: bool,
-                 return_sibling_indices: bool, selected_features: Optional[numpy.ndarray] = None,
+                 debug_parsing: bool, return_sibling_indices: bool,
+                 selected_features: Optional[numpy.ndarray] = None,
                  label_composites: Optional[List[Tuple[int, ...]]] = None,
                  cutoff_label_support: int = 0) -> None:
         """
@@ -85,8 +54,6 @@ class FeatureExtractor:
         :param parent_features: Which features to compute for the current node's parents.
         :param no_labels_on_right: Whether to avoid using nodes with labels in right siblings.
         :param select_features_number: How many features to keep during feature selection.
-        :param remove_constant_features: Whether to remove constant features
-        :param insert_noops: Whether to insert noop nodes or not.
         :param debug_parsing: Whether to pause on parsing exceptions instead of skipping.
         :param return_sibling_indices: Whether to return the indices of siblings of the predicted \
                                        nodes.
@@ -108,8 +75,6 @@ class FeatureExtractor:
         self.parent_features = sorted(parent_features)
         self.no_labels_on_right = no_labels_on_right
         self.select_features_number = select_features_number
-        self.remove_constant_features = remove_constant_features
-        self.insert_noops = insert_noops
         self.debug_parsing = debug_parsing
         self.return_sibling_indices = return_sibling_indices
         self.selected_features = selected_features
@@ -133,7 +98,6 @@ class FeatureExtractor:
             # It's normal for some languages not to have a uast_fixes module.
             self.node_fixtures = {}
         if self.labels_to_class_sequences:
-            self._features = get_features(self.language, self.labels_to_class_sequences)
             self._compute_feature_info()
 
     def _compute_feature_info(self) -> None:
@@ -143,37 +107,49 @@ class FeatureExtractor:
         def populate_indices(feature_group: FeatureGroup, feature_names: Sequence[str],
                              nodes_number: int, total_index: int) -> int:
             self._feature_to_indices[feature_group] = []
-            self._feature_to_indices_set[feature_group] = []
+            self._features[feature_group] = []
             for node_index in range(nodes_number):
                 self._feature_to_indices[feature_group].append(OrderedDict())
-                self._feature_to_indices_set[feature_group].append(OrderedDict())
+                self._features[feature_group].append(OrderedDict())
                 for feature_name in feature_names:
-                    feature = self._features[feature_name]
-                    names = list(feature.names)
-                    self._feature_to_indices[feature_group][node_index][feature_name] = []
-                    self._feature_to_indices_set[feature_group][node_index][feature_name] = set()
-                    for index in range(len(list(self._features[feature_name].names))):
+                    feature_id = FeatureId[feature_name]
+                    self._feature_to_indices[feature_group][node_index][feature_id] = []
+                    feature_class = FEATURE_CLASSES[FeatureId[feature_name]]
+                    feature_pre_selection = feature_class(
+                        language=self.language,
+                        labels_to_class_sequences=self.labels_to_class_sequences,
+                        selected_indices=None,
+                        neighbour_group=feature_group,
+                        neighbour_index=node_index)
+                    selected_indices = []
+                    names = feature_pre_selection.names
+                    for index, name in enumerate(names):
                         if (self.selected_features is None
                                 or total_index in selected_features_set):
-                            if isinstance(feature, MultipleValuesFeature):
-                                name = "%s.%s" % (feature.id.name, names[index])
+                            selected_indices.append(index)
+                            if issubclass(feature_class, MultipleValuesFeature):
+                                last_name_part = "%s.%s" % (feature_pre_selection.id.name, name)
                             else:
-                                name = feature.id.name
+                                last_name_part = feature_pre_selection.id.name
                             self._feature_names.append("%s.%d.%s" % (feature_group.name,
-                                                                     node_index, name))
-                            self._feature_to_indices[feature_group][node_index][feature_name] \
+                                                                     node_index,
+                                                                     last_name_part))
+                            self._feature_to_indices[feature_group][node_index][feature_id] \
                                 .append(total_index)
-                            self._feature_to_indices_set[feature_group][node_index][feature_name] \
-                                .add(index)
-                            self._index_to_feature.append((feature_group, node_index, feature_name,
+                            self._index_to_feature.append((feature_group, node_index, feature_id,
                                                            index))
                         total_index += 1
+                    self._features[feature_group][node_index][feature_id] = feature_class(
+                        language=self.language,
+                        labels_to_class_sequences=self.labels_to_class_sequences,
+                        selected_indices=selected_indices,
+                        neighbour_group=feature_group,
+                        neighbour_index=node_index)
             return total_index
         self._index_to_feature = []  # type: IndexToFeature
-        self._feature_to_indices = OrderedDict()  # type: FeatureToIndex
+        self._feature_to_indices = OrderedDict()  # type: MutableFeatureLayout[List[int]]
         self._feature_names = []  # type: List[str]
-        # Not exposed through properties, only used during feature extraction.
-        self._feature_to_indices_set = OrderedDict()
+        self._features = OrderedDict()  # type: MutableFeatureLayout[Feature]
         total_index = 0
         total_index = populate_indices(FeatureGroup.node, self.node_features, 1, total_index)
         total_index = populate_indices(FeatureGroup.left, self.left_features,
@@ -185,21 +161,32 @@ class FeatureExtractor:
         # we don't need the last `total_index`
 
         self._feature_node_counts = {group: [sum(len(feature) for feature in node_index.values())
-                                             for node_index in self.feature_to_indices[group]]
+                                             for node_index in self._feature_to_indices[group]]
                                      for group in FeatureGroup}
         self._feature_group_counts = {group: sum(counts)
                                       for group, counts in self._feature_node_counts.items()}
         self._feature_count = sum(self._feature_group_counts.values())
 
     @property
-    def index_to_feature(self) -> IndexToFeature:
+    def index_to_feature(self) -> Optional[IndexToFeature]:
         """Return the mapping from integer indices to the corresponding feature names."""
+        if not hasattr(self, "_index_to_feature"):
+            raise NotFittedError()
         return self._index_to_feature
 
     @property
-    def feature_to_indices(self) -> FeatureToIndex:
+    def feature_to_indices(self) -> Optional[FeatureLayout[Sequence[int]]]:
         """Return the mapping from feature names to the corresponding integer indices."""
+        if not hasattr(self, "_feature_to_indices"):
+            raise NotFittedError()
         return self._feature_to_indices
+
+    @property
+    def features(self) -> Optional[FeatureLayout[Feature]]:
+        """Return the `Feature`-s used by this feature extractor."""
+        if not hasattr(self, "_features"):
+            raise NotFittedError()
+        return self._features
 
     @property
     def feature_names(self) -> List[str]:
@@ -213,11 +200,15 @@ class FeatureExtractor:
         Those names, as well as the feature layout, depend on the configuration used to launch the
         analyzer.
         """
+        if not hasattr(self, "_feature_names"):
+            raise NotFittedError()
         return self._feature_names
 
     def count_features(self, feature_group: Optional[FeatureGroup] = None,
                        neighbour_index: Optional[int] = None) -> int:
         """Return the feature count of a given subset of features."""
+        if not hasattr(self, "_feature_count"):
+            raise NotFittedError()
         if feature_group is None:
             return self._feature_count
         if neighbour_index is None:
@@ -225,10 +216,10 @@ class FeatureExtractor:
         return self._feature_node_counts[feature_group][neighbour_index]
 
     def extract_features(self, files: Iterable[File], lines: List[List[int]]=None) \
-            -> Optional[Union[Tuple[numpy.ndarray, numpy.ndarray,
+            -> Optional[Union[Tuple[csr_matrix, numpy.ndarray,
                                     Tuple[List[VirtualNode], List[VirtualNode],
                                           Mapping[int, bblfsh.Node], Mapping[int, bblfsh.Node]]],
-                              Tuple[numpy.ndarray, numpy.ndarray,
+                              Tuple[csr_matrix, numpy.ndarray,
                                     Tuple[List[VirtualNode], List[VirtualNode],
                                           Mapping[int, bblfsh.Node], Mapping[int, bblfsh.Node],
                                           List[List[int]]]]]]:
@@ -259,14 +250,11 @@ class FeatureExtractor:
                     traceback.print_exc()
                     input("Press Enter to continue…")
                 continue
-            file_vnodes = self._classify_vnodes(file_vnodes, file.path)
-            file_vnodes = self._merge_classes_to_composite_labels(
-                file_vnodes, file.path, index_labels=index_labels)
-            if self.insert_noops:
-                file_vnodes = self._add_noops(list(file_vnodes), file.path,
-                                              index_labels=index_labels)
-            else:
-                file_vnodes = list(file_vnodes)
+            file_vnodes_iterator = self._classify_vnodes(file_vnodes, file.path)
+            file_vnodes_iterator = self._merge_classes_to_composite_labels(
+                file_vnodes_iterator, file.path, index_labels=index_labels)
+            file_vnodes = self._add_noops(list(file_vnodes_iterator), file.path,
+                                          index_labels=index_labels)
             file_lines = set(lines[i]) if lines is not None and lines[i] is not None else None
             parsed_files.append((file_vnodes, file_parents, file_lines))
             node_parents.update(file_parents)
@@ -278,52 +266,61 @@ class FeatureExtractor:
             self._remove_labels_with_low_support(
                 chain.from_iterable(vn for vn, _, _ in parsed_files))
 
+        files_vnodes_y = [[vnode for vnode in file_vnodes
+                           if vnode.is_labeled_on_lines(file_lines)]
+                          for file_vnodes, _, file_lines in parsed_files]
+
         labels = [[self.class_sequences_to_labels[vnode.y]
-                   for vnode in file_vnodes if vnode.is_labeled_on_lines(file_lines)]
-                  for file_vnodes, file_parents, file_lines in parsed_files]
+                   for vnode in file_vnodes_y]
+                  for file_vnodes_y in files_vnodes_y]
         if not labels:
             # nothing was extracted
             return None
 
+        y = numpy.concatenate(labels)
+
         if index_labels:
-            self._features = get_features(self.language, self.labels_to_class_sequences)
             self._compute_feature_info()
 
-        y = numpy.concatenate(labels)
-        X = numpy.zeros((y.shape[0], self.count_features()), dtype=FEATURES_NUMPY_TYPE)
+        features = [feature for group_features in self._features.values()
+                    for node_features in group_features for feature in node_features.values()]
+        xs = []
         vnodes = []
-        vnodes_y = [None] * y.shape[0]
-        offset = 0
+        vnodes_y = []
         if self.return_sibling_indices:
             sibling_indices_list = []
-        for file_vnodes, file_parents, file_lines in parsed_files:
+        assert len(parsed_files) == len(files_vnodes_y)
+        for (file_vnodes, file_parents, _), file_vnodes_y in zip(parsed_files, files_vnodes_y):
             vnodes.extend(file_vnodes)
-            offset, sibling_indices = self._inplace_write_vnode_features(
-                file_vnodes, file_parents, file_lines, offset, X, vnodes_y)
+            vnodes_y.extend(file_vnodes_y)
+            neighbours, sibling_indices = self._create_neighbours(
+                file_vnodes, file_vnodes_y, file_parents, self.return_sibling_indices)
+            xs.append(hstack([feature(neighbours) for feature in features]))
             if self.return_sibling_indices:
                 sibling_indices_list.extend(sibling_indices)
+        assert len(y) == len(vnodes_y)
+        X = vstack(xs)
+
         self._log.debug("Features shape: %s", X.shape)
+        self._log.debug("Labels shape: %s", y.shape)
         if self.return_sibling_indices:
             return X, y, (vnodes_y, vnodes, vnode_parents, node_parents, sibling_indices_list)
         return X, y, (vnodes_y, vnodes, vnode_parents, node_parents)
 
-    def select_features(self, X: numpy.ndarray, y: numpy.ndarray) -> Tuple[numpy.ndarray,
-                                                                           numpy.ndarray]:
+    def select_features(self, X: csr_matrix, y: numpy.ndarray) -> Tuple[csr_matrix, numpy.ndarray]:
         """
         Select the most useful features based on sklearn's univariate feature selection.
 
-        :param X: Numpy 2-dimensional array of features to select.
+        :param X: Scipy CSR 2-dimensional matrix of features to select.
         :param y: Numpy 1-dimensional array of labels.
-        :return: Tuple of numpy arrays: X with only the selected features (columns) kept and an \
-                                        array of the indices of the kept features for later \
-                                        reapplication.
+        :return: Tuple of a CSR matrix with only the selected features (columns) kept and an \
+                 array of the indices of the kept features for later reapplication.
         """
         if self.selected_features is not None:
             return X, self.selected_features
-        if self.remove_constant_features:
-            feature_selector = VarianceThreshold()
-            X = feature_selector.fit_transform(X)
-            self.selected_features = feature_selector.get_support(indices=True)
+        feature_selector = VarianceThreshold()
+        X = feature_selector.fit_transform(X)
+        self.selected_features = feature_selector.get_support(indices=True)
         if self.select_features_number and self.select_features_number < X.shape[1]:
             feature_selector = SelectKBest(k=self.select_features_number)
             X = feature_selector.fit_transform(X, y)
@@ -357,6 +354,77 @@ class FeatureExtractor:
         """
         return ["".join(CLASS_PRINTABLES[label] for label in labels)
                 for labels in self.labels_to_class_sequences]
+
+    def _create_neighbours(self, vnodes: Sequence[VirtualNode], vnodes_y: Sequence[VirtualNode],
+                           parents: Mapping[int, bblfsh.Node], return_sibling_indices: bool = False
+                           ) -> Tuple[Layout[Sequence[Optional[AnyNode]]],
+                                      Optional[List[List[int]]]]:
+        if self.return_sibling_indices:
+            sibling_indices_list = []
+        neighbours = OrderedDict()  # type: MutableLayout[List[Optional[AnyNode]]]
+        for group_id, size in zip([FeatureGroup.node, FeatureGroup.left, FeatureGroup.right,
+                                   FeatureGroup.parents],
+                                  [1, self.left_siblings_window, self.right_siblings_window,
+                                   self.parents_depth]):
+            neighbours[group_id] = [[] for _ in range(size)]
+
+        vnodes_y_set = frozenset(id(vnode_y) for vnode_y in vnodes_y)
+        closest_left_node_id = None
+
+        for i, vnode in enumerate(vnodes):
+            if vnode.node:
+                closest_left_node_id = id(vnode.node)
+            if id(vnode) not in vnodes_y_set:
+                continue
+
+            # Current node
+            neighbours[FeatureGroup.node][0].append(vnode)
+
+            # Current node's parents
+            parent = (self._find_parent(i, vnodes, parents, closest_left_node_id)
+                      if self.parents_depth else None)
+            parents_list = []
+            if parent:
+                current_ancestor = parent
+                for _ in range(self.parents_depth):
+                    parents_list.append(current_ancestor)
+                    current_ancestor_id = id(current_ancestor)
+                    if current_ancestor_id not in parents:
+                        break
+                    current_ancestor = parents[current_ancestor_id]
+            for j, node in zip_longest(range(self.parents_depth), parents_list):
+                neighbours[FeatureGroup.parents][j].append(node)
+
+            # Current node's left siblings
+            left_sibling_indices = []
+            for j in range(i - 1, 0, -1):
+                if len(left_sibling_indices) >= self.left_siblings_window:
+                    break
+                if not self._keep_sibling(vnodes[j], vnode, include_labeled=True):
+                    continue
+                left_sibling_indices.append(j)
+            for j, node_index in zip_longest(range(self.left_siblings_window),
+                                             left_sibling_indices):
+                neighbours[FeatureGroup.left][j].append(None if node_index is None
+                                                        else vnodes[node_index])
+
+            # Current node's right siblings
+            right_sibling_indices = []
+            for j in range(i + 1, len(vnodes)):
+                if len(right_sibling_indices) >= self.right_siblings_window:
+                    break
+                if not self._keep_sibling(vnodes[j], vnode,
+                                          include_labeled=not self.no_labels_on_right):
+                    continue
+                right_sibling_indices.append(j)
+            for j, node_index in zip_longest(range(self.right_siblings_window),
+                                             right_sibling_indices):
+                neighbours[FeatureGroup.right][j].append(None if node_index is None
+                                                         else vnodes[node_index])
+
+            if return_sibling_indices:
+                sibling_indices_list.append(left_sibling_indices + right_sibling_indices)
+        return neighbours, sibling_indices_list if return_sibling_indices else None
 
     def _classify_vnodes(self, nodes: Iterable[VirtualNode], path: str) -> Iterable[VirtualNode]:
         """
@@ -541,17 +609,6 @@ class FeatureExtractor:
                                                 y=noop_label, path=path))
         return augmented_vnodes
 
-    def _get_features(self, feature_group: FeatureGroup, node_index: int,
-                      sibling: Union[VirtualNode, bblfsh.Node], node: VirtualNode
-                      ) -> Iterable[int]:
-        for feature_name, indices in self._feature_to_indices_set[feature_group][node_index] \
-                .items():
-            if not len(indices):
-                continue
-            yield from (value
-                        for i, value in enumerate(self._features[feature_name](sibling, node))
-                        if i in indices)
-
     @staticmethod
     def _find_parent(vnode_index: int, vnodes: Sequence[VirtualNode],
                      parents: Mapping[int, bblfsh.Node], closest_left_node_id: int
@@ -583,22 +640,6 @@ class FeatureExtractor:
             current_right_ancestor_id = id(parents[current_right_ancestor_id])
         return None
 
-    @staticmethod
-    def _inplace_write_features(features: Iterable[int], row: int, col: int, X: numpy.ndarray
-                                ) -> int:
-        """
-        Write features starting at X[row, col] and return the number of features written.
-
-        :param features: the features
-        :param row: the row where we should write
-        :param col: the column where we should write
-        :param X: the feature matrix
-        :return: the number of features written
-        """
-        to_write = [max(FEATURES_MIN, min(FEATURES_MAX, feature)) for feature in features]
-        X[row, col:col + len(to_write)] = to_write
-        return len(to_write)
-
     def _keep_sibling(self, sibling: VirtualNode, vnode: VirtualNode, include_labeled: bool
                       ) -> bool:
         if not include_labeled and (
@@ -610,95 +651,6 @@ class FeatureExtractor:
             return True
         quote_classes = set([CLASS_INDEX[CLS_DOUBLE_QUOTE], CLASS_INDEX[CLS_SINGLE_QUOTE]])
         return not (quote_classes & set(vnode.y) and quote_classes & set(sibling.y))
-
-    def _inplace_write_vnode_features(
-            self, vnodes: Sequence[VirtualNode], parents: Mapping[int, bblfsh.Node],
-            lines: Set[int], index_offset: int, X: numpy.ndarray, vn: List[VirtualNode]
-            ) -> Tuple[int, Optional[List[int]]]:
-        """
-        Write features in the input matrix given a sequence of `VirtualNode`-s and relevant info.
-
-        :param vnodes: input sequence of `VirtualNode`s
-        :param parents: dictionnary of node id to parent node
-        :param lines: indices of lines to consider. 1-based.
-        :param index_offset: at which index in the input ndarrays we should start writing
-        :param X: features matrix, row per sample
-        :param vn: list of the corresponding `VirtualNode`s, the length is the same as `X.shape[0]`
-        :return: the new offset, list of neighbours if return_neighbours is True else None
-        """
-        closest_left_node_id = None
-        position = index_offset
-        if self.return_sibling_indices:
-            sibling_indices_list = []
-        for i, vnode in enumerate(vnodes):
-            if vnode.node:
-                closest_left_node_id = id(vnode.node)
-            if not vnode.is_labeled_on_lines(lines):
-                continue
-            if self.parents_depth:
-                parent = self._find_parent(i, vnodes, parents, closest_left_node_id)
-            else:
-                parent = None
-
-            parents_list = []
-            if parent:
-                current_ancestor = parent
-                for _ in range(self.parents_depth):
-                    parents_list.append(current_ancestor)
-                    current_ancestor_id = id(current_ancestor)
-                    if current_ancestor_id not in parents:
-                        break
-                    current_ancestor = parents[current_ancestor_id]
-
-            left_sibling_indices = []
-            for j in range(i - 1, 0, -1):
-                if len(left_sibling_indices) >= self.left_siblings_window:
-                    break
-                if not self._keep_sibling(vnodes[j], vnode, include_labeled=True):
-                    continue
-                left_sibling_indices.append(j)
-            right_sibling_indices = []
-            for j in range(i + 1, len(vnodes)):
-                if len(right_sibling_indices) >= self.right_siblings_window:
-                    break
-                if not self._keep_sibling(vnodes[j], vnode,
-                                          include_labeled=not self.no_labels_on_right):
-                    continue
-                right_sibling_indices.append(j)
-
-            col_offset = 0
-            # 1. write features of the current node
-            col_offset += self._inplace_write_features(
-                self._get_features(FeatureGroup.node, 0, vnode, vnode), position, col_offset, X)
-
-            for j, node_index in enumerate(left_sibling_indices):
-                col_offset += self._inplace_write_features(
-                    self._get_features(FeatureGroup.left, j, vnodes[node_index], vnode),
-                    position, col_offset, X)
-            for j in range(self.left_siblings_window - 1, len(left_sibling_indices) - 1, -1):
-                col_offset += self.count_features(FeatureGroup.left, j)
-
-            # 3. write features of the right siblings of the current node and account for the
-            # possible lack of siblings by adjusting offset
-            for j, node_index in enumerate(right_sibling_indices):
-                col_offset += self._inplace_write_features(
-                    self._get_features(FeatureGroup.right, j, vnodes[node_index], vnode),
-                    position, col_offset, X)
-            for j in range(self.right_siblings_window - 1, len(right_sibling_indices) - 1, -1):
-                col_offset += self.count_features(FeatureGroup.right, j)
-
-            # 4. write features of the parents of the current node
-            for j, parent_vnode in enumerate(parents_list):
-                col_offset += self._inplace_write_features(
-                    self._get_features(FeatureGroup.parents, j, parent_vnode, vnode),
-                    position, col_offset, X)
-
-            vn[position] = vnode
-            position += 1
-            if self.return_sibling_indices:
-                sibling_indices_list.append(list(left_sibling_indices)
-                                            + list(right_sibling_indices))
-        return position, sibling_indices_list if self.return_sibling_indices else None
 
     def _parse_file(self, contents: str, root: bblfsh.Node, path: str) -> \
             Tuple[List[VirtualNode], Dict[int, bblfsh.Node]]:

@@ -42,7 +42,7 @@ def filter_uast_breaking_preds(
         vnodes: Sequence[VirtualNode], files: Mapping[str, File],
         feature_extractor: FeatureExtractor, stub: "bblfsh.aliases.ProtocolServiceStub",
         vnode_parents: Mapping[int, bblfsh.Node], node_parents: Mapping[str, bblfsh.Node],
-        log: logging.Logger) -> Iterable[int]:
+        rule_winners: numpy.ndarray, log: logging.Logger) -> Iterable[int]:
     """
     Filter the model's predictions that modify the UAST apart from changing positions.
 
@@ -56,6 +56,7 @@ def filter_uast_breaking_preds(
     :param vnode_parents: `VirtualNode`-s' parents mapping as the LCA of the closest
                            left and right babelfish nodes.
     :param node_parents: Parents mapping of the input UASTs.
+    :param rule_winners: Numpy array of the index of the winning rule for each sample.
     :param log: Logger.
     :return: List of predictions indices that are considered valid i.e. that are not breaking
              the UAST.
@@ -109,4 +110,4 @@ def filter_uast_breaking_preds(
     log.info("Non UAST breaking predictions: %d selected out of %d",
              len(safe_preds), y_pred.shape[0])
     vnodes_y = [vn for i, vn in enumerate(list(vnodes_y)) if i in safe_preds]
-    return y[safe_preds], y_pred[safe_preds], vnodes_y, safe_preds
+    return y[safe_preds], y_pred[safe_preds], vnodes_y, rule_winners[safe_preds], safe_preds

@@ -10,16 +10,17 @@ from lookout.core.api.service_data_pb2 import File
 from lookout.style.format.analyzer import FormatAnalyzer
 from lookout.style.format.descriptions import describe_rule
 from lookout.style.format.feature_extractor import FeatureExtractor, FeatureGroup
+from lookout.style.format.features import FeatureId
 from lookout.style.format.rules import Rule, RuleStats
 
 
 class DescriptionsTests(unittest.TestCase):
 
     @classmethod
-    def return_node_feature(cls, feature_name):
-        return ("•••%s" % feature_name,
-                cls.fe.feature_to_indices[FeatureGroup.node][0][feature_name],
-                cls.fe._features[feature_name])
+    def return_node_feature(cls, feature_id):
+        return ("•••%s" % feature_id.name,
+                cls.fe.feature_to_indices[FeatureGroup.node][0][feature_id],
+                cls.fe.features[FeatureGroup.node][0][feature_id])
 
     @classmethod
     def setUpClass(cls):
@@ -45,9 +46,9 @@ class DescriptionsTests(unittest.TestCase):
         cls.fe.extract_features(files)
         cls.class_representations = cls.fe.composite_class_representations
         cls.n_classes = len(cls.fe.labels_to_class_sequences)
-        cls.ordinal = cls.return_node_feature("start_line")
-        cls.categorical = cls.return_node_feature("reserved")
-        cls.bag = cls.return_node_feature("roles")
+        cls.ordinal = cls.return_node_feature(FeatureId.start_line)
+        cls.categorical = cls.return_node_feature(FeatureId.reserved)
+        cls.bag = cls.return_node_feature(FeatureId.roles)
 
     def test_describe_rule_ordinal(self):
         name, indices, feature = self.ordinal
@@ -97,8 +98,8 @@ class DescriptionsTests(unittest.TestCase):
                          ))
 
     def test_describe_rule_left(self):
-        feature_name = "diff_line"
-        index = self.fe.feature_to_indices[FeatureGroup.left][0][feature_name][0]
+        feature_id = FeatureId.diff_line
+        index = self.fe.feature_to_indices[FeatureGroup.left][0][feature_id][0]
         picked_class = randint(0, self.n_classes - 1)
         picked_class_name = self.class_representations[picked_class]
         rule = Rule([(index, True, 4.5)], RuleStats(picked_class, 0.9, 150))
@@ -106,12 +107,12 @@ class DescriptionsTests(unittest.TestCase):
                          "  -1.%s ≥ %d\n"
                          "	⇒ y = %s\n"
                          "	Confidence: 0.900. Support: 150." % (
-                             feature_name, ceil(4.5), picked_class_name
+                             feature_id.name, ceil(4.5), picked_class_name
                          ))
 
     def test_describe_rule_right(self):
-        feature_name = "length"
-        index = self.fe.feature_to_indices[FeatureGroup.right][0][feature_name][0]
+        feature_id = FeatureId.length
+        index = self.fe.feature_to_indices[FeatureGroup.right][0][feature_id][0]
         picked_class = randint(0, self.n_classes - 1)
         picked_class_name = self.class_representations[picked_class]
         rule = Rule([(index, True, 4.5)], RuleStats(picked_class, 0.9, 150))
@@ -119,12 +120,12 @@ class DescriptionsTests(unittest.TestCase):
                          "  +1.%s ≥ %d\n"
                          "	⇒ y = %s\n"
                          "	Confidence: 0.900. Support: 150." % (
-                             feature_name, ceil(4.5), picked_class_name
+                             feature_id.name, ceil(4.5), picked_class_name
                          ))
 
     def test_describe_rule_parent(self):
-        feature_name = "internal_type"
-        index = self.fe.feature_to_indices[FeatureGroup.parents][0][feature_name][0]
+        feature_id = FeatureId.internal_type
+        index = self.fe.feature_to_indices[FeatureGroup.parents][0][feature_id][0]
         picked_class = randint(0, self.n_classes - 1)
         picked_class_name = self.class_representations[picked_class]
         rule = Rule([(index, True, 4)], RuleStats(picked_class, 0.9, 150))
@@ -132,7 +133,7 @@ class DescriptionsTests(unittest.TestCase):
                          "  ^1.%s = AnyTypeAnnotation\n"
                          "	⇒ y = %s\n"
                          "	Confidence: 0.900. Support: 150." % (
-                             feature_name, picked_class_name
+                             feature_id.name, picked_class_name
                          ))
 
 

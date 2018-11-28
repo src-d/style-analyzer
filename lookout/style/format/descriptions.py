@@ -5,6 +5,7 @@ from math import ceil, floor
 from typing import List, Optional, Sequence, Tuple
 
 from numpy import flatnonzero, floating, ndarray
+from sklearn.exceptions import NotFittedError
 
 from lookout.style.format.classes import CLASS_INDEX, CLASS_REPRESENTATIONS, CLS_NOOP
 from lookout.style.format.feature_extractor import FeatureExtractor, FEATURES_MAX, FEATURES_MIN
@@ -34,17 +35,19 @@ def describe_rule(rule: Rule, feature_extractor: FeatureExtractor) -> str:
     :param feature_extractor: The FeatureExtractor used to create those rules.
     :return: The description of the rule.
     """
+    if feature_extractor.features is None or feature_extractor.index_to_feature is None:
+        raise NotFittedError()
     grouped = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
     for feature_index, cmp, threshold in rule.attrs:
-        group, node_index, feature_name, index = feature_extractor.index_to_feature[feature_index]
-        grouped[group][node_index][feature_name].append((cmp, threshold, index))
+        group, node_index, feature_id, index = feature_extractor.index_to_feature[feature_index]
+        grouped[group][node_index][feature_id].append((cmp, threshold, index))
     descriptions = [
-        describe_rule_splits(feature_extractor._features[feature_name],
-                             "%s%s" % (group.format(node), feature_name),
+        describe_rule_splits(feature_extractor.features[group][node_index][feature_id],
+                             "%s%s" % (group.format(node_index), feature_id.name),
                              splits)
         for group, nodes in grouped.items()
-        for node, feature_names in nodes.items()
-        for feature_name, splits in feature_names.items()]
+        for node_index, feature_ids in nodes.items()
+        for feature_id, splits in feature_ids.items()]
     return "  %s\n\t⇒ y = %s\n\tConfidence: %.3f. Support: %d." % (
         "\n\t∧ ".join(descriptions),
         "".join(CLASS_REPRESENTATIONS[c]
@@ -54,51 +57,48 @@ def describe_rule(rule: Rule, feature_extractor: FeatureExtractor) -> str:
 
 
 @singledispatch
-def describe_sample(feature: BagFeature, values: ndarray, indices: Sequence[int]) -> str:
+def describe_sample(feature: BagFeature, values: ndarray) -> str:
     """
     Describe a sample given its feature values.
 
     :param feature: The feature that computed the values to describe.
     :param values: The values to describe.
-    :param indices: Activated indices of the feature.
     :return: A string that describe the values of this feature.
     """
-    if not len(indices):
+    selected_names = feature.selected_names
+    if not selected_names:
         return "unselected"
     active = flatnonzero(values)
-    return "{%s}" % ", ".join(feature.names[indices[index]]
+    return "{%s}" % ", ".join(selected_names[index]
                               for index in active) if len(active) else "∅"
 
 
 @describe_sample.register(CategoricalFeature)
-def describe_sample_categorical(feature: CategoricalFeature, values: ndarray,
-                                indices: Sequence[int]) -> str:
+def describe_sample_categorical(feature: CategoricalFeature, values: ndarray) -> str:
     """
     Describe a sample given its feature values.
 
     :param feature: The feature that computed the values to describe.
     :param values: The values to describe.
-    :param indices: Activated indices of the feature.
     :return: A string that describe the values of this feature.
     """
-    if not len(indices):
+    selected_names = feature.selected_names
+    if not selected_names:
         return "unselected"
     active = flatnonzero(values)
-    return feature.names[indices[active[0]]] if len(active) else "∅"
+    return selected_names[active[0]] if len(active) else "∅"
 
 
 @describe_sample.register(OrdinalFeature)
-def describe_sample_ordinal(feature: OrdinalFeature, values: ndarray, indices: Sequence[int]
-                            ) -> str:
+def describe_sample_ordinal(feature: OrdinalFeature, values: ndarray) -> str:
     """
     Describe a sample given its feature value.
 
     :param feature: The feature that computed the values to describe.
     :param values: The value to describe, in an array.
-    :param indices: Activated indices of the feature.
     :return: A string that describe the value of this feature.
     """
-    if not len(indices):
+    if not feature.selected_names:
         return "unselected"
     return str(values[0])
 
