@@ -7,7 +7,6 @@ from pprint import pformat
 import threading
 from typing import Any, List, Mapping, Sequence, Tuple
 
-from bblfsh.client import BblfshClient
 from jinja2 import Template
 from lookout.core import slogging
 from lookout.core.analyzer import Analyzer, ReferencePointer
@@ -16,6 +15,10 @@ from lookout.core.api.service_data_pb2 import File
 from lookout.core.data_requests import DataService, \
     with_changed_uasts_and_contents, with_uasts_and_contents
 from lookout.core.lib import files_by_language, filter_files, find_deleted_lines, find_new_lines
+import numpy
+from skopt import BayesSearchCV
+from skopt.space import Categorical, Integer
+
 from lookout.style.format.classes import CLASS_INDEX, CLS_NEWLINE
 from lookout.style.format.code_generator import CodeGenerator
 from lookout.style.format.descriptions import describe_rule, get_change_description
@@ -25,9 +28,6 @@ from lookout.style.format.postprocess import filter_uast_breaking_preds
 from lookout.style.format.rules import Rules, TrainableRules
 from lookout.style.format.utils import generate_comment, merge_dicts
 from lookout.style.format.virtual_node import VirtualNode
-import numpy
-from skopt import BayesSearchCV
-from skopt.space import Categorical, Integer
 
 
 class FormatAnalyzer(Analyzer):
