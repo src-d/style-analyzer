@@ -1,6 +1,6 @@
 format: style mismatch:
 {% if config.report_code_lines %}
-```{{ lang }}
+```{{ language }}
 {% for l in range([0, line_number - 2]|max, [line_number + 1, code_lines|length]|min ) %}
 {{ "%d|%s" % (l + 1, code_lines[l]) }}
 {% endfor %}
@@ -12,12 +12,12 @@ format: style mismatch:
 ```
 
 {% endif %}
-{% for rule_number, change_description, rule_description in change_descriptions %}
-{{ change_description }}
+{% for rule_index, vnode, y in (winners, vnodes, fixed_labels)|zip %}
+{{ describe_change(vnode, y) }}
     {% if config.report_triggered_rules %}
-Triggered rule # {{ rule_number or "<N/A>" }}
+Triggered rule # {{ rule_index or "<N/A>" }}
 ```
-{{ rule_description }}
+{{ describe_rule(rules[rule_index]) }}
 ```
     {% endif %}
 {% endfor %}

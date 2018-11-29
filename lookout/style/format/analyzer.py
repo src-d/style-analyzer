@@ -1,4 +1,5 @@
 """Analyzer that detects bad formatting by learning on the existing code in the repository."""
+import functools
 from itertools import chain
 import logging
 import os
@@ -11,13 +12,10 @@ from jinja2 import Template
 from lookout.core import slogging
 from lookout.core.analyzer import Analyzer, ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
+from lookout.core.api.service_data_pb2 import File
 from lookout.core.data_requests import DataService, \
     with_changed_uasts_and_contents, with_uasts_and_contents
 from lookout.core.lib import files_by_language, filter_files, find_deleted_lines, find_new_lines
-import numpy
-from skopt import BayesSearchCV
-from skopt.space import Categorical, Integer
-
 from lookout.style.format.classes import CLASS_INDEX, CLS_NEWLINE
 from lookout.style.format.code_generator import CodeGenerator
 from lookout.style.format.descriptions import describe_rule, get_change_description
@@ -27,6 +25,9 @@ from lookout.style.format.postprocess import filter_uast_breaking_preds
 from lookout.style.format.rules import Rules, TrainableRules
 from lookout.style.format.utils import generate_comment, merge_dicts
 from lookout.style.format.virtual_node import VirtualNode
+import numpy
+from skopt import BayesSearchCV
+from skopt.space import Categorical, Integer
 
 
 class FormatAnalyzer(Analyzer):
@@ -94,7 +95,7 @@ class FormatAnalyzer(Analyzer):
         """
         super().__init__(model, url, config)
         self.config = self._load_analyze_config(self.config)
-        with open(self.config["comment_template"]) as f:
+        with open(self.config["comment_template"], encoding="utf-8") as f:
             self.comment_template = Template(f.read(), trim_blocks=True, lstrip_blocks=True)
 
     @with_changed_uasts_and_contents
@@ -142,7 +143,7 @@ class FormatAnalyzer(Analyzer):
                     log.warning("Failed to parse %s", file.path)
                     continue
                 comments.extend(self._generate_file_comments(
-                    lang, file, fe, feature_extractor_output, rules, data_service.get_bblfsh()))
+                    lang, file, fe, feature_extractor_output, data_service.get_bblfsh()))
         return comments
 
     @classmethod
@@ -239,8 +240,49 @@ class FormatAnalyzer(Analyzer):
         cls._log.info("trained %s", model)
         return model
 
-    def _generate_file_comments(self, lang, file, fe, feature_extractor_output, rules,
-                                bblfsh_stub):
+    def render_comment_text(
+            self, language: str, line_number: int, code_lines: List[str], new_code_line: str,
+            winners: List[int], vnodes: List[VirtualNode], fixed_labels: List[int],
+            confidence: int, feature_extractor: FeatureExtractor) -> str:
+        """
+        Generate the text of the comment at the specified line.
+
+        :param language: Programming language of the code.
+        :param line_number: Line number for the comment.
+        :param code_lines: Original file code lines.
+        :param new_code_line: Code line suggested by our model.
+        :param winners: Winner rule indices.
+        :param vnodes: Corrected VirtualNode-s on the line.
+        :param fixed_labels: Predicted labels for those `vnodes`.
+        :param confidence: Overall confidence in the prediction, 0-100.
+        :param feature_extractor: FeatureExtractor involved.
+        :return: string with the generated comment.
+        """
+        rules = self.model[language]
+        _describe_rule = functools.partial(describe_rule, feature_extractor=feature_extractor)
+        _describe_change = functools.partial(
+            get_change_description, feature_extractor=feature_extractor)
+        return self.comment_template.render(
+                config=self.config,                # configuration of the analyzer
+                language=language,                 # programming language of the code
+                line_number=line_number,           # line number for the comment
+                code_lines=code_lines,             # original file code lines
+                new_code_line=new_code_line,       # code line suggested by our model
+                rules=rules.rules,                 # list of rules belonging to the model
+                winners=winners,                   # winner rule indices
+                vnodes=vnodes,                     # corrected VirtualNode-s
+                fixed_labels=fixed_labels,         # predicted labels for those nodes
+                confidence=confidence,             # overall confidence in the prediction, 0-100
+                describe_rule=_describe_rule,      # function to format a rule as text
+                describe_change=_describe_change,  # function to format a change as text
+                zip=zip,                           # Jinja2 does not have zip() by default
+            )
+
+    def _generate_file_comments(
+            self, language: str, file: File, fe: FeatureExtractor,
+            feature_extractor_output, bblfsh_stub: "bblfsh.aliases.ProtocolServiceStub"
+            ) -> List[Comment]:
+        rules = self.model[language]
         file_comments = []
         X, y, (vnodes_y, vnodes, vnode_parents, node_parents) = feature_extractor_output
         y_pred, rule_winners = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
@@ -260,34 +302,29 @@ class FormatAnalyzer(Analyzer):
             line_ys, line_ys_pred, line_vnodes_y, new_line_vnodes, line_winners = line
             new_code_line = code_generator.generate(
                 new_line_vnodes, "local").lstrip("\n").splitlines()[0]
-            change_descriptions = []
+            fix_rules = []
+            fix_vnodes = []
+            fix_ys = []
             for line_yi, line_y_predi, line_vnode_y, line_winner in zip(
                     line_ys, line_ys_pred, line_vnodes_y, line_winners):
                 if line_yi == line_y_predi:
                     continue
-                change_descriptions.append(
-                    (line_winner,
-                     get_change_description(line_vnode_y, line_y_predi, fe),
-                     describe_rule(rules.rules[line_winner], fe)))
-            text = self.comment_template.render(
-                config=self.config,  # configuration of the analyzer
-                lang=lang,  # programming language of the code
-                line_number=line_number,  # line number for the comment
-                code_lines=code_lines,  # original file code lines
+                fix_rules.append(line_winner)
+                fix_vnodes.append(line_vnode_y)
+                fix_ys.append(line_y_predi)
+            confidence = self._get_comment_confidence(line_ys, line_ys_pred, line_winners, rules)
+            text = self.render_comment_text(
+                language=language,            # programming language of the code
+                line_number=line_number,      # line number for the comment
+                code_lines=code_lines,        # original file code lines
                 new_code_line=new_code_line,  # code line suggested by our model
-                change_descriptions=change_descriptions,  # change descriptions proposed by model
-                # List of tuples with triggered rule number, human-friendly change description and
-                # triggered rule description
+                winners=fix_rules,            # winner rule indices
+                vnodes=fix_vnodes,            # corrected VirtualNode-s
+                fixed_labels=fix_ys,          # predicted labels for those nodes
+                confidence=confidence,        # overall confidence in the prediction, 0-100
             )
-
-            file_comments.append(
-                generate_comment(
-                    filename=file.path,
-                    line=line_number,
-                    text=text,
-                    confidence=self._get_comment_confidence(
-                        line_ys, line_ys_pred, line_winners, rules)))
-
+            file_comments.append(generate_comment(
+                filename=file.path, line=line_number, text=text, confidence=confidence))
         return file_comments
 
     @staticmethod
