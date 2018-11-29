@@ -186,8 +186,8 @@ def describe_rule_parts_ordinal(feature: OrdinalFeature, name: str,
     return "%s ≤ %d" % (name, floor(threshold))
 
 
-def get_error_description(vnode: VirtualNode, y_pred: int, feature_extractor: FeatureExtractor
-                          ) -> str:
+def get_change_description(vnode: VirtualNode, y_pred: int, feature_extractor: FeatureExtractor
+                           ) -> str:
     """
     Return the comment with regard to the correct node class.
 
@@ -208,18 +208,16 @@ def get_error_description(vnode: VirtualNode, y_pred: int, feature_extractor: Fe
         class_representations[y], class_representations[y_pred], column)
 
 
-def get_code_chunk(lang: str, code_lines: Sequence[str], line_number: int) -> str:
+def get_code_chunk(code_lines: Sequence[str], line_number: int) -> str:
     """
     Return nice code snippet that can be inserted to github message.
 
-    :param lang: Code language. Both styles `javascript` and `JavaScript` are suitable.
     :param code_lines: Sequence of code lines without ending new line character.
     :param line_number: 1-based line number to print.
     :return: Code snippet.
     """
     lines = list(range(max(0, line_number - 2), line_number + 1))
-    code_chunk = "\n".join("%d|%s" % (l, code_lines[l]) for l in lines)
-    return "```%s\n%s\n```\n" % (lang, code_chunk)
+    return "\n".join("%d|%s" % (l, code_lines[l]) for l in lines)
 
 
 def rule_to_comment(rule: Rule, feature_extractor: FeatureExtractor, number: Optional[int]=None

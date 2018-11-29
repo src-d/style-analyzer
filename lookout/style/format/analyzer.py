@@ -1,13 +1,17 @@
 """Analyzer that detects bad formatting by learning on the existing code in the repository."""
+import functools
 from itertools import chain
 import logging
+import os
 from pprint import pformat
 import threading
-from typing import Any, List, Mapping
+from typing import Any, List, Mapping, Sequence, Tuple
 
+from jinja2 import Template
 from lookout.core import slogging
 from lookout.core.analyzer import Analyzer, ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
+from lookout.core.api.service_data_pb2 import File
 from lookout.core.data_requests import DataService, \
     with_changed_uasts_and_contents, with_uasts_and_contents
 from lookout.core.lib import files_by_language, filter_files, find_deleted_lines, find_new_lines
@@ -15,13 +19,15 @@ import numpy
 from skopt import BayesSearchCV
 from skopt.space import Categorical, Integer
 
-from lookout.style.format.descriptions import get_code_chunk, get_error_description, \
-    rule_to_comment
+from lookout.style.format.classes import CLASS_INDEX, CLS_NEWLINE
+from lookout.style.format.code_generator import CodeGenerator
+from lookout.style.format.descriptions import describe_rule, get_change_description
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.model import FormatModel
 from lookout.style.format.postprocess import filter_uast_breaking_preds
-from lookout.style.format.rules import TrainableRules
-from lookout.style.format.utils import merge_dicts
+from lookout.style.format.rules import Rules, TrainableRules
+from lookout.style.format.utils import generate_comment, merge_dicts
+from lookout.style.format.virtual_node import VirtualNode
 
 
 class FormatAnalyzer(Analyzer):
@@ -38,6 +44,9 @@ class FormatAnalyzer(Analyzer):
         "report_code_lines": True,
         "report_triggered_rules": True,
         "report_parse_failures": True,
+        "uast_break_check": True,
+        "comment_template": os.path.join(os.path.dirname(__file__), "templates",
+                                         "comment_default.jinja2")
     }
     defaults_for_train = {
         "global": {
@@ -86,6 +95,8 @@ class FormatAnalyzer(Analyzer):
         """
         super().__init__(model, url, config)
         self.config = self._load_analyze_config(self.config)
+        with open(self.config["comment_template"], encoding="utf-8") as f:
+            self.comment_template = Template(f.read(), trim_blocks=True, lstrip_blocks=True)
 
     @with_changed_uasts_and_contents
     def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
@@ -99,22 +110,6 @@ class FormatAnalyzer(Analyzer):
         :param data: Contains "changes" - the list of changes in the pointed state.
         :return: List of comments.
         """
-        def group_line_nodes(y, y_pred, vnodes_y, rule_winners):
-            line_nodes = []
-            generate_comment = False
-            for yi, y_predi, vnode_y, winner in zip(y, y_pred, vnodes_y, rule_winners):
-                if not line_nodes or vnode_y.start.line == line_nodes[0][2].start.line:
-                    # collect all nodes on the same line
-                    line_nodes.append((yi, y_predi, vnode_y, winner))
-                    if yi != y_predi:
-                        generate_comment = True
-                    continue
-                else:
-                    if generate_comment:
-                        yield line_nodes
-                    generate_comment = yi != y_predi
-                    line_nodes = [(yi, y_predi, vnode_y, winner)]
-
         log = self._log
         comments = []
         changes = list(data["changes"])
@@ -140,60 +135,15 @@ class FormatAnalyzer(Analyzer):
                         find_deleted_lines(prev_file, file),
                     )))
                 fe = FeatureExtractor(language=lang, **rules.origin_config["feature_extractor"])
-                res = fe.extract_features([file], [lines])
-                if res is None:
+                feature_extractor_output = fe.extract_features([file], [lines])
+                if feature_extractor_output is None:
                     if self.config["report_parse_failures"]:
-                        comment = Comment()
-                        comment.file = file.path
-                        comment.confidence = 100
-                        comment.line = 1
-                        comment.text = "Failed to parse this file"
-                        comment.append(comment)
+                        comments.append(
+                            generate_comment(file.path, 100, 0, "Failed to parse this file"))
                     log.warning("Failed to parse %s", file.path)
                     continue
-                X, y, (vnodes_y, vnodes, vnode_parents, node_parents) = res
-                y_pred, rule_winners = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
-                                                     feature_extractor=fe)
-                y, y_pred, vnodes_y, rule_winners, safe_preds = filter_uast_breaking_preds(
-                    y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, files={file.path: file},
-                    feature_extractor=fe, stub=data_service.get_bblfsh(),
-                    vnode_parents=vnode_parents, node_parents=node_parents,
-                    rule_winners=rule_winners, log=log)
-                assert len(y) == len(y_pred)
-                assert len(y) == len(rule_winners)
-
-                code_lines = file.content.decode("utf-8", "replace").splitlines()
-                for line_nodes in group_line_nodes(y, y_pred, vnodes_y, rule_winners):
-                    code_line_number = line_nodes[0][2].start.line  # 1-based
-                    if self.config["report_triggered_rules"]:
-                        code_text = ""
-                        if self.config["report_code_lines"]:
-                            code_text = get_code_chunk(lang, code_lines, code_line_number)
-                        vnodes_comments = [
-                            "%s\n%s" % (get_error_description(vnode, y_predi, fe),
-                                        rule_to_comment(rules.rules[winner], fe, winner))
-                            for yi, y_predi, vnode, winner in line_nodes if yi != y_predi]
-                        text = "format: style mismatch:\n%s%s\n" % (
-                            code_text, "\n\n".join(vnodes_comments))
-                    else:
-                        vnodes_comments = [
-                            get_error_description(vnode, y_predi, fe)
-                            for yi, y_predi, vnode, winner in line_nodes if yi != y_predi]
-                        text = "format: style mismatch:\n%s\n" % ("\n\n".join(vnodes_comments))
-
-                    confidence = 0
-                    confidence_count = 0
-                    for yi, y_predi, _, winner in line_nodes:
-                        if yi != y_predi:
-                            confidence += rules.rules[winner].stats.conf
-                            confidence_count += 1
-
-                    comment = Comment()
-                    comment.line = code_line_number
-                    comment.text = text
-                    comment.file = file.path
-                    comment.confidence = int(round(confidence * 100 / confidence_count))
-                    comments.append(comment)
+                comments.extend(self._generate_file_comments(
+                    lang, file, fe, feature_extractor_output, data_service.get_bblfsh()))
         return comments
 
     @classmethod
@@ -289,6 +239,160 @@ class FormatAnalyzer(Analyzer):
             model[language] = trainable_rules.rules
         cls._log.info("trained %s", model)
         return model
+
+    def render_comment_text(
+            self, language: str, line_number: int, code_lines: List[str], new_code_line: str,
+            winners: List[int], vnodes: List[VirtualNode], fixed_labels: List[int],
+            confidence: int, feature_extractor: FeatureExtractor) -> str:
+        """
+        Generate the text of the comment at the specified line.
+
+        :param language: Programming language of the code.
+        :param line_number: Line number for the comment.
+        :param code_lines: Original file code lines.
+        :param new_code_line: Code line suggested by our model.
+        :param winners: Winner rule indices.
+        :param vnodes: Corrected VirtualNode-s on the line.
+        :param fixed_labels: Predicted labels for those `vnodes`.
+        :param confidence: Overall confidence in the prediction, 0-100.
+        :param feature_extractor: FeatureExtractor involved.
+        :return: string with the generated comment.
+        """
+        rules = self.model[language]
+        _describe_rule = functools.partial(describe_rule, feature_extractor=feature_extractor)
+        _describe_change = functools.partial(
+            get_change_description, feature_extractor=feature_extractor)
+        return self.comment_template.render(
+                config=self.config,                # configuration of the analyzer
+                language=language,                 # programming language of the code
+                line_number=line_number,           # line number for the comment
+                code_lines=code_lines,             # original file code lines
+                new_code_line=new_code_line,       # code line suggested by our model
+                rules=rules.rules,                 # list of rules belonging to the model
+                winners=winners,                   # winner rule indices
+                vnodes=vnodes,                     # corrected VirtualNode-s
+                fixed_labels=fixed_labels,         # predicted labels for those nodes
+                confidence=confidence,             # overall confidence in the prediction, 0-100
+                describe_rule=_describe_rule,      # function to format a rule as text
+                describe_change=_describe_change,  # function to format a change as text
+                zip=zip,                           # Jinja2 does not have zip() by default
+            )
+
+    def _generate_file_comments(
+            self, language: str, file: File, fe: FeatureExtractor,
+            feature_extractor_output, bblfsh_stub: "bblfsh.aliases.ProtocolServiceStub"
+            ) -> List[Comment]:
+        rules = self.model[language]
+        file_comments = []
+        X, y, (vnodes_y, vnodes, vnode_parents, node_parents) = feature_extractor_output
+        y_pred, rule_winners = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
+                                             feature_extractor=fe)
+        if self.config["uast_break_check"]:
+            y, y_pred, vnodes_y, rule_winners, safe_preds = filter_uast_breaking_preds(
+                y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, files={file.path: file},
+                feature_extractor=fe, stub=bblfsh_stub, vnode_parents=vnode_parents,
+                node_parents=node_parents, rule_winners=rule_winners, log=self._log)
+        assert len(y) == len(y_pred)
+        assert len(y) == len(rule_winners)
+        code_generator = CodeGenerator(fe, skip_errors=True)
+        new_vnodes = code_generator.apply_predicted_y(vnodes, vnodes_y, y_pred)
+        code_lines = file.content.decode("utf-8", "replace").splitlines()
+        for line_number, line in self._group_line_nodes(
+                y, y_pred, vnodes_y, new_vnodes, rule_winners):
+            line_ys, line_ys_pred, line_vnodes_y, new_line_vnodes, line_winners = line
+            new_code_line = code_generator.generate(
+                new_line_vnodes, "local").lstrip("\n").splitlines()[0]
+            fix_rules = []
+            fix_vnodes = []
+            fix_ys = []
+            for line_yi, line_y_predi, line_vnode_y, line_winner in zip(
+                    line_ys, line_ys_pred, line_vnodes_y, line_winners):
+                if line_yi == line_y_predi:
+                    continue
+                fix_rules.append(line_winner)
+                fix_vnodes.append(line_vnode_y)
+                fix_ys.append(line_y_predi)
+            confidence = self._get_comment_confidence(line_ys, line_ys_pred, line_winners, rules)
+            text = self.render_comment_text(
+                language=language,            # programming language of the code
+                line_number=line_number,      # line number for the comment
+                code_lines=code_lines,        # original file code lines
+                new_code_line=new_code_line,  # code line suggested by our model
+                winners=fix_rules,            # winner rule indices
+                vnodes=fix_vnodes,            # corrected VirtualNode-s
+                fixed_labels=fix_ys,          # predicted labels for those nodes
+                confidence=confidence,        # overall confidence in the prediction, 0-100
+                feature_extractor=fe,         # FeatureExtractor involved.
+            )
+            file_comments.append(generate_comment(
+                filename=file.path, line=line_number, text=text, confidence=confidence))
+        return file_comments
+
+    @staticmethod
+    def _get_comment_confidence(line_ys: Sequence[int], line_ys_pred: Sequence[int],
+                                line_winners: Sequence[int], rules: Rules) -> int:
+        confidence = 0
+        confidence_count = 0
+        for yi, y_predi, winner in zip(line_ys, line_ys_pred, line_winners):
+            if yi != y_predi:
+                confidence += rules.rules[winner].stats.conf
+                confidence_count += 1
+        return int(round(confidence * 100 / confidence_count))
+
+    @staticmethod
+    def _group_line_nodes(y: Sequence[int], y_pred: Sequence[int], vnodes_y: Sequence[VirtualNode],
+                          new_vnodes: Sequence[VirtualNode], rule_winners: Sequence[int]
+                          ) -> Tuple[int, Tuple]:
+        """
+        Group virtual nodes and related lists from feature extractor by line number.
+
+        It yields line number and sublists of corresponding items from all input sequences.
+        Line sublists are skipped in case there is no difference in predicted and original labels.
+        Line sublists are merged in case new line on the end was replaced by target without
+        newline. It is a helper function for `FormatAnalyser._generate_file_comments()`
+
+        :param y: Sequence of original labels.
+        :param y_pred: Sequence of predicted labels by the model.
+        :param vnodes_y: Sequence of the labeled `VirtualNode`-s corresponding to labeled samples.
+        :param new_vnodes: Sequence of all the `VirtualNode`-s corresponding to the input with \
+                           applied predictions. `CodeGenerator.apply_predicted_y()` is used for \
+                           that.
+        :param rule_winners: List of rule winners.
+        :return: 1-based line number and sublists of corresponding items from all input sequences.
+        """
+        line_ys, line_ys_pred, line_vnodes_y, line_winners = [], [], [], []
+        generate_comment = False
+        vnodes_index = 0
+        for yi, y_predi, vnode_y, winner in zip(y, y_pred, vnodes_y, rule_winners):
+            if not line_ys or vnode_y.start.line == line_vnodes_y[0].start.line:
+                # collect all nodes on the same line
+                line_ys.append(yi)
+                line_ys_pred.append(y_predi)
+                line_vnodes_y.append(vnode_y)
+                line_winners.append(winner)
+                if yi != y_predi:
+                    generate_comment = True
+                continue
+            else:
+                if generate_comment:
+                    line_vnodes = []
+                    for vnode in new_vnodes[vnodes_index:]:
+                        if vnode.start.line > line_vnodes_y[0].start.line:
+                            if (line_vnodes[-1].y is not None and
+                                    CLASS_INDEX[CLS_NEWLINE] in line_vnodes[-1].y):
+                                break
+                            else:
+                                line_vnodes.append(vnode)
+                                continue
+                        if vnode.end.line < line_vnodes_y[0].start.line:
+                            continue
+                        line_vnodes.append(vnode)
+                        vnodes_index += 1
+                    yield (int(line_vnodes_y[0].start.line),
+                           (line_ys, line_ys_pred, line_vnodes_y, line_vnodes, line_winners))
+                generate_comment = yi != y_predi
+                line_ys, line_ys_pred, line_vnodes_y, line_winners = (
+                    [yi], [y_predi], [vnode_y], [winner])
 
     @classmethod
     def _load_analyze_config(cls, config: Mapping[str, Any]) -> Mapping[str, Any]:
