@@ -78,9 +78,9 @@ def align2(seq1: Sequence, seq2: Sequence, seq2_ghost: Sequence = None
             res1.append(seq1[i:i_end])
             empty = EMPTY * (i_end - i)
             res2.append(empty)
-            if seq2_ghost:
+            if seq2_ghost is not None:
                 res3.append(empty)
-    if seq2_ghost:
+    if seq2_ghost is not None:
         return "".join(res1), "".join(res2), "".join(res3)
     return "".join(res1), "".join(res2)
 
@@ -146,9 +146,6 @@ def calc_aligned_metrics(bad_style_code: str, correct_style_code: str, generated
             bad_style_code, correct_style_code, generated_code):
         if bad_style_c == correct_style_c == generated_c:
             continue
-        assert bad_style_c in {"\t", " ", "\n", "'", '"', "␣"}
-        assert correct_style_c in {"\t", " ", "\n", "'", '"', "␣"}
-        assert generated_c in {"\t", " ", "\n", "'", '"', "␣"}
         if bad_style_c == correct_style_c and bad_style_c != generated_c:
             misdetection += 1
         elif bad_style_c == generated_c and bad_style_c != correct_style_c:
@@ -281,7 +278,7 @@ class SmokeEvalFormatAnalyzer(FormatAnalyzer):
             writer = csv.DictWriter(f, fieldnames=self.REPORT_COLNAMES)
             for report_line in report:
                 report_line = flatten_dict(report_line)
-                for code_file in ["init_file", "correct_file",
+                for code_file in ["bad_style_file", "correct_style_file",
                                   "global_predicted_file", "local_predicted_file"]:
                     code = report_line[code_file]
                     report_line[code_file] = "_".join((
@@ -358,7 +355,7 @@ class SmokeEvalFormatAnalyzer(FormatAnalyzer):
 analyzer_class = SmokeEvalFormatAnalyzer
 
 
-def evaluate_smoke_entry(inputpath: str, reportdir: str, database: str) -> None:
+def evaluate_smoke_entry(inputpath: str, reportdir: str, database: str = None) -> None:
     """
     CLI entry point.
     """
