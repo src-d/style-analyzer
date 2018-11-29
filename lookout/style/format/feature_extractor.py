@@ -514,7 +514,7 @@ class FeatureExtractor:
                     yield VirtualNode(
                         "".join(indentation),
                         Position(offset, lineno, col),
-                        node.end, path=path)
+                        node.end, is_accumulated_indentation=True, path=path)
             else:
                 # indentation is stable or increases
                 for i, char in enumerate(my_indent):
@@ -534,7 +534,7 @@ class FeatureExtractor:
                         "".join(indentation),
                         Position(offset, lineno, col),
                         Position(offset + len(indentation), lineno, col + len(indentation)),
-                        path=path)
+                        is_accumulated_indentation=True, path=path)
                 for char in my_indent:
                     indentation.append(char)
 
