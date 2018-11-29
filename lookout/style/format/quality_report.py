@@ -8,9 +8,8 @@ from typing import Any, Iterable, List, MutableMapping, Union
 from bblfsh import BblfshClient
 from lookout.core.analyzer import Analyzer, AnalyzerModel, ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
-from lookout.core.api.service_data_pb2_grpc import DataStub
-from lookout.core.data_requests import (with_changed_uasts_and_contents,
-                                        with_uasts_and_contents)
+from lookout.core.data_requests import DataService, \
+    with_changed_uasts_and_contents, with_uasts_and_contents
 from lookout.core.lib import files_by_language, filter_files, find_new_lines
 import numpy
 from sklearn.metrics import classification_report, confusion_matrix
@@ -129,7 +128,6 @@ class ReportAnalyzer(Analyzer):
         """Initialization."""
         super().__init__(model, url, config)
         self.config = self._load_analysis_config(self.config)
-        self.client = BblfshClient(self.config["bblfsh_address"])
 
     @classmethod
     def generate_report(cls, y: Union[numpy.ndarray, Iterable[Union[int, float]]],
@@ -169,13 +167,13 @@ class ReportAnalyzer(Analyzer):
 
     @with_changed_uasts_and_contents
     def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
-                data_request_stub: DataStub, **data) -> List[Comment]:
+                data_service: DataService, **data) -> List[Comment]:
         """
         Analyze changes between revisions and make quality report per file or for all changes.
 
         :param ptr_from: Git repository state pointer to the base revision.
         :param ptr_to: Git repository state pointer to the head revision.
-        :param data_request_stub: Connection to the Lookout data retrieval service, not used.
+        :param data_service: Connection to the Lookout data retrieval service, not used.
         :param data: Contains "changes" - the list of changes in the pointed state.
         :return: List of comments.
         """
@@ -214,8 +212,9 @@ class ReportAnalyzer(Analyzer):
                                                      feature_extractor=fe)
                 y, y_pred, vnodes_y, rule_winners, safe_preds = filter_uast_breaking_preds(
                     y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, files={file.path: file},
-                    feature_extractor=fe, client=self.client, vnode_parents=vnode_parents,
-                    node_parents=node_parents, rule_winners=rule_winners, log=self.log)
+                    feature_extractor=fe, stub=data_service.get_bblfsh(),
+                    vnode_parents=vnode_parents, node_parents=node_parents,
+                    rule_winners=rule_winners, log=self.log)
                 self.log.debug("y.shape %s" % y.shape)
                 self.log.debug("len(vnodes_y) %s" % len(vnodes_y))
                 self.log.debug("y_pred.shape %s" % y_pred.shape)
@@ -253,14 +252,14 @@ class ReportAnalyzer(Analyzer):
     @classmethod
     @with_uasts_and_contents
     def train(cls, ptr: ReferencePointer, config: MutableMapping[str, Any],
-              data_request_stub: DataStub, **data) -> None:
+              data_service: DataService, **data) -> None:
         """
         Analyze a set of changes from one revision to another and make report for all files.
 
         :param ptr: Git repository state pointer.
         :param config: configuration dict.
         :param data: contains "files" - the list of files in the pointed state.
-        :param data_request_stub: connection to the Lookout data retrieval service, not used.
+        :param data_service: connection to the Lookout data retrieval service, not used.
         :return: AnalyzerModel containing the learned rules, per language.
         """
         config = cls._load_analysis_config(config)
@@ -288,8 +287,8 @@ class ReportAnalyzer(Analyzer):
             y, y_pred, vnodes_y, rule_winners, safe_preds = filter_uast_breaking_preds(
                 y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes,
                 files={f.path: f for f in filtered_files}, feature_extractor=fe,
-                client=cls.client, vnode_parents=vnode_parents, node_parents=node_parents,
-                rule_winners=rule_winners, log=cls.log)
+                stub=data_service.get_bblfsh(), vnode_parents=vnode_parents,
+                node_parents=node_parents, rule_winners=rule_winners, log=cls.log)
             target_names = fe.composite_class_representations
             assert len(y) == len(y_pred)
             report = cls.generate_report(y=y, y_pred=y_pred, vnodes_y=vnodes_y,

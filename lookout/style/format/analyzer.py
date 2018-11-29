@@ -5,7 +5,6 @@ from pprint import pformat
 import threading
 from typing import Any, List, Mapping
 
-from bblfsh.client import BblfshClient
 from lookout.core import slogging
 from lookout.core.analyzer import Analyzer, ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
@@ -34,7 +33,6 @@ class FormatAnalyzer(Analyzer):
     version = "1"
     description = "Source code formatting: whitespace, new lines, quotes, braces."
     defaults_for_analyze = {
-        "bblfsh_address": "0.0.0.0:9432",
         "confidence_threshold": 0.95,
         "support_threshold": 80,
         "report_code_lines": True,
@@ -88,7 +86,6 @@ class FormatAnalyzer(Analyzer):
         """
         super().__init__(model, url, config)
         self.config = self._load_analyze_config(self.config)
-        self.client = BblfshClient(self.config["bblfsh_address"])
 
     @with_changed_uasts_and_contents
     def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
