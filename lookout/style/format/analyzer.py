@@ -322,6 +322,7 @@ class FormatAnalyzer(Analyzer):
                 vnodes=fix_vnodes,            # corrected VirtualNode-s
                 fixed_labels=fix_ys,          # predicted labels for those nodes
                 confidence=confidence,        # overall confidence in the prediction, 0-100
+                feature_extractor=fe,         # FeatureExtractor involved.
             )
             file_comments.append(generate_comment(
                 filename=file.path, line=line_number, text=text, confidence=confidence))

@@ -10,7 +10,6 @@ import tempfile
 import time
 from typing import Any, Dict, List, Mapping, Sequence, Tuple, Union
 
-from bblfsh import BblfshClient
 from lookout.core.analyzer import ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2_grpc import DataStub
@@ -269,7 +268,6 @@ class SmokeEvalFormatAnalyzer(FormatAnalyzer):
         """
         super().__init__(model, url, config)
         self.config = self._load_analyze_config(self.config)
-        self.client = BblfshClient(self.config["bblfsh_address"])
 
     def _dump_report(self, report: List[dict], outputpath: Path):
         files_dir = outputpath / "files"
