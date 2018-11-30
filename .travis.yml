@@ -51,7 +51,7 @@ matrix:
       install: *_install
     - python: 3.6
       # We test python 3.6 inside docker.
-      env: SCRIPT="make docker-build && make docker-test"
+      env: SCRIPT="make docker-build VERSION=test && make docker-test"
     - python: 3.7
       env: *_coverage
       install: *_install
