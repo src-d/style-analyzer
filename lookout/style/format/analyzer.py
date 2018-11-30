@@ -5,7 +5,7 @@ import logging
 import os
 from pprint import pformat
 import threading
-from typing import Any, List, Mapping, Sequence, Tuple
+from typing import Any, Dict, Iterable, List, Mapping, Sequence, Tuple
 
 from jinja2 import Template
 from lookout.core import slogging
@@ -99,21 +99,18 @@ class FormatAnalyzer(Analyzer):
         with open(self.config["comment_template"], encoding="utf-8") as f:
             self.comment_template = Template(f.read(), trim_blocks=True, lstrip_blocks=True)
 
-    @with_changed_uasts_and_contents
-    def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
-                data_service: DataService, **data) -> List[Comment]:
+    def analyze_unrendered(self, data_service: DataService, changes: Sequence
+                           ) -> Iterable[Dict[str, Any]]:
         """
-        Analyze a set of changes from one revision to another.
+        Generate all data required for any type of further processing.
 
-        :param ptr_from: Git repository state pointer to the base revision.
-        :param ptr_to: Git repository state pointer to the head revision.
-        :param data_service: Connection to the Lookout data retrieval service, not used.
-        :param data: Contains "changes" - the list of changes in the pointed state.
-        :return: List of comments.
+        Next processing can be comment generation or performance report generation.
+
+        :param data_service: Connection to the Lookout data retrieval service.
+        :param changes: The list of changes in the pointed state.
+        :return: Iterator with unrendered data per comment.
         """
         log = self._log
-        comments = []
-        changes = list(data["changes"])
         base_files_by_lang = files_by_language(c.base for c in changes)
         head_files_by_lang = files_by_language(c.head for c in changes)
         for lang, head_files in head_files_by_lang.items():
@@ -139,12 +136,35 @@ class FormatAnalyzer(Analyzer):
                 feature_extractor_output = fe.extract_features([file], [lines])
                 if feature_extractor_output is None:
                     if self.config["report_parse_failures"]:
-                        comments.append(
-                            generate_comment(file.path, 100, 0, "Failed to parse this file"))
-                    log.warning("Failed to parse %s", file.path)
-                    continue
-                comments.extend(self._generate_file_comments(
-                    lang, file, fe, feature_extractor_output, data_service.get_bblfsh()))
+                        log.warning("Failed to parse %s", file.path)
+                        yield dict(ok=False, head_file=file, confidence=100, line_number=0,
+                                   error_msg="Failed to parse this file")
+                else:
+                    yield from self._generate_comments_data(
+                        lang, file, prev_file, fe, feature_extractor_output,
+                        data_service.get_bblfsh())
+
+    @with_changed_uasts_and_contents
+    def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
+                data_service: DataService, **data) -> List[Comment]:
+        """
+        Analyze a set of changes from one revision to another.
+
+        :param ptr_from: Git repository state pointer to the base revision.
+        :param ptr_to: Git repository state pointer to the head revision.
+        :param data_service: Connection to the Lookout data retrieval service.
+        :param data: Contains "changes" - the list of changes in the pointed state.
+        :return: List of comments.
+        """
+        comments = []
+        for unrendered in self.analyze_unrendered(data_service, list(data["changes"])):
+            text = self.render_comment_text(**unrendered) if unrendered["ok"] else \
+                unrendered["error_msg"]
+            comments.append(generate_comment(
+                text=text,
+                filename=unrendered["head_file"].path,
+                line=unrendered["line_number"],
+                confidence=unrendered["confidence"]))
         return comments
 
     @classmethod
@@ -157,7 +177,7 @@ class FormatAnalyzer(Analyzer):
         :param ptr: Git repository state pointer.
         :param config: configuration dict.
         :param data: contains "files" - the list of files in the pointed state.
-        :param data_service: connection to the Lookout data retrieval service, not used.
+        :param data_service: connection to the Lookout data retrieval service.
         :return: AnalyzerModel containing the learned rules, per language.
         """
         cls._log.info("train %s %s %s", ptr.url, ptr.commit,
@@ -243,27 +263,29 @@ class FormatAnalyzer(Analyzer):
         return model
 
     def render_comment_text(
-            self, language: str, line_number: int, code_lines: List[str], new_code_line: str,
+            self, *, language: str, line_number: int, base_file: File, new_code_line: str,
             winners: List[int], vnodes: List[VirtualNode], fixed_labels: List[int],
-            confidence: int, feature_extractor: FeatureExtractor) -> str:
+            confidence: int, feature_extractor: FeatureExtractor, **_) -> str:
         """
         Generate the text of the comment at the specified line.
 
         :param language: Programming language of the code.
         :param line_number: Line number for the comment.
-        :param code_lines: Original file code lines.
+        :param base_file: Original file.
         :param new_code_line: Code line suggested by our model.
         :param winners: Winner rule indices.
-        :param vnodes: Corrected VirtualNode-s on the line.
+        :param vnodes: VirtualNode-s of the line where changes were introduced.
         :param fixed_labels: Predicted labels for those `vnodes`.
         :param confidence: Overall confidence in the prediction, 0-100.
         :param feature_extractor: FeatureExtractor involved.
+        :param _: All other keyword parameters are ignored.
         :return: string with the generated comment.
         """
         rules = self.model[language]
         _describe_rule = functools.partial(describe_rule, feature_extractor=feature_extractor)
         _describe_change = functools.partial(
             get_change_description, feature_extractor=feature_extractor)
+        code_lines = base_file.content.decode("utf-8", "replace").splitlines(),
         return self.comment_template.render(
                 config=self.config,                # configuration of the analyzer
                 language=language,                 # programming language of the code
@@ -280,12 +302,11 @@ class FormatAnalyzer(Analyzer):
                 zip=zip,                           # Jinja2 does not have zip() by default
             )
 
-    def _generate_file_comments(
-            self, language: str, file: File, fe: FeatureExtractor,
+    def _generate_comments_data(
+            self, language: str, file: File, base_file: File, fe: FeatureExtractor,
             feature_extractor_output, bblfsh_stub: "bblfsh.aliases.ProtocolServiceStub"
             ) -> List[Comment]:
         rules = self.model[language]
-        file_comments = []
         X, y, (vnodes_y, vnodes, vnode_parents, node_parents) = feature_extractor_output
         y_pred, rule_winners = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
                                              feature_extractor=fe)
@@ -298,7 +319,6 @@ class FormatAnalyzer(Analyzer):
         assert len(y) == len(rule_winners)
         code_generator = CodeGenerator(fe, skip_errors=True)
         new_vnodes = code_generator.apply_predicted_y(vnodes, vnodes_y, y_pred)
-        code_lines = file.content.decode("utf-8", "replace").splitlines()
         for line_number, line in self._group_line_nodes(
                 y, y_pred, vnodes_y, new_vnodes, rule_winners):
             line_ys, line_ys_pred, line_vnodes_y, new_line_vnodes, line_winners = line
@@ -315,20 +335,21 @@ class FormatAnalyzer(Analyzer):
                 fix_vnodes.append(line_vnode_y)
                 fix_ys.append(line_y_predi)
             confidence = self._get_comment_confidence(line_ys, line_ys_pred, line_winners, rules)
-            text = self.render_comment_text(
+            yield dict(
+                ok=True,                      # generation success
                 language=language,            # programming language of the code
                 line_number=line_number,      # line number for the comment
-                code_lines=code_lines,        # original file code lines
+                head_file=file,               # file from head revision
+                base_file=base_file,          # file from base revision
                 new_code_line=new_code_line,  # code line suggested by our model
-                winners=fix_rules,            # winner rule indices
-                vnodes=fix_vnodes,            # corrected VirtualNode-s
-                fixed_labels=fix_ys,          # predicted labels for those nodes
+                vnodes=fix_vnodes,            # VirtualNode-s of the line where changes were
+                                              # introduced.
+                winners=fix_rules,            # winner rule indices for the vnodes
+                fixed_labels=fix_ys,          # new predicted labels for those nodes
                 confidence=confidence,        # overall confidence in the prediction, 0-100
-                feature_extractor=fe,         # FeatureExtractor involved.
+                feature_extractor=fe,         # FeatureExtractor involved
+                new_vnodes=new_vnodes,        # fixed vnodes via CodeGenerator for all file
             )
-            file_comments.append(generate_comment(
-                filename=file.path, line=line_number, text=text, confidence=confidence))
-        return file_comments
 
     @staticmethod
     def _get_comment_confidence(line_ys: Sequence[int], line_ys_pred: Sequence[int],
