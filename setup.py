@@ -33,7 +33,7 @@ setup(
     install_requires=[
         "sourced-ml>=0.7.0,<0.8",
         "lookout-sdk-ml>=0.2.2,<0.3",
-        "scikit-learn>=0.19,<0.20.0",
+        "scikit-learn>=0.20,<2.0",
         "scikit-optimize>=0.5,<2.0",
         "pandas>=0.22,<2.0",
         "gensim>=3.5.0,<4.0",

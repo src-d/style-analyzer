@@ -76,6 +76,7 @@ class FormatAnalyzer(Analyzer):
             },
             "n_jobs": -1,
             "n_iter": 5,
+            "cv": 3,
             "line_length_limit": 500,
             "lower_bound_instances": 500,
             "cutoff_label_precision": 0.85,
@@ -204,6 +205,7 @@ class FormatAnalyzer(Analyzer):
                  "min_samples_leaf": Integer(1, 20)},
                 n_jobs=lang_config["n_jobs"],
                 n_iter=lang_config["n_iter"],
+                cv=lang_config["cv"],
                 random_state=lang_config["trainable_rules"]["random_state"])
             if not slogging.logs_are_structured:
                 # fool the check in joblib - everything still works without it
