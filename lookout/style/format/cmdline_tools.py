@@ -10,7 +10,7 @@ from lookout.core.slogging import setup as setup_slogging
 from lookout.style.format.benchmarks.evaluate_smoke import evaluate_smoke_entry
 from lookout.style.format.benchmarks.generate_smoke import generate_smoke_entry
 from lookout.style.format.quality_report import quality_report
-from lookout.style.format.robustness import plot_pr_curve, style_robustness_report
+from lookout.style.format.quality_report_noisy import quality_report_noisy
 from lookout.style.format.rule_stat import print_rules_report
 
 
@@ -67,6 +67,18 @@ def add_true_noisy_repos_args(my_parser: ArgumentParser):
              "modified by adding artificial style mistakes.")
 
 
+def add_rules_thresholds(my_parser: ArgumentParser):
+    """
+    Add threshold arguments to filter rules.
+
+    :param my_parser: Parser to add the arguments to.
+    """
+    my_parser.add_argument("--confidence-threshold", type=float, default=0.95,
+                           help="Confidence threshold to filter relevant rules.")
+    my_parser.add_argument("--support-threshold", type=int, default=80,
+                           help="Support threshold to filter relevant rules.")
+
+
 def create_parser() -> ArgumentParser:
     """
     Create a parser for the lookout.style.format utility.
@@ -101,27 +113,20 @@ def create_parser() -> ArgumentParser:
     add_bblfsh_arg(rule_parser)
     add_model_args(rule_parser)
 
-    # Style robustness quality report, includes precision, recall and F1-score
-    robust_parser = add_parser("robust-eval", "Quality report made by analyzing how well the "
-                                              "is able to fix random style mistakes among a model "
-                                              "repository: includes precision, recall and "
-                                              "F1-score.")
-    robust_parser.set_defaults(handler=style_robustness_report)
-    add_true_noisy_repos_args(robust_parser)
-    add_bblfsh_arg(robust_parser)
-    add_model_args(robust_parser)
-
-    # Plot Precision and Recall curves
-    pr_curve_parser = add_parser("pr-curve", "Plot Precision/Recall curves with different rules "
-                                             "selected based on their confidence.")
-    pr_curve_parser.set_defaults(handler=plot_pr_curve)
-    add_true_noisy_repos_args(pr_curve_parser)
-    add_bblfsh_arg(pr_curve_parser)
-    add_model_args(pr_curve_parser)
-    pr_curve_parser.add_argument("--support-threshold", type=int, default=0,
-                                 help="Support threshold to filter relevant rules.")
-    pr_curve_parser.add_argument("-o", "--output", required=True, type=str,
-                                 help="Path to the output figure. Could be a png or svg file.")
+    # Generate the quality report based on the artificial noisy dataset
+    quality_report_noisy_parser = add_parser("quality-report-noisy", "Quality report on the "
+                                                                     "artificial noisy dataset")
+    quality_report_noisy_parser.set_defaults(handler=quality_report_noisy)
+    add_true_noisy_repos_args(quality_report_noisy_parser)
+    add_bblfsh_arg(quality_report_noisy_parser)
+    add_model_args(quality_report_noisy_parser)
+    add_rules_thresholds(quality_report_noisy_parser)
+    quality_report_noisy_parser.add_argument("--precision-threshold", type=float, default=0.95,
+                                             help="Precision threshold tolerated for the model.")
+    quality_report_noisy_parser.add_argument("--dir-output-figure", required=True, type=str,
+                                             help="Path to the output figure in png format.")
+    quality_report_noisy_parser.add_argument("--dir-output-report", required=True, type=str,
+                                             help="Path to the output report.")
 
     # Generate dataset of different styles in code for smoke testing.
     gen_smoke_parser = add_parser("gen-smoke-dataset",

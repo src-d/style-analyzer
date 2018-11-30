@@ -3,10 +3,12 @@ from collections import defaultdict
 from difflib import SequenceMatcher
 import glob
 import logging
+import os
 import sys
 from typing import Iterable, List, Mapping, NamedTuple, Set, Tuple
 
 from bblfsh import BblfshClient
+import jinja2
 import numpy
 
 from lookout.style.format.feature_extractor import FeatureExtractor
@@ -204,85 +206,17 @@ def compute_metrics(changes_count: int, predictions_count: int, true_positive: i
     return precision, recall, f1_score
 
 
-def style_robustness_report(true_repo: str, noisy_repo: str, bblfsh: str, language: str,
-                            model_path: str) -> None:
-    """
-    Print the quality report of a model tested on a given repository.
-
-    The tests consists in adding random style mistakes in the given repo and looking how well
-    the model is able to fix them according to the style of the original repository.
-
-    :param true_repo: Path to the original repository we want to test the model on.
-    :param noisy_repo: Path to the noisy version of the repository where 1 style mistake is \
-           randomly added in every file.
-    :param bblfsh: Babelfish client. Babelfish server should be started accordingly.
-    :param language: Language to consider, others will be discarded.
-    :param model_path: Path to the model to test. It should be previously trained on the original \
-           repository located in ':param true_repo:'.
-    """
-    log = logging.getLogger("style_robustness_report")
-
-    true_content = get_content_from_repo(true_repo)
-    noisy_content = get_content_from_repo(noisy_repo)
-    true_files, noisy_files, lines_changed = get_difflib_changes(true_content, noisy_content)
-    log.info("Number of files modified by adding style noise: %d / %d", len(true_files),
-             len(true_content))
-    del true_content, noisy_content
-
-    client = BblfshClient(bblfsh)
-    analyzer = FormatModel().load(model_path)
-    rules = analyzer[language]
-    feature_extractor = FeatureExtractor(language=language,
-                                         **rules.origin_config["feature_extractor"])
-    vnodes_y_true = files2vnodes(true_files, feature_extractor, client)
-    mispreds_noise = files2mispreds(noisy_files, feature_extractor, rules, client, log)
-    diff_mispreds = get_diff_mispreds(mispreds_noise, lines_changed)
-    changes_count = len(lines_changed)
-    log.info("Number of artificial mistakes potentially fixed by the model "
-             "(diff of mispredictions): %d / %d", len(diff_mispreds), changes_count)
-    style_fixes = get_style_fixes(diff_mispreds, vnodes_y_true, true_files, noisy_files,
-                                  feature_extractor)
-    log.info("style-analyzer fixes in the noisy repos: %d / %d -> %.1f %%",
-             len(style_fixes), changes_count, 100 * len(style_fixes) / changes_count)
-
-    precision, recall, f1_score = compute_metrics(changes_count=changes_count,
-                                                  predictions_count=len(diff_mispreds),
-                                                  true_positive=len(style_fixes))
-    print("precision:", round(precision, 3))
-    print("recall:", round(recall, 3))
-    print("F1 score:", round(f1_score, 3))
-
-    print()
-    print("list of files where the style-analyzer succeeds in fixing the random noise:")
-    for mispred in style_fixes:
-        print(mispred.node.path)
-
-
-def filter_relevant_rules(rules: Iterable[Rules], support_threshold: int, log: logging.Logger
-                          ) -> Iterable[Tuple[int, float]]:
-    """
-    Filter relevant rules that have a support higher than `support threshold`.
-
-    :param rules: List of `Rules` from the model.
-    :param support_threshold: Support threshold to filter relevant rules.
-    :param log: Logger.
-    :return: List of `Rules` index and confidence we filter according to `support_threshold`.
-    """
-    log.info("Filtering rules with support higher than %d", support_threshold)
-    rules_id = [(i, r.stats.conf, r.stats.support) for i, r in enumerate(rules)
-                if r.stats.support > support_threshold]
-    rules_selection = sorted(rules_id, key=lambda k: k[1], reverse=True)
-    log.info("Number of rules decreased from %d to %d", len(rules), len(rules_selection))
-    return rules_selection
-
-
-def plot_curve(x: numpy.ndarray, y: numpy.ndarray, output: str) -> None:
+def plot_curve(repo: str, x: numpy.ndarray, y: numpy.ndarray, precision_threshold: float,
+               path_to_figure: str) -> None:
     """
     Plot y versus x as lines and markers using matplotlib.
 
+    :param repo: Name of the repository we plot the precision-recall curve of.
     :param x: 1-D numpy array containing the x coordinates.
     :param y: 1-D numpy array containing the y coordinates.
-    :param output: Path to the output figure, could be either a png or svg file.
+    :param precision_threshold: Precision threshold tolerated for the model.
+           Limit drawn as a red horizontal line on the figure.
+    :param path_to_figure: Path to the output figure, in png format.
     """
     try:
         import matplotlib
@@ -293,17 +227,22 @@ def plot_curve(x: numpy.ndarray, y: numpy.ndarray, output: str) -> None:
     plt.figure(figsize=(15, 10))
     ax = plt.subplot(111)
     ax.plot(x, y, marker="x", linestyle="--")
+    handle = plt.axhline(precision_threshold, color="r")
+    ax.legend([handle], ["precision threshold"], fontsize=17)
+    ax.set_title("Precision-recall curve on the %s repository" % repo, fontsize=17)
     ax.set_ylabel("Precision", fontsize=17, labelpad=15)
     ax.set_xlabel("Recall", fontsize=17, labelpad=15)
     ax.spines["right"].set_visible(False)
     ax.spines["top"].set_visible(False)
-    plt.savefig(output)
+    plt.savefig(path_to_figure)
 
 
-def plot_pr_curve(true_repo: str, noisy_repo: str, bblfsh: str, language: str,
-                  model_path: str, support_threshold: int, output: str) -> None:
+def quality_report_noisy(true_repo: str, noisy_repo: str, bblfsh: str, language: str,
+                         model_path: str, confidence_threshold: float, support_threshold: int,
+                         precision_threshold: float, dir_output_figure: str,
+                         dir_output_report: str) -> None:
     """
-    Plot a precision/recall curve with rules having higher support than `support_threshold`.
+    Generate a quality report on the artificial noisy dataset including a precision-recall curve.
 
     :param true_repo: Path to the original repository we want to test the model on.
     :param noisy_repo: Path to the noisy version of the repository where 1 style mistake is \
@@ -312,10 +251,14 @@ def plot_pr_curve(true_repo: str, noisy_repo: str, bblfsh: str, language: str,
     :param language: Language to consider, others will be discarded.
     :param model_path: Path to the model to test. It should be previously trained on the original \
            repository located in ':param true_repo:'.
+    :param confidence_threshold: Confidence threshold to filter relevant rules.
     :param support_threshold: Support threshold to filter relevant rules.
-    :param output: Path to the output figure. Could yield to a png or svg file.
+    :param precision_threshold: Precision threshold tolerated for the model.
+           Limit drawn as a red horizontal line on the figure.
+    :param dir_output_figure: Path to the output precision-recall curve, figure in png format.
+    :param dir_output_report: Path to the output report in markdown, rendered as a jinja2 template.
     """
-    log = logging.getLogger("plot_pr_curve")
+    log = logging.getLogger("quality_report_noisy")
 
     true_content = get_content_from_repo(true_repo)
     noisy_content = get_content_from_repo(noisy_repo)
@@ -335,10 +278,11 @@ def plot_pr_curve(true_repo: str, noisy_repo: str, bblfsh: str, language: str,
     changes_count = len(lines_changed)
 
     precisions, recalls = [], []
-    rules_selection = filter_relevant_rules(rules.rules, support_threshold, log)
-    for i in range(len(rules_selection)):
+    n_rules = len(rules.rules)
+    rules = rules.filter_by_confidence(confidence_threshold).filter_by_support(support_threshold)
+    for i in range(len(rules.rules)):
         filtered_mispreds = {k: m for k, m in diff_mispreds.items()
-                             if any(r[0] == m.rule for r in rules_selection[:i + 1])}
+                             if any(j == m.rule for j, r in enumerate(rules.rules[:i + 1]))}
         style_fixes = get_style_fixes(filtered_mispreds, vnodes_y_true,
                                       true_files, noisy_files, feature_extractor)
         precision, recall, f1_score = compute_metrics(changes_count=changes_count,
@@ -347,6 +291,41 @@ def plot_pr_curve(true_repo: str, noisy_repo: str, bblfsh: str, language: str,
         precisions.append(round(precision, 3))
         recalls.append(round(recall, 3))
 
-    print("recall x:", recalls)
-    print("precision y:", precisions)
-    plot_curve(numpy.asarray(recalls), numpy.asarray(precisions), output)
+    # Compute some stats and quality metrics for the model's evaluation
+    n_mistakes = len(true_files)
+    prec_max_rec = precisions[-1]
+    max_rec = max(recalls)
+    min_prec = min(precisions)
+    n_rules_filtered = len(rules.rules)
+    # Compute the recall score at the given threshold for precision.
+    for (prec, rec) in zip(precisions, recalls):
+        rec_threshold_prec = rec
+        if prec < precision_threshold:
+            break
+
+    # Compile the precision-recall curve
+    path_to_figure = os.path.join(dir_output_figure, "pr_curve_jquery.png")
+    plot_curve("jquery", numpy.asarray(recalls), numpy.asarray(precisions), precision_threshold,
+               path_to_figure)
+
+    # Compile the markdown template for the report through jinja2
+    loader = jinja2.FileSystemLoader(("/", os.path.dirname(__file__), os.getcwd()),
+                                     followlinks=True)
+    env = jinja2.Environment(
+        trim_blocks=True,
+        lstrip_blocks=True,
+        keep_trailing_newline=True,
+    )
+    env.globals.update(range=range)
+    template = loader.load(env, "templates/noisy_quality_report.md.jinja2")
+    report = template.render(n_mistakes=n_mistakes, rec_threshold_prec=rec_threshold_prec,
+                             prec_max_rec=prec_max_rec, max_rec=max_rec, min_prec=min_prec,
+                             confidence_threshold=confidence_threshold,
+                             support_threshold=support_threshold,
+                             n_rules=n_rules, n_rules_filtered=n_rules_filtered,
+                             path_to_figure=path_to_figure)
+
+    # Write the quality report
+    path_to_report = os.path.join(dir_output_report, "report2.md")
+    with open(path_to_report, "w", encoding="utf-8") as f:
+        f.write(report)
