@@ -10,7 +10,7 @@ from lookout.style.format.benchmarks.evaluate_smoke import (
     evaluate_smoke_entry)
 
 
-class DescriptionsTests(unittest.TestCase):
+class EvaluateSmokeTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.seqs3 = [

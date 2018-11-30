@@ -29,6 +29,7 @@ from lookout.style.format.rules import Rules, TrainableRules
 from lookout.style.format.utils import generate_comment, merge_dicts
 from lookout.style.format.virtual_node import VirtualNode
 
+
 FixData = NamedTuple("FixData", (
     ("error", str),                           # error message
     ("language", str),                        # programming language of the code
@@ -36,9 +37,9 @@ FixData = NamedTuple("FixData", (
     ("head_file", File),                      # file from head revision
     ("base_file", File),                      # file from base revision
     ("suggested_code", str),                  # code line predicted by our model
-    ("vnodes", List[VirtualNode]),            # VirtualNode-s which correspond to this line
-    ("fixes", List[Tuple[int, int]]),         # changed vnode indices (in `vnodes`)
-                                              # and winner rule indices
+    ("all_vnodes", List[VirtualNode]),        # VirtualNode-s which correspond to this file
+    ("fixed_vnodes", List[VirtualNode]),      # VirtualNode-s with fixed y
+    ("winner_rules", List[int]),              # Rule indices
     ("confidence", int),                      # overall confidence in the prediction, 0-100
     ("feature_extractor", FeatureExtractor),  # FeatureExtractor involved
 ))
@@ -271,7 +272,7 @@ class FormatAnalyzer(Analyzer):
                         yield FixData(
                             base_file=prev_file, head_file=file, confidence=100, line_number=0,
                             error="Failed to parse", language=lang, feature_extractor=fe,
-                            vnodes=[], fixes=[], suggested_code="")
+                            all_vnodes=[], fixed_vnodes=[], winner_rules=[], suggested_code="")
                 else:
                     yield from self._generate_comments_data(
                         lang, file, prev_file, fe, feature_extractor_output,
@@ -284,14 +285,12 @@ class FormatAnalyzer(Analyzer):
         :param fix_data: Full information required to render a comment text.
         :return: string with the generated comment.
         """
-        fixed_vnodes = [fix_data.vnodes[f[0]] for f in fix_data.fixes]
-        winners = [f[1] for f in fix_data.fixes]
         rules = self.model[fix_data.language]
         _describe_rule = functools.partial(
             describe_rule, feature_extractor=fix_data.feature_extractor)
         _describe_change = functools.partial(
             get_change_description, feature_extractor=fix_data.feature_extractor)
-        code_lines = fix_data.base_file.content.decode("utf-8", "replace").splitlines(),
+        code_lines = fix_data.head_file.content.decode("utf-8", "replace").splitlines()
         return self.comment_template.render(
                 config=self.config,                     # configuration of the analyzer
                 language=fix_data.language,             # programming language of the code
@@ -299,8 +298,8 @@ class FormatAnalyzer(Analyzer):
                 code_lines=code_lines,                  # original file code lines
                 new_code_line=fix_data.suggested_code,  # code line suggested by our model
                 rules=rules.rules,                      # list of rules belonging to the model
-                winners=winners,                        # winner rule indices
-                vnodes=fixed_vnodes,                    # corrected VirtualNode-s
+                fixed_vnodes=fix_data.fixed_vnodes,     # VirtualNode-s which changed y
+                winner_rules=fix_data.winner_rules,     # changed vnodes and winner rule indices
                 confidence=fix_data.confidence,         # overall confidence in the prediction
                 describe_rule=_describe_rule,           # function to format a rule as text
                 describe_change=_describe_change,       # function to format a change as text
@@ -329,13 +328,9 @@ class FormatAnalyzer(Analyzer):
             line_ys, line_ys_pred, line_vnodes_y, new_line_vnodes, line_winners = line
             new_code_line = code_generator.generate(
                 new_line_vnodes, "local").lstrip("\n").splitlines()[0]
-            fixes = []
-            for line_yi, line_y_predi, line_vnode, winner_rule in zip(
-                    line_ys, line_ys_pred, line_vnodes_y, line_winners):
-                if line_yi == line_y_predi:
-                    continue
-                fixes.append((line_vnode, winner_rule))
             confidence = self._get_comment_confidence(line_ys, line_ys_pred, line_winners, rules)
+            vnodes_changed = [vnode for vnode in new_line_vnodes if
+                              hasattr(vnode, "y_old") and vnode.y_old != vnode.y]
             yield FixData(
                 error="",                      # success
                 language=language,             # programming language of the code
@@ -343,9 +338,9 @@ class FormatAnalyzer(Analyzer):
                 head_file=file,                # file from head revision
                 base_file=base_file,           # file from base revision
                 suggested_code=new_code_line,  # code line suggested by our model
-                vnodes=new_line_vnodes,        # VirtualNode-s which construct the line
-                fixes=fixes,                   # changed vnode indices (in `vnodes`) and winning
-                                               # rule indices
+                all_vnodes=new_vnodes,         # VirtualNode-s which construct the file
+                fixed_vnodes=vnodes_changed,   # VirtualNode-s with changed y
+                winner_rules=line_winners,     # applied rule indices
                 confidence=confidence,         # overall confidence in the prediction, 0-100
                 feature_extractor=fe,          # FeatureExtractor involved
             )

@@ -287,13 +287,13 @@ class SmokeEvalFormatAnalyzer(FormatAnalyzer):
         report = []
         handled_files = set()
         changes = list(data["changes"])
-        for unrendered in self.generate_fixes(data_service, changes):
-            filepath = unrendered["head_file"].path
-            if not unrendered["ok"] or filepath in handled_files:
+        for fixes in self.generate_fixes(data_service, changes):
+            filepath = fixes.head_file.path
+            if not fixes.error or filepath in handled_files:
                 continue
             handled_files.add(filepath)
-            bad_style_code = unrendered["head_file"].content.decode("utf-8", "replace")
-            correct_style_code = unrendered["base_file"].content.decode("utf-8", "replace")
+            bad_style_code = fixes.head_file.content.decode("utf-8", "replace")
+            correct_style_code = fixes.base_file.content.decode("utf-8", "replace")
             row = {
                 "repo": self.config["repo_name"],
                 "style": self.config["style_name"],
@@ -302,8 +302,8 @@ class SmokeEvalFormatAnalyzer(FormatAnalyzer):
                 "correct_style_file": correct_style_code,
             }
             row.update(calc_metrics(
-                bad_style_code, correct_style_code, unrendered["feature_extractor"],
-                unrendered["new_vnodes"], url=ptr_to.url, commit=ptr_to.commit))
+                bad_style_code, correct_style_code, fixes.feature_extractor,
+                fixes.all_vnodes, url=ptr_to.url, commit=ptr_to.commit))
             report.append(row)
 
         # handle file without comments

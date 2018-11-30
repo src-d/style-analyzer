@@ -12,7 +12,7 @@ format: style mismatch:
 ```
 
 {% endif %}
-{% for rule_index, vnode in zip(winners, vnodes) %}
+{% for vnode, rule_index in zip(fixed_vnodes, winner_rules) %}
 {{ describe_change(vnode) }}
     {% if config.report_triggered_rules %}
 Triggered rule # {{ rule_index or "<N/A>" }}
