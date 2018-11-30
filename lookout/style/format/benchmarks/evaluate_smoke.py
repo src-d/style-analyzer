@@ -24,7 +24,6 @@ from lookout.style.format.tests.test_analyzer_integration import TestAnalyzer
 from lookout.style.format.utils import flatten_dict
 from lookout.style.format.virtual_node import VirtualNode
 
-
 EMPTY = "␣"
 
 
@@ -288,7 +287,7 @@ class SmokeEvalFormatAnalyzer(FormatAnalyzer):
         report = []
         handled_files = set()
         changes = list(data["changes"])
-        for unrendered in self.analyze_unrendered(data_service, changes):
+        for unrendered in self.generate_fixes(data_service, changes):
             filepath = unrendered["head_file"].path
             if not unrendered["ok"] or filepath in handled_files:
                 continue

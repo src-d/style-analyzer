@@ -186,26 +186,26 @@ def describe_rule_parts_ordinal(feature: OrdinalFeature, name: str,
     return "%s ≤ %d" % (name, floor(threshold))
 
 
-def get_change_description(vnode: VirtualNode, y_pred: int, feature_extractor: FeatureExtractor
-                           ) -> str:
+def get_change_description(vnode: VirtualNode, feature_extractor: FeatureExtractor) -> str:
     """
     Return the comment with regard to the correct node class.
 
-    :param vnode: Node to describe.
-    :param y_pred: The index of the correct node class.
+    :param vnode: Changed node. "y" attribute is the predicted node label and \
+                  "y_old" is the original one.
     :param feature_extractor: FeatureExtractor used to extract features.
     :return: String comment.
     """
+    if not hasattr(vnode, "y_old"):
+        raise ValueError("y_old attribute must exist in the supplied vnode")
     column = vnode.start.col
     class_representations = feature_extractor.composite_class_representations
-    y = feature_extractor.class_sequences_to_labels[vnode.y]
-    labels_pred = feature_extractor.labels_to_class_sequences[y_pred]
-    if labels_pred[0] == CLASS_INDEX[CLS_NOOP]:
-        return "%s at column %d should be removed." % (class_representations[y], column)
+    old_label = class_representations[feature_extractor.class_sequences_to_labels[vnode.y_old]]
+    new_label = class_representations[feature_extractor.class_sequences_to_labels[vnode.y]]
     if vnode.y[0] == CLASS_INDEX[CLS_NOOP]:
-        return "%s should be inserted at column %d." % (class_representations[y_pred], column)
-    return "Replace %s with %s at column %d." % (
-        class_representations[y], class_representations[y_pred], column)
+        return "%s at column %d should be removed." % (old_label, column)
+    if vnode.y_old[0] == CLASS_INDEX[CLS_NOOP]:
+        return "%s should be inserted at column %d." % (new_label, column)
+    return "Replace %s with %s at column %d." % (old_label, new_label, column)
 
 
 def get_code_chunk(code_lines: Sequence[str], line_number: int) -> str:
