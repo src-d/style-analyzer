@@ -309,8 +309,6 @@ class Rules:
         return numpy.nonzero(triggered)[0]
 
 
-TopDownGreedyBudget = NamedTuple("TopDownGreedyBudget", (
-    ("absolute", bool), ("value", Union[float, int])))
 LabelScore = NamedTuple("LabelScore", (
     ("accuracy", float), ("precision", float), ("recall", float), ("f", float), ("support", int)))
 
@@ -322,7 +320,8 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
 
     def __init__(self, *, base_model_name: str = "sklearn.tree.DecisionTreeClassifier",
                  prune_branches_algorithms=("reduced-error", "top-down-greedy"),
-                 top_down_greedy_budget=TopDownGreedyBudget(False, 1.0), prune_attributes=True,
+                 top_down_greedy_budget: Tuple[bool, Union[float, int]] = (False, 1.0),
+                 prune_attributes=True,
                  uncertain_attributes=True, prune_dataset_ratio=.2, n_estimators=10,
                  max_depth=None, max_features=None, min_samples_leaf=1, min_samples_split=2,
                  random_state=42, origin_config=None):
@@ -333,8 +332,13 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
                                 Must be either "sklearn.tree.DecisionTreeClassifier" or \
                                 "sklearn.ensemble.RandomForestClassifier".
         :param prune_branches_algorithms: branch pruning algorithms to use.
-        :param top_down_greedy_budget: how many the branches to leave, either a floating point \
-                                       number from 0 to 1 or the exact quantity.
+        :param top_down_greedy_budget: Tuple describing the budget of the top down algorithm: \
+                                       boolean to indicate if it's absolute (True) or not \
+                                       (False). If the first value is True (absolute budget), the \
+                                       second  should be an integer describing the maximum number \
+                                       of rules to keep. If it is False (relative budget), it \
+                                       should be a float between 0 and 1 to specify the \
+                                       proportion of rules to keep.
         :param prune_attributes: indicates whether to remove useless parts of rules.
         :param uncertain_attributes: indicates whether to **retain** parts of rules with low \
                                      certainty (see "Generating Production Rules From Decision \
@@ -352,7 +356,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
 
         self.base_model_name = base_model_name
         self.prune_branches_algorithms = prune_branches_algorithms
-        self.top_down_greedy_budget = TopDownGreedyBudget(*top_down_greedy_budget)
+        self.top_down_greedy_budget = top_down_greedy_budget
         self.prune_attributes = prune_attributes
         self.uncertain_attributes = uncertain_attributes
         self.prune_dataset_ratio = prune_dataset_ratio
@@ -670,7 +674,23 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
     def _prune_branches_top_down_greedy(
             self, base_model: Union[DecisionTreeClassifier, RandomForestClassifier],
             rules: Sequence[Rule], X: numpy.ndarray, Y: numpy.ndarray,
-            leaf2rule: Sequence[Mapping[int, int]], budget: TopDownGreedyBudget) -> List[Rule]:
+            leaf2rule: Sequence[Mapping[int, int]], budget: Tuple[bool, Union[float, int]]
+            ) -> List[Rule]:
+        """
+        Prune branches using a greedy top down algorithm.
+
+        :param base_model: Sklearn decision tree or random forest base model.
+        :param rules: Rules extracted from the base model.
+        :param X: Samples to use to evaluate the quality of subsets of branches.
+        :param Y: Labels to use to evaluate the quality of subsets of branches.
+        :param leaf2rule: Mapping from leaves in the base model to rules.
+        :param budget: Tuple describing the budget: boolean to indicate if it's absolute (True) \
+                       or not (False). If the first value is True (absolute budget), the second \
+                       should be an integer describing the maximum number of rules to keep. If it \
+                       is False (relative budget), it should be a float between 0 and 1 to \
+                       specify the proportion of rules to keep.
+        :return: Pruned list of rules.
+        """
         absolute, value = budget
         if absolute:
             assert isinstance(value, int)
