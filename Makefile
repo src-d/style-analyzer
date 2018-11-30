@@ -28,7 +28,7 @@ docker-test:
 		-v $(current_dir)/.git:/style-analyzer/.git \
 		-v $(current_dir)/lookout/core/server:/style-analyzer/lookout/core/server \
 		--entrypoint python3 -w /style-analyzer \
-			srcd/style-analyzer -m unittest discover
+			srcd/style-analyzer:test -m unittest discover
 
 .PHONY: bblfsh-start
 bblfsh-start:
