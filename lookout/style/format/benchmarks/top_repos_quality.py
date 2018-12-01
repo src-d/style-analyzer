@@ -1,19 +1,24 @@
 """Measure quality on several top repositories."""
 from argparse import ArgumentParser
 import glob
+import importlib
 import io
 import logging
 import os
 import subprocess
 import tempfile
 import traceback
-from typing import Sequence
+from typing import Iterable, Sequence, Type, Union
 
-from lookout.core.cmdline import ArgumentDefaultsHelpFormatterNoNone
+from lookout.core.analyzer import Analyzer
+from lookout.core.cmdline import ArgumentDefaultsHelpFormatterNoNone, create_model_repo_from_args
+from lookout.core.data_requests import DataService
+from lookout.core.event_listener import EventListener
+from lookout.core.manager import AnalyzerManager
 from lookout.core.test_helpers.server import fetch, find_port, run as launch_server
 from tabulate import tabulate
 
-from lookout.style.format.tests.test_analyzer_integration import TestAnalyzer
+from lookout.style.format.quality_report import QualityReportAnalyzer
 
 
 # TODO: add after https://github.com/src-d/style-analyzer/issues/329 fixed
@@ -24,7 +29,7 @@ https://github.com/webpack/webpack babe736cfa1ef7e8014ed32ba4a4ec38049dce14 3e74
 https://github.com/vuejs/vuex 2e62705d4bce4ebcb8eca23df8c7b849125fc565 1ac16a95c574f6b1386016fb6d4f00cfd2ee1d60"""  # noqa: E501
 # TODO: add after https://github.com/bblfsh/bblfshd/issues/219 fixed
 """https://github.com/nodejs/node 6eda924c189e44a36fc97a7cfae41b69483d5bfb 315b1c656cee39c989015cc2b17fe8c864dbc3dd"""  # noqa: E501
-# TODO: add after modifying timeout config for `analyzer_push`
+# TODO: add after modifying timeout config for `analyzer_push` (https://github.com/src-d/style-analyzer/issues/365)  # noqa: E501
 """https://github.com/atom/atom 108b23210759a8c5b2f51ac99659be5dc31a7371 a3c320dd707b915da2192427bcceea166edbd6d4"""  # noqa: E501
 # TODO: add after https://github.com/src-d/style-analyzer/issues/364 fixed
 """https://github.com/segmentio/evergreen ba22d511dad83c072842e47801ef42697d142f7c 1030eca5da38dce4e5047c23a3ea7fc0c246b8ce"""  # noqa: E501
@@ -45,6 +50,62 @@ https://github.com/laravel/telescope 534030114f47696fe3f3b08ea7ca49467428f2af 6f
 https://github.com/vuejs/vue-cli 2024f4e52097bed96b527d2e519dccba334f434b 85e4f9839ba88d1283b10bb3112582792b8dac6e""".split("\n")  # noqa: E501
 
 
+class AnalyzerContextManager:
+    """Context manager for launching analyzer."""
+
+    def __init__(
+            self, port: int, db: str, fs: str, config: str = "",
+            analyzer: Union[str, Sequence[str], Iterable[Type[Analyzer]]] = "lookout.style.format"
+    ):
+        """
+        Init analyzer: model_repository, data_service, arguments, etc.
+
+        :param port: port to use for analyzer.
+        :param db: database location.
+        :param fs: location where to store results of launched analyzer.
+        :param config: Path to the configuration file with option defaults. If empty - skip.
+        :param analyzer: analyzer(s) to use.
+        """
+        self.port = port
+        self.db = db
+        self.fs = fs
+        self.config_path = config  # mimic TestAnalyzer - not used so far
+        if isinstance(analyzer, (str, type)):
+            self.analyzer = [analyzer]
+        if isinstance(self.analyzer[0], str):
+            self.analyzer = [importlib.import_module(a).analyzer_class for a in self.analyzer]
+
+        class Args:
+            pass
+        self.args = Args()
+        self.args.db = "sqlite:///%s" % self.db
+        self.args.fs = self.fs
+        self.args.cache_size = "1G"
+        self.args.cache_ttl = "6h"
+        self.args.db_kwargs = {}
+        self.args.workers = 1
+        # initialize model repository
+        self.model_repository = create_model_repo_from_args(self.args)
+        self.model_repository.init()
+        # initialize a new instance of DataService
+        data_request_address = "0.0.0.0:10301"
+        self.data_service = DataService(data_request_address)
+
+    def __enter__(self):
+        self.manager = AnalyzerManager(
+            analyzers=self.analyzer,
+            model_repository=self.model_repository,
+            data_service=self.data_service,
+        )
+        self.listener = EventListener(address="0.0.0.0:%d" % self.port, handlers=self.manager,
+                                      n_workers=self.args.workers)
+        self.listener.start()
+        return self
+
+    def __exit__(self, exc_type=None, exc_val=None, exc_tb=None):
+        self.listener.stop()
+
+
 def train_on_repo(git_dir: str, from_commit: str, to_commit: str, db: str, fs: str, port: str) \
         -> str:
     """
@@ -60,7 +121,7 @@ def train_on_repo(git_dir: str, from_commit: str, to_commit: str, db: str, fs: s
     """
     # analyzer
     logging.warning("TestAnalyzer")
-    with TestAnalyzer(port=port, db=db, fs=fs):
+    with AnalyzerContextManager(port=port, db=db, fs=fs):
         # train the rules
         launch_server("push", from_commit, to_commit, port, git_dir=git_dir)
         # find the saved model
@@ -89,6 +150,7 @@ def measure_quality(repository: str, from_commit: str, to_commit: str, bblfsh: s
     :param to_commit: Hash of commit.
     :param bblfsh: Bblfsh address to use.
     :param config: Path to config file.
+                   Skip until https://github.com/src-d/style-analyzer/issues/365 fixed.
     :return: Report.
     """
     port = find_port()
@@ -105,27 +167,38 @@ def measure_quality(repository: str, from_commit: str, to_commit: str, bblfsh: s
         model_path = train_on_repo(git_dir=git_dir, from_commit=from_commit, to_commit=to_commit,
                                    db=db.name, fs=fs.name, port=port)
         # quality report
-        analyzer_name = "lookout.style.format.quality_report"
+        analyzer_name = QualityReportAnalyzer
+        captured_reports = []
+
+        def capture_reports(f):
+            def decorated(*args, **kwargs):
+                captured_reports.append(f(*args, **kwargs))
+                return captured_reports[-1]
+            return decorated
+
+        QualityReportAnalyzer.generate_model_report =  \
+            capture_reports(QualityReportAnalyzer.generate_model_report)
+        QualityReportAnalyzer.generate_report =  \
+            capture_reports(QualityReportAnalyzer.generate_report)
+
         config_json = '{"style.format.analyzer.QualityReportAnalyzer": {"model_path": "%s", ' \
-                      '"bblfsh_address": "%s"}, "timeout" : {"analyzer_push": 90}}' % \
-                      (model_path, bblfsh)
-        with TestAnalyzer(port=port, db=db.name, fs=fs.name, analyzer=analyzer_name,
-                          config=config) as analyzer:
+                      '"bblfsh_address": "%s"}}' % (model_path, bblfsh)
+        with AnalyzerContextManager(port=port, db=db.name, fs=fs.name, analyzer=analyzer_name):
             launch_server("push", fr=from_commit, to=to_commit, port=port,
                           git_dir=git_dir, config_json=config_json)
             # find quality report
-            st = [j for j, row in enumerate(analyzer.logs)
-                  if "Classification report:" in row and "QualityReportAnalyzer" in row]
+            st = [j for j, row in enumerate(captured_reports)
+                  if "Classification report:" in row and "Quality report" in row]
             assert len(st) == 1
             st = st[0]
-            quality_report = analyzer.logs[st]
+            quality_report = captured_reports[st]
             # find rule stat report
-            st = [j for j, row in enumerate(analyzer.logs)
+            st = [j for j, row in enumerate(captured_reports)
                   if "Rules summary:" in row and "# Model report for" in row]
             assert len(st) == 1
             st = st[0]
-            model_report = analyzer.logs[st]
-    return "\n".join(quality_report.split("\n")[1:-1]), "\n".join(model_report.split("\n")[1:-1])
+            model_report = captured_reports[st]
+    return quality_report, model_report
 
 
 def calc_weighted_avg(arr: Sequence[Sequence], col: int, weight_col: int = 3) -> float:
