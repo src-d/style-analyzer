@@ -3,17 +3,21 @@ import os
 import unittest
 
 from lookout.style.format import descriptions, FormatAnalyzer
+from lookout.style.format.analyzer import FixData
 from lookout.style.format.virtual_node import Position, VirtualNode
 
 
 class CodeGeneratorTests(unittest.TestCase):
     def test_template(self):
-        class FakeRules():
+        class FakeRules:
             rules = {34: "<rule # 34>"}
 
         class FakeModel:
             def __getitem__(self, item):
                 return FakeRules()
+
+        class FakeHeadFile:
+            content = b"<first code line>\n<second code line>\n<third code line>"
 
         def fake_partitial(func, *_, **__):
             if func == descriptions.describe_rule:
@@ -34,24 +38,18 @@ class CodeGeneratorTests(unittest.TestCase):
         analyzer = FormatAnalyzer(config=config, model=FakeModel(), url="http://github.com/x/y")
         language = "<language>"
         line_number = 2
-        code_lines = ["<first code line>", "<second code line>", "<third code line>"]
-        new_code_line = "<new code line>"
+        suggested_code = "<new code line>"
         partial_backup = functools.partial
+        fix_data = FixData(
+            base_file=None, head_file=FakeHeadFile, confidence=100, line_number=line_number,
+            error="Failed to parse", language=language, feature_extractor=None,
+            winner_rules=[34], suggested_code=suggested_code, all_vnodes=[],
+            fixed_vnodes=[VirtualNode(start=Position(10, 2, 1), end=Position(12, 3, 1),
+                                      value="!", y=1)])
         try:
 
             functools.partial = fake_partitial
-            text = analyzer.render_comment_text(
-                language=language,  # programming language of the code
-                line_number=line_number,  # line number for the comment
-                code_lines=code_lines,  # original file code lines
-                new_code_line=new_code_line,  # code line suggested by our model
-                winners=[34],
-                vnodes=[VirtualNode(start=Position(10, 2, 1), end=Position(12, 3, 1),
-                                    value="!", y=1)],
-                fixed_labels=[2],
-                confidence=99,
-                feature_extractor=None,
-            )
+            text = analyzer.render_comment_text(fix_data)
             res = """format: style mismatch:
 ```<language>
 1|<first code line>
