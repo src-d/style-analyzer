@@ -214,7 +214,7 @@ def plot_curve(repo: str, x: numpy.ndarray, y: numpy.ndarray, precision_threshol
     :param repo: Name of the repository we plot the precision-recall curve of.
     :param x: 1-D numpy array containing the x coordinates.
     :param y: 1-D numpy array containing the y coordinates.
-    :param precision_threshold: Precision threshold tolerated for the model.
+    :param precision_threshold: Precision threshold tolerated by the model. \
            Limit drawn as a red horizontal line on the figure.
     :param path_to_figure: Path to the output figure, in png format.
     """
@@ -237,25 +237,6 @@ def plot_curve(repo: str, x: numpy.ndarray, y: numpy.ndarray, precision_threshol
     plt.savefig(path_to_figure)
 
 
-def filter_relevant_rules(rules: Iterable[Rules], confidence_threshold: float,
-                          support_threshold: int, log: logging.Logger
-                          ) -> Iterable[Tuple[int, float]]:
-    """
-    Filter relevant rules that have a support higher than `support threshold`.
-
-    :param rules: List of `Rules` from the model.
-    :param support_threshold: Support threshold to filter relevant rules.
-    :param log: Logger.
-    :return: List of `Rules` index and confidence we filter according to `support_threshold`.
-    """
-    log.info("Filtering rules with support higher than %d", support_threshold)
-    rules_id = [(i, r.stats.conf, r.stats.support) for i, r in enumerate(rules)
-                if r.stats.conf > confidence_threshold and r.stats.support > support_threshold]
-    rules_selection = sorted(rules_id, key=lambda k: k[1], reverse=True)
-    log.info("Number of rules decreased from %d to %d", len(rules), len(rules_selection))
-    return rules_selection
-
-
 def quality_report_noisy(true_repo: str, noisy_repo: str, bblfsh: str, language: str,
                          model_path: str, confidence_threshold: float, support_threshold: int,
                          precision_threshold: float, dir_output) -> None:
@@ -271,9 +252,9 @@ def quality_report_noisy(true_repo: str, noisy_repo: str, bblfsh: str, language:
            repository located in ':param true_repo:'.
     :param confidence_threshold: Confidence threshold to filter relevant rules.
     :param support_threshold: Support threshold to filter relevant rules.
-    :param precision_threshold: Precision threshold tolerated for the model.
+    :param precision_threshold: Precision threshold tolerated by the model. \
            Limit drawn as a red horizontal line on the figure.
-    :param dir_output: Path to the output directory where to store the quality report in makdown \
+    :param dir_output: Path to the output directory where to store the quality report in Markdown \
            and the precision-recall curve in png format.
     """
     log = logging.getLogger("quality_report_noisy")
@@ -347,6 +328,6 @@ def quality_report_noisy(true_repo: str, noisy_repo: str, bblfsh: str, language:
                              path_to_figure=path_to_figure)
 
     # Write the quality report
-    path_to_report = os.path.join(dir_output, "report2.md")
+    path_to_report = os.path.join(dir_output, "report_noise.md")
     with open(path_to_report, "w", encoding="utf-8") as f:
         f.write(report)
