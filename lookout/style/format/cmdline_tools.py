@@ -123,10 +123,10 @@ def create_parser() -> ArgumentParser:
     add_rules_thresholds(quality_report_noisy_parser)
     quality_report_noisy_parser.add_argument("--precision-threshold", type=float, default=0.95,
                                              help="Precision threshold tolerated for the model.")
-    quality_report_noisy_parser.add_argument("--dir-output-figure", required=True, type=str,
-                                             help="Path to the output figure in png format.")
-    quality_report_noisy_parser.add_argument("--dir-output-report", required=True, type=str,
-                                             help="Path to the output report.")
+    quality_report_noisy_parser.add_argument("--dir-output", required=True, type=str,
+                                             help="Path to the output directory where to store "
+                                                  "the quality report and the precision-recall "
+                                                  "curve.")
 
     # Generate dataset of different styles in code for smoke testing.
     gen_smoke_parser = add_parser("gen-smoke-dataset",

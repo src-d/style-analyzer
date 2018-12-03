@@ -239,8 +239,7 @@ def plot_curve(repo: str, x: numpy.ndarray, y: numpy.ndarray, precision_threshol
 
 def quality_report_noisy(true_repo: str, noisy_repo: str, bblfsh: str, language: str,
                          model_path: str, confidence_threshold: float, support_threshold: int,
-                         precision_threshold: float, dir_output_figure: str,
-                         dir_output_report: str) -> None:
+                         precision_threshold: float, dir_output) -> None:
     """
     Generate a quality report on the artificial noisy dataset including a precision-recall curve.
 
@@ -255,8 +254,8 @@ def quality_report_noisy(true_repo: str, noisy_repo: str, bblfsh: str, language:
     :param support_threshold: Support threshold to filter relevant rules.
     :param precision_threshold: Precision threshold tolerated for the model.
            Limit drawn as a red horizontal line on the figure.
-    :param dir_output_figure: Path to the output precision-recall curve, figure in png format.
-    :param dir_output_report: Path to the output report in markdown, rendered as a jinja2 template.
+    :param dir_output: Path to the output directory where to store the quality report in makdown \
+           and the precision-recall curve in png format.
     """
     log = logging.getLogger("quality_report_noisy")
 
@@ -290,6 +289,8 @@ def quality_report_noisy(true_repo: str, noisy_repo: str, bblfsh: str, language:
                                                       true_positive=len(style_fixes))
         precisions.append(round(precision, 3))
         recalls.append(round(recall, 3))
+    print("recall x:", recalls)
+    print("precision y:", precisions)
 
     # Compute some stats and quality metrics for the model's evaluation
     n_mistakes = len(true_files)
@@ -304,7 +305,7 @@ def quality_report_noisy(true_repo: str, noisy_repo: str, bblfsh: str, language:
             break
 
     # Compile the precision-recall curve
-    path_to_figure = os.path.join(dir_output_figure, "pr_curve_jquery.png")
+    path_to_figure = os.path.join(dir_output, "pr_curve_jquery.png")
     plot_curve("jquery", numpy.asarray(recalls), numpy.asarray(precisions), precision_threshold,
                path_to_figure)
 
@@ -326,6 +327,6 @@ def quality_report_noisy(true_repo: str, noisy_repo: str, bblfsh: str, language:
                              path_to_figure=path_to_figure)
 
     # Write the quality report
-    path_to_report = os.path.join(dir_output_report, "report2.md")
+    path_to_report = os.path.join(dir_output, "report2.md")
     with open(path_to_report, "w", encoding="utf-8") as f:
         f.write(report)
