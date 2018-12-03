@@ -3,13 +3,14 @@
 
 ### Rules filtering thresholds
 
-* `{{ "Confidence: %s" % (confidence_threshold) }}` {{ "\n" }}
+* `{{ "Confidence: %s  " % (confidence_threshold) }}`
 * `{{ "Support: %s" % (support_threshold) }}`
 
 ### Metrics table for the *jquery/jquery* repository
+  
 
-| number of mistakes | recall at threshold precision | precision at max recall | max recall  | min precision |                Number of rules                 |
-|:------------------:|:-----------------------------:|:-----------------------:|:-----------:|:-------------:|:----------------------------------------------:|
-|   {{n_mistakes}}   |     {{rec_threshold_prec}}    |     {{prec_max_rec}}    | {{max_rec}} |  {{min_prec}} | `{{ "%s / %s" % (n_rules_filtered, n_rules)}}` |
+| number of mistakes | recall at threshold precision | precision at max recall | max recall  |                Number of rules                 |
+|:------------------:|:-----------------------------:|:-----------------------:|:-----------:|:----------------------------------------------:|
+|   {{n_mistakes}}   |     {{rec_threshold_prec}}    |     {{prec_max_rec}}    | {{max_rec}} | `{{ "%s / %s" % (n_rules_filtered, n_rules)}}` |
 
 ![Precision-Racall curve]({{path_to_figure}})

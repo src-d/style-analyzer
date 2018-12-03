@@ -237,6 +237,25 @@ def plot_curve(repo: str, x: numpy.ndarray, y: numpy.ndarray, precision_threshol
     plt.savefig(path_to_figure)
 
 
+def filter_relevant_rules(rules: Iterable[Rules], confidence_threshold: float,
+                          support_threshold: int, log: logging.Logger
+                          ) -> Iterable[Tuple[int, float]]:
+    """
+    Filter relevant rules that have a support higher than `support threshold`.
+
+    :param rules: List of `Rules` from the model.
+    :param support_threshold: Support threshold to filter relevant rules.
+    :param log: Logger.
+    :return: List of `Rules` index and confidence we filter according to `support_threshold`.
+    """
+    log.info("Filtering rules with support higher than %d", support_threshold)
+    rules_id = [(i, r.stats.conf, r.stats.support) for i, r in enumerate(rules)
+                if r.stats.conf > confidence_threshold and r.stats.support > support_threshold]
+    rules_selection = sorted(rules_id, key=lambda k: k[1], reverse=True)
+    log.info("Number of rules decreased from %d to %d", len(rules), len(rules_selection))
+    return rules_selection
+
+
 def quality_report_noisy(true_repo: str, noisy_repo: str, bblfsh: str, language: str,
                          model_path: str, confidence_threshold: float, support_threshold: int,
                          precision_threshold: float, dir_output) -> None:
@@ -278,10 +297,12 @@ def quality_report_noisy(true_repo: str, noisy_repo: str, bblfsh: str, language:
 
     precisions, recalls = [], []
     n_rules = len(rules.rules)
-    rules = rules.filter_by_confidence(confidence_threshold).filter_by_support(support_threshold)
+    rules_id = [(i, r.stats.conf) for i, r in enumerate(rules.rules)
+                if r.stats.conf > confidence_threshold and r.stats.support > support_threshold]
+    rules_id = sorted(rules_id, key=lambda k: k[1], reverse=True)
     for i in range(len(rules.rules)):
         filtered_mispreds = {k: m for k, m in diff_mispreds.items()
-                             if any(j == m.rule for j, r in enumerate(rules.rules[:i + 1]))}
+                             if any(r[0] == m.rule for r in rules_id[:i + 1])}
         style_fixes = get_style_fixes(filtered_mispreds, vnodes_y_true,
                                       true_files, noisy_files, feature_extractor)
         precision, recall, f1_score = compute_metrics(changes_count=changes_count,
@@ -296,13 +317,12 @@ def quality_report_noisy(true_repo: str, noisy_repo: str, bblfsh: str, language:
     n_mistakes = len(true_files)
     prec_max_rec = precisions[-1]
     max_rec = max(recalls)
-    min_prec = min(precisions)
     n_rules_filtered = len(rules.rules)
     # Compute the recall score at the given threshold for precision.
     for (prec, rec) in zip(precisions, recalls):
-        rec_threshold_prec = rec
         if prec < precision_threshold:
             break
+        rec_threshold_prec = rec
 
     # Compile the precision-recall curve
     path_to_figure = os.path.join(dir_output, "pr_curve_jquery.png")
@@ -320,7 +340,7 @@ def quality_report_noisy(true_repo: str, noisy_repo: str, bblfsh: str, language:
     env.globals.update(range=range)
     template = loader.load(env, "templates/noisy_quality_report.md.jinja2")
     report = template.render(n_mistakes=n_mistakes, rec_threshold_prec=rec_threshold_prec,
-                             prec_max_rec=prec_max_rec, max_rec=max_rec, min_prec=min_prec,
+                             prec_max_rec=prec_max_rec, max_rec=max_rec,
                              confidence_threshold=confidence_threshold,
                              support_threshold=support_threshold,
                              n_rules=n_rules, n_rules_filtered=n_rules_filtered,
