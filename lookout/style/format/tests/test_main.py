@@ -10,8 +10,7 @@ class MainTests(unittest.TestCase):
         action2handler = {
             "eval": "quality_report",
             "rule": "print_rules_report",
-            "robust-eval": "style_robustness_report",
-            "pr-curve": "plot_pr_curve",
+            "quality-report-noisy": "quality_report_noisy",
             "gen-smoke-dataset": "generate_smoke_entry",
             "eval-smoke-dataset": "evaluate_smoke_entry",
         }
