@@ -8,59 +8,6 @@ def rand_bool(true_prob):
     return random.uniform(0, 1) < true_prob
 
 
-def read_frequencies(file):
-    """
-    Read token frequencies from file.
-    """
-    frequencies = {}
-    with open(file, "r") as f:
-        for line in f:
-            split = line.split()
-            frequencies[split[0]] = int(split[1])
-    return frequencies
-
-
-def suggest_corrections(candidates, pred_proba):
-    """
-    Suggest typos corrections base on candidates and correctness probabilities.
-
-    candidates: dataframe with columns "id", "typo", "candidate" and indexed by
-                range(len(pred_proba)).
-
-    Returns suggestions: {id : [(candidate, correct_prob)]}, candidates are sorted
-                         by correct_prob in a descending order.
-    """
-    suggestions = {}
-    id = -1
-    typo = ""
-    corrections = []
-    for index in range(len(pred_proba)):
-        if candidates.loc[index, "id"] != id:
-            if id != -1:
-                suggestions[id] = list(sorted(corrections, key=lambda x: -x[1]))
-                if suggestions[id][0] == typo:
-                    suggestions[id] = [(typo, 1.0)]
-
-            id = candidates.loc[index, "id"]
-            typo = candidates.loc[index, "typo"]
-            corrections = []
-
-        corrections.append((candidates.loc[index, "candidate"], pred_proba[index]))
-
-    suggestions[id] = list(sorted(corrections, key=lambda x: -x[1]))
-    return suggestions
-
-
-def correct(suggestions):
-    """
-    Returns the first suggestion for every typo.
-    """
-    corrections = {}
-    for id in suggestions.keys():
-        corrections[id] = suggestions[id][0][0]
-    return corrections
-
-
 def detection_score(typos, suggestions):
     """
     Calculates score of solution for typo detection problem.
@@ -71,14 +18,14 @@ def detection_score(typos, suggestions):
                  by correct_prob in a descending order .
     """
     scores = {"tp": 0, "fp": 0, "tn": 0, "fn": 0}
-    for id in typos.index:
-        if typos.loc[id, "corrupted"]:
-            if suggestions[id][0][0] != typos.loc[id, "typo"]:
+    for i in typos.index:
+        if typos.loc[i, "corrupted"]:
+            if suggestions[i][0][0] != typos.loc[i, "typo"]:
                 scores["tp"] += 1
             else:
                 scores["fn"] += 1
         else:
-            if suggestions[id][0][0] == typos.loc[id, "typo"]:
+            if suggestions[i][0][0] == typos.loc[i, "typo"]:
                 scores["tn"] += 1
             else:
                 scores["fp"] += 1
