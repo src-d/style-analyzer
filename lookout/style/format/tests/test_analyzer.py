@@ -82,8 +82,7 @@ class AnalyzerTests(unittest.TestCase):
 
     def test_train(self):
         self.data_service = FakeDataService(files=self.base_files.values(), changes=None)
-        config = {"global": {"n_iter": 1, "cutoff_label_precision": 0,
-                             "feature_extractor": {"cutoff_label_support": 0}}}
+        config = {"global": {"n_iter": 1, "feature_extractor": {"cutoff_label_support": 0}}}
         model1 = FormatAnalyzer.train(self.ptr, config, self.data_service)
         self.assertIsInstance(model1, FormatModel)
         self.assertIn("javascript", model1, str(model1))
@@ -99,8 +98,7 @@ class AnalyzerTests(unittest.TestCase):
 
     def test_train_cutoff_labels(self):
         self.data_service = FakeDataService(files=self.base_files.values(), changes=None)
-        config = {"global": {"n_iter": 1, "cutoff_label_precision": 0.8,
-                             "feature_extractor": {"cutoff_label_support": 50}}}
+        config = {"global": {"n_iter": 1, "feature_extractor": {"cutoff_label_support": 50}}}
         model1 = FormatAnalyzer.train(self.ptr, config, self.data_service)
         self.assertIsInstance(model1, FormatModel)
         self.assertIn("javascript", model1, str(model1))

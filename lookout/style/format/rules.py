@@ -506,17 +506,6 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
                 for (cls, acc, prec, rec, f, sup)
                 in zip(labels, accuracy, precision, recall, fs, support)}
 
-    @_check_fitted
-    def erase_labels(self, erased: Sequence[int]):
-        """
-        Remove the rules which predict certain labels.
-
-        :param erased: The labels to remove.
-        """
-        erased = set(erased)
-        new_rules = [r for r in self._rules.rules if r.stats.cls not in erased]
-        self._rules = Rules(new_rules, self._rules.origin_config)
-
     _check_fitted = staticmethod(_check_fitted)
 
     @property
