@@ -262,6 +262,8 @@ def quality_report_noisy(true_repo: str, noisy_repo: str, bblfsh: str, language:
     true_content = get_content_from_repo(true_repo)
     noisy_content = get_content_from_repo(noisy_repo)
     true_files, noisy_files, lines_changed = get_difflib_changes(true_content, noisy_content)
+    if not true_files:
+        raise ValueError("Noisy repo should count at leat one artificial mistake")
     log.info("Number of files modified by adding style noise: %d / %d", len(true_files),
              len(true_content))
     del true_content, noisy_content
