@@ -94,7 +94,6 @@ class FormatAnalyzer(Analyzer):
             "cv": 3,
             "line_length_limit": 500,
             "lower_bound_instances": 500,
-            "cutoff_label_precision": 0.85,
         },
         # selected settings for each particular language which overwrite "global"
         # empty {} is still required if we do not have any adjustments
@@ -219,14 +218,6 @@ class FormatAnalyzer(Analyzer):
                 "\n\t".join("%-55s %.5E" % (fe.feature_names[i], importances[i])
                             for i in numpy.argsort(-importances)[:25] if importances[i] > 1e-5))
             # throw away imprecise classes
-            scores = trainable_rules.full_score(X, y)
-            cutoff_precision = lang_config["cutoff_label_precision"]
-            erased_labels = [label for label, score in scores.items()
-                             if score.precision < cutoff_precision]
-            if len(erased_labels) > 0:
-                cls._log.debug("Removed %d/%d labels by precision %f", len(erased_labels),
-                               len(fe.labels_to_class_sequences), cutoff_precision)
-            trainable_rules.erase_labels(erased_labels)
             model[language] = trainable_rules.rules
         cls._log.info("trained %s", model)
         return model
