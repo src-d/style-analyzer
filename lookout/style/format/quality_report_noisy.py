@@ -263,7 +263,7 @@ def quality_report_noisy(true_repo: str, noisy_repo: str, bblfsh: str, language:
     noisy_content = get_content_from_repo(noisy_repo)
     true_files, noisy_files, lines_changed = get_difflib_changes(true_content, noisy_content)
     if not true_files:
-        raise ValueError("Noisy repo should count at leat one artificial mistake")
+        raise ValueError("Noisy repo should count at least one artificial mistake")
     log.info("Number of files modified by adding style noise: %d / %d", len(true_files),
              len(true_content))
     del true_content, noisy_content
@@ -300,7 +300,7 @@ def quality_report_noisy(true_repo: str, noisy_repo: str, bblfsh: str, language:
     n_mistakes = len(true_files)
     prec_max_rec = precisions[-1]
     max_rec = max(recalls)
-    n_rules_filtered = len(rules.rules)
+    n_rules_filtered = len(rules_id)
     # Compute the recall score at the given threshold for precision.
     for (prec, rec) in zip(precisions, recalls):
         if prec < precision_threshold:
