@@ -72,7 +72,7 @@ def filter_uast_breaking_preds(
         if CLS_QUOTES.intersection(vn_y.value) and CLS_QUOTES.intersection(pred_string):
             safe_preds.append(i)
             continue
-        content_before = files[vn_y.path].content
+        content_before = files[vn_y.path].content.decode("utf-8", "ignore").encode()
         parent = vnode_parents[id(vn_y)]
         while True:
             start, end = parent.start_position.offset, parent.end_position.offset
