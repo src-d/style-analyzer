@@ -134,12 +134,12 @@ def get_parser() -> argparse.ArgumentParser:
 
     frequencies_parser.add_argument("stats_file", metavar="identifiers stats file", type=str,
                                     help="File with pickled identifiers stats dataframe. \
-                                    Dataframe must be inde     xed by 'identifier' and \
-                                    contain column 'num_occ'")
+                                    Dataframe must be indexed by 'identifier' and \
+                                    contain column 'num_occ'.")
 
     frequencies_parser.add_argument("out_file", metavar="output file", type=str,
                                     help="File csv to put frequencies data \
-                                    with rows in a format (token, frequency)")
+                                    with rows in a format (token, frequency).")
 
     # ------------------------------------------------------------------------
     pick_parser = add_parser("pick_subset", "Pick random subset of rows in an input dataframe \
@@ -148,13 +148,17 @@ def get_parser() -> argparse.ArgumentParser:
     pick_parser.set_defaults(handler=pick_subset)
 
     pick_parser.add_argument("input_file", metavar="input file", type=str,
-                             help="File with pickled input dataframe")
+                             help="File with pickled input dataframe.")
 
     pick_parser.add_argument("picked_portion", metavar="picked portion", type=float,
-                             help="Portion of rows to pick")
+                             help="Portion of rows to pick.")
 
     pick_parser.add_argument("out_file", metavar="output file", type=str,
-                             help="File to dump picked dataframe")
+                             help="File to dump picked dataframe.")
+
+    pick_parser.add_argument("-w", "--weight_column", type=str,
+                             help="Column to use as weights for rows to pick."
+                                  "If not specified, uniform weights are assigned.")
 
     return parser
 
