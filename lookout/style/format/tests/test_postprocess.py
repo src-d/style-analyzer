@@ -1,15 +1,17 @@
 import logging
-import os
 from pathlib import Path
-import tarfile
 import tempfile
 import unittest
 
+from lookout.core.api.service_data_pb2 import File
+from lookout.core.data_requests import parse_uast
+import numpy
+
+from lookout.style.format.analyzer import FormatAnalyzer
+from lookout.style.format.classes import CLASS_INDEX, CLS_NOOP, CLS_SPACE
 from lookout.style.format.feature_extractor import FeatureExtractor
-from lookout.style.format.model import FormatModel
 from lookout.style.format.postprocess import filter_uast_breaking_preds
 from lookout.style.format.tests.test_analyzer import FakeDataService
-from lookout.style.format.utils import prepare_files
 
 
 class PostprocessingTests(unittest.TestCase):
@@ -17,17 +19,15 @@ class PostprocessingTests(unittest.TestCase):
     def setUpClass(cls):
         cls.language = "javascript"
         cls.data_service = FakeDataService(files=None, changes=None)
-
+        cls.stub = cls.data_service.get_bblfsh()
+        cls.fe = FeatureExtractor(
+            language=cls.language,
+            **FormatAnalyzer._load_train_config({})[cls.language]["feature_extractor"])
         cls.parent_loc = Path(__file__).parent.resolve()
         cls.base_dir_ = tempfile.TemporaryDirectory(dir=str(cls.parent_loc))
         cls.base_dir = cls.base_dir_.name
-
-        with tarfile.open(str(cls.parent_loc / "jquery_noisy.tar.xz")) as tar:
-            tar.extractall(path=cls.base_dir)
-        cls.jquery_noisy_dir = os.path.join(cls.base_dir, "jquery_noisy")
-        cls.input_file = os.path.join(cls.jquery_noisy_dir, "28-xhr.js")
-        # model trained on https://github.com/jquery/jquery repo with the default parameters
-        cls.model_path = str(Path(__file__).parent.resolve() / "model_jquery.asdf")
+        cls.noop = (CLASS_INDEX[CLS_NOOP],)
+        cls.space = (CLASS_INDEX[CLS_SPACE],)
 
     @classmethod
     def tearDownClass(cls):
@@ -35,21 +35,25 @@ class PostprocessingTests(unittest.TestCase):
 
     def test_posprocess(self):
         log = logging.getLogger("postprocess")
-        model = FormatModel().load(self.model_path)
-        rules = model[self.language]
-        files = prepare_files([self.input_file], self.data_service.bblfsh_client, self.language)
-        fe = FeatureExtractor(language=self.language, **rules.origin_config["feature_extractor"])
-        res = fe.extract_features(files)
-        X, y, (vnodes_y, vnodes, vnode_parents, node_parents) = res
-        y_pred, rule_winners = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
-                                             feature_extractor=fe)
-        y, y_pred, vnodes_y, _, safe_preds = filter_uast_breaking_preds(
-            y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, files={f.path: f for f in files},
-            feature_extractor=fe, stub=self.data_service.get_bblfsh(), vnode_parents=vnode_parents,
-            node_parents=node_parents, rule_winners=rule_winners, log=log)
-        bad_preds = set(range(rule_winners.shape[0])) - set(safe_preds)
-        # On this file, the model makes some breaking prediction, including X[19]
-        self.assertIn(19, bad_preds)
+        code = "var a = 15"
+        uast, errors = parse_uast(self.stub, code, filename="", language=self.language)
+        if errors:
+            self.fail("Could not parse the testing code.")
+        file = File(content=code.encode(), uast=uast, path="test_file")
+        X, y, (vnodes_y, vnodes, vnode_parents, node_parents) = self.fe.extract_features([file])
+        y_pred = y.copy()
+        rule_winners = numpy.zeros(y.shape)
+        # Introduce a bad pred in position 1 (between var and a): noop will break the code
+        y_pred[1] = self.fe.class_sequences_to_labels[self.noop]
+        new_y, new_y_pred, new_vnodes_y, new_rule_winners, safe_preds = filter_uast_breaking_preds(
+            y, y_pred, vnodes_y, vnodes, {"test_file": file}, self.fe, self.stub, vnode_parents,
+            node_parents, rule_winners, log)
+        bad_preds = set(range(y.shape[0])) - set(safe_preds)
+        self.assertEqual(bad_preds, {1})
+        self.assertEqual(len(y) - 1, len(new_y))
+        self.assertEqual(len(y_pred) - 1, len(new_y_pred))
+        self.assertEqual(len(vnodes_y) - 1, len(new_vnodes_y))
+        self.assertEqual(len(rule_winners) - 1, len(new_rule_winners))
 
 
 if __name__ == "__main__":
