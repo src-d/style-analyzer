@@ -40,13 +40,12 @@ def check_uasts_are_equal(uast1: bblfsh.Node, uast2: bblfsh.Node) -> bool:
 def _parse_code(parent: bblfsh.Node, content: str, stub: "bblfsh.aliases.ProtocolServiceStub",
                 parsing_cache: MutableMapping[int, Optional[Tuple[bblfsh.Node, int, int]]],
                 language: str, node_parents: Mapping[int, bblfsh.Node], logger: Logger,
-                path: str
-                ) -> Optional[Tuple[bblfsh.Node, int, int]]:
+                path: str) -> Optional[Tuple[bblfsh.Node, int, int]]:
     """
-    Find a parent that Babelfish can parse and parse it.
+    Find a parent node that Babelfish can parse and parse it.
 
-    Iterates on the parents of the current virtual node until it is parseable and return the parsed
-    UAST or None if it reached the root without finding a parseable parent.
+    Iterates over the parents of the current virtual node until it is parseable and returns the
+    parsed UAST or None if it reaches the root without finding a parseable parent.
 
     The cache will be used to avoid recomputations for parents that have already been considered.
 
@@ -88,11 +87,9 @@ def filter_uast_breaking_preds(
         vnodes: Sequence[VirtualNode], files: Mapping[str, File],
         feature_extractor: FeatureExtractor, stub: "bblfsh.aliases.ProtocolServiceStub",
         vnode_parents: Mapping[int, bblfsh.Node], node_parents: Mapping[int, bblfsh.Node],
-        rule_winners: numpy.ndarray, log: Logger) -> Tuple[numpy.ndarray,
-                                                           numpy.ndarray,
-                                                           Sequence[VirtualNode],
-                                                           numpy.ndarray,
-                                                           Sequence[int]]:
+        rule_winners: numpy.ndarray, log: Logger
+        ) -> Tuple[numpy.ndarray, numpy.ndarray, Sequence[VirtualNode], numpy.ndarray,
+                   Sequence[int]]:
     """
     Filter the model's predictions that modify the UAST apart from changing positions.
 
