@@ -1,6 +1,6 @@
 """Postprocess predictions of the model."""
-import logging
-from typing import Iterable, Mapping, Sequence
+from logging import Logger
+from typing import Dict, Mapping, MutableMapping, Optional, Sequence, Tuple  # noqa: F401
 
 import bblfsh
 from lookout.core.api.service_data_pb2 import File
@@ -37,12 +37,59 @@ def check_uasts_are_equal(uast1: bblfsh.Node, uast2: bblfsh.Node) -> bool:
     return True
 
 
+def _parse_code(parent: bblfsh.Node, content: str, stub: "bblfsh.aliases.ProtocolServiceStub",
+                parsing_cache: MutableMapping[int, Optional[Tuple[bblfsh.Node, int, int]]],
+                language: str, node_parents: Mapping[int, bblfsh.Node], logger: Logger,
+                path: str) -> Optional[Tuple[bblfsh.Node, int, int]]:
+    """
+    Find a parent node that Babelfish can parse and parse it.
+
+    Iterates over the parents of the current virtual node until it is parseable and returns the
+    parsed UAST or None if it reaches the root without finding a parseable parent.
+
+    The cache will be used to avoid recomputations for parents that have already been considered.
+
+    :param parent: First virtual node to try to parse. Will go up in the tree if it fails.
+    :param content: Content of the file.
+    :param stub: Babelfish GRPC service stub.
+    :param parsing_cache: Cache to avoid the recomputation of the results for already seen nodes.
+    :param language: language to use for Babelfish.
+    :param node_parents: Parents mapping of the input UASTs.
+    :param logger: Logger.
+    :param path: Path of the file being parsed.
+    :return: Optional tuple of the parsed UAST and the corresponding starting and ending offsets.
+    """
+    descendants = []
+    current_ancestor = parent
+    while current_ancestor is not None:
+        if id(current_ancestor) in parsing_cache:
+            result = parsing_cache[id(current_ancestor)]
+            break
+        descendants.append(current_ancestor)
+        start, end = (current_ancestor.start_position.offset,
+                      current_ancestor.end_position.offset)
+        uast, errors = parse_uast(stub, content[start:end], filename="",
+                                  language=language)
+        if not errors:
+            result = uast, start, end
+            break
+        current_ancestor = node_parents.get(id(current_ancestor), None)
+    else:
+        result = None
+        logger.warning("skipped file %s, due to errors in parsing the whole content", path)
+    for descendant in descendants:
+        parsing_cache[id(descendant)] = result
+    return result
+
+
 def filter_uast_breaking_preds(
         y: numpy.ndarray, y_pred: numpy.ndarray, vnodes_y: Sequence[VirtualNode],
         vnodes: Sequence[VirtualNode], files: Mapping[str, File],
         feature_extractor: FeatureExtractor, stub: "bblfsh.aliases.ProtocolServiceStub",
-        vnode_parents: Mapping[int, bblfsh.Node], node_parents: Mapping[str, bblfsh.Node],
-        rule_winners: numpy.ndarray, log: logging.Logger) -> Iterable[int]:
+        vnode_parents: Mapping[int, bblfsh.Node], node_parents: Mapping[int, bblfsh.Node],
+        rule_winners: numpy.ndarray, log: Logger
+        ) -> Tuple[numpy.ndarray, numpy.ndarray, Sequence[VirtualNode], numpy.ndarray,
+                   Sequence[int]]:
     """
     Filter the model's predictions that modify the UAST apart from changing positions.
 
@@ -63,7 +110,12 @@ def filter_uast_breaking_preds(
     """
     CLS_QUOTES = {CLS_SINGLE_QUOTE, CLS_DOUBLE_QUOTE}
     safe_preds = []
+    current_path = None  # type: Optional[str]
+    parsing_cache = {}  # type: Dict[int, Optional[Tuple[bblfsh.Node, int, int]]]
     for i, (gt, pred, vn_y) in enumerate(zip(y, y_pred, vnodes_y)):
+        if vn_y.path != current_path:
+            parsing_cache = {}
+            current_path = vn_y.path
         if gt == pred:
             safe_preds.append(i)
             continue
@@ -72,41 +124,30 @@ def filter_uast_breaking_preds(
         if CLS_QUOTES.intersection(vn_y.value) and CLS_QUOTES.intersection(pred_string):
             safe_preds.append(i)
             continue
-        content_before = files[vn_y.path].content
-        parent = vnode_parents[id(vn_y)]
-        while True:
-            start, end = parent.start_position.offset, parent.end_position.offset
-            parent_before, errors_before = parse_uast(
-                stub, content_before[start:end], filename="", language=feature_extractor.language)
-            if errors_before:
-                try:
-                    parent = node_parents[id(parent)]
-                    continue
-                except KeyError:
-                    log.warning("skipped file %s, due to errors in parsing the whole content",
-                                vn_y.path)
-                    break
-            cur_i = vnodes.index(vnodes_y[i])
-            output_pred = "".join(n.value for n in vnodes[cur_i:cur_i+2]).replace(vn_y.value,
-                                                                                  pred_string)
-            diff_pred_offset = len(pred_string) - len(vn_y.value)
-            try:
-                content_after = content_before[:vn_y.start.offset] \
-                    + output_pred.encode() \
-                    + content_before[vn_y.start.offset + len(vn_y.value)
-                                     + len(vnodes[cur_i + 1].value):]
-            except IndexError:
-                content_after = content_before[:vn_y.start.offset] \
-                    + output_pred.encode()
-            content_after = content_after[start:end + diff_pred_offset]
-            parent_after, errors_after = parse_uast(
-                stub, content_after, filename="", language=feature_extractor.language)
-            if not errors_after:
-                if check_uasts_are_equal(parent_before, parent_after):
-                    safe_preds.append(i)
-            # TODO(vmarkovtsev): extract the loop body to a separate function
-            # we have checked for AST match - exit the loop
-            break
+        content_before = files[vn_y.path].content.decode("utf-8", "ignore").encode()
+        parsed_before = _parse_code(vnode_parents[id(vn_y)], content_before, stub, parsing_cache,
+                                    feature_extractor.language, node_parents, log, vn_y.path)
+        if parsed_before is None:
+            continue
+        parent_before, start, end = parsed_before
+        cur_i = vnodes.index(vnodes_y[i])
+        output_pred = "".join(n.value for n in vnodes[cur_i:cur_i+2]).replace(vn_y.value,
+                                                                              pred_string)
+        diff_pred_offset = len(pred_string) - len(vn_y.value)
+        try:
+            content_after = content_before[:vn_y.start.offset] \
+                + output_pred.encode() \
+                + content_before[vn_y.start.offset + len(vn_y.value)
+                                 + len(vnodes[cur_i + 1].value):]
+        except IndexError:
+            content_after = content_before[:vn_y.start.offset] \
+                + output_pred.encode()
+        content_after = content_after[start:end + diff_pred_offset]
+        parent_after, errors_after = parse_uast(
+            stub, content_after, filename="", language=feature_extractor.language)
+        if not errors_after:
+            if check_uasts_are_equal(parent_before, parent_after):
+                safe_preds.append(i)
     log.info("Non UAST breaking predictions: %d selected out of %d",
              len(safe_preds), y_pred.shape[0])
     vnodes_y = [vn for i, vn in enumerate(list(vnodes_y)) if i in safe_preds]
