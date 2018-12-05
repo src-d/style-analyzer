@@ -132,7 +132,7 @@ def filter_uast_breaking_preds(
         parent_before, start, end = parsed_before
         cur_i = vnodes.index(vnodes_y[i])
         output_pred = "".join(n.value for n in vnodes[cur_i:cur_i+2]).replace(vn_y.value,
-                                                                              pred_string)
+                                                                              pred_string, 1)
         diff_pred_offset = len(pred_string) - len(vn_y.value)
         try:
             content_after = content_before[:vn_y.start.offset] \
