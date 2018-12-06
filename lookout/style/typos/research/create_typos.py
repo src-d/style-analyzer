@@ -4,7 +4,7 @@ import string
 import pandas
 from tqdm import tqdm
 
-from lookout.style.typos.research.typos_functions import rand_bool
+from lookout.style.typos.research.dev_utils import rand_bool
 
 letters = list(string.ascii_lowercase)
 

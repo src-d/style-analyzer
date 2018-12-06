@@ -1,7 +1,7 @@
 import numpy
 import pandas
 
-from lookout.style.typos.research.typos_functions import rand_bool
+from lookout.style.typos.research.dev_utils import rand_bool
 
 
 def pick_subset(args):
