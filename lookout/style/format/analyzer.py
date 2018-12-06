@@ -267,7 +267,7 @@ class FormatAnalyzer(Analyzer):
                 else:
                     yield from self._generate_comments_data(
                         lang, file, prev_file, fe, feature_extractor_output,
-                        data_service.get_bblfsh())
+                        data_service.get_bblfsh(), rules)
 
     def render_comment_text(self, fix_data: FixData) -> str:
         """
@@ -299,12 +299,11 @@ class FormatAnalyzer(Analyzer):
 
     def _generate_comments_data(
             self, language: str, file: File, base_file: File, fe: FeatureExtractor,
-            feature_extractor_output, bblfsh_stub: "bblfsh.aliases.ProtocolServiceStub"
-            ) -> Iterable[FixData]:
-        rules = self.model[language]
+            feature_extractor_output, bblfsh_stub: "bblfsh.aliases.ProtocolServiceStub",
+            rules: Rules) -> Iterable[FixData]:
         X, y, (vnodes_y, vnodes, vnode_parents, node_parents) = feature_extractor_output
-        y_pred, rule_winners = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
-                                             feature_extractor=fe)
+        y_pred, rule_winners, _ = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
+                                                feature_extractor=fe)
         if self.config["uast_break_check"]:
             y, y_pred, vnodes_y, rule_winners, safe_preds = filter_uast_breaking_preds(
                 y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, files={file.path: file},
