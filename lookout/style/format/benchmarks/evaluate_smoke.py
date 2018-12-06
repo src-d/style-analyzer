@@ -1,34 +1,28 @@
 """Module for Smoke dataset evaluation."""
 import csv
 from difflib import SequenceMatcher
-from itertools import chain
 import json
 import logging
 import os
 from pathlib import Path
 import tempfile
 import time
-from typing import Any, Dict, List, Mapping, Sequence, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 from lookout.core.analyzer import ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
-from lookout.core.api.service_data_pb2_grpc import DataStub
-from lookout.core.data_requests import with_changed_uasts_and_contents
-from lookout.core.lib import files_by_language, filter_files, find_deleted_lines, find_new_lines
+from lookout.core.data_requests import DataService, with_changed_uasts_and_contents
+from lookout.core.lib import files_by_language
 from lookout.core.test_helpers import server
-import numpy
 import pandas
 from tqdm import tqdm
 
 from lookout.style.format.analyzer import FormatAnalyzer
 from lookout.style.format.code_generator import CodeGenerator
 from lookout.style.format.feature_extractor import FeatureExtractor
-from lookout.style.format.model import FormatModel
 from lookout.style.format.tests.test_analyzer_integration import TestAnalyzer
 from lookout.style.format.utils import flatten_dict
 from lookout.style.format.virtual_node import VirtualNode
-
-log = logging.getLogger("report_summary")
 
 EMPTY = "␣"
 
@@ -159,9 +153,9 @@ def calc_aligned_metrics(bad_style_code: str, correct_style_code: str, generated
     return misdetection, undetected, detected_wrong_fix, detected_correct_fix
 
 
-def calc_metrics(bad_style_code: str, correct_style_code: str, fe: FeatureExtractor,
-                 vnodes: Sequence[VirtualNode], y_pred: numpy.ndarray, vnodes_y: numpy.ndarray,
-                 url: str, commit: str) -> Dict[str, Any]:
+def calc_metrics(bad_style_code: str, correct_style_code: str, fe: Optional[FeatureExtractor],
+                 vnodes: Optional[Sequence[VirtualNode]], url: Optional[str],
+                 commit: Optional[str]) -> Dict[str, Any]:
     """
     Calculate metrics for model output.
 
@@ -217,23 +211,26 @@ def calc_metrics(bad_style_code: str, correct_style_code: str, fe: FeatureExtrac
     :param bad_style_code: The file from head revision where style mistakes where applied.
     :param correct_style_code: The file from base revision. In ideal case, we should be able to \
                                restore it.
-    :param fe: Feature extraction class that was used to generate corresponding data.
+    :param fe: Feature extraction class that was used to generate corresponding data. Set a value \
+            to None if no changes were introduced for `bad_style_code`.
     :param vnodes: Sequence of all the `VirtualNode`-s corresponding to the input code file. \
-                   Should be ordered by position.
-    :param y_pred: The model predictions for `vnodes_y` `VirtualNode`-s.
-    :param vnodes_y: Sequence of the labeled `VirtualNode`-s corresponding to labeled samples. \
-                     Should be ordered by start position value.
+                   Should be ordered by position. New y values should be applied. Set a value to \
+                   None if no changes were introduced.
     :param url: Repository url if applicable. Useful for more informative warning messages.
     :param commit: Commit hash if applicable. Useful for more informative warning messages.
 
     :return: A dictionary with losses and predicted code for "global" and "local" indentation \
              strategies.
     """
+    if (vnodes is None) ^ (fe is None):
+        raise ValueError("vnodes and fe should be both None or not None.")
     losses = {}
     for indentation in ("global", "local"):
-        generator = CodeGenerator(fe, skip_errors=True, url=url, commit=commit)
-        predicted_vnodes = generator.apply_predicted_y(vnodes, vnodes_y, y_pred)
-        predicted_code = generator.generate(predicted_vnodes, indentation)
+        if fe is not None:
+            predicted_code = CodeGenerator(fe, skip_errors=True, url=url, commit=commit).generate(
+                vnodes, indentation)
+        else:
+            predicted_code = bad_style_code
         misdetection, undetected, detected_wrong_fix, detected_correct_fix = \
             calc_aligned_metrics(*align3(bad_style_code, correct_style_code, predicted_code))
         losses[indentation] = {
@@ -258,17 +255,6 @@ class SmokeEvalFormatAnalyzer(FormatAnalyzer):
         "bad_style_file", "correct_style_file", "local_predicted_file", "global_predicted_file",
     ]
 
-    def __init__(self, model: FormatModel, url: str, config: Mapping[str, Any]) -> None:
-        """
-        Construct a FormatAnalyzer.
-
-        :param model: FormatModel to use during pull request analysis.
-        :param url: Git repository on which the model was trained.
-        :param config: Configuration to use to analyze pull requests.
-        """
-        super().__init__(model, url, config)
-        self.config = self._load_analyze_config(self.config)
-
     def _dump_report(self, report: List[dict], outputpath: Path):
         files_dir = outputpath / "files"
         os.makedirs(str(files_dir), exist_ok=True)
@@ -288,63 +274,58 @@ class SmokeEvalFormatAnalyzer(FormatAnalyzer):
 
     @with_changed_uasts_and_contents
     def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
-                data_request_stub: DataStub, **data) -> List[Comment]:
+                data_service: DataService, **data) -> List[Comment]:
         """
         Analyze a set of changes from one revision to another.
 
         :param ptr_from: Git repository state pointer to the base revision.
         :param ptr_to: Git repository state pointer to the head revision.
-        :param data_request_stub: Connection to the Lookout data retrieval service, not used.
+        :param data_service: Connection to the Lookout data retrieval service.
         :param data: Contains "changes" - the list of changes in the pointed state.
         :return: List of comments.
         """
-        # TODO (zurk): reuse code from FormatAnalyzer.analyze()
         report = []
-        log = self._log
+        handled_files = set()
         changes = list(data["changes"])
+        for fixes in self.generate_fixes(data_service, changes):
+            filepath = fixes.head_file.path
+            if not fixes.error or filepath in handled_files:
+                continue
+            handled_files.add(filepath)
+            bad_style_code = fixes.head_file.content.decode("utf-8", "replace")
+            correct_style_code = fixes.base_file.content.decode("utf-8", "replace")
+            row = {
+                "repo": self.config["repo_name"],
+                "style": self.config["style_name"],
+                "filepath": filepath,
+                "bad_style_file": bad_style_code,
+                "correct_style_file": correct_style_code,
+            }
+            row.update(calc_metrics(
+                bad_style_code, correct_style_code, fixes.feature_extractor,
+                fixes.all_vnodes, url=ptr_to.url, commit=ptr_to.commit))
+            report.append(row)
+
+        # handle file without comments
         base_files_by_lang = files_by_language(c.base for c in changes)
         head_files_by_lang = files_by_language(c.head for c in changes)
         for lang, head_files in head_files_by_lang.items():
-            if lang not in self.model:
-                log.warning("skipped %d written in %s. Rules for %s do not exist in model",
-                            len(head_files), lang, lang)
-                continue
-            rules = self.model[lang]
-            for file in filter_files(head_files, rules.origin_config["line_length_limit"], log):
-                log.debug("Analyze %s file", file.path)
-                try:
-                    base_file = base_files_by_lang[lang][file.path]
-                except KeyError:
-                    lines = None
-                else:
-                    lines = sorted(chain.from_iterable((
-                        find_new_lines(base_file, file),
-                        find_deleted_lines(base_file, file),
-                    )))
-                fe = FeatureExtractor(language=lang, **rules.origin_config["feature_extractor"])
-                res = fe.extract_features([file], [lines])
-                if res is None:
-                    log.warning("Failed to parse %s", file.path)
+            for head_file in head_files:
+                if head_file in handled_files:
                     continue
-                X, y, (vnodes_y, vnodes, _, _) = res
-                y_pred, _ = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
-                                          feature_extractor=fe)
-                assert len(y) == len(y_pred)
-
-                correct_style_code = base_file.content.decode("utf-8", "replace")
-                bad_style_code = file.content.decode("utf-8", "replace")
+                bad_style_code = head_files_by_lang[lang][head_file].content.decode(
+                    "utf-8", "replace")
+                correct_style_code = base_files_by_lang[lang][head_file].content.decode(
+                    "utf-8", "replace")
                 row = {
                     "repo": self.config["repo_name"],
-                    "filepath": file.path,
+                    "filepath": head_files_by_lang[lang][head_file].path,
                     "style": self.config["style_name"],
                     "bad_style_file": bad_style_code,
                     "correct_style_file": correct_style_code,
                 }
-                row.update(calc_metrics(
-                    bad_style_code, correct_style_code,
-                    fe, vnodes, vnodes_y, y_pred,
-                    url=ptr_to.url, commit=ptr_to.commit
-                ))
+                row.update(calc_metrics(bad_style_code, correct_style_code,
+                                        fe=None, vnodes=None, url=None, commit=None))
                 report.append(row)
         self._dump_report(report, Path(self.config["report_path"]))
         return []
@@ -392,13 +373,16 @@ def evaluate_smoke_entry(inputpath: str, reportdir: str, database: str = None) -
                         analyzer_class.name: {
                             "repo_name": row["repo"],
                             "style_name": row["style"],
-                            "report_path": reportdir
+                            "report_path": reportdir,
+                            "uast_break_check": False,  # Disabled to make Travis happy until
+                            # https://github.com/src-d/lookout/issues/374 is unresolved
                         }
                     }
                     server.run("push", fr=row["from"], to=row["to"], port=port,
-                               git_dir=str(repopath), config_json=json.dumps(train_config))
+                               git_dir=str(repopath), log_level="warning",
+                               config_json=json.dumps(train_config))
                     server.run("review", fr=row["from"], to=row["to"], port=port,
-                               git_dir=str(repopath),
+                               git_dir=str(repopath), log_level="warning",
                                config_json=json.dumps(config_json))
             log.info("Quality report saved to %s", reportdir)
 

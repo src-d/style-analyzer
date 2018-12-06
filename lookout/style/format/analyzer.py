@@ -5,7 +5,7 @@ import logging
 import os
 from pprint import pformat
 import threading
-from typing import Any, List, Mapping, Sequence, Tuple
+from typing import Any, Iterable, List, Mapping, NamedTuple, Sequence, Tuple
 
 from jinja2 import Template
 from lookout.core import slogging
@@ -28,6 +28,21 @@ from lookout.style.format.postprocess import filter_uast_breaking_preds
 from lookout.style.format.rules import Rules, TrainableRules
 from lookout.style.format.utils import generate_comment, merge_dicts
 from lookout.style.format.virtual_node import VirtualNode
+
+
+FixData = NamedTuple("FixData", (
+    ("error", str),                           # error message
+    ("language", str),                        # programming language of the code
+    ("line_number", int),                     # line number for the comment
+    ("head_file", File),                      # file from head revision
+    ("base_file", File),                      # file from base revision
+    ("suggested_code", str),                  # code line predicted by our model
+    ("all_vnodes", List[VirtualNode]),        # VirtualNode-s which correspond to this file
+    ("fixed_vnodes", List[VirtualNode]),      # VirtualNode-s with fixed y
+    ("winner_rules", List[int]),              # Rule indices
+    ("confidence", int),                      # overall confidence in the prediction, 0-100
+    ("feature_extractor", FeatureExtractor),  # FeatureExtractor involved
+))
 
 
 class FormatAnalyzer(Analyzer):
@@ -79,7 +94,6 @@ class FormatAnalyzer(Analyzer):
             "cv": 3,
             "line_length_limit": 500,
             "lower_bound_instances": 500,
-            "cutoff_label_precision": 0.85,
         },
         # selected settings for each particular language which overwrite "global"
         # empty {} is still required if we do not have any adjustments
@@ -107,44 +121,18 @@ class FormatAnalyzer(Analyzer):
 
         :param ptr_from: Git repository state pointer to the base revision.
         :param ptr_to: Git repository state pointer to the head revision.
-        :param data_service: Connection to the Lookout data retrieval service, not used.
+        :param data_service: Connection to the Lookout data retrieval service.
         :param data: Contains "changes" - the list of changes in the pointed state.
         :return: List of comments.
         """
-        log = self._log
         comments = []
-        changes = list(data["changes"])
-        base_files_by_lang = files_by_language(c.base for c in changes)
-        head_files_by_lang = files_by_language(c.head for c in changes)
-        for lang, head_files in head_files_by_lang.items():
-            if lang not in self.model:
-                log.warning("skipped %d written in %s. Rules for %s do not exist in model",
-                            len(head_files), lang, lang)
-                continue
-            rules = self.model[lang]
-            rules = rules.filter_by_confidence(self.config["confidence_threshold"]) \
-                .filter_by_support(self.config["support_threshold"])
-            for file in filter_files(head_files, rules.origin_config["line_length_limit"], log):
-                log.debug("Analyze %s file", file.path)
-                try:
-                    prev_file = base_files_by_lang[lang][file.path]
-                except KeyError:
-                    lines = None
-                else:
-                    lines = sorted(chain.from_iterable((
-                        find_new_lines(prev_file, file),
-                        find_deleted_lines(prev_file, file),
-                    )))
-                fe = FeatureExtractor(language=lang, **rules.origin_config["feature_extractor"])
-                feature_extractor_output = fe.extract_features([file], [lines])
-                if feature_extractor_output is None:
-                    if self.config["report_parse_failures"]:
-                        comments.append(
-                            generate_comment(file.path, 100, 0, "Failed to parse this file"))
-                    log.warning("Failed to parse %s", file.path)
-                    continue
-                comments.extend(self._generate_file_comments(
-                    lang, file, fe, feature_extractor_output, data_service.get_bblfsh()))
+        for fix_data in self.generate_fixes(data_service, list(data["changes"])):
+            text = fix_data.error or self.render_comment_text(fix_data)
+            comments.append(generate_comment(
+                text=text,
+                filename=fix_data.head_file.path,
+                line=fix_data.line_number,
+                confidence=fix_data.confidence))
         return comments
 
     @classmethod
@@ -157,7 +145,7 @@ class FormatAnalyzer(Analyzer):
         :param ptr: Git repository state pointer.
         :param config: configuration dict.
         :param data: contains "files" - the list of files in the pointed state.
-        :param data_service: connection to the Lookout data retrieval service, not used.
+        :param data_service: connection to the Lookout data retrieval service.
         :return: AnalyzerModel containing the learned rules, per language.
         """
         cls._log.info("train %s %s %s", ptr.url, ptr.commit,
@@ -230,65 +218,92 @@ class FormatAnalyzer(Analyzer):
                 "\n\t".join("%-55s %.5E" % (fe.feature_names[i], importances[i])
                             for i in numpy.argsort(-importances)[:25] if importances[i] > 1e-5))
             # throw away imprecise classes
-            scores = trainable_rules.full_score(X, y)
-            cutoff_precision = lang_config["cutoff_label_precision"]
-            erased_labels = [label for label, score in scores.items()
-                             if score.precision < cutoff_precision]
-            if len(erased_labels) > 0:
-                cls._log.debug("Removed %d/%d labels by precision %f", len(erased_labels),
-                               len(fe.labels_to_class_sequences), cutoff_precision)
-            trainable_rules.erase_labels(erased_labels)
             model[language] = trainable_rules.rules
         cls._log.info("trained %s", model)
         return model
 
-    def render_comment_text(
-            self, language: str, line_number: int, code_lines: List[str], new_code_line: str,
-            winners: List[int], vnodes: List[VirtualNode], fixed_labels: List[int],
-            confidence: int, feature_extractor: FeatureExtractor) -> str:
+    def generate_fixes(self, data_service: DataService, changes: Sequence) -> Iterable[FixData]:
+        """
+        Generate all data required for any type of further processing.
+
+        Next processing can be comment generation or performance report generation.
+
+        :param data_service: Connection to the Lookout data retrieval service.
+        :param changes: The list of changes in the pointed state.
+        :return: Iterator with unrendered data per comment.
+        """
+        log = self._log
+        base_files_by_lang = files_by_language(c.base for c in changes)
+        head_files_by_lang = files_by_language(c.head for c in changes)
+        for lang, head_files in head_files_by_lang.items():
+            if lang not in self.model:
+                log.warning("skipped %d written in %s. Rules for %s do not exist in model",
+                            len(head_files), lang, lang)
+                continue
+            rules = self.model[lang]
+            rules = rules.filter_by_confidence(self.config["confidence_threshold"]) \
+                .filter_by_support(self.config["support_threshold"])
+            for file in filter_files(head_files, rules.origin_config["line_length_limit"], log):
+                log.debug("Analyze %s", file.path)
+                try:
+                    prev_file = base_files_by_lang[lang][file.path]
+                except KeyError:
+                    prev_file = None
+                    lines = None
+                else:
+                    lines = sorted(chain.from_iterable((
+                        find_new_lines(prev_file, file),
+                        find_deleted_lines(prev_file, file),
+                    )))
+                fe = FeatureExtractor(language=lang, **rules.origin_config["feature_extractor"])
+                feature_extractor_output = fe.extract_features([file], [lines])
+                if feature_extractor_output is None:
+                    if self.config["report_parse_failures"]:
+                        log.warning("Failed to parse %s", file.path)
+                        yield FixData(
+                            base_file=prev_file, head_file=file, confidence=100, line_number=0,
+                            error="Failed to parse", language=lang, feature_extractor=fe,
+                            all_vnodes=[], fixed_vnodes=[], winner_rules=[], suggested_code="")
+                else:
+                    yield from self._generate_comments_data(
+                        lang, file, prev_file, fe, feature_extractor_output,
+                        data_service.get_bblfsh(), rules)
+
+    def render_comment_text(self, fix_data: FixData) -> str:
         """
         Generate the text of the comment at the specified line.
 
-        :param language: Programming language of the code.
-        :param line_number: Line number for the comment.
-        :param code_lines: Original file code lines.
-        :param new_code_line: Code line suggested by our model.
-        :param winners: Winner rule indices.
-        :param vnodes: Corrected VirtualNode-s on the line.
-        :param fixed_labels: Predicted labels for those `vnodes`.
-        :param confidence: Overall confidence in the prediction, 0-100.
-        :param feature_extractor: FeatureExtractor involved.
+        :param fix_data: Full information required to render a comment text.
         :return: string with the generated comment.
         """
-        rules = self.model[language]
-        _describe_rule = functools.partial(describe_rule, feature_extractor=feature_extractor)
+        rules = self.model[fix_data.language]
+        _describe_rule = functools.partial(
+            describe_rule, feature_extractor=fix_data.feature_extractor)
         _describe_change = functools.partial(
-            get_change_description, feature_extractor=feature_extractor)
+            get_change_description, feature_extractor=fix_data.feature_extractor)
+        code_lines = fix_data.head_file.content.decode("utf-8", "replace").splitlines()
         return self.comment_template.render(
-                config=self.config,                # configuration of the analyzer
-                language=language,                 # programming language of the code
-                line_number=line_number,           # line number for the comment
-                code_lines=code_lines,             # original file code lines
-                new_code_line=new_code_line,       # code line suggested by our model
-                rules=rules.rules,                 # list of rules belonging to the model
-                winners=winners,                   # winner rule indices
-                vnodes=vnodes,                     # corrected VirtualNode-s
-                fixed_labels=fixed_labels,         # predicted labels for those nodes
-                confidence=confidence,             # overall confidence in the prediction, 0-100
-                describe_rule=_describe_rule,      # function to format a rule as text
-                describe_change=_describe_change,  # function to format a change as text
-                zip=zip,                           # Jinja2 does not have zip() by default
+                config=self.config,                     # configuration of the analyzer
+                language=fix_data.language,             # programming language of the code
+                line_number=fix_data.line_number,       # line number for the comment
+                code_lines=code_lines,                  # original file code lines
+                new_code_line=fix_data.suggested_code,  # code line suggested by our model
+                rules=rules.rules,                      # list of rules belonging to the model
+                fixed_vnodes=fix_data.fixed_vnodes,     # VirtualNode-s which changed y
+                winner_rules=fix_data.winner_rules,     # changed vnodes and winner rule indices
+                confidence=fix_data.confidence,         # overall confidence in the prediction
+                describe_rule=_describe_rule,           # function to format a rule as text
+                describe_change=_describe_change,       # function to format a change as text
+                zip=zip,                                # Jinja2 does not have zip() by default
             )
 
-    def _generate_file_comments(
-            self, language: str, file: File, fe: FeatureExtractor,
-            feature_extractor_output, bblfsh_stub: "bblfsh.aliases.ProtocolServiceStub"
-            ) -> List[Comment]:
-        rules = self.model[language]
-        file_comments = []
+    def _generate_comments_data(
+            self, language: str, file: File, base_file: File, fe: FeatureExtractor,
+            feature_extractor_output, bblfsh_stub: "bblfsh.aliases.ProtocolServiceStub",
+            rules: Rules) -> Iterable[FixData]:
         X, y, (vnodes_y, vnodes, vnode_parents, node_parents) = feature_extractor_output
-        y_pred, rule_winners = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
-                                             feature_extractor=fe)
+        y_pred, rule_winners, _ = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
+                                                feature_extractor=fe)
         if self.config["uast_break_check"]:
             y, y_pred, vnodes_y, rule_winners, safe_preds = filter_uast_breaking_preds(
                 y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, files={file.path: file},
@@ -298,37 +313,27 @@ class FormatAnalyzer(Analyzer):
         assert len(y) == len(rule_winners)
         code_generator = CodeGenerator(fe, skip_errors=True)
         new_vnodes = code_generator.apply_predicted_y(vnodes, vnodes_y, y_pred)
-        code_lines = file.content.decode("utf-8", "replace").splitlines()
         for line_number, line in self._group_line_nodes(
                 y, y_pred, vnodes_y, new_vnodes, rule_winners):
             line_ys, line_ys_pred, line_vnodes_y, new_line_vnodes, line_winners = line
             new_code_line = code_generator.generate(
                 new_line_vnodes, "local").lstrip("\n").splitlines()[0]
-            fix_rules = []
-            fix_vnodes = []
-            fix_ys = []
-            for line_yi, line_y_predi, line_vnode_y, line_winner in zip(
-                    line_ys, line_ys_pred, line_vnodes_y, line_winners):
-                if line_yi == line_y_predi:
-                    continue
-                fix_rules.append(line_winner)
-                fix_vnodes.append(line_vnode_y)
-                fix_ys.append(line_y_predi)
             confidence = self._get_comment_confidence(line_ys, line_ys_pred, line_winners, rules)
-            text = self.render_comment_text(
-                language=language,            # programming language of the code
-                line_number=line_number,      # line number for the comment
-                code_lines=code_lines,        # original file code lines
-                new_code_line=new_code_line,  # code line suggested by our model
-                winners=fix_rules,            # winner rule indices
-                vnodes=fix_vnodes,            # corrected VirtualNode-s
-                fixed_labels=fix_ys,          # predicted labels for those nodes
-                confidence=confidence,        # overall confidence in the prediction, 0-100
-                feature_extractor=fe,         # FeatureExtractor involved.
+            vnodes_changed = [vnode for vnode in new_line_vnodes if
+                              hasattr(vnode, "y_old") and vnode.y_old != vnode.y]
+            yield FixData(
+                error="",                      # success
+                language=language,             # programming language of the code
+                line_number=line_number,       # line number for the comment
+                head_file=file,                # file from head revision
+                base_file=base_file,           # file from base revision
+                suggested_code=new_code_line,  # code line suggested by our model
+                all_vnodes=new_vnodes,         # VirtualNode-s which construct the file
+                fixed_vnodes=vnodes_changed,   # VirtualNode-s with changed y
+                winner_rules=line_winners,     # applied rule indices
+                confidence=confidence,         # overall confidence in the prediction, 0-100
+                feature_extractor=fe,          # FeatureExtractor involved
             )
-            file_comments.append(generate_comment(
-                filename=file.path, line=line_number, text=text, confidence=confidence))
-        return file_comments
 
     @staticmethod
     def _get_comment_confidence(line_ys: Sequence[int], line_ys_pred: Sequence[int],

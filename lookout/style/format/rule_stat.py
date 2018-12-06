@@ -151,8 +151,8 @@ def print_rules_report(input_pattern: str, bblfsh: str, language: str, model_pat
         return
 
     X, y, (vnodes_y, vnodes, vnode_parents, node_parents) = res
-    y_pred, rule_winners = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
-                                         feature_extractor=fe)
+    y_pred, rule_winners, _ = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
+                                            feature_extractor=fe)
     y, y_pred, vnodes_y, rule_winners, safe_preds = filter_uast_breaking_preds(
         y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, files={f.path: f for f in files},
         feature_extractor=fe, stub=client._stub, vnode_parents=vnode_parents,
