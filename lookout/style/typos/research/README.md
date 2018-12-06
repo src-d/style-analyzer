@@ -94,8 +94,7 @@ corrector.save("corrector.asdf")
 
 ## Testing
 
-Corrector can be run on a pandas.DataFrame or on its csv dump. Accuracy, precision, recall and f1 for top-k first suggestions
-are used as quality metrics. Function `print_scores` from `lookout/style/typos/research/dev_utils` calculates them all.
+Corrector can be run on a pandas.DataFrame or on its csv dump. Accuracy, precision, recall and f1 for top-k first suggestions on all tokens (ALL) or only corrected ones (CORR) are used as quality metrics. Function `print_scores` from `lookout/style/typos/research/dev_utils` calculates them all.
 
 Example:
 
