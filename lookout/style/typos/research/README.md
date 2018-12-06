@@ -35,8 +35,7 @@ it will still be checked by the model (in-word misspelling problem is solved).
 
 For example, it can be N most frequent tokens from the domain, or some dictionary of grammatically correct words.
 
-- Information about token frequencies in the domain is important for correction quality.
-Frequencies for code identifiers' tokens are available.
+- Information about token frequencies in the domain is used for candidates ranking. It is important for correction quality.
 
 - Model uses fasttext embeddings tuned for the domain. They are important for ranking candidates based on the token's context.
 Script for obtaining such embeddings will be published later.
@@ -45,9 +44,20 @@ Script for obtaining such embeddings will be published later.
 
 ### Data for building the model
 
-- File with vocabulary: tokens considered correct by the model with their frequencies. 
+- File with vocabulary: tokens considered correct by the model with their frequencies.
+
+Vocabulary for code identifiers tokens is available at
+`lookout/style/typos/16k_vocabulary.csv`
+
 - File with frequencies (weights) for tokens (not only from the vocabulary, as many as possible).
+
+Frequencies for code identifiers' tokens are available at
+`lookout/style/typos/research/all_frequencies.csv`
+
 - File with pretrained fasttext model.
+
+Pretrained 10-dimensional vectorizer is available at
+`lookout/style/typos/research/id_vecs_10.bin`.
 
 ### Input
 
@@ -87,7 +97,8 @@ import pandas
 from lookout.style.typos.corrector import TyposCorrector
 
 corrector = TyposCorrector()
-corrector.initialize_generator("vocabulary.csv", "frequencies.csv", "embeddings.bin")
+corrector.initialize_generator("lookout/style/typos/16k_vocabulary.csv", "lookout/style/typos/research/all_frequencies.csv",
+"lookout/style/typos/research/id_vecs_10.bin")
 corrector.train_on_file("train_data.csv")
 corrector.save("corrector.asdf")
 ```
@@ -110,7 +121,7 @@ with open("scores.txt", "w") as out:
     print_scores(test_data, suggestions, out)
 ```
 
-Example of output:
+Example of scores output:
 
 METRICS        |DETECTION SCORE|TOP1 SCORE CORR|TOP2 SCORE CORR|TOP3 SCORE CORR|TOP1 SCORE ALL |TOP2 SCORE ALL |TOP3 SCORE ALL 
 ---------------|---------------|---------------|---------------|---------------|---------------|---------------|---------------
@@ -121,7 +132,7 @@ F1             |         0.951 |         0.935 |         0.966 |         0.974 |
 
 ## Data preparation
 
-A set of scripts for data preparation are available:
+Several scripts for data preparation are available:
 
 1. Data filtering - in the given dataset leave only identifiers which have all their tokens inside the given vocabulary.
 
