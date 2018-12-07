@@ -23,24 +23,29 @@ TO_COMMIT = "HEAD"
 class TestAnalyzer:
     """Context manager for launching analyzer."""
     def __init__(self, port: int, db: str, fs: str, config: str = "",
-                 analyzer: Union[str, Sequence] = "lookout.style.format"):
+                 analyzer: Union[str, Sequence] = "lookout.style.format",
+                 init: bool=True):
         """
         :param port: port to use for analyzer.
         :param db: database location.
         :param fs: location where to store results of launched analyzer.
         :param config: Path to the configuration file with option defaults. If empty - skip.
         :param analyzer: analyzer(s) to use.
+        :param init: To run `analyzer init` or not. \
+                     If you want to reuse existing database set False.
         """
         self.port = port
         self.db = db
         self.fs = fs
         self.config = config
         self.analyzer = analyzer if type(analyzer) is str else " ".join(analyzer)
+        self.init = init
 
     def __enter__(self):
-        command = "analyzer init --db sqlite:///%s --fs %s" % (self.db, self.fs)
-        with patch("sys.argv", command.split(" ")):
-            launch_analyzer()
+        if self.init:
+            command = "analyzer init --db sqlite:///%s --fs %s" % (self.db, self.fs)
+            with patch("sys.argv", command.split(" ")):
+                launch_analyzer()
 
         command = "analyzer run %s " % self.analyzer
         if self.config:
@@ -51,7 +56,7 @@ class TestAnalyzer:
 
         class ShadowHandler(logging.Handler):
             def emit(self, record):
-                logs.append(logging.getLogger().handlers[0].formatter.format(record))
+                logs.append(logging.getLogger().handlers[0].format(record))
 
         self.log_handler = ShadowHandler()
         logging.getLogger().addHandler(self.log_handler)
