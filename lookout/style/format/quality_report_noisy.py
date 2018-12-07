@@ -54,6 +54,8 @@ def get_difflib_changes(true_content: Mapping[str, str], noisy_content: Mapping[
     true_files, noisy_files = set(), set()
     start_changes = {}
     for (tf, tc), (nf, nc) in zip(true_content.items(), noisy_content.items()):
+        if tc == nc:
+            continue
         matcher = SequenceMatcher(a=tc, b=nc)
         first_offset_changed = matcher.get_matching_blocks()[0].size - 1
         if first_offset_changed < len(tc) and first_offset_changed < len(nc):
