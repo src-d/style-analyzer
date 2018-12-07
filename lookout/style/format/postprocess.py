@@ -121,6 +121,7 @@ def filter_uast_breaking_preds(
             continue
         pred_string = "".join(INDEX_CLS_TO_STR[j] for j in
                               feature_extractor.labels_to_class_sequences[pred])
+        # we don't filter predictions that are fixing quote types
         if CLS_QUOTES.intersection(vn_y.value) and CLS_QUOTES.intersection(pred_string):
             safe_preds.append(i)
             continue
@@ -131,14 +132,20 @@ def filter_uast_breaking_preds(
             continue
         parent_before, start, end = parsed_before
         cur_i = vnodes.index(vnodes_y[i])
+        # when the input node value is NOOP i.e. an empty string, the replacement is restricted
+        # to the first occurence
         output_pred = "".join(n.value for n in vnodes[cur_i:cur_i+2]).replace(vn_y.value,
                                                                               pred_string, 1)
         diff_pred_offset = len(pred_string) - len(vn_y.value)
         try:
+            # to handle mixed indentations, we include the `VirtualNode` following the predicted
+            # one in the output predicted string, and start the rest of the sequence one
+            # `VirtualNode` further to avoid its repetitions
             content_after = content_before[:vn_y.start.offset] \
                 + output_pred.encode() \
                 + content_before[vn_y.start.offset + len(vn_y.value)
                                  + len(vnodes[cur_i + 1].value):]
+        # in case the prediction to check corresponds to the last label of a file
         except IndexError:
             content_after = content_before[:vn_y.start.offset] \
                 + output_pred.encode()
