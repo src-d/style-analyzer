@@ -5,7 +5,7 @@ import functools
 from importlib import import_module
 from itertools import islice
 import logging
-from typing import (Any, Dict, Iterable, List, Mapping, MutableMapping, NamedTuple, Optional,
+from typing import (Any, Dict, Iterable, List, Mapping, NamedTuple, Optional,
                     Sequence, Set, Tuple, Union)
 
 from bblfsh import role_name
@@ -69,7 +69,7 @@ class Rules:
         """
         super().__init__()
         assert rules is not None, "rules may not be None"
-        self._rules = rules
+        self._rules = tuple(rules)  # Rule list is constant
         self._compiled = self._compile(rules)
         self._origin_config = origin_config
 
@@ -116,10 +116,8 @@ class Rules:
         return prediction
 
     def predict(self, X: numpy.ndarray, vnodes_y: Sequence[VirtualNode],
-                vnodes: Sequence[VirtualNode], feature_extractor: FeatureExtractor,
-                return_originals: bool = False
-                ) -> Union[Tuple[numpy.ndarray, numpy.ndarray, numpy.ndarray, numpy.ndarray],
-                           Tuple[numpy.ndarray, numpy.ndarray]]:
+                vnodes: Sequence[VirtualNode], feature_extractor: FeatureExtractor
+                ) -> Tuple[numpy.ndarray, numpy.ndarray, "Rules"]:
         """
         Predict classes given the input features and metadata.
 
@@ -127,20 +125,15 @@ class Rules:
         :param vnodes_y: Sequence of the labeled `VirtualNode`-s corresponding to labeled samples.
         :param vnodes: Sequence of all the `VirtualNode`-s corresponding to the input.
         :param feature_extractor: FeatureExtractor used to extract features.
-        :param return_originals: Whether to return the basic predictions (Rules.apply()) in \
-                                 addition to the post-processed ones.
-        :return: The predictions, the winning rules and optionally the basic predictions from \
-                 Rules.apply()
+        :return: The predictions, the winning rules and the new Rules.
         """
         y_pred, winners = self.apply(X, True)
-        postprocessed_y_pred, postprocessed_winners = self.harmonize_quotes(
-            X=X, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, winners=winners,
+        postprocessed_y_pred, postprocessed_winners, processed_rules = self.harmonize_quotes(
+            y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, winners=winners,
             feature_extractor=feature_extractor)
-        if return_originals:
-            return postprocessed_y_pred, postprocessed_winners, y_pred, winners
-        return postprocessed_y_pred, postprocessed_winners
+        return postprocessed_y_pred, postprocessed_winners, processed_rules
 
-    def filter_by_confidence(self, confidence_threshold: float) -> Sequence[Rule]:
+    def filter_by_confidence(self, confidence_threshold: float) -> "Rules":
         """
         Filter rules according to a confidence threshold.
 
@@ -152,7 +145,7 @@ class Rules:
                         confidence_threshold, len(self._rules), len(rules))
         return Rules(rules, self._origin_config)
 
-    def filter_by_support(self, support_threshold: int) -> Sequence[Rule]:
+    def filter_by_support(self, support_threshold: int) -> "Rules":
         """
         Filter rules according to a support threshold.
 
@@ -173,28 +166,10 @@ class Rules:
         feature_extractor.labels_to_class_sequences.append(labels)
         return len(feature_extractor.labels_to_class_sequences) - 1
 
-    def _get_new_rule(self, feature_extractor: FeatureExtractor, labels: Tuple[int, ...],
-                      new_rules: MutableMapping[Tuple[int, ...], int]) -> int:
-        if labels in new_rules:
-            return new_rules[labels]
-        self._rules.append(Rule(tuple(),
-                                RuleStats(cls=self._get_composite(feature_extractor, labels),
-                                          conf=1., support=1)))
-        rule_i = len(self.rules) - 1
-        new_rules[labels] = rule_i
-        return rule_i
-
-    def _set_new_rule(self, feature_extractor: FeatureExtractor, labels: Tuple[int, ...],
-                      new_rules: MutableMapping[Tuple[int, ...], int], winners: numpy.ndarray,
-                      y: numpy.ndarray, y_i: int) -> None:
-        rule = self._get_new_rule(feature_extractor, tuple(labels), new_rules)
-        winners[y_i] = rule
-        y[y_i] = self._rules[rule].stats.cls
-
-    def harmonize_quotes(self, X: numpy.ndarray, y_pred: numpy.ndarray,
+    def harmonize_quotes(self, y_pred: numpy.ndarray,
                          vnodes_y: Sequence[VirtualNode], vnodes: Sequence[VirtualNode],
                          winners: numpy.ndarray, feature_extractor: FeatureExtractor
-                         ) -> Tuple[numpy.ndarray, numpy.ndarray]:
+                         ) -> Tuple[numpy.ndarray, numpy.ndarray, "Rules"]:
         """
         Post-process predictions to correct mis-matched quotes.
 
@@ -202,19 +177,33 @@ class Rules:
         then create fake rules as needed (because a rule going from the input to the corrected
         quote might not exist in the trained rules).
 
-        :param X: Feature matrix.
         :param y_pred: Predictions to correct.
         :param vnodes_y: Sequence of the predicted virtual nodes.
         :param vnodes: Sequence of virtual nodes representing the input.
         :param winners: Indices of the rules that were used to compute the predictions.
         :param feature_extractor: FeatureExtractor used to extract features.
-        :return: Updated y and winners.
+        :return: Updated y, winners and new rules.
         """
         quotes_classes = {CLASS_INDEX[CLS_DOUBLE_QUOTE], CLASS_INDEX[CLS_SINGLE_QUOTE]}
+        processed_rules = list(self.rules)
         processed_y = y_pred.copy()
         processed_winners = winners.copy()
-        y_indices = {id(vnode): i for i, vnode in enumerate(vnodes_y)}
         new_rules = {}
+
+        def append_new_rule(labels: Tuple[int, ...], y_i: int, conf: float, support: int) -> None:
+            rule_id = (labels, conf, support)
+            if rule_id in new_rules:
+                rule_index = new_rules[rule_id]
+            else:
+                processed_rules.append(
+                    Rule(tuple(), RuleStats(cls=Rules._get_composite(feature_extractor, labels),
+                                            conf=conf, support=support)))
+                rule_index = len(processed_rules) - 1
+                new_rules[rule_id] = rule_index
+            processed_winners[y_i] = rule_index
+            processed_y[y_i] = processed_rules[rule_index].stats.cls
+
+        y_indices = {id(vnode): i for i, vnode in enumerate(vnodes_y)}
         for vnode1, vnode2, vnode3 in zip(vnodes, islice(vnodes, 1, None),
                                           islice(vnodes, 2, None)):
             if (id(vnode1) not in y_indices or id(vnode3) not in y_indices or vnode2.node is None
@@ -225,26 +214,22 @@ class Rules:
                 continue
             y_i_1 = y_indices[id(vnode1)]
             y_i_3 = y_indices[id(vnode3)]
-            conf_vnode1 = self._rules[winners[y_i_1]].stats.conf
-            conf_vnode3 = self._rules[winners[y_i_3]].stats.conf
+            stats_vnode1 = processed_rules[winners[y_i_1]].stats
+            stats_vnode3 = processed_rules[winners[y_i_3]].stats
             labels1 = list(feature_extractor.labels_to_class_sequences[y_pred[y_i_1]])
             labels3 = list(feature_extractor.labels_to_class_sequences[y_pred[y_i_3]])
             if labels1[-1] not in quotes_classes or labels3[0] not in quotes_classes:
-                self._set_new_rule(feature_extractor, vnode1.y, new_rules, processed_winners,
-                                   processed_y, y_i_1)
-                self._set_new_rule(feature_extractor, vnode3.y, new_rules, processed_winners,
-                                   processed_y, y_i_3)
+                append_new_rule(vnode1.y, y_i_1, 1., 1)
+                append_new_rule(vnode3.y, y_i_3, 1., 1)
             elif labels1[-1] != labels3[0]:
-                quote = labels1[-1] if conf_vnode1 >= conf_vnode3 else labels3[0]
+                quote = labels1[-1] if stats_vnode1.conf >= stats_vnode3.conf else labels3[0]
                 if labels1[-1] != quote:
                     labels1[-1] = quote
-                    self._set_new_rule(feature_extractor, tuple(labels1), new_rules,
-                                       processed_winners, processed_y, y_i_1)
+                    append_new_rule(tuple(labels1), y_i_1, stats_vnode3.conf, stats_vnode3.support)
                 else:
                     labels3[0] = quote
-                    self._set_new_rule(feature_extractor, tuple(labels3), new_rules,
-                                       processed_winners, processed_y, y_i_3)
-        return processed_y, processed_winners
+                    append_new_rule(tuple(labels3), y_i_3, stats_vnode1.conf, stats_vnode1.support)
+        return processed_y, processed_winners, Rules(processed_rules, self._origin_config)
 
     @property
     def rules(self) -> List[Rule]:

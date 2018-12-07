@@ -91,8 +91,8 @@ def return_features() -> Response:
     if res is None:
         abort(500)
     X, y, (vnodes_y, vnodes, vnode_parents, node_parents, sibling_indices) = res
-    y_pred, rule_winners = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
-                                         feature_extractor=fe)
+    y_pred, rule_winners, rules = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
+                                                feature_extractor=fe)
     _, _, _, _, safe_preds = filter_uast_breaking_preds(
         y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, files={file.path: file},
         feature_extractor=fe, stub=client._stub, vnode_parents=vnode_parents,
