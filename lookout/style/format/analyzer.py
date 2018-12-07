@@ -256,6 +256,8 @@ class FormatAnalyzer(Analyzer):
                         find_deleted_lines(prev_file, file),
                     )))
                 fe = FeatureExtractor(language=lang, **rules.origin_config["feature_extractor"])
+                # ad-hoc for https://github.com/src-d/style-analyzer/issues/387
+                fe.cutoff_label_support = 0
                 feature_extractor_output = fe.extract_features([file], [lines])
                 if feature_extractor_output is None:
                     if self.config["report_parse_failures"]:
