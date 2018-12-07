@@ -1,5 +1,4 @@
 """Evaluate how well a given model is able to fix style mistakes randomly added in a repository."""
-from collections import defaultdict
 from difflib import SequenceMatcher
 import glob
 import logging
@@ -41,28 +40,27 @@ def get_content_from_repo(folder: str) -> Mapping[str, str]:
 def get_difflib_changes(true_content: Mapping[str, str], noisy_content: Mapping[str, str]
                         ) -> Tuple[Iterable[str], Iterable[str], Mapping[str, Set[int]], int]:
     """
-    Return the files and lines that have been modified.
+    Return the files and the first offsets that have been changed when adding random noise.
 
-    Given 2 contents of one repository (the original and its noisy version), returns the list files
-    that have been modified, the lines that have changed.
+    Given 2 contents of one repository (the original and its noisy version), returns the list of \
+    files that have been modified, the first offsets that have been changed.
 
     :param true_content: Dictionary containing the content of the original repository.
     :param noisy_content: Dictionary containing the content of the noisy version of the repository.
     :return: The list of files where a style mistake has been added, and the mirror list of the \
-             original files, and the dictionary of the sets of lines modified by file. \
-             The number of lines that have been modified, must be equal to the number \
-             of modified files.
+             original files, and the dictionary of firsts offsets that have been changed when \
+             adding random noise.
     """
     true_files, noisy_files = set(), set()
-    lines_changed = defaultdict(set)
+    start_changes = {}
     for (tf, tc), (nf, nc) in zip(true_content.items(), noisy_content.items()):
-        matcher = SequenceMatcher(a=tc.splitlines(), b=nc.splitlines())
-        for action, _, _, j1, j2 in matcher.get_opcodes():
-            if action is not "equal":
-                lines_changed[nf].update(range(j1, j2+1))
-                true_files.add(tf)
-                noisy_files.add(nf)
-    return sorted(true_files), sorted(noisy_files), lines_changed
+        matcher = SequenceMatcher(a=tc, b=nc)
+        first_offset_changed = matcher.get_matching_blocks()[0].size - 1
+        if first_offset_changed < len(tc) and first_offset_changed < len(nc):
+            start_changes[nf] = first_offset_changed
+            true_files.add(tf)
+            noisy_files.add(nf)
+    return sorted(true_files), sorted(noisy_files), start_changes
 
 
 def files2vnodes(files: Iterable[str], feature_extractor: FeatureExtractor, client: str
@@ -123,25 +121,20 @@ def get_mispreds(y: numpy.ndarray, y_pred: numpy.ndarray, nodes: Iterable[Virtua
     return mispreds
 
 
-def get_diff_mispreds(mispreds: Iterable[Misprediction], lines_changed: Mapping[str, Set[int]]
+def get_diff_mispreds(mispreds: Iterable[Misprediction], start_changes: Mapping[str, int]
                       ) -> Mapping[str, Misprediction]:
     """
     Filter `Misprediction`-s to select those involving at least one line that has been modified.
 
     :param mispreds: List of `Misprediction`-s to filter.
-    :param lines_changed: Dict of lines that have been changed when adding random noise.
-    :return: Dictionary of the `Misprediction`-s involving at least one line \
-             that has been modified when adding random noise.
+    :param start_changes: Dict of first offsets that have been changed when adding random noise.
+    :return: Dictionary of the `Misprediction`-s located at the offset where a random mistake \
+             has been previously added.
     """
     diff_mispreds = {}
     for m in mispreds:
-        mispred_lines = set(range(m.node.start.line, m.node.end.line + 1))
-        if set.intersection(mispred_lines, lines_changed[m.node.path]):
-            try:
-                if m.node.start.offset < diff_mispreds[m.node.path].node.start.offset:
-                    diff_mispreds[m.node.path] = m
-            except KeyError:
-                diff_mispreds[m.node.path] = m
+        if m.node.start.offset >= start_changes[m.node.path] and m.node.path not in diff_mispreds:
+            diff_mispreds[m.node.path] = m
     return diff_mispreds
 
 
@@ -172,7 +165,7 @@ def get_style_fixes(mispreds: Mapping[str, Misprediction], vnodes: Iterable[Virt
         except KeyError:
             continue
         for vn in vnodes:
-            if vn.path == true_file and vn.start.offset == mispred.node.start.offset:
+            if vn.path == true_file and vn.start.offset >= mispred.node.start.offset:
                 if tuple(feature_extractor.labels_to_class_sequences[mispred.pred]) == vn.y:
                     style_fixes.append(mispred)
                 break
@@ -261,7 +254,7 @@ def quality_report_noisy(true_repo: str, noisy_repo: str, bblfsh: str, language:
 
     true_content = get_content_from_repo(true_repo)
     noisy_content = get_content_from_repo(noisy_repo)
-    true_files, noisy_files, lines_changed = get_difflib_changes(true_content, noisy_content)
+    true_files, noisy_files, start_changes = get_difflib_changes(true_content, noisy_content)
     if not true_files:
         raise ValueError("Noisy repo should count at least one artificial mistake")
     log.info("Number of files modified by adding style noise: %d / %d", len(true_files),
@@ -275,8 +268,8 @@ def quality_report_noisy(true_repo: str, noisy_repo: str, bblfsh: str, language:
                                          **rules.origin_config["feature_extractor"])
     vnodes_y_true = files2vnodes(true_files, feature_extractor, client)
     mispreds_noise = files2mispreds(noisy_files, feature_extractor, rules, client, log)
-    diff_mispreds = get_diff_mispreds(mispreds_noise, lines_changed)
-    changes_count = len(lines_changed)
+    diff_mispreds = get_diff_mispreds(mispreds_noise, start_changes)
+    changes_count = len(start_changes)
 
     precisions, recalls = [], []
     n_rules = len(rules.rules)
