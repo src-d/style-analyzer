@@ -37,23 +37,37 @@ def describe_rule(rule: Rule, feature_extractor: FeatureExtractor) -> str:
     """
     if feature_extractor.features is None or feature_extractor.index_to_feature is None:
         raise NotFittedError()
-    grouped = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
-    for feature_index, cmp, threshold in rule.attrs:
-        group, node_index, feature_id, index = feature_extractor.index_to_feature[feature_index]
-        grouped[group][node_index][feature_id].append((cmp, threshold, index))
-    descriptions = [
-        describe_rule_splits(feature_extractor.features[group][node_index][feature_id],
-                             "%s%s" % (group.format(node_index), feature_id.name),
-                             splits)
-        for group, nodes in grouped.items()
-        for node_index, feature_ids in nodes.items()
-        for feature_id, splits in feature_ids.items()]
+    attr_descriptions = describe_rule_attrs(rule, feature_extractor)
     return "  %s\n\t⇒ y = %s\n\tConfidence: %.3f. Support: %d." % (
-        "\n\t∧ ".join(descriptions),
+        "\n\t∧ ".join(attr_descriptions),
         "".join(CLASS_REPRESENTATIONS[c]
                 for c in feature_extractor.labels_to_class_sequences[rule.stats.cls]),
         rule.stats.conf,
         rule.stats.support)
+
+
+def describe_rule_attrs(rule: Rule, feature_extractor: FeatureExtractor) -> Sequence[str]:
+    """
+    Format the rule as text.
+
+    We take features metadata to convert the integer indices to human-readable names.
+
+    :param rule: The rule to describe.
+    :param feature_extractor: The FeatureExtractor used to create those rules.
+    :return: The description of the rule.
+    """
+    if feature_extractor.features is None or feature_extractor.index_to_feature is None:
+        raise NotFittedError()
+    grouped = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+    for feature_index, cmp, threshold in rule.attrs:
+        group, node_index, feature_id, index = feature_extractor.index_to_feature[feature_index]
+        grouped[group][node_index][feature_id].append((cmp, threshold, index))
+    return [_describe_rule_splits(feature_extractor.features[group][node_index][feature_id],
+                                  "%s%s" % (group.format(node_index), feature_id.name),
+                                  splits)
+            for group, nodes in grouped.items()
+            for node_index, feature_ids in nodes.items()
+            for feature_id, splits in feature_ids.items()]
 
 
 @singledispatch
@@ -104,8 +118,8 @@ def describe_sample_ordinal(feature: OrdinalFeature, values: ndarray) -> str:
 
 
 @singledispatch
-def describe_rule_splits(feature: BagFeature, name: str,
-                         splits: List[Tuple[bool, floating, int]]) -> str:
+def _describe_rule_splits(feature: BagFeature, name: str,
+                          splits: List[Tuple[bool, floating, int]]) -> str:
     """
     Describe parts of a rule in natural language.
 
@@ -133,9 +147,9 @@ def describe_rule_splits(feature: BagFeature, name: str,
     return description
 
 
-@describe_rule_splits.register(CategoricalFeature)
-def describe_rule_parts_categorical(feature: CategoricalFeature, name: str,
-                                    splits: List[Tuple[bool, floating, int]]) -> str:
+@_describe_rule_splits.register(CategoricalFeature)
+def _describe_rule_parts_categorical(feature: CategoricalFeature, name: str,
+                                     splits: List[Tuple[bool, floating, int]]) -> str:
     """
     Describe parts of a rule in natural language.
 
@@ -163,9 +177,9 @@ def describe_rule_parts_categorical(feature: CategoricalFeature, name: str,
     return description
 
 
-@describe_rule_splits.register(OrdinalFeature)
-def describe_rule_parts_ordinal(feature: OrdinalFeature, name: str,
-                                splits: List[Tuple[bool, floating, int]]) -> str:
+@_describe_rule_splits.register(OrdinalFeature)
+def _describe_rule_parts_ordinal(feature: OrdinalFeature, name: str,
+                                 splits: List[Tuple[bool, floating, int]]) -> str:
     """
     Describe a part of a rule in natural language.
 

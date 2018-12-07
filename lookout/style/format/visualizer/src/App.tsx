@@ -58,9 +58,9 @@ class App extends React.Component<IProps, IState> {
             labeledIndex++;
           }
         });
-        const rulesByConfidence = data.confidences.map((confidence, index) => [
+        const rulesByConfidence = data.rules.map((rule, index) => [
           index,
-          confidence
+          rule.conf
         ]);
         rulesByConfidence.sort(
           ([_indexLeft, confLeft], [_indexRight, confRight]) =>
@@ -70,11 +70,16 @@ class App extends React.Component<IProps, IState> {
           ([index, _conf]) => index
         );
         data.rule_uls = data.rules.map((rule, indexRule) => {
-          const parts = rule
-            .split("\n\t")
-            .map((part, indexPart) => (
-              <li key={indexRule * 1000 + indexPart}>{part}</li>
-            ));
+          const parts = [
+            <li key={indexRule * 1000}>Conf: {rule.conf.toFixed(2)}</li>,
+            <li key={indexRule * 1000 + 1}>Support: {rule.support}</li>,
+            <li key={indexRule * 1000 + 2}>
+              Artificial: {rule.artificial ? "✔" : "✘"}
+            </li>,
+            ...rule.attrs.map((part, indexPart) => (
+              <li key={indexRule * 1000 + indexPart + 3}>{part}</li>
+            ))
+          ];
           return (
             <ul key={indexRule} className="list-unstyled">
               {parts}

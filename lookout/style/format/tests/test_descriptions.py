@@ -55,7 +55,8 @@ class DescriptionsTests(unittest.TestCase):
         picked_class = randint(0, self.n_classes - 1)
         picked_class_name = self.class_representations[picked_class]
         index = indices[0]
-        rule = Rule([(index, True, 4.5)], RuleStats(picked_class, 0.9, 150))
+        rule = Rule(attrs=[(index, True, 4.5)], stats=RuleStats(picked_class, 0.9, 150),
+                    artificial=False)
         self.assertEqual(describe_rule(rule, self.fe),
                          "  %s ≥ %d\n"
                          "	⇒ y = %s\n"
@@ -70,7 +71,8 @@ class DescriptionsTests(unittest.TestCase):
         picked_class = randint(0, self.n_classes - 1)
         picked_class_name = self.class_representations[picked_class]
         index = indices[activated]
-        rule = Rule([(index, True, 0.5)], RuleStats(picked_class, 0.9, 150))
+        rule = Rule(attrs=[(index, True, 0.5)], stats=RuleStats(picked_class, 0.9, 150),
+                    artificial=False)
         self.assertEqual(describe_rule(rule, self.fe),
                          "  %s = %s\n"
                          "	⇒ y = %s\n"
@@ -88,8 +90,8 @@ class DescriptionsTests(unittest.TestCase):
         picked_class_name = self.class_representations[picked_class]
         index = indices[activated]
         not_index = indices[not_activated]
-        rule = Rule([(index, True, 0.5), (not_index, False, 0.5)],
-                    RuleStats(picked_class, 0.9, 150))
+        rule = Rule(attrs=[(index, True, 0.5), (not_index, False, 0.5)],
+                    stats=RuleStats(picked_class, 0.9, 150), artificial=False)
         self.assertEqual(describe_rule(rule, self.fe),
                          "  %s in {%s} and not in {%s}\n"
                          "	⇒ y = %s\n"
@@ -102,7 +104,8 @@ class DescriptionsTests(unittest.TestCase):
         index = self.fe.feature_to_indices[FeatureGroup.left][0][feature_id][0]
         picked_class = randint(0, self.n_classes - 1)
         picked_class_name = self.class_representations[picked_class]
-        rule = Rule([(index, True, 4.5)], RuleStats(picked_class, 0.9, 150))
+        rule = Rule(attrs=[(index, True, 4.5)], stats=RuleStats(picked_class, 0.9, 150),
+                    artificial=False)
         self.assertEqual(describe_rule(rule, self.fe),
                          "  -1.%s ≥ %d\n"
                          "	⇒ y = %s\n"
@@ -115,7 +118,8 @@ class DescriptionsTests(unittest.TestCase):
         index = self.fe.feature_to_indices[FeatureGroup.right][0][feature_id][0]
         picked_class = randint(0, self.n_classes - 1)
         picked_class_name = self.class_representations[picked_class]
-        rule = Rule([(index, True, 4.5)], RuleStats(picked_class, 0.9, 150))
+        rule = Rule(attrs=[(index, True, 4.5)], stats=RuleStats(picked_class, 0.9, 150),
+                    artificial=False)
         self.assertEqual(describe_rule(rule, self.fe),
                          "  +1.%s ≥ %d\n"
                          "	⇒ y = %s\n"
@@ -128,7 +132,8 @@ class DescriptionsTests(unittest.TestCase):
         index = self.fe.feature_to_indices[FeatureGroup.parents][0][feature_id][0]
         picked_class = randint(0, self.n_classes - 1)
         picked_class_name = self.class_representations[picked_class]
-        rule = Rule([(index, True, 4)], RuleStats(picked_class, 0.9, 150))
+        rule = Rule(attrs=[(index, True, 4)], stats=RuleStats(picked_class, 0.9, 150),
+                    artificial=False)
         self.assertEqual(describe_rule(rule, self.fe),
                          "  ^1.%s = AnyTypeAnnotation\n"
                          "	⇒ y = %s\n"

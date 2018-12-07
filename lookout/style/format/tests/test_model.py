@@ -42,7 +42,7 @@ class FormatModelTests(unittest.TestCase):
         trainer = TrainableRules(**self.config["trainable_rules"], origin_config=self.config)
         trainer.fit(self.test_x, self.test_y)
         self.rules = trainer.rules
-        self.fm = FormatModel().load(os.path.join(os.path.dirname(__file__), "format-model.asdf"))
+        self.fm = FormatModel().load(os.path.join(os.path.dirname(__file__), "model_jquery.asdf"))
         self.maxDiff = None
 
     def test_save_and_load(self):
@@ -62,7 +62,7 @@ class FormatModelTests(unittest.TestCase):
         DUMP = """<unknown name>/['1'] <unknown url> <unknown commit>
 
 # javascript
-45 rules, avg.len. 6.3"""
+1269 rules, avg.len. 19.1"""
         self.assertEqual(self.fm.dump(), DUMP)
 
     def test_len(self):
