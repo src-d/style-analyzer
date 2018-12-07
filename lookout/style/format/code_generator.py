@@ -205,9 +205,9 @@ class CodeGenerator:
                 y_index += 1
 
     def _handle_error(self, msg):
-        self.log.warning("%s url: %s, commit: %s. %s.",
-                         msg, self.url, self.commit, "Skipping" if self.skip_errors else
-                         "Set skip_errors=True to skip faulty suggestions")
+        self.log.debug("%s url: %s, commit: %s. %s.",
+                       msg, self.url, self.commit, "Skipping" if self.skip_errors else
+                       "Set skip_errors=True to skip faulty suggestions")
         if not self.skip_errors:
             raise CodeGenerationError(msg)
         return False
