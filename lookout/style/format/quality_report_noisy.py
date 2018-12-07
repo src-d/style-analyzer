@@ -200,7 +200,8 @@ def compute_metrics(changes_count: int, predictions_count: int, true_positive: i
 
 
 def plot_curve(repo: str, x: numpy.ndarray, y: numpy.ndarray, precision_threshold: float,
-               path_to_figure: str) -> None:
+               rec_threshold_prec: float, confidence_threshold_exp: float, path_to_figure: str
+               ) -> None:
     """
     Plot y versus x as lines and markers using matplotlib.
 
@@ -209,6 +210,9 @@ def plot_curve(repo: str, x: numpy.ndarray, y: numpy.ndarray, precision_threshol
     :param y: 1-D numpy array containing the y coordinates.
     :param precision_threshold: Precision threshold tolerated by the model. \
            Limit drawn as a red horizontal line on the figure.
+    :param rec_threshold_prec: Maximum recall before passing under the precision threshold.
+    :param confidence_threshold_exp: Confidence limit of the last rule before passing under \
+           the precision threshold.
     :param path_to_figure: Path to the output figure, in png format.
     """
     try:
@@ -220,8 +224,12 @@ def plot_curve(repo: str, x: numpy.ndarray, y: numpy.ndarray, precision_threshol
     plt.figure(figsize=(15, 10))
     ax = plt.subplot(111)
     ax.plot(x, y, marker="x", linestyle="--")
-    handle = plt.axhline(precision_threshold, color="r")
-    ax.legend([handle], ["precision threshold"], fontsize=17)
+    plt.axhline(precision_threshold, color="r",
+                label="input precision threshold: %.2f" % (precision_threshold))
+    plt.axvline(rec_threshold_prec, color="m",
+                label="empitical confidence threshold: %.3f" % (confidence_threshold_exp))
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles, labels, loc="best", fontsize=17)
     ax.set_title("Precision-recall curve on the %s repository" % repo, fontsize=17)
     ax.set_ylabel("Precision", fontsize=17, labelpad=15)
     ax.set_xlabel("Recall", fontsize=17, labelpad=15)
@@ -289,23 +297,24 @@ def quality_report_noisy(true_repo: str, noisy_repo: str, bblfsh: str, language:
     print("recall x:", recalls)
     print("precision y:", precisions)
 
-    # Compute some stats and quality metrics for the model's evaluation
+    # compute some stats and quality metrics for the model's evaluation
     n_mistakes = len(true_files)
     prec_max_rec = precisions[-1]
     max_rec = max(recalls)
     n_rules_filtered = len(rules_id)
-    # Compute the recall score at the given threshold for precision.
-    for (prec, rec) in zip(precisions, recalls):
+    # compute the confidence and recall limit for the given precision threshold
+    for i, (prec, rec) in enumerate(zip(precisions, recalls)):
         if prec < precision_threshold:
             break
+        confidence_threshold_exp = round(rules.rules[i].stats.conf, 3)
         rec_threshold_prec = rec
 
-    # Compile the precision-recall curve
+    # compile the precision-recall curve
     path_to_figure = os.path.join(dir_output, "pr_curve_jquery.png")
-    plot_curve("jquery", numpy.asarray(recalls), numpy.asarray(precisions), precision_threshold,
-               path_to_figure)
+    plot_curve("jquery/jquery", numpy.asarray(recalls), numpy.asarray(precisions),
+               precision_threshold, rec_threshold_prec, confidence_threshold_exp, path_to_figure)
 
-    # Compile the markdown template for the report through jinja2
+    # compile the markdown template for the report through jinja2
     loader = jinja2.FileSystemLoader(("/", os.path.dirname(__file__), os.getcwd()),
                                      followlinks=True)
     env = jinja2.Environment(
@@ -316,13 +325,14 @@ def quality_report_noisy(true_repo: str, noisy_repo: str, bblfsh: str, language:
     env.globals.update(range=range)
     template = loader.load(env, "templates/noisy_quality_report.md.jinja2")
     report = template.render(n_mistakes=n_mistakes, rec_threshold_prec=rec_threshold_prec,
-                             prec_max_rec=prec_max_rec, max_rec=max_rec,
-                             confidence_threshold=confidence_threshold,
+                             prec_max_rec=prec_max_rec,
+                             confidence_threshold_exp=confidence_threshold_exp,
+                             max_rec=max_rec, confidence_threshold=confidence_threshold,
                              support_threshold=support_threshold,
                              n_rules=n_rules, n_rules_filtered=n_rules_filtered,
                              path_to_figure=path_to_figure)
 
-    # Write the quality report
+    # write the quality report
     path_to_report = os.path.join(dir_output, "report_noise.md")
     with open(path_to_report, "w", encoding="utf-8") as f:
         f.write(report)
