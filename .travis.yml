@@ -36,6 +36,9 @@ _deploy: &_deploy
     tags: true
 matrix:
   include:
+    - # set LONG_TESTS if we're in the weekly cron
+      if: type = cron
+      env: LONG_TESTS=1
     - stage: style
       python: 3.7
       env: SCRIPT="make check
