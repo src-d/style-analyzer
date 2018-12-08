@@ -302,8 +302,8 @@ class FormatAnalyzer(Analyzer):
             feature_extractor_output, bblfsh_stub: "bblfsh.aliases.ProtocolServiceStub",
             rules: Rules) -> Iterable[FixData]:
         X, y, (vnodes_y, vnodes, vnode_parents, node_parents) = feature_extractor_output
-        y_pred, rule_winners, _ = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
-                                                feature_extractor=fe)
+        y_pred, rule_winners, new_rules = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
+                                                        feature_extractor=fe)
         if self.config["uast_break_check"]:
             y, y_pred, vnodes_y, rule_winners, safe_preds = filter_uast_breaking_preds(
                 y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, files={file.path: file},
