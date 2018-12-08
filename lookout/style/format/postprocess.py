@@ -125,7 +125,7 @@ def filter_uast_breaking_preds(
         if CLS_QUOTES.intersection(vn_y.value) and CLS_QUOTES.intersection(pred_string):
             safe_preds.append(i)
             continue
-        content_before = files[vn_y.path].content.decode("utf-8", "ignore").encode()
+        content_before = files[vn_y.path].content.decode("utf-8", "replace")
         parsed_before = _parse_code(vnode_parents[id(vn_y)], content_before, stub, parsing_cache,
                                     feature_extractor.language, node_parents, log, vn_y.path)
         if parsed_before is None:
@@ -142,13 +142,13 @@ def filter_uast_breaking_preds(
             # one in the output predicted string, and start the rest of the sequence one
             # `VirtualNode` further to avoid its repetitions
             content_after = content_before[:vn_y.start.offset] \
-                + output_pred.encode() \
+                + output_pred \
                 + content_before[vn_y.start.offset + len(vn_y.value)
                                  + len(vnodes[cur_i + 1].value):]
         # in case the prediction to check corresponds to the last label of a file
         except IndexError:
             content_after = content_before[:vn_y.start.offset] \
-                + output_pred.encode()
+                + output_pred
         content_after = content_after[start:end + diff_pred_offset]
         parent_after, errors_after = parse_uast(
             stub, content_after, filename="", language=feature_extractor.language)
