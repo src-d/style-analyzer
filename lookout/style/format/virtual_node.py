@@ -6,10 +6,25 @@ import bblfsh
 from lookout.style.format.classes import CLASS_REPRESENTATIONS, EMPTY_CLS
 
 
-Position = NamedTuple("Position", (("offset", int), ("line", int), ("col", int)))
-"""
-`line` and `col` are 1-based to match UAST!
-"""
+class Position(NamedTuple("Position", (("offset", int), ("line", int), ("col", int)))):
+    """
+    Data class to hold position information of virtual nodes.
+
+    `line` and `col` are 1-based to match UAST, `offset` is 0-based.
+    """
+
+    @staticmethod
+    def from_bblfsh_position(position: bblfsh.Position) -> "Position":
+        """Create a lookout.style.format.virtual_node.Position from a bblfsh.Position."""
+        line = position.line
+        col = position.col
+        if hasattr(position, "offset"):
+            offset = position.offset
+        elif line == 1 and col == 1:
+            offset = 0
+        else:
+            raise ValueError("Offset missing.")
+        return Position(offset, line, col)
 
 
 class VirtualNode:
@@ -26,8 +41,8 @@ class VirtualNode:
         Construct a VirtualNode.
 
         :param value: Text of the token.
-        :param start: Starting position of the token (0-based).
-        :param end: Ending position of the token (0-based).
+        :param start: Starting position of the token.
+        :param end: Ending position of the token.
         :param node: Corresponding UAST node (if exists).
         :param y: The label of the node. It can be either a predicted token class from CLASSES \
                   or a composite sequence of such classes. It is guaranteed that the final type \
@@ -105,8 +120,8 @@ class VirtualNode:
         outer_token = file[node.start_position.offset:node.end_position.offset]
         if not node.token:
             yield VirtualNode(outer_token,
-                              Position(*[f[1] for f in node.start_position.ListFields()]),
-                              Position(*[f[1] for f in node.end_position.ListFields()]),
+                              Position.from_bblfsh_position(node.start_position),
+                              Position.from_bblfsh_position(node.end_position),
                               node=node, path=path)
             return
         node_token = node.token
