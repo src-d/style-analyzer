@@ -2,7 +2,7 @@
 
 ### Rules filtering thresholds
 
-* `{{ "Confidence: %s  " % (conf_threshold) }}`
+* `{{ "Confidence: %s  " % (confidence_threshold) }}`
 * `{{ "Support: %s" % (support_threshold) }}`
 
 ### Metrics table for the *jquery/jquery* repository
@@ -10,6 +10,6 @@
 
 | number of mistakes | recall at threshold precision | precision at max recall | empirical confidence threshold | max recall  |             Number of rules              |
 |:------------------:|:-----------------------------:|:-----------------------:|:------------------------------:|:-----------:|:----------------------------------------:|
-|   {{n_mistakes}}   |     {{rec_threshold_prec}}    |     {{prec_max_rec}}    |     {{conf_threshold_exp}}     | {{max_rec}} | `{{ n_rules_filtered }} / {{ n_rules }}` |
+|   {{n_mistakes}}   |     {{rec_threshold_prec}}    |     {{prec_max_rec}}    |  {{confidence_threshold_exp}}  | {{max_rec}} | `{{ n_rules_filtered }} / {{ n_rules }}` |
 
 ![Precision-Racall curve]({{path_to_figure}})
