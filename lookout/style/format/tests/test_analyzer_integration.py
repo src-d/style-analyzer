@@ -15,7 +15,7 @@ from lookout.core.test_helpers.server import find_port, run as launch_server
 # PyCharm has a bug and inserts a new line here
 from lookout.__main__ import main as launch_analyzer  # noqa: I202, I100
 
-FROM_COMMIT = "HEAD" + "^" * 8
+FROM_COMMIT = "HEAD" + "^" * 9
 TO_COMMIT = "HEAD"
 
 
