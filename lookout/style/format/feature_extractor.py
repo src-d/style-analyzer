@@ -262,7 +262,7 @@ class FeatureExtractor:
 
         self._log.debug("Parsed %d vnodes", sum(len(vn) for vn, _, _ in parsed_files))
         # filter composite labels by support
-        if self.cutoff_label_support > 0:
+        if index_labels and self.cutoff_label_support > 0:
             self._remove_labels_with_low_support(
                 chain.from_iterable(vn for vn, _, _ in parsed_files))
 
