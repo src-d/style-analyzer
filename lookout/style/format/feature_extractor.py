@@ -562,9 +562,12 @@ class FeatureExtractor:
         for vnode in vnodes:
             if vnode.y is None:
                 if current_class_seq:
-                    class_seq = update_mappings(tuple(current_class_seq))
-                    yield VirtualNode(value=value, start=start, end=end,
-                                      y=class_seq, path=path)
+                    y_original = tuple(current_class_seq)
+                    class_seq = update_mappings(y_original)
+                    new_vnode = VirtualNode(value=value, start=start, end=end, y=class_seq,
+                                            path=path)
+                    new_vnode.y_original = y_original
+                    yield new_vnode
                     start, end, value, current_class_seq = None, None, "", []
                 yield vnode
             else:
@@ -573,10 +576,12 @@ class FeatureExtractor:
                 end = vnode.end
                 value += vnode.value
                 current_class_seq.append(vnode.y)
-        if value or current_class_seq:
-            if current_class_seq:
-                class_seq = update_mappings(tuple(current_class_seq))
-            yield VirtualNode(value=value, start=start, end=end, y=class_seq, path=path)
+        if current_class_seq:
+            y_original = tuple(current_class_seq)
+            class_seq = update_mappings(y_original)
+            new_vnode = VirtualNode(value=value, start=start, end=end, y=class_seq, path=path)
+            new_vnode.y_original = y_original
+            yield new_vnode
 
     def _add_noops(self, vnodes: Sequence[VirtualNode], path: str, index_labels: bool = False
                    ) -> List[VirtualNode]:
@@ -602,7 +607,8 @@ class FeatureExtractor:
                                                 end=Position(0, 1, 1), y=noop_label, path=path))
         for vnode, next_vnode in zip(vnodes, islice(vnodes, 1, None)):
             augmented_vnodes.append(vnode)
-            if vnode.y is None and next_vnode.y is None:
+            if getattr(vnode, "y_original", vnode.y) is None and \
+                    getattr(next_vnode, "y_original", vnode.y) is None:
                 augmented_vnodes.append(VirtualNode(value="", start=vnode.end, end=vnode.end,
                                                     y=noop_label, path=path))
         augmented_vnodes.append(next_vnode)
@@ -740,6 +746,7 @@ class FeatureExtractor:
         unsupported = {k for k, v in label_support.items() if v < self.cutoff_label_support}
         for vnode in vnodes:
             if vnode.y in unsupported:
+                vnode.y_original = vnode.y
                 vnode.y = None
         self._log.debug("Removed %d/%d labels by support %d", len(unsupported), len(label_support),
                         self.cutoff_label_support)

@@ -72,10 +72,12 @@ class CodeGenerator:
         """
         result = []
         for vnode, y_new in self._iterate_vnodes(vnodes, vnodes_y, y_pred):
-            vnode = vnode.copy()
-            if y_new != vnode.y:
-                vnode.y, vnode.y_old = y_new, vnode.y
-            result.append(vnode)
+            new_vnode = vnode.copy()
+            if hasattr(vnode, "y_original"):
+                new_vnode.y_original = vnode.y_original
+            if y_new != new_vnode.y:
+                new_vnode.y, new_vnode.y_old = tuple(y_new), new_vnode.y
+            result.append(new_vnode)
         return result
 
     def generate(self, vnodes: Sequence[VirtualNode], indentation: str) -> str:
@@ -95,6 +97,8 @@ class CodeGenerator:
             y_new = vnode.y
             y_old = getattr(vnode, "y_old", y_new)
             y_changed = y_new != y_old
+            if hasattr(vnode, "y_original") and y_new is None and y_old is None:
+                y_new = y_old = vnode.y_original
             if not self._can_set_label(y_new, y_old, repr(vnode)):
                 # Check unexpected situations.
                 # If skip_errors is False `self.check()` raises an exception.
