@@ -20,7 +20,7 @@ class RobustnessTests(unittest.TestCase):
         cls.base_dir_ = tempfile.TemporaryDirectory(dir=str(cls.parent_loc))
         cls.base_dir = cls.base_dir_.name
 
-        with tarfile.open(str(cls.parent_loc / "jquery.tar.xz")) as tar:
+        with tarfile.open(str(cls.parent_loc / "jquery_noisy_original.tar.xz")) as tar:
             tar.extractall(path=cls.base_dir)
         cls.jquery_dir = os.path.join(cls.base_dir, "jquery")
         with tarfile.open(str(cls.parent_loc / "jquery_noisy.tar.xz")) as tar:
