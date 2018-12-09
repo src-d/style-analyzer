@@ -318,7 +318,8 @@ class FormatAnalyzer(Analyzer):
             line_ys, line_ys_pred, line_vnodes_y, new_line_vnodes, line_winners = line
             new_code_line = code_generator.generate(
                 new_line_vnodes, "local").lstrip("\n").splitlines()[0]
-            confidence = self._get_comment_confidence(line_ys, line_ys_pred, line_winners, rules)
+            confidence = self._get_comment_confidence(line_ys, line_ys_pred, line_winners,
+                                                      new_rules)
             vnodes_changed = [vnode for vnode in new_line_vnodes if
                               hasattr(vnode, "y_old") and vnode.y_old != vnode.y]
             yield FixData(
