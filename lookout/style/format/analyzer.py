@@ -386,7 +386,7 @@ class FormatAnalyzer(Analyzer):
                     line_vnodes = []
                     for vnode in new_vnodes[vnodes_index:]:
                         if vnode.start.line > line_vnodes_y[0].start.line:
-                            if (line_vnodes[-1].y is not None and
+                            if (line_vnodes and line_vnodes[-1].y is not None and
                                     CLASS_INDEX[CLS_NEWLINE] in line_vnodes[-1].y):
                                 break
                             else:
