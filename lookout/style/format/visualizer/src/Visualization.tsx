@@ -24,25 +24,13 @@ export interface IProps {
 
 class Visualization extends React.Component<IProps, IState> {
   private computeEnabledRulesSupport = memoizeOne(
-    (support: number): boolean[] => {
-      const supports = this.props.data.supports;
-      const enabledRules = [];
-      for (let i = 0; i < this.props.data.rules.length; i++) {
-        enabledRules.push(supports[i] >= support);
-      }
-      return enabledRules;
-    }
+    (support: number): boolean[] =>
+      this.props.data.rules.map(rule => rule.support >= support)
   );
 
   private computeEnabledRulesAbsoluteConfidence = memoizeOne(
-    (absoluteConfidence: number): boolean[] => {
-      const confidences = this.props.data.confidences;
-      const enabledRules = [];
-      for (let i = 0; i < this.props.data.rules.length; i++) {
-        enabledRules.push(confidences[i] >= absoluteConfidence);
-      }
-      return enabledRules;
-    }
+    (conf: number): boolean[] =>
+      this.props.data.rules.map(rule => rule.conf >= conf)
   );
 
   private computeEnabledRulesRelativeConfidence = memoizeOne(
@@ -91,8 +79,14 @@ class Visualization extends React.Component<IProps, IState> {
   );
 
   private computeEnabled = memoizeOne(
-    (enabledRules: boolean[]): boolean[] =>
-      this.props.data.winners.map(winner => enabledRules[winner])
+    (enabledRules: boolean[]): boolean[] => {
+      const result = [];
+      const { break_uast, winners } = this.props.data;
+      for (let i = 0; i < this.props.data.winners.length; i++) {
+        result.push(!break_uast[i] && enabledRules[winners[i]]);
+      }
+      return result;
+    }
   );
 
   private computeNEnabled = memoizeOne(

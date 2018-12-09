@@ -2,7 +2,7 @@
 from collections.abc import Mapping as Mapping_abc
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, MutableMapping, Union
+from typing import Any, Dict, List, Mapping, MutableMapping, Sequence, Union
 
 from bblfsh import BblfshClient
 from flask import abort, Flask, jsonify, request, Response
@@ -11,10 +11,11 @@ from lookout.core.api.service_data_pb2 import File
 import numpy
 from scipy.sparse import csr_matrix
 
-from lookout.style.format.descriptions import describe_rules, describe_sample
+from lookout.style.format.descriptions import describe_rule_attrs, describe_sample
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.model import FormatModel
 from lookout.style.format.postprocess import filter_uast_breaking_preds
+from lookout.style.format.rules import Rules
 from lookout.style.format.virtual_node import VirtualNode
 
 logging.basicConfig(level="DEBUG")
@@ -29,6 +30,16 @@ def _convert_to_jsonable(mapping: MutableMapping[Any, Any]) -> MutableMapping[An
         elif isinstance(value, Mapping_abc):
             mapping[key] = _convert_to_jsonable(value)
     return mapping
+
+
+def _rules_to_jsonable(rules: Rules, feature_extractor: FeatureExtractor
+                       ) -> Sequence[Mapping[str, Any]]:
+    return [dict(attrs=describe_rule_attrs(rule, feature_extractor),
+                 cls=rule.stats.cls,
+                 conf=rule.stats.conf * 100,
+                 support=rule.stats.support,
+                 artificial=rule.artificial)
+            for rule in rules.rules]
 
 
 def _vnode_to_dict(vnode: VirtualNode) -> Mapping[str, Any]:
@@ -97,8 +108,9 @@ def return_features() -> Response:
         y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, files={file.path: file},
         feature_extractor=fe, stub=client._stub, vnode_parents=vnode_parents,
         node_parents=node_parents, rule_winners=rule_winners, log=app.logger)
-    wrong_preds = list(set(range(X.shape[0])) - set(safe_preds))
-    rule_winners[wrong_preds] = -1
+    break_uast = [False] * X.shape[0]
+    for wrong_pred in set(range(X.shape[0])).difference(safe_preds):
+        break_uast[wrong_pred] = True
     app.logger.info("returning features of shape %d, %d" % X.shape)
     app.logger.info("length of rules: %d", len(rules))
     return jsonify({"code": code,
@@ -106,10 +118,9 @@ def return_features() -> Response:
                     "ground_truths": y.tolist(),
                     "predictions": y_pred.tolist(),
                     "sibling_indices": sibling_indices,
-                    "rules": describe_rules(rules.rules, fe),
-                    "confidences": [float(rule.stats.conf * 100) for rule in rules.rules],
-                    "supports": [int(rule.stats.support) for rule in rules.rules],
+                    "rules": _rules_to_jsonable(rules, fe),
                     "winners": rule_winners.tolist(),
+                    "break_uast": break_uast,
                     "feature_names": fe.feature_names,
                     "class_representations": fe.composite_class_representations,
                     "class_printables": fe.composite_class_printables,

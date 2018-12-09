@@ -22,15 +22,15 @@
 }
 
 .Code code div {
-    counter-increment: line;
+  counter-increment: line;
 }
 
 .Code code div:before {
   display: inline-block;
   width: 3em; /* Fixed width */
   border-right: 1px solid #bbb;
-  padding: 0 .5em;
-  margin-right: .5em;
+  padding: 0 0.5em;
+  margin-right: 0.5em;
   color: #888;
   text-align: right;
   background-color: #eee;

@@ -41,7 +41,8 @@ RuleStats = NamedTuple("RuleStats", (("cls", int), ("conf", float), ("support", 
 """
 
 
-Rule = NamedTuple("RuleType", (("attrs", Tuple[RuleAttribute, ...]), ("stats", RuleStats)))
+Rule = NamedTuple("RuleType", (("attrs", Tuple[RuleAttribute, ...]), ("stats", RuleStats),
+                               ("artificial", bool)))
 
 
 class Rules:
@@ -128,10 +129,8 @@ class Rules:
         :return: The predictions, the winning rules and the new Rules.
         """
         y_pred, winners = self.apply(X, True)
-        postprocessed_y_pred, postprocessed_winners, processed_rules = self.harmonize_quotes(
-            y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, winners=winners,
-            feature_extractor=feature_extractor)
-        return postprocessed_y_pred, postprocessed_winners, processed_rules
+        return self.harmonize_quotes(y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes,
+                                     winners=winners, feature_extractor=feature_extractor)
 
     def filter_by_confidence(self, confidence_threshold: float) -> "Rules":
         """
@@ -196,8 +195,10 @@ class Rules:
                 rule_index = new_rules[rule_id]
             else:
                 processed_rules.append(
-                    Rule(tuple(), RuleStats(cls=Rules._get_composite(feature_extractor, labels),
-                                            conf=conf, support=support)))
+                    Rule(attrs=tuple(),
+                         stats=RuleStats(cls=Rules._get_composite(feature_extractor, labels),
+                                         conf=conf, support=support),
+                         artificial=True))
                 rule_index = len(processed_rules) - 1
                 new_rules[rule_id] = rule_index
             processed_winners[y_i] = rule_index
@@ -252,7 +253,7 @@ class Rules:
     def _compile(cls, rules: Sequence[Rule]) -> CompiledRulesType:
         cls._log.debug("compiling %d rules", len(rules))
         attrs = defaultdict(lambda: defaultdict(lambda: [[], []]))
-        for i, (branch, _) in enumerate(rules):
+        for i, (branch, _, _) in enumerate(rules):
             for rule in branch:
                 attrs[rule.feature][rule.threshold][int(rule.cmp)].append(i)
         compiled_attrs = {}
@@ -535,13 +536,14 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
                 prediction = int(tree.classes_[numpy.argmax(freqs)])
                 if class_mapping is not None:
                     prediction = class_mapping[prediction]
-                rules.append(Rule(path, RuleStats(prediction, conf, support)))
+                rules.append(Rule(attrs=path, stats=RuleStats(prediction, conf, support),
+                                  artificial=False))
         return rules, leaf2rule
 
     @classmethod
     def _merge_rules(cls, rules: List[Rule]) -> List[Rule]:
         new_rules = []
-        for rule, stats in rules:
+        for rule, stats, artificial in rules:
             min_vals = {}
             max_vals = {}
             flags = defaultdict(int)
@@ -558,7 +560,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
                     new_rule.append(RuleAttribute(key, False, max_vals[key]))
                 if bits & 1:
                     new_rule.append(RuleAttribute(key, True, min_vals[key]))
-            new_rules.append(Rule(tuple(new_rule), stats))
+            new_rules.append(Rule(attrs=tuple(new_rule), stats=stats, artificial=artificial))
         return new_rules
 
     @classmethod
@@ -727,9 +729,9 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         new_rules = []
         intervals = {}
         attrs = defaultdict(set)
-        for branch, _ in rules:
-            for rule in branch:
-                attrs[rule.feature].add(rule.threshold)
+        for branch, _, _ in rules:
+            for rule_attr in branch:
+                attrs[rule_attr.feature].add(rule_attr.threshold)
         for key, vals in attrs.items():
             attrs[key] = numpy.array(sorted(vals))
             intervals[key] = [defaultdict(int) for _ in range(len(vals) + 1)]
@@ -744,7 +746,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         for vals in intervals.values():
             for vec in vals:
                 vec[-1] = sum(vec.values())
-        for rule, stats in rules:
+        for rule, stats, artificial in rules:
             c = stats.cls
             new_verbs = []
             for feature, cmp, thr in rule:
@@ -762,7 +764,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
                 if p < 0.01:
                     new_verbs.append(RuleAttribute(feature, cmp, thr))
             if new_verbs:
-                new_rules.append(Rule(tuple(new_verbs), stats))
+                new_rules.append(Rule(attrs=tuple(new_verbs), stats=stats, artificial=artificial))
         return new_rules
 
     @staticmethod

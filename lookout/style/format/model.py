@@ -2,7 +2,7 @@
 from copy import deepcopy
 import io
 from itertools import islice
-from typing import Dict, Iterable, List  # noqa: F401
+from typing import Dict, Iterable, List, Mapping, Tuple  # noqa: F401
 
 from lookout.core.analyzer import AnalyzerModel
 import numpy
@@ -86,30 +86,34 @@ class FormatModel(AnalyzerModel):
         rules = []
         rule_attrs = (RuleAttribute(*params) for params in
                       zip(rules_tree["features"],  rules_tree["cmps"], rules_tree["thresholds"]))
-        for cls, conf, support, length in zip(rules_tree["cls"], rules_tree["conf"],
-                                              rules_tree["support"], rules_tree["lengths"]):
-            rules.append(Rule(tuple(islice(rule_attrs, int(length))),
-                              RuleStats(cls, conf, support)))
+        for cls, conf, support, artificial, length in zip(
+                rules_tree["cls"], rules_tree["conf"], rules_tree["support"],
+                rules_tree["artificial"], rules_tree["lengths"]):
+            rules.append(Rule(attrs=tuple(islice(rule_attrs, int(length))),
+                              stats=RuleStats(int(cls), float(conf), int(support)),
+                              artificial=bool(artificial)))
         return rules
 
     @staticmethod
-    def _disassemble_rules(rules: Iterable[Rule]):
-        def disassemble_rule(rule: Rule) -> tuple:
+    def _disassemble_rules(rules: Iterable[Rule]) -> Mapping[str, numpy.ndarray]:
+        def disassemble_rule(rule: Rule) -> Tuple[int, float, int, bool, numpy.ndarray,
+                                                  numpy.ndarray, numpy.ndarray, numpy.ndarray]:
             rule_len = len(rule.attrs)
             features, cmps, thresholds = zip(*rule.attrs)
             features = numpy.fromiter(features, numpy.uint16, rule_len)
             cmps = numpy.fromiter(cmps, numpy.bool, rule_len)
             thresholds = numpy.fromiter(thresholds, numpy.float32, rule_len)
-            return (rule.stats.cls, rule.stats.conf, rule.stats.support, features, cmps,
-                    thresholds, rule_len)
+            return (rule.stats.cls, rule.stats.conf, rule.stats.support, rule.artificial, features,
+                    cmps, thresholds, rule_len)
 
         disassembled_rules = list(zip(*[disassemble_rule(rule) for rule in rules]))
         return dict(
             cls=numpy.array(disassembled_rules[0], dtype=numpy.uint16),
             conf=numpy.array(disassembled_rules[1], dtype=numpy.float32),
             support=numpy.array(disassembled_rules[2], dtype=numpy.uint16),
-            features=numpy.concatenate(disassembled_rules[3]),
-            cmps=numpy.concatenate(disassembled_rules[4]),
-            thresholds=numpy.concatenate(disassembled_rules[5]),
-            lengths=numpy.array(disassembled_rules[6], dtype=numpy.uint16),
+            artificial=numpy.array(disassembled_rules[3], dtype=numpy.bool),
+            features=numpy.concatenate(disassembled_rules[4]),
+            cmps=numpy.concatenate(disassembled_rules[5]),
+            thresholds=numpy.concatenate(disassembled_rules[6]),
+            lengths=numpy.array(disassembled_rules[7], dtype=numpy.uint16),
         )
