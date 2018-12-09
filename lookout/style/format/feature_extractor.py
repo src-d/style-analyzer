@@ -550,18 +550,20 @@ class FeatureExtractor:
         :yield: The sequence of `VirtualNode`-s which is identical to the input but \
                 the successive Y-nodes are merged together.
         """
+        def update_mappings(class_seq):
+            if class_seq not in self.class_sequences_to_labels:
+                if index_labels:
+                    self.class_sequences_to_labels[class_seq] = len(self.class_sequences_to_labels)
+                    self.labels_to_class_sequences.append(class_seq)
+                else:
+                    class_seq = None
+            return class_seq
+
         start, end, value, current_class_seq = None, None, "", []
         for vnode in vnodes:
             if vnode.y is None:
                 if current_class_seq:
-                    class_seq = tuple(current_class_seq)
-                    if class_seq not in self.class_sequences_to_labels:
-                        if index_labels:
-                            self.class_sequences_to_labels[class_seq] = \
-                                len(self.class_sequences_to_labels)
-                            self.labels_to_class_sequences.append(class_seq)
-                        else:
-                            class_seq = None
+                    class_seq = update_mappings(tuple(current_class_seq))
                     yield VirtualNode(value=value, start=start, end=end,
                                       y=class_seq, path=path)
                     start, end, value, current_class_seq = None, None, "", []
@@ -573,8 +575,9 @@ class FeatureExtractor:
                 value += vnode.value
                 current_class_seq.append(vnode.y)
         if value or current_class_seq:
-            yield VirtualNode(
-                value=value, start=start, end=end, y=tuple(current_class_seq), path=path)
+            if current_class_seq:
+                class_seq = update_mappings(tuple(current_class_seq))
+            yield VirtualNode(value=value, start=start, end=end, y=class_seq, path=path)
 
     def _add_noops(self, vnodes: Sequence[VirtualNode], path: str, index_labels: bool = False
                    ) -> List[VirtualNode]:
