@@ -52,21 +52,6 @@ def add_bblfsh_arg(my_parser: ArgumentParser):
         help="Babelfish server's address.")
 
 
-def add_true_noisy_repos_args(my_parser: ArgumentParser):
-    """
-    Add arguments to specify the path of true and noisy repositories.
-
-    :param my_parser: Parser to add the arguments to.
-    """
-    my_parser.add_argument(
-        "--true-repo", required=True, type=str,
-        help="Path to the directory containing the files of the true repository.")
-    my_parser.add_argument(
-        "--noisy-repo", required=True, type=str,
-        help="Path to the directory containing the files of the true repo "
-             "modified by adding artificial style mistakes.")
-
-
 def add_rules_thresholds(my_parser: ArgumentParser):
     """
     Add threshold arguments to filter rules.
@@ -117,14 +102,13 @@ def create_parser() -> ArgumentParser:
     quality_report_noisy_parser = add_parser("quality-report-noisy", "Quality report on the "
                                                                      "artificial noisy dataset")
     quality_report_noisy_parser.set_defaults(handler=quality_report_noisy)
-    add_true_noisy_repos_args(quality_report_noisy_parser)
     add_bblfsh_arg(quality_report_noisy_parser)
     add_model_args(quality_report_noisy_parser)
     add_rules_thresholds(quality_report_noisy_parser)
     quality_report_noisy_parser.add_argument("--precision-threshold", type=float, default=0.95,
                                              help="Precision threshold tolerated for the model.")
     quality_report_noisy_parser.add_argument(
-        "--dir-output", required=True, type=str,
+        "-o", "--dir-output", required=True, type=str,
         help="Path to the output directory where to store the quality report and the "
              "precision-recall curve.")
 

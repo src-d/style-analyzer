@@ -246,15 +246,11 @@ def plot_curve(repo: str, x: numpy.ndarray, y: numpy.ndarray, precision_threshol
     plt.savefig(path_to_figure)
 
 
-def quality_report_noisy(true_repo: str, noisy_repo: str, bblfsh: str, language: str,
-                         model_path: str, confidence_threshold: float, support_threshold: int,
-                         precision_threshold: float, dir_output) -> None:
+def quality_report_noisy(bblfsh: str, language: str, model_path: str, confidence_threshold: float,
+                         support_threshold: int, precision_threshold: float, dir_output) -> None:
     """
     Generate a quality report on the artificial noisy dataset including a precision-recall curve.
 
-    :param true_repo: Path to the original repository we want to test the model on.
-    :param noisy_repo: Path to the noisy version of the repository where 1 style mistake is \
-           randomly added in every file.
     :param bblfsh: Babelfish client. Babelfish server should be started accordingly.
     :param language: Language to consider, others will be discarded.
     :param model_path: Path to the model to test. It should be previously trained on the original \
@@ -268,72 +264,75 @@ def quality_report_noisy(true_repo: str, noisy_repo: str, bblfsh: str, language:
     """
     log = logging.getLogger("quality_report_noisy")
 
-    for repo in REPOSITORIES.split():
+    for url in REPOSITORIES.split("\n"):
+        repo = url.split("/")[-1]
+        log.info("Fetching %s", url)
         with tempfile.TemporaryDirectory() as tmpdirname:
-            git_dir = os.path.join(tmpdirname, repo.split("/")[-1])
-            git_dir_noisy = os.path.join(tmpdirname, repo.split("/")[-1] + "_noisy")
-            cmd1 = "git clone --single-branch --branch master %s %s" % (repo, git_dir)
-            cmd2 = "git clone --single-branch --branch style-noise-1-per-file %s %s" % (repo, git_dir_noisy)
+            git_dir = os.path.join(tmpdirname, repo)
+            git_dir_noisy = os.path.join(tmpdirname, repo + "_noisy")
+            cmd1 = "git clone --single-branch --branch master %s %s" % (url, git_dir)
+            cmd2 = "git clone --single-branch --branch style-noise-1-per-file %s %s" % (
+                    url, git_dir_noisy)
             process = subprocess.Popen("%s; %s" % (cmd1, cmd2), shell=True)
             output, error = process.communicate()
-            assert error is None, "Something went wrong with repository %s " % repository
+            assert error is None, "Unable to fetch repository %s " % repo
             input_pattern = os.path.join(git_dir, "**", "*.js")
             input_pattern_noisy = os.path.join(git_dir_noisy, "**", "*.js")
-
-
             true_content = get_content_from_repo(input_pattern)
             noisy_content = get_content_from_repo(input_pattern_noisy)
-        true_files, noisy_files, start_changes = get_difflib_changes(true_content, noisy_content)
-        if not true_files:
-        raise ValueError("Noisy repo should count at least one artificial mistake")
-        log.info("Number of files modified by adding style noise: %d / %d", len(true_files),
-                 len(true_content))
-        del true_content, noisy_content
 
-        client = BblfshClient(bblfsh)
-        analyzer = FormatModel().load(model_path)
-        rules = analyzer[language]
-        feature_extractor = FeatureExtractor(language=language,
-                                             **rules.origin_config["feature_extractor"])
-    vnodes_y_true = files2vnodes(true_files, feature_extractor, client)
-    mispreds_noise = files2mispreds(noisy_files, feature_extractor, rules, client, log)
-    diff_mispreds = get_diff_mispreds(mispreds_noise, start_changes)
-    changes_count = len(start_changes)
+            #repo, true_content, noisy_content = fetch_content(repo)
+            true_files, noisy_files, start_changes = get_difflib_changes(true_content, noisy_content)
+            if not true_files:
+                raise ValueError("Noisy repo should count at least one artificial mistake")
+            log.info("Number of files modified by adding style noise: %d / %d", len(true_files),
+                    len(true_content))
+            del true_content, noisy_content
 
-    precisions, recalls = [], []
-    n_rules = len(rules.rules)
-    rules_id = [(i, r.stats.conf) for i, r in enumerate(rules.rules)
-                if r.stats.conf > confidence_threshold and r.stats.support > support_threshold]
-    rules_id = sorted(rules_id, key=lambda k: k[1], reverse=True)
-    for i in range(len(rules.rules)):
-        filtered_mispreds = {k: m for k, m in diff_mispreds.items()
-                             if any(r[0] == m.rule for r in rules_id[:i + 1])}
-        style_fixes = get_style_fixes(filtered_mispreds, vnodes_y_true,
-                                      true_files, noisy_files, feature_extractor)
-        precision, recall, f1_score = compute_metrics(changes_count=changes_count,
-                                                      predictions_count=len(filtered_mispreds),
-                                                      true_positive=len(style_fixes))
-        precisions.append(round(precision, 3))
-        recalls.append(round(recall, 3))
-    print("recall x:", recalls)
-    print("precision y:", precisions)
+            client = BblfshClient(bblfsh)
+            analyzer = FormatModel().load(model_path)
+            rules = analyzer[language]
+            feature_extractor = FeatureExtractor(language=language,
+                                                 **rules.origin_config["feature_extractor"])
+            vnodes_y_true = files2vnodes(true_files, feature_extractor, client)
+            mispreds_noise = files2mispreds(noisy_files, feature_extractor, rules, client, log)
+        diff_mispreds = get_diff_mispreds(mispreds_noise, start_changes)
+        changes_count = len(start_changes)
 
-    # compute some stats and quality metrics for the model's evaluation
-    n_mistakes = len(true_files)
-    prec_max_rec = precisions[-1]
-    max_rec = max(recalls)
-    n_rules_filtered = len(rules_id)
-    # compute the confidence and recall limit for the given precision threshold
-    for i, (prec, rec) in enumerate(zip(precisions, recalls)):
-        if prec < precision_threshold:
-            break
-        confidence_threshold_exp = round(rules.rules[i].stats.conf, 3)
-        rec_threshold_prec = rec
+        precisions, recalls = [], []
+        n_rules = len(rules.rules)
+        rules_id = [(i, r.stats.conf) for i, r in enumerate(rules.rules)
+                    if r.stats.conf > confidence_threshold and r.stats.support > support_threshold]
+        rules_id = sorted(rules_id, key=lambda k: k[1], reverse=True)
+        for i in range(len(rules.rules)):
+            filtered_mispreds = {k: m for k, m in diff_mispreds.items()
+                                 if any(r[0] == m.rule for r in rules_id[:i + 1])}
+            style_fixes = get_style_fixes(filtered_mispreds, vnodes_y_true,
+                                          true_files, noisy_files, feature_extractor)
+            precision, recall, f1_score = compute_metrics(changes_count=changes_count,
+                                                          predictions_count=len(filtered_mispreds),
+                                                          true_positive=len(style_fixes))
+            precisions.append(round(precision, 3))
+            recalls.append(round(recall, 3))
+        print("recall x:", recalls)
+        print("precision y:", precisions)
 
-    # compile the precision-recall curve
-    path_to_figure = os.path.join(dir_output, "pr_curve_jquery.png")
-    plot_curve("jquery/jquery", numpy.asarray(recalls), numpy.asarray(precisions),
-               precision_threshold, rec_threshold_prec, confidence_threshold_exp, path_to_figure)
+        # compute some stats and quality metrics for the model's evaluation
+        n_mistakes = len(true_files)
+        prec_max_rec = precisions[-1]
+        max_rec = max(recalls)
+        n_rules_filtered = len(rules_id)
+        # compute the confidence and recall limit for the given precision threshold
+        for i, (prec, rec) in enumerate(zip(precisions, recalls)):
+            if prec < precision_threshold:
+                break
+            confidence_threshold_exp = round(rules.rules[i].stats.conf, 3)
+            rec_threshold_prec = rec
+
+        # compile the precision-recall curve
+        path_to_figure = os.path.join(dir_output, "pr_curve_" + repo + ".png")
+        plot_curve(repo, numpy.asarray(recalls), numpy.asarray(precisions),
+                   precision_threshold, rec_threshold_prec, confidence_threshold_exp, path_to_figure)
 
     # compile the markdown template for the report through jinja2
     loader = jinja2.FileSystemLoader(("/", os.path.dirname(__file__), os.getcwd()),
