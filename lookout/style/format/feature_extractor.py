@@ -79,7 +79,8 @@ class FeatureExtractor:
         self.return_sibling_indices = return_sibling_indices
         self.selected_features = selected_features
         self.cutoff_label_support = cutoff_label_support
-        self.labels_to_class_sequences = label_composites if label_composites is not None else []
+        self.labels_to_class_sequences = list(map(tuple, label_composites)) \
+            if label_composites is not None else []
         self.class_sequences_to_labels = {
             tuple(l): i for i, l in enumerate(self.labels_to_class_sequences)}
         self.tokens = importlib.import_module("lookout.style.format.langs.%s.tokens" % language)
