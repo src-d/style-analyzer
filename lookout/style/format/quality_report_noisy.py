@@ -3,7 +3,9 @@ from difflib import SequenceMatcher
 import glob
 import logging
 import os
+import subprocess
 import sys
+import tempfile
 from typing import Iterable, List, Mapping, NamedTuple, Set, Tuple
 
 from bblfsh import BblfshClient
@@ -17,6 +19,10 @@ from lookout.style.format.postprocess import filter_uast_breaking_preds
 from lookout.style.format.rules import Rules
 from lookout.style.format.utils import prepare_files
 from lookout.style.format.virtual_node import VirtualNode
+
+
+REPOSITORIES = """https://github.com/warenlg/jquery"""
+
 
 Misprediction = NamedTuple("Misprediction", [("y", numpy.ndarray), ("pred", numpy.ndarray),
                                              ("node", List[VirtualNode]), ("rule", numpy.ndarray)])
@@ -262,20 +268,33 @@ def quality_report_noisy(true_repo: str, noisy_repo: str, bblfsh: str, language:
     """
     log = logging.getLogger("quality_report_noisy")
 
-    true_content = get_content_from_repo(true_repo)
-    noisy_content = get_content_from_repo(noisy_repo)
-    true_files, noisy_files, start_changes = get_difflib_changes(true_content, noisy_content)
-    if not true_files:
-        raise ValueError("Noisy repo should count at least one artificial mistake")
-    log.info("Number of files modified by adding style noise: %d / %d", len(true_files),
-             len(true_content))
-    del true_content, noisy_content
+    for repo in REPOSITORIES.split():
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            git_dir = os.path.join(tmpdirname, repo.split("/")[-1])
+            git_dir_noisy = os.path.join(tmpdirname, repo.split("/")[-1] + "_noisy")
+            cmd1 = "git clone --single-branch --branch master %s %s" % (repo, git_dir)
+            cmd2 = "git clone --single-branch --branch style-noise-1-per-file %s %s" % (repo, git_dir_noisy)
+            process = subprocess.Popen("%s; %s" % (cmd1, cmd2), shell=True)
+            output, error = process.communicate()
+            assert error is None, "Something went wrong with repository %s " % repository
+            input_pattern = os.path.join(git_dir, "**", "*.js")
+            input_pattern_noisy = os.path.join(git_dir_noisy, "**", "*.js")
 
-    client = BblfshClient(bblfsh)
-    analyzer = FormatModel().load(model_path)
-    rules = analyzer[language]
-    feature_extractor = FeatureExtractor(language=language,
-                                         **rules.origin_config["feature_extractor"])
+
+            true_content = get_content_from_repo(input_pattern)
+            noisy_content = get_content_from_repo(input_pattern_noisy)
+        true_files, noisy_files, start_changes = get_difflib_changes(true_content, noisy_content)
+        if not true_files:
+        raise ValueError("Noisy repo should count at least one artificial mistake")
+        log.info("Number of files modified by adding style noise: %d / %d", len(true_files),
+                 len(true_content))
+        del true_content, noisy_content
+
+        client = BblfshClient(bblfsh)
+        analyzer = FormatModel().load(model_path)
+        rules = analyzer[language]
+        feature_extractor = FeatureExtractor(language=language,
+                                             **rules.origin_config["feature_extractor"])
     vnodes_y_true = files2vnodes(true_files, feature_extractor, client)
     mispreds_noise = files2mispreds(noisy_files, feature_extractor, rules, client, log)
     diff_mispreds = get_diff_mispreds(mispreds_noise, start_changes)
