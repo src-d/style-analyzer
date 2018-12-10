@@ -112,10 +112,15 @@ def filter_uast_breaking_preds(
     safe_preds = []
     current_path = None  # type: Optional[str]
     parsing_cache = {}  # type: Dict[int, Optional[Tuple[bblfsh.Node, int, int]]]
+    cur_i = 0
     for i, (gt, pred, vn_y) in enumerate(zip(y, y_pred, vnodes_y)):
         if vn_y.path != current_path:
             parsing_cache = {}
             current_path = vn_y.path
+        while vn_y is not vnodes[cur_i]:
+            cur_i += 1
+            if cur_i >= len(vnodes):
+                raise AssertionError("vnodes_y and vnodes are not consistent.")
         if gt == pred:
             safe_preds.append(i)
             continue
@@ -131,7 +136,6 @@ def filter_uast_breaking_preds(
         if parsed_before is None:
             continue
         parent_before, start, end = parsed_before
-        cur_i = vnodes.index(vnodes_y[i])
         # when the input node value is NOOP i.e. an empty string, the replacement is restricted
         # to the first occurence
         output_pred = "".join(n.value for n in vnodes[cur_i:cur_i+2]).replace(vn_y.value,
