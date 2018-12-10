@@ -23,7 +23,7 @@ class IdTyposAnalyzer(Analyzer):
 
     log = logging.getLogger("IdTyposAnalyzer")
     model_type = None
-    version = "1"
+    version = 1
     description = "Corrector of typos in source code identifiers."
     corrector_manager = TyposCorrectorManager()
 
