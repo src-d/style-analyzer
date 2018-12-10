@@ -75,7 +75,7 @@ class CandidatesRanker(Model):
             1.0 * (edge - numpy.sum(labels[:edge])) / numpy.sum(labels[:edge]))
         evallist = [(data_train, "train"), (data_val, "validation")]
         self.bst = xgb.train(self.boost_param, data_train, self.train_rounds, evallist,
-                             early_stopping_rounds=self.early_stopping)
+                             early_stopping_rounds=self.early_stopping, verbose_eval=False)
 
     def rank(self, candidates: pandas.DataFrame, features: numpy.ndarray, n_candidates: int = 3,
              return_all: bool = True) -> Dict[int, List[Tuple[str, float]]]:
