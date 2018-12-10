@@ -24,10 +24,12 @@ class FeaturesTests(unittest.TestCase):
             cls.contents = fin.read()
         with lzma.open(str(base / "benchmark.uast.xz")) as fin:
             cls.uast = bblfsh.Node.FromString(fin.read())
+
+    def setUp(self):
         config = FormatAnalyzer._load_train_config({})
         final_config = config["javascript"]
-        cls.extractor = FeatureExtractor(language="javascript",
-                                         **final_config["feature_extractor"])
+        self.extractor = FeatureExtractor(language="javascript",
+                                          **final_config["feature_extractor"])
 
     def test_parse_file_exact_match(self):
         test_js_code_filepath = Path(__file__).parent / "for_parse_test.js.xz"
@@ -89,15 +91,15 @@ class FeaturesTests(unittest.TestCase):
         self.assertGreater(cls_counts[CLS_SINGLE_QUOTE], 0)
         self.assertTrue(cls_counts[CLS_SINGLE_QUOTE] % 2 == 0)
 
-    def test_remove_labels_with_low_support(self):
+    def test_compute_labels_mappings(self):
         pos1, pos2 = Position(1, 1, 1), Position(10, 2, 1)
         files = [VirtualNode("", pos1, pos2, y=1)] * 2 + \
             [VirtualNode("", pos1, pos2), VirtualNode("", pos1, pos2, y=2),
              VirtualNode("", pos1, pos2, y=3)]
         self.extractor.cutoff_label_support = 2
-        self.extractor._remove_labels_with_low_support(files)
-        self.assertEqual(
-            files, [VirtualNode("", pos1, pos2, y=1)] * 2 + [VirtualNode("", pos1, pos2)] * 3)
+        self.extractor._compute_labels_mappings(files)
+        self.assertEqual(self.extractor.labels_to_class_sequences, [1])
+        self.assertEqual(self.extractor.class_sequences_to_labels, {1: 0})
 
     def test_extract_features(self):
         file = File(content=bytes(self.contents, "utf-8"),
