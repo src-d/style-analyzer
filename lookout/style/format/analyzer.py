@@ -51,7 +51,7 @@ class FormatAnalyzer(Analyzer):
     _log = logging.getLogger("FormatAnalyzer")
     model_type = FormatModel
     name = "style.format.analyzer.FormatAnalyzer"
-    version = "1"
+    version = 1
     description = "Source code formatting: whitespace, new lines, quotes, braces."
     defaults_for_analyze = {
         "confidence_threshold": 0.95,
