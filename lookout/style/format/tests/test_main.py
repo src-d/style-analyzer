@@ -1,12 +1,26 @@
 import argparse
 import sys
 import unittest
+from unittest.mock import patch
 
 import lookout.style.format.cmdline_tools as main
 
 
 class MainTests(unittest.TestCase):
     def test_handlers(self):
+        raw_imports = """
+        from lookout.style.format.benchmarks.evaluate_smoke import evaluate_smoke_entry
+        from lookout.style.format.benchmarks.generate_smoke import generate_smoke_entry
+        from lookout.style.format.quality_report import quality_report
+        from lookout.style.format.quality_report_noisy import quality_report_noisy
+        from lookout.style.format.rule_stat import print_rules_report
+        """
+        imports = {}
+        for line in raw_imports.splitlines():
+            line = line.strip()
+            if line:
+                parts = line.split(" ")
+                imports[parts[-1]] = parts[1]
         action2handler = {
             "eval": "quality_report",
             "rule": "print_rules_report",
@@ -34,13 +48,9 @@ class MainTests(unittest.TestCase):
             for action, handler in action2handler.items():
                 def handler_append(*args, **kwargs):
                     called_actions.append(action)
-                handler_save = getattr(main, handler)
-                try:
-                    setattr(main, handler, handler_append)
+                with patch(imports[handler] + "." + handler, handler_append):
                     sys.argv = [main.__file__, action]
                     main.main()
-                finally:
-                    setattr(main, handler, handler_save)
         finally:
             sys.argv = args_save
             argparse.ArgumentParser.error = error_save
