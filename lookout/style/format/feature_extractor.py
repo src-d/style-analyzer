@@ -1,7 +1,7 @@
 """Feature extraction module."""
 from collections import defaultdict, OrderedDict
 import importlib
-from itertools import islice, zip_longest
+from itertools import chain, islice, zip_longest
 import logging
 from typing import (Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Union)
 
@@ -261,14 +261,18 @@ class FeatureExtractor:
             node_parents.update(file_parents)
             self._fill_vnode_parents(file_parents, file_vnodes, uast, vnode_parents)
 
-        self._log.debug("Parsed %d vnodes", sum(len(vn) for vn, _, _ in parsed_files))
+        vnodes_parsed_number = sum(len(vn) for vn, _, _ in parsed_files)
+        self._log.debug("Parsed %d vnodes", vnodes_parsed_number)
         # filter composite labels by support
-        if index_labels and self.cutoff_label_support > 0:
-            self._remove_labels_with_low_support([vn for vns, _, _ in parsed_files for vn in vns])
+        if index_labels:
+            self._compute_labels_mappings(chain.from_iterable(vn for vn, _, _ in parsed_files))
 
         files_vnodes_y = [[vnode for vnode in file_vnodes
-                           if vnode.is_labeled_on_lines(file_lines)]
+                           if vnode.is_labeled_on_lines(file_lines) and
+                           vnode.y in self.class_sequences_to_labels]
                           for file_vnodes, _, file_lines in parsed_files]
+        self._log.debug("%d out of %d is labeled and unfiltered", len(files_vnodes_y),
+                        vnodes_parsed_number)
 
         labels = [[self.class_sequences_to_labels[vnode.y]
                    for vnode in file_vnodes_y]
@@ -550,22 +554,12 @@ class FeatureExtractor:
         :yield: The sequence of `VirtualNode`-s which is identical to the input but \
                 the successive Y-nodes are merged together.
         """
-        def update_mappings(class_seq):
-            if class_seq not in self.class_sequences_to_labels:
-                if index_labels:
-                    self.class_sequences_to_labels[class_seq] = len(self.class_sequences_to_labels)
-                    self.labels_to_class_sequences.append(class_seq)
-                else:
-                    class_seq = None
-            return class_seq
-
         start, end, value, current_class_seq = None, None, "", []
         for vnode in vnodes:
             if vnode.y is None:
                 if current_class_seq:
-                    class_seq = update_mappings(tuple(current_class_seq))
                     yield VirtualNode(value=value, start=start, end=end,
-                                      y=class_seq, path=path)
+                                      y=tuple(current_class_seq), path=path)
                     start, end, value, current_class_seq = None, None, "", []
                 yield vnode
             else:
@@ -574,10 +568,10 @@ class FeatureExtractor:
                 end = vnode.end
                 value += vnode.value
                 current_class_seq.append(vnode.y)
-        if value or current_class_seq:
-            if current_class_seq:
-                class_seq = update_mappings(tuple(current_class_seq))
-            yield VirtualNode(value=value, start=start, end=end, y=class_seq, path=path)
+        if current_class_seq:
+            assert value
+            yield VirtualNode(value=value, start=start, end=end, y=tuple(current_class_seq),
+                              path=path)
 
     def _add_noops(self, vnodes: Sequence[VirtualNode], path: str, index_labels: bool = False
                    ) -> List[VirtualNode]:
@@ -591,11 +585,6 @@ class FeatureExtractor:
         """
         augmented_vnodes = []
         noop_label = (CLASS_INDEX[CLS_NOOP],)
-        assert index_labels or noop_label in self.class_sequences_to_labels
-        if index_labels and noop_label not in self.class_sequences_to_labels:
-            self.class_sequences_to_labels[noop_label] = \
-                len(self.class_sequences_to_labels)
-            self.labels_to_class_sequences.append(noop_label)
         if not len(vnodes):
             return augmented_vnodes
         if vnodes[0].y is None:
@@ -728,21 +717,31 @@ class FeatureExtractor:
             pos = node.end_position.offset
         return result, parents
 
-    def _remove_labels_with_low_support(self, vnodes: Sequence[VirtualNode]) -> None:
+    def _compute_labels_mappings(self, vnodes: Iterable[VirtualNode]) -> None:
         """
-        Calculate the support for each label and discard those with too little value.
+        Calculate the label to class sequence and class sequence to label mappings.
+
+        Takes into account self.cutoff_label_support and discard those with too little value.
 
         :param vnodes: The virtual nodes extracted from all the files.
         """
-        label_support = defaultdict(int)
+        assert len(self.class_sequences_to_labels) == 0, self.class_sequences_to_labels
+        assert len(self.labels_to_class_sequences) == 0, self.labels_to_class_sequences
+        support = defaultdict(int)
         for vnode in vnodes:
             if vnode.y is not None:
-                label_support[vnode.y] += 1
-        unsupported = {k for k, v in label_support.items() if v < self.cutoff_label_support}
-        for vnode in vnodes:
-            if vnode.y in unsupported:
-                vnode.y = None
-        self._log.debug("Removed %d/%d labels by support %d", len(unsupported), len(label_support),
+                support[vnode.y] += 1
+
+        for class_seq in sorted(support, key=lambda l: -support[l]):
+            # The idea of sorting is to have labels arranged from the most frequent to the less
+            if support[class_seq] < self.cutoff_label_support:
+                break
+        self.labels_to_class_sequences = [key for key, val in support.items()
+                                          if val >= self.cutoff_label_support]
+        self.class_sequences_to_labels = {
+            class_seq: i for i, class_seq in enumerate(self.labels_to_class_sequences)}
+        self._log.debug("Removed %d/%d labels by support %d",
+                        len(support) - len(self.labels_to_class_sequences), len(support),
                         self.cutoff_label_support)
 
     def _fill_vnode_parents(self, file_parents: dict, file_vnodes: List[VirtualNode],
