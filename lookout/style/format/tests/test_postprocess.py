@@ -20,9 +20,10 @@ class PostprocessingTests(unittest.TestCase):
         cls.language = "javascript"
         cls.data_service = FakeDataService(files=None, changes=None)
         cls.stub = cls.data_service.get_bblfsh()
+        config = {"global": {"feature_extractor": {"cutoff_label_support": 0}}}
         cls.fe = FeatureExtractor(
             language=cls.language,
-            **FormatAnalyzer._load_train_config({})[cls.language]["feature_extractor"])
+            **FormatAnalyzer._load_train_config(config)[cls.language]["feature_extractor"])
         cls.parent_loc = Path(__file__).parent.resolve()
         cls.base_dir_ = tempfile.TemporaryDirectory(dir=str(cls.parent_loc))
         cls.base_dir = cls.base_dir_.name

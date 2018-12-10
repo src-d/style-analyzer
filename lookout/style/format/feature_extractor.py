@@ -1,7 +1,7 @@
 """Feature extraction module."""
 from collections import defaultdict, OrderedDict
 import importlib
-from itertools import chain, islice, zip_longest
+from itertools import islice, zip_longest
 import logging
 from typing import (Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Union)
 
@@ -263,8 +263,7 @@ class FeatureExtractor:
         self._log.debug("Parsed %d vnodes", sum(len(vn) for vn, _, _ in parsed_files))
         # filter composite labels by support
         if index_labels and self.cutoff_label_support > 0:
-            self._remove_labels_with_low_support(
-                chain.from_iterable(vn for vn, _, _ in parsed_files))
+            self._remove_labels_with_low_support([vn for vns, _, _ in parsed_files for vn in vns])
 
         files_vnodes_y = [[vnode for vnode in file_vnodes
                            if vnode.is_labeled_on_lines(file_lines)]
@@ -728,7 +727,7 @@ class FeatureExtractor:
             pos = node.end_position.offset
         return result, parents
 
-    def _remove_labels_with_low_support(self, vnodes: Iterable[VirtualNode]):
+    def _remove_labels_with_low_support(self, vnodes: Sequence[VirtualNode]) -> None:
         """
         Calculate the support for each label and discard those with too little value.
 
