@@ -6,10 +6,10 @@ import numpy
 import pandas
 from sklearn.ensemble import RandomForestClassifier
 
-from lookout.style.typos.research.typos_functions import (correct as typos_functions_correct,
-                                                          print_suggestion_results,
-                                                          read_frequencies,
-                                                          suggest_corrections)
+from lookout.style.typos.research.dev_utils import (correct as typos_functions_correct,
+                                                    print_suggestion_results,
+                                                    read_frequencies,
+                                                    suggest_corrections)
 import lookout.style.typos.symspell as symspell
 
 MAX_DISTANCE = 2
