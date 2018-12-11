@@ -7,7 +7,6 @@ export interface IProps {
   classRepresentations: string[];
   end: Position;
   features: any;
-  internal_type?: string;
   prediction: number;
   start: Position;
   rule: JSX.Element;

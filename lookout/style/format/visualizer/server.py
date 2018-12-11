@@ -1,8 +1,9 @@
 """Visualize features of the format analyzer."""
 from collections.abc import Mapping as Mapping_abc
+from functools import partial
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, MutableMapping, Sequence, Union
+from typing import Any, Dict, List, Mapping, Sequence, Union
 
 from bblfsh import BblfshClient
 from flask import abort, Flask, jsonify, request, Response
@@ -23,13 +24,14 @@ app = Flask(__name__)
 CORS(app)
 
 
-def _convert_to_jsonable(mapping: MutableMapping[Any, Any]) -> MutableMapping[Any, Any]:
+def _mapping_to_jsonable(mapping: Mapping[Any, Any]) -> Mapping[Any, Any]:
+    jsonable = {}
     for key, value in mapping.items():
         if isinstance(value, numpy.ndarray):
-            mapping[key] = value.tolist()
+            jsonable[key] = value.tolist()
         elif isinstance(value, Mapping_abc):
-            mapping[key] = _convert_to_jsonable(value)
-    return mapping
+            jsonable[key] = _mapping_to_jsonable(value)
+    return jsonable
 
 
 def _rules_to_jsonable(rules: Rules, feature_extractor: FeatureExtractor
@@ -42,8 +44,9 @@ def _rules_to_jsonable(rules: Rules, feature_extractor: FeatureExtractor
             for rule in rules.rules]
 
 
-def _vnode_to_dict(vnode: VirtualNode) -> Mapping[str, Any]:
-    return {
+def _vnode_to_jsonable(vnode: VirtualNode, labeled_indices: Mapping[int, int]
+                       ) -> Mapping[str, Any]:
+    jsonable = {
         "start": {"offset": int(vnode.start.offset),
                   "col": int(vnode.start.col),
                   "line": int(vnode.start.line)},
@@ -52,10 +55,12 @@ def _vnode_to_dict(vnode: VirtualNode) -> Mapping[str, Any]:
                 "line": int(vnode.end.line)},
         "value": vnode.value,
         "path": vnode.path,
-        "roles": [role for role in vnode.node.roles] if vnode.node else [],
-        "y": vnode.y,
-        "internal_type": vnode.node.internal_type if vnode.node else None,
     }
+    if vnode.y is not None:
+        jsonable["y"] = vnode.y
+    if id(vnode) in labeled_indices:
+        jsonable["labeled_index"] = labeled_indices[id(vnode)]
+    return jsonable
 
 
 DictOrStr = Dict[str, Union[Dict[str, "DictOrStr"], str]]
@@ -111,18 +116,20 @@ def return_features() -> Response:
     break_uast = [False] * X.shape[0]
     for wrong_pred in set(range(X.shape[0])).difference(safe_preds):
         break_uast[wrong_pred] = True
+    labeled_indices = {id(vnode): i for i, vnode in enumerate(vnodes_y)}
     app.logger.info("returning features of shape %d, %d" % X.shape)
     app.logger.info("length of rules: %d", len(rules))
-    return jsonify({"code": code,
-                    "features": _input_matrix_to_descriptions(X, fe),
-                    "ground_truths": y.tolist(),
-                    "predictions": y_pred.tolist(),
-                    "sibling_indices": sibling_indices,
-                    "rules": _rules_to_jsonable(rules, fe),
-                    "winners": rule_winners.tolist(),
-                    "break_uast": break_uast,
-                    "feature_names": fe.feature_names,
-                    "class_representations": fe.composite_class_representations,
-                    "class_printables": fe.composite_class_printables,
-                    "vnodes": list(map(_vnode_to_dict, vnodes)),
-                    "config": _convert_to_jsonable(rules.origin_config)})
+    return jsonify({
+        "code": code,
+        "features": _input_matrix_to_descriptions(X, fe),
+        "ground_truths": y.tolist(),
+        "predictions": y_pred.tolist(),
+        "sibling_indices": sibling_indices,
+        "rules": _rules_to_jsonable(rules, fe),
+        "winners": rule_winners.tolist(),
+        "break_uast": break_uast,
+        "feature_names": fe.feature_names,
+        "class_representations": fe.composite_class_representations,
+        "class_printables": fe.composite_class_printables,
+        "vnodes": list(map(partial(_vnode_to_jsonable, labeled_indices=labeled_indices), vnodes)),
+        "config": _mapping_to_jsonable(rules.origin_config)})

@@ -50,12 +50,10 @@ class App extends React.Component<IProps, IState> {
       })
       .then((rawData: Data) => {
         const data: Data = rawData;
-        let labeledIndex = 0;
         data.labeled_indices = new Map();
         data.vnodes.forEach((vnode, index) => {
-          if (vnode.y !== null) {
-            data.labeled_indices.set(index, labeledIndex);
-            labeledIndex++;
+          if (vnode.labeled_index !== undefined) {
+            data.labeled_indices.set(index, vnode.labeled_index);
           }
         });
         const rulesByConfidence = data.rules.map((rule, index) => [
