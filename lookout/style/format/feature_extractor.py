@@ -272,8 +272,6 @@ class FeatureExtractor:
                            if vnode.is_labeled_on_lines(file_lines) and
                            vnode.y in self.class_sequences_to_labels]
                           for file_vnodes, _, file_lines in parsed_files]
-        self._log.debug("%d out of %d is labeled and unfiltered", len(files_vnodes_y),
-                        vnodes_parsed_number)
 
         labels = [[self.class_sequences_to_labels[vnode.y]
                    for vnode in file_vnodes_y]
@@ -283,6 +281,8 @@ class FeatureExtractor:
             return None
 
         y = numpy.concatenate(labels)
+        self._log.debug("%d out of %d are labeled and saved after filtering", y.shape[0],
+                        vnodes_parsed_number)
 
         if index_labels:
             self._compute_feature_info()

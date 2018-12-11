@@ -75,8 +75,8 @@ class QualityReportTests(PretrainedModelTests):
                 quality_report(input_pattern=input_pattern, bblfsh=self.bblfsh,
                                language=self.language, model_path=self.model_path,
                                config={"uast_break_check": False})
-            self.assertEqual(output[:4],
-                             ["", "# Model report for javascript", "", "### Rules summary:"])
+            self.assertEqual(output[:3],
+                             ["# Model report for javascript", "", "### Rules summary:"])
             self.assertNotIn("# Quality report", output)
 
     def test_eval(self):
@@ -86,7 +86,7 @@ class QualityReportTests(PretrainedModelTests):
             quality_report(input_pattern=input_pattern, bblfsh=self.bblfsh,
                            language=self.language, model_path=self.model_path,
                            config={"uast_break_check": False})
-        self.assertEqual(["", "# Quality report", "", "### Classification report:"], output[:4])
+        self.assertEqual(["# Quality report", "", "### Classification report:"], output[:3])
         self.assertIn("### Rules summary:", output)
 
     def test_no_model(self):
@@ -100,7 +100,7 @@ class QualityReportTests(PretrainedModelTests):
                         model_path=empty_model, config={"uast_break_check": False})
 
     @unittest.skipUnless(os.getenv("LONG_TESTS", False),
-                         "Time-consuming tests are skipped by default.")
+                         "Timeis labeled and unfiltere-consuming tests are skipped by default.")
     def test_train_review_analyzer_integration(self):
         """Integration test for review event."""
         with TestAnalyzer(port=self.port, db=self.db.name, fs=self.fs.name,

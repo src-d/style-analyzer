@@ -1,11 +1,11 @@
 """Facilities to report the quality of a given model on a given dataset."""
-from collections import Counter, defaultdict, namedtuple, OrderedDict
+from collections import Counter, defaultdict, OrderedDict
 import glob
 from itertools import chain
 import json
 import logging
 import os
-from typing import Any, Iterable, List, Mapping, Optional, Tuple, Union
+from typing import Any, Iterable, List, Mapping, NamedTuple, Optional, Tuple, Union
 
 from bblfsh import BblfshClient
 import jinja2
@@ -26,7 +26,7 @@ from lookout.style.format.utils import generate_comment, merge_dicts, prepare_fi
 from lookout.style.format.virtual_node import VirtualNode
 
 
-def convert_to_sklearn_format(vnodes: Iterable[VirtualNode]
+def convert_to_sklearn_format(vnodes: Iterable[VirtualNode],
                               ) -> Tuple[List[int], List[int], List[VirtualNode], List[str]]:
     """
     Convert VirtualNode-s sequence to true targets, predicted targets and corresponding vnodes.
@@ -54,51 +54,45 @@ def convert_to_sklearn_format(vnodes: Iterable[VirtualNode]
     return y, y_pred, vnodes_y, target_names
 
 
+def _load_jinja2_template(report_temlate_filename: str) -> jinja2.Template:
+    env = jinja2.Environment(trim_blocks=True, lstrip_blocks=True, keep_trailing_newline=True)
+    env.globals.update(range=range)
+    return jinja2.FileSystemLoader(("/", os.path.dirname(__file__), os.getcwd()),
+                                   followlinks=True).load(env, report_temlate_filename)
+
+
 def generate_report(vnodes, n_files):
     """Generate report: classification report, confusion matrix, files with most errors."""
     y, y_pred, vnodes_y, target_names = convert_to_sklearn_format(vnodes)
     # classification report
     c_report = classification_report(y, y_pred, output_dict=True, target_names=target_names,
                                      labels=list(range(len(target_names))))
-
     avr_keys = ["macro avg", "micro avg", "weighted avg"]
     c_sorted = OrderedDict((key, c_report[key])
                            for key in sorted(c_report, key=lambda k: -c_report[k]["support"])
                            if key not in avr_keys)
     for key in avr_keys:
         c_sorted[key] = c_report[key]
-
     # confusion matrix
     mat = confusion_matrix(y, y_pred)
-
     # sort files by mispredictions
     file_mispred = []
     for gt, pred, vn in zip(y, y_pred, vnodes_y):
         if gt != pred:
             file_mispred.append(vn.path)
     file_stat = Counter(file_mispred)
-
     to_show = file_stat.most_common()
     if n_files > 0:
         to_show = to_show[:n_files]
 
-    loader = jinja2.FileSystemLoader(("/", os.path.dirname(__file__), os.getcwd()),
-                                     followlinks=True)
-    env = jinja2.Environment(
-        trim_blocks=True,
-        lstrip_blocks=True,
-        keep_trailing_newline=True,
-    )
-    env.globals.update(range=range)
-
-    template = loader.load(env, "templates/quality_report.md.jinja2")
+    template = _load_jinja2_template("templates/quality_report.md.jinja2")
     res = template.render(cl_report=c_sorted, conf_mat=mat, target_names=target_names,
                           files=to_show)
     return res
 
 
-def generate_model_report(model: FormatModel, languages: Optional[Union[str, Iterable[str]]] = None
-                          ) -> str:
+def generate_model_report(model: FormatModel,
+                          languages: Optional[Union[str, Iterable[str]]] = None) -> str:
     """
     Generate report about model - description for each rule, min/max support, min/max confidence.
 
@@ -111,11 +105,7 @@ def generate_model_report(model: FormatModel, languages: Optional[Union[str, Ite
     rules_report = []
     languages = languages if languages is not None else model.languages
     languages = languages if isinstance(languages, Iterable) else [languages]
-    env = jinja2.Environment(trim_blocks=True, lstrip_blocks=True, keep_trailing_newline=True)
-    env.globals.update(range=range)
-    template = jinja2.FileSystemLoader(
-        ("/", os.path.dirname(__file__), os.getcwd()), followlinks=True).load(
-        env, "templates/model_report.md.jinja2")
+    template = _load_jinja2_template("templates/model_report.md.jinja2")
     for language in languages:
         rules = model[language]
         min_support, max_support = float("inf"), -1
@@ -132,7 +122,8 @@ def generate_model_report(model: FormatModel, languages: Optional[Union[str, Ite
             rules_desc.append((i, describe_rule(rule, feature_extractor).replace("\n", "<br>")))
         rules_report.append(template.render(
             rules_desc=rules_desc, min_support=min_support, max_support=max_support,
-            min_conf=min_conf, max_conf=max_conf, language=language, rules=rules, packages=packages
+            min_conf=min_conf, max_conf=max_conf, language=language, rules=rules,
+            packages=packages,
         ))
     return "\n".join(rules_report)
 
@@ -192,6 +183,7 @@ class ReportAnalyzer(FormatAnalyzer):
     * generate_model_report (optional - by default it will return empty string)
     """
 
+    Changes = NamedTuple("Changes", (("base", File), ("head", File)))
     defaults_for_analyze = merge_dicts(FormatAnalyzer.defaults_for_analyze,
                                        {"aggregate": False})
 
@@ -199,6 +191,7 @@ class ReportAnalyzer(FormatAnalyzer):
         """
         Generate report.
 
+        :param fixes: fixes with all required information for report generation.
         :return: Report.
         """
         raise NotImplementedError()
@@ -214,10 +207,12 @@ class ReportAnalyzer(FormatAnalyzer):
     def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
                 data_service: DataService, **data) -> List[Comment]:
         """
-        Analyze ptr_from revision and make quality report for all files in it.
+        Analyze ptr_from revision and a make quality report for all files in it.
+
+        If you want to get an aggregated report set aggregate flag to True in analyze config.
 
         :param ptr_from: Git repository state pointer to the base revision.
-        :param ptr_to: Not used.
+        :param ptr_to: Git repository state pointer to the head revision. Not used.
         :param data_service: Connection to the Lookout data retrieval service.
         :param data: Contains "files" - the list of changes in the pointed state.
         :return: List of comments.
@@ -225,10 +220,9 @@ class ReportAnalyzer(FormatAnalyzer):
         comments = []
         handled_files = set()
         fixes = []
-        Changes = namedtuple("Changes", ("base", "head"))
         files = request_files(data_service.get_data(), ptr_from, contents=True, uast=True)
         for fix in self.generate_fixes(data_service,
-                                       [Changes(File(), f) for f in list(files)]):
+                                       [ReportAnalyzer.Changes(File(), f) for f in list(files)]):
             filepath = fix.head_file.path
             if fix.error or filepath in handled_files:
                 continue
@@ -295,7 +289,7 @@ class QualityReportAnalyzer(ReportAnalyzer):
     """
 
     version = "1"
-    description = "Source code formatting quality report generatior: " \
+    description = "Source code formatting quality report generator: " \
                   "whitespace, new lines, quotes, etc."
     defaults_for_analyze = merge_dicts(ReportAnalyzer.defaults_for_analyze,
                                        {"n_files": 10})
