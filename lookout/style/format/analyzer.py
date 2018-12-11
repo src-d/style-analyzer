@@ -83,7 +83,7 @@ class FormatAnalyzer(Analyzer):
             "trainable_rules": {
                 "prune_branches_algorithms": ["reduced-error"],
                 "top_down_greedy_budget": [False, .5],
-                "prune_attributes": False,
+                "prune_attributes": True,
                 "uncertain_attributes": True,
                 "prune_dataset_ratio": .2,
                 "n_estimators": 10,
@@ -183,18 +183,23 @@ class FormatAnalyzer(Analyzer):
             if not slogging.logs_are_structured:
                 # workaround the check in joblib - everything still works without it
                 threading._MainThread = threading.Thread
-            bscv = BayesSearchCV(
-                TrainableRules(**lang_config["trainable_rules"], origin_config=lang_config),
-                {"base_model_name": Categorical(["sklearn.ensemble.RandomForestClassifier",
-                                                 "sklearn.tree.DecisionTreeClassifier"]),
-                 "max_depth": Categorical([None, 5, 10]),
-                 "max_features": Categorical([None, "auto"]),
-                 "min_samples_split": Integer(2, 20),
-                 "min_samples_leaf": Integer(1, 20)},
-                n_jobs=lang_config["n_jobs"],
-                n_iter=lang_config["n_iter"],
-                cv=lang_config["cv"],
-                random_state=lang_config["trainable_rules"]["random_state"])
+            backup_prune_attributes = lang_config["trainable_rules"]["prune_attributes"]
+            lang_config["trainable_rules"]["prune_attributes"] = False
+            try:
+                bscv = BayesSearchCV(
+                    TrainableRules(**lang_config["trainable_rules"], origin_config=lang_config),
+                    {"base_model_name": Categorical(["sklearn.ensemble.RandomForestClassifier",
+                                                     "sklearn.tree.DecisionTreeClassifier"]),
+                     "max_depth": Categorical([None, 5, 10]),
+                     "max_features": Categorical([None, "auto"]),
+                     "min_samples_split": Integer(2, 20),
+                     "min_samples_leaf": Integer(1, 20)},
+                    n_jobs=lang_config["n_jobs"],
+                    n_iter=lang_config["n_iter"],
+                    cv=lang_config["cv"],
+                    random_state=lang_config["trainable_rules"]["random_state"])
+            finally:
+                lang_config["trainable_rules"]["prune_attributes"] = backup_prune_attributes
             if not slogging.logs_are_structured:
                 # fool the check in joblib - everything still works without it
                 # this trick allows to run parallel bscv.fit()
