@@ -7,12 +7,6 @@ from typing import Any
 from lookout.core.cmdline import ArgumentDefaultsHelpFormatterNoNone
 from lookout.core.slogging import setup as setup_slogging
 
-from lookout.style.format.benchmarks.evaluate_smoke import evaluate_smoke_entry
-from lookout.style.format.benchmarks.generate_smoke import generate_smoke_entry
-from lookout.style.format.quality_report import quality_report
-from lookout.style.format.quality_report_noisy import quality_report_noisy
-from lookout.style.format.rule_stat import print_rules_report
-
 
 def add_input_pattern_arg(my_parser: ArgumentParser):
     """
@@ -70,6 +64,13 @@ def create_parser() -> ArgumentParser:
 
     :return: an ArgumentParser with an handler defined in the handler attribute.
     """
+    # Deferred imports to speed up loading __init__
+    from lookout.style.format.benchmarks.evaluate_smoke import evaluate_smoke_entry
+    from lookout.style.format.benchmarks.generate_smoke import generate_smoke_entry
+    from lookout.style.format.quality_report import quality_report
+    from lookout.style.format.quality_report_noisy import quality_report_noisy
+    from lookout.style.format.rule_stat import print_rules_report
+
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatterNoNone)
 
     # General options

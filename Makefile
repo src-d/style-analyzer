@@ -34,7 +34,7 @@ docker-test:
 bblfsh-start:
 	! docker ps | grep bblfshd # bblfsh server has been run already.
 	docker run -d --rm --name style_analyzer_bblfshd --privileged -p 9432\:9432 \
-		bblfsh/bblfshd\:v2.5.0
+		bblfsh/bblfshd\:v2.10.0
 	docker exec style_analyzer_bblfshd bblfshctl driver install \
 		javascript docker://bblfsh/javascript-driver\:v1.2.0
 	(docker exec -it style_analyzer_bblfshd bblfshctl driver list | grep javascript) || (docker rm -f style_analyzer_bblfshd && false)

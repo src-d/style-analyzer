@@ -290,9 +290,6 @@ class Visualization extends React.Component<IProps, IState> {
                     start={vnodes[highlightedLabeledIndex].start}
                     end={vnodes[highlightedLabeledIndex].end}
                     y={ground_truths[highlightedLabeledIndex]}
-                    internal_type={
-                      vnodes[highlightedLabeledIndex].internal_type
-                    }
                     rule={rule_uls[winners[highlightedLabeledIndex]]}
                     prediction={predictions[highlightedLabeledIndex]}
                     classRepresentations={class_representations}

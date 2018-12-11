@@ -4,12 +4,12 @@ import string
 import pandas
 from tqdm import tqdm
 
-from lookout.style.typos.research.typos_functions import rand_bool
+from lookout.style.typos.research.dev_utils import rand_bool
 
 letters = list(string.ascii_lowercase)
 
 
-def rand_insert(string):
+def rand_insert(string: str):
     """
     Add random letter inside a string
     """
@@ -23,7 +23,7 @@ def rand_insert(string):
     return string[:pos] + letter + string[pos:]
 
 
-def rand_delete(string):
+def rand_delete(string: str):
     """
     Delete random symbol from a string
     """
@@ -44,46 +44,95 @@ def rand_substitution(string):
     return string[:pos] + letter + string[pos + 1:]
 
 
+def rand_swap(string):
+    """
+    Swap two random consequent symbols
+    """
+    if len(string) < 2:
+        return string
+    pos = random.choice(range(len(string) - 1))
+    return string[:pos] + string[pos + 1] + string[pos] + string[pos + 2:]
+
+
 def rand_typo(string):
     """
     Make random typo in a string
     """
-    typo_func = random.choice([rand_insert, rand_delete, rand_substitution])
+    typo_func = random.choice([rand_insert, rand_delete, rand_substitution, rand_swap])
     return typo_func(string)
 
 
 def corrupt(data_file, typo_probability, add_typo_probability, out_file):
     """
     Augment some of identifiers from dataframe with TYPO_PROBABILITY,
-    another typos in the same word happen with ADD_TYPO_PROBABILITY each
+    consequent typos in the same word happen with ADD_TYPO_PROBABILITY each
     """
     data = pandas.read_pickle(data_file)
     tokens = list(data.identifier)
+    if "token_split" in data.columns:
+        token_split = list(data.token_split)
+
     corrupted = []
     for row_number in tqdm(range(len(data))):
-        if rand_bool(typo_probability):
+        if tokens[row_number] is not None:
             item = tokens[row_number]
-            item = rand_typo(str(item))
-            while rand_bool(add_typo_probability):
-                item = rand_typo(item)
+            if len(item) > 1 and rand_bool(typo_probability):
+                item = ''
+                while len(item) < 2:
+                    item = tokens[row_number]
+                    item = rand_typo(str(item))
+                    while rand_bool(add_typo_probability):
+                        item = rand_typo(item)
+                corrupted.append(True)
+            else:
+                corrupted.append(False)
 
+            if "token_split" in data.columns:
+                split = str(token_split[row_number]).split()
+                index = split.index(tokens[row_number])
+                split[index] = item
+                token_split[row_number] = " ".join(split)
             tokens[row_number] = item
-            corrupted.append(True)
-        else:
-            corrupted.append(False)
+
     data["typo"] = tokens
     data["corrupted"] = corrupted
-    data.to_pickle(out_file)
+    if "token_split" in data.columns:
+        data["id_split"] = data["token_split"]
+        data["token_split"] = token_split
+
+    data.to_csv(out_file)
+
+
+def corrupt_splits(data_file, typo_probability, add_typo_probability, out_file, repeats: int = 1):
+    with open(data_file, "r") as f:
+        with open(out_file, "w") as out:
+            for _ in range(repeats):
+                for line in f:
+                    tokens = []
+                    for token in line.split():
+                        item = token
+                        if rand_bool(typo_probability):
+                            item = ''
+                            while len(item) == 0:
+                                item = token
+                                item = rand_typo(str(item))
+                                while rand_bool(add_typo_probability):
+                                    item = rand_typo(item)
+                        tokens.append(item)
+                    print(" ".join(tokens), file=out)
 
 
 def train_test_split(data_file, test_portion):
     """
-    Split data on train and test chunks without mixing rows
+    Randomly split data on train and test
     """
-    data = pandas.read_pickle(data_file)
-    edge = data.index[int(data.shape[0] * (1 - test_portion))]
-    data.loc[:edge, :].to_pickle("train_" + data_file)
-    data.loc[edge:, :].to_pickle("test_" + data_file)
+    data = pandas.read_csv(data_file, index_col=0)
+    test = set(random.sample(range(len(data)), int(data.shape[0] * test_portion)))
+    test_indices = [i in test for i in range(len(data))]
+    train_indices = [i not in test for i in range(len(data))]
+
+    data[train_indices].to_csv("train_" + data_file)
+    data[test_indices].to_csv("test_" + data_file)
 
 
 def create_typos(args):

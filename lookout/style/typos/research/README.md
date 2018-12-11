@@ -1,63 +1,152 @@
-# Baseline model
+# Tools for training and testing Typos corrector
 
-## Model description
+Typos corrector is a model for correcting misspellings inside tokens, accounting for their contexts.
+All tokens belong to some domain, here the domain is code identifiers (it can also be common natural language, science, etc.).
 
-1. For every token generate list of closest on edit distance and most frequent words from "vocabulary" with SymSpell lookout algorithm
+## Correction process
 
-2. Take the most frequent candidates for edit distances 0, 1, 2
+- Receive a dataset of tokens to check. Their context is used if provided.
 
-3. Build classifier on candidates.
-* Features: edit distance between token and candidate, frequency of candidate and frequency of token.
-* Labels: whether correction is accurate.
-* Model: RandomForestClassifier from sklearn library.
+- For every given token:
 
-4. For every token rank candidates based on pred_proba from classifier
+1. **Candidates generation** - generate a set of tokens, considered as possible corrections by the model.
 
-5. If the first suggestion equals to token then token is considered correct, otherwise suggest all options in the order of ranking.
+For every candidate a list of features is generated. Features are based on frequency, embedding, similarity and closeness to the
+checked token, etc.
 
+For more information on features and generator parameters look at docs for `CandidatesGenerator` in `lookout/style/typos/generation.py`.
 
-## Datasets creation
+2. **Candidates ranking** - for every checked token correction candidates are ranked based on their features.
 
-1. Randomly pick tokens from the dataset of identifiers statistics.
-1. Augmented with random edit typos (insertion, deletion, substitution) with given probability.
-1. Split on train and test in given proportions
+XGBoost is used for logistic regression. For every candidate label 1 means that it is the correction of the typo, 0 means that it is not.
+Candidates are ranked base on the probability of getting 1, obtained from the XGBoost model.
 
+For more information look at docs for `CandidatesRanker` in `lookout/style/typos/ranking.py`.
 
-## Vocabulary
+- If the most probable correction is the checked token itself, model concludes that the token spelled correctly.
+Otherwise several most probable candidates are returned as suggestions for correction
 
-Tokens from splitted identifiers from GitHub repos with known frequencies and vector embeddings.
+## Model requirements
 
+- Vocabulary of *possibly correct* tokens is used for corrections lookup.
 
-## Results of model suggestions for small datasets (~11k train, ~4k test)
+All correction candidates will come from this vocabulary. If the analysed token is inside the vocabulary,
+it will still be checked by the model (in-word misspelling problem is solved).
+
+For example, it can be N most frequent tokens from the domain, or some dictionary of grammatically correct words.
+
+- Information about token frequencies in the domain is used for candidates ranking. It is important for correction quality.
+
+- Model uses fasttext embeddings tuned for the domain. They are important for ranking candidates based on the token's context.
+Script for obtaining such embeddings will be published later.
+
+## Used data
+
+### Data for building the model
+
+- File with vocabulary: tokens considered correct by the model with their frequencies.
+
+Vocabulary for code identifiers tokens is available at
+`lookout/style/typos/16k_vocabulary.csv`
+
+- File with frequencies (weights) for tokens (not only from the vocabulary, as many as possible).
+
+Frequencies for code identifiers' tokens are available at
+`lookout/style/typos/research/all_frequencies.csv`
+
+- File with pretrained fasttext model.
+
+Pretrained 10-dimensional vectorizer is available at
+`lookout/style/typos/research/id_vecs_10.bin`.
+
+### Input
+
+pandas.DataFrame with rows containing:
+- A token to check.
+- Its context (not obligatory).
+- The correction of the checked token (only for training). Correct token must belong to the vocabulary used by the model.
+
+Example of input data for training:
+
+| |typo | token_split | identifier|
+|---|----|-------------|-----------|
+|0 | tipo | tipo check | typo |
+|1 | function | function name | function |
+
+### Correction output
+
+Python dictionary:
+
+- Keys - row indices in the input dataframe for corrected tokens.
+- Values - lists of correction candidates with weights.
+
+Example of output:
+
+```
+{0: [(typo, 0.99), (type, 0.56)]}
+```
+
+## Training
+
+Corrector can be trained on a pandas.DataFrame or on its csv dump. 
+
+Example:
+
+```
+import pandas
+from lookout.style.typos.corrector import TyposCorrector
+
+corrector = TyposCorrector()
+corrector.initialize_generator("lookout/style/typos/16k_vocabulary.csv", "lookout/style/typos/research/all_frequencies.csv",
+"lookout/style/typos/research/id_vecs_10.bin")
+corrector.train_on_file("train_data.csv")
+corrector.save("corrector.asdf")
+```
+
+## Testing
+
+Corrector can be run on a pandas.DataFrame or on its csv dump. Accuracy, precision, recall and f1 for top-k first suggestions on all tokens (ALL) or only corrected ones (CORR) are used as quality metrics. Function `print_scores` from `lookout/style/typos/research/dev_utils` calculates them all.
+
+Example:
+
+```
+import pandas
+from lookout.style.typos.corrector import TyposCorrector
+from lookout.style.typos.research.dev_utils import print_scores
+
+corrector = TyposCorrector().load("corrector.asdf")
+test_data = pandas.read_csv("test_data.csv", index_col=0)
+suggestions = corrector.suggest(test_data)
+with open("scores.txt", "w") as out:
+    print_scores(test_data, suggestions, out)
+```
+
+Example of scores output:
 
 METRICS        |DETECTION SCORE|TOP1 SCORE CORR|TOP2 SCORE CORR|TOP3 SCORE CORR|TOP1 SCORE ALL |TOP2 SCORE ALL |TOP3 SCORE ALL 
 ---------------|---------------|---------------|---------------|---------------|---------------|---------------|---------------
-Accuracy       |         0.860 |         0.709 |         0.786 |         0.788 |         0.776 |         0.806 |         0.807 
-Precision      |         0.944 |         0.926 |         1.000 |         1.000 |         0.928 |         1.000 |         1.000 
-Recall         |         0.758 |         0.751 |         0.774 |         0.775 |         0.585 |         0.602 |         0.603 
-F1             |         0.841 |         0.830 |         0.872 |         0.873 |         0.717 |         0.751 |         0.752 
+Accuracy       |         0.954 |         0.878 |         0.934 |         0.950 |         0.910 |         0.935 |         0.942 
+Precision      |         0.998 |         0.997 |         1.000 |         1.000 |         0.997 |         1.000 |         1.000 
+Recall         |         0.908 |         0.880 |         0.934 |         0.950 |         0.819 |         0.868 |         0.882 
+F1             |         0.951 |         0.935 |         0.966 |         0.974 |         0.899 |         0.929 |         0.937 
+
+## Data preparation
+
+Several scripts for data preparation are available:
+
+1. Data filtering - in the given dataset leave only identifiers which have all their tokens inside the given vocabulary.
+
+2. Pick subset - pick a fixed size portion of rows from the given dataset. Train-test split can also be done.
+
+3. Create typos - corrupt tokens in the given dataset with given probabilities.
+
+All of them can be run through the `preprocessing.py` script. For more information run:
+
+```
+python3 preprocessing.py --help
+```
 
 
 
-## Results on whole dataset of identifiers (~400k train, ~44k test)
-
-SCORE | DETECTION | TOP SUGGESTION | TOP2 SUGGESTIONS | TOP3 SUGGESTIONS
------ | --------- | -------------- | ---------------- | ----------------
-Accuracy | 0.888 | 0.735 | 0.740 | 0.740
-Precision | 0.999 | 0.999 | 1.000 | 1.000
-Recall | 0.776 | 0.474 | 0.480 | 0.480
-F1 | 0.874 | 0.643 | 0.648 | 0.648
 
 
-## Top10 corrections for tokens from the whole dataset
-
-Identifier      | Correction | Correction probability
---------------- | ---------- | ----------------------
-aaaaaaaaaaaaaaa | aaaaaaaaaaaaaaaa | 1.000
-enbutton   | nbutton  | 1.000
-stopit  | stopbit  | 1.000
-bxf     | buf  | 0.900
-carlos  | carlo | 0.900
-jazz    | jazzy | 0.900
-prepath  | prepatch | 0.900
-vttablet | ttablet  | 0.900
