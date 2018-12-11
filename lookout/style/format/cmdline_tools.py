@@ -104,10 +104,13 @@ def create_parser() -> ArgumentParser:
                                                                      "artificial noisy dataset")
     quality_report_noisy_parser.set_defaults(handler=quality_report_noisy)
     add_bblfsh_arg(quality_report_noisy_parser)
-    add_model_args(quality_report_noisy_parser)
     add_rules_thresholds(quality_report_noisy_parser)
-    quality_report_noisy_parser.add_argument("--precision-threshold", type=float, default=0.95,
-                                             help="Precision threshold tolerated for the model.")
+    quality_report_noisy_parser.add_argument(
+        "-l", "--language", default="javascript",
+        help="Programming language to use.")
+    quality_report_noisy_parser.add_argument(
+        "--precision-threshold", type=float, default=0.95,
+        help="Precision threshold tolerated for the model.")
     quality_report_noisy_parser.add_argument(
         "-o", "--dir-output", required=True, type=str,
         help="Path to the output directory where to store the quality report and the "
