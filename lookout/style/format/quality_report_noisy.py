@@ -272,35 +272,35 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
     precisions, recalls = (defaultdict(list) for _ in range(2))
     n_mistakes, rec_threshold_prec, prec_max_rec, confidence_threshold_exp, max_rec, \
         n_rules, n_rules_filtered = ({} for _ in range(7))
-    for url in REPOSITORIES.splitlines():
-        repo = url.split("/")[-1]
-        log.info("Fetching %s", url)
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            git_dir = os.path.join(tmpdirname, repo)
-            git_dir_noisy = os.path.join(tmpdirname, repo + "_noisy")
-            cmd1 = "git clone --single-branch --branch master %s %s" % (url, git_dir)
-            cmd2 = "git clone --single-branch --branch style-noise-1-per-file %s %s" % (
-                    url, git_dir_noisy)
-            try:
-                subprocess.check_call(cmd1.split())
-                subprocess.check_call(cmd2.split())
-            except subprocess.CalledProcessError:
-                raise ConnectionError("Unable to fetch repository %s" % repo)
-            input_pattern = os.path.join(git_dir, "**", "*.js")
-            input_pattern_noisy = os.path.join(git_dir_noisy, "**", "*.js")
-            true_content = get_content_from_repo(input_pattern)
-            noisy_content = get_content_from_repo(input_pattern_noisy)
+    try:
+        client = BblfshClient(bblfsh)
+        for url in REPOSITORIES.splitlines():
+            repo = url.split("/")[-1]
+            log.info("Fetching %s", url)
+            with tempfile.TemporaryDirectory() as tmpdirname:
+                git_dir = os.path.join(tmpdirname, repo)
+                git_dir_noisy = os.path.join(tmpdirname, repo + "_noisy")
+                cmd1 = "git clone --single-branch --branch master %s %s" % (url, git_dir)
+                cmd2 = "git clone --single-branch --branch style-noise-1-per-file %s %s" % (
+                        url, git_dir_noisy)
+                try:
+                    for cmd in (cmd1, cmd2):
+                        log.debug("Running: %s", cmd)
+                        subprocess.check_call(cmd.split())
+                except subprocess.CalledProcessError as e:
+                    raise ConnectionError("Unable to fetch repository %s" % repo) from e
+                input_pattern = os.path.join(git_dir, "**", "*.js")
+                input_pattern_noisy = os.path.join(git_dir_noisy, "**", "*.js")
+                true_content = get_content_from_repo(input_pattern)
+                noisy_content = get_content_from_repo(input_pattern_noisy)
+                true_files, noisy_files, start_changes = get_difflib_changes(true_content,
+                                                                             noisy_content)
+                if not true_files:
+                    raise ValueError("Noisy repo should count at least one artificial mistake")
+                log.info("Number of files modified by adding style noise: %d / %d",
+                         len(true_files), len(true_content))
+                del true_content, noisy_content
 
-            true_files, noisy_files, start_changes = get_difflib_changes(true_content,
-                                                                         noisy_content)
-            if not true_files:
-                raise ValueError("Noisy repo should count at least one artificial mistake")
-            log.info("Number of files modified by adding style noise: %d / %d", len(true_files),
-                     len(true_content))
-            del true_content, noisy_content
-
-            try:
-                client = BblfshClient(bblfsh)
                 model_path = os.path.join(git_dir_noisy, "style-analyzer-model", "model.asdf")
                 analyzer = FormatModel().load(model_path)
                 rules = analyzer[language]
@@ -308,40 +308,41 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
                                                      **rules.origin_config["feature_extractor"])
                 vnodes_y_true = files2vnodes(true_files, feature_extractor, client)
                 mispreds_noise = files2mispreds(noisy_files, feature_extractor, rules, client, log)
-            finally:
-                client._channel.close()
-        diff_mispreds = get_diff_mispreds(mispreds_noise, start_changes)
-        changes_count = len(start_changes)
+            diff_mispreds = get_diff_mispreds(mispreds_noise, start_changes)
+            changes_count = len(start_changes)
+            n_rules[repo] = len(rules.rules)
+            rules_id = [(i, r.stats.conf) for i, r in enumerate(rules.rules)
+                        if r.stats.conf > confidence_threshold
+                        and r.stats.support > support_threshold]
+            rules_id = sorted(rules_id, key=lambda k: k[1], reverse=True)
+            for i in range(len(rules.rules)):
+                filtered_mispreds = {k: m for k, m in diff_mispreds.items()
+                                     if any(r[0] == m.rule for r in rules_id[:i + 1])}
+                style_fixes = get_style_fixes(filtered_mispreds, vnodes_y_true,
+                                              true_files, noisy_files, feature_extractor)
+                precision, recall, f1_score = compute_metrics(
+                    changes_count=changes_count,
+                    predictions_count=len(filtered_mispreds),
+                    true_positive=len(style_fixes))
+                precisions[repo].append(round(precision, 3))
+                recalls[repo].append(round(recall, 3))
+            print("recall x:", recalls[repo])
+            print("precision y:", precisions[repo])
 
-        n_rules[repo] = len(rules.rules)
-        rules_id = [(i, r.stats.conf) for i, r in enumerate(rules.rules)
-                    if r.stats.conf > confidence_threshold and r.stats.support > support_threshold]
-        rules_id = sorted(rules_id, key=lambda k: k[1], reverse=True)
-        for i in range(len(rules.rules)):
-            filtered_mispreds = {k: m for k, m in diff_mispreds.items()
-                                 if any(r[0] == m.rule for r in rules_id[:i + 1])}
-            style_fixes = get_style_fixes(filtered_mispreds, vnodes_y_true,
-                                          true_files, noisy_files, feature_extractor)
-            precision, recall, f1_score = compute_metrics(changes_count=changes_count,
-                                                          predictions_count=len(filtered_mispreds),
-                                                          true_positive=len(style_fixes))
-            precisions[repo].append(round(precision, 3))
-            recalls[repo].append(round(recall, 3))
-        print("recall x:", recalls[repo])
-        print("precision y:", precisions[repo])
-
-        # compute some stats and quality metrics for the model's evaluation
-        repositories.append(repo)
-        n_mistakes[repo] = len(true_files)
-        prec_max_rec[repo] = precisions[repo][-1]
-        max_rec[repo] = max(recalls[repo])
-        n_rules_filtered[repo] = len(rules_id)
-        # compute the confidence and recall limit for the given precision threshold
-        for i, (prec, rec) in enumerate(zip(precisions[repo], recalls[repo])):
-            if prec < precision_threshold:
-                break
-            confidence_threshold_exp[repo] = round(rules.rules[i].stats.conf, 3)
-            rec_threshold_prec[repo] = rec
+            # compute some stats and quality metrics for the model's evaluation
+            repositories.append(repo)
+            n_mistakes[repo] = len(true_files)
+            prec_max_rec[repo] = precisions[repo][-1]
+            max_rec[repo] = max(recalls[repo])
+            n_rules_filtered[repo] = len(rules_id)
+            # compute the confidence and recall limit for the given precision threshold
+            for i, (prec, rec) in enumerate(zip(precisions[repo], recalls[repo])):
+                if prec < precision_threshold:
+                    break
+                confidence_threshold_exp[repo] = round(rules.rules[i].stats.conf, 3)
+                rec_threshold_prec[repo] = rec
+    finally:
+        client._channel.close()
 
     # compile the precision-recall curves
     path_to_figure = os.path.join(dir_output, "pr_curves.png")
