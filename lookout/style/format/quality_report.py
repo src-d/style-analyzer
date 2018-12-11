@@ -1,384 +1,315 @@
 """Facilities to report the quality of a given model on a given dataset."""
-from collections import Counter
+from collections import Counter, defaultdict, OrderedDict
 import glob
-import io
+from itertools import chain
+import json
 import logging
-from typing import Any, Iterable, List, MutableMapping, Union
+import os
+from typing import Any, Iterable, List, Mapping, NamedTuple, Optional, Tuple, Union
 
 from bblfsh import BblfshClient
-from lookout.core.analyzer import Analyzer, AnalyzerModel, ReferencePointer
+import jinja2
+from lookout.core import slogging
+from lookout.core.analyzer import ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
-from lookout.core.data_requests import DataService, \
-    with_changed_uasts_and_contents, with_uasts_and_contents
-from lookout.core.lib import files_by_language, filter_files, find_new_lines
-import numpy
+from lookout.core.api.service_data_pb2 import File
+from lookout.core.data_requests import DataService, request_files
 from sklearn.metrics import classification_report, confusion_matrix
 
-from lookout.style.format.analyzer import FormatAnalyzer
+from lookout.style.format.analyzer import FixData, FormatAnalyzer
 from lookout.style.format.benchmarks.time_profile import profile
+from lookout.style.format.classes import CLASS_REPRESENTATIONS
+from lookout.style.format.descriptions import describe_rule
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.model import FormatModel
-from lookout.style.format.postprocess import filter_uast_breaking_preds
 from lookout.style.format.utils import generate_comment, merge_dicts, prepare_files
 from lookout.style.format.virtual_node import VirtualNode
 
 
-def generate_report(y, y_pred, vnodes_y, n_files, target_names):
+def convert_to_sklearn_format(vnodes: Iterable[VirtualNode],
+                              ) -> Tuple[List[int], List[int], List[VirtualNode], List[str]]:
+    """
+    Convert VirtualNode-s sequence to true targets, predicted targets and corresponding vnodes.
+
+    :param vnodes: VirtualNode-s sequence.
+    :return: true targets, predicted targets, corresponding vnodes and target names.
+    """
+    y, y_pred, vnodes_y = [], [], []
+    class_sequences_to_labels = defaultdict(lambda: len(class_sequences_to_labels))
+    for vnode in vnodes:
+        if vnode.y is None:
+            continue
+        vnodes_y.append(vnode)
+        if hasattr(vnode, "y_old"):
+            y.append(class_sequences_to_labels[vnode.y_old])
+            y_pred.append(class_sequences_to_labels[vnode.y])
+        else:
+            y.append(class_sequences_to_labels[vnode.y])
+            y_pred.append(class_sequences_to_labels[vnode.y])
+
+    labels_to_class_sequences = {label: seq for seq, label in class_sequences_to_labels.items()}
+    target_names = ["".join(CLASS_REPRESENTATIONS[cls] for cls in labels_to_class_sequences[i])
+                    for i in range(len(labels_to_class_sequences))]
+
+    return y, y_pred, vnodes_y, target_names
+
+
+def _load_jinja2_template(report_temlate_filename: str) -> jinja2.Template:
+    env = jinja2.Environment(trim_blocks=True, lstrip_blocks=True, keep_trailing_newline=True)
+    env.globals.update(range=range)
+    return jinja2.FileSystemLoader(("/", os.path.dirname(__file__), os.getcwd()),
+                                   followlinks=True).load(env, report_temlate_filename)
+
+
+def generate_report(vnodes, n_files):
     """Generate report: classification report, confusion matrix, files with most errors."""
-    with io.StringIO() as output:
-        print("Classification report:\n" + classification_report(y, y_pred,
-                                                                 target_names=target_names),
-              file=output)
-        print("Confusion matrix:\n" + str(confusion_matrix(y, y_pred)), file=output)
+    y, y_pred, vnodes_y, target_names = convert_to_sklearn_format(vnodes)
+    # classification report
+    c_report = classification_report(y, y_pred, output_dict=True, target_names=target_names,
+                                     labels=list(range(len(target_names))))
+    avr_keys = ["macro avg", "micro avg", "weighted avg"]
+    c_sorted = OrderedDict((key, c_report[key])
+                           for key in sorted(c_report, key=lambda k: -c_report[k]["support"])
+                           if key not in avr_keys)
+    for key in avr_keys:
+        c_sorted[key] = c_report[key]
+    # confusion matrix
+    mat = confusion_matrix(y, y_pred)
+    # sort files by mispredictions
+    file_mispred = []
+    for gt, pred, vn in zip(y, y_pred, vnodes_y):
+        if gt != pred:
+            file_mispred.append(vn.path)
+    file_stat = Counter(file_mispred)
+    to_show = file_stat.most_common()
+    if n_files > 0:
+        to_show = to_show[:n_files]
 
-        # sort files by mispredictions and print them
-        file_mispred = []
-        for gt, pred, vn in zip(y, y_pred, vnodes_y):
-            if gt != pred:
-                file_mispred.append(vn.path)
-        file_stat = Counter(file_mispred)
+    template = _load_jinja2_template("templates/quality_report.md.jinja2")
+    res = template.render(cl_report=c_sorted, conf_mat=mat, target_names=target_names,
+                          files=to_show)
+    return res
 
-        to_show = file_stat.most_common()
-        if n_files > 0:
-            to_show = to_show[:n_files]
 
-        print("Files with most errors:\n" + "\n".join(map(str, to_show)), file=output)
-        return output.getvalue()
+def generate_model_report(model: FormatModel,
+                          languages: Optional[Union[str, Iterable[str]]] = None) -> str:
+    """
+    Generate report about model - description for each rule, min/max support, min/max confidence.
+
+    :param model: trained format model.
+    :param languages: Lnguages for which report should be created. You can specify one \
+                      language as string, several as list of strings or None for all languages in \
+                      the model.
+    :return: report in str format.
+    """
+    rules_report = []
+    languages = languages if languages is not None else model.languages
+    languages = languages if isinstance(languages, Iterable) else [languages]
+    template = _load_jinja2_template("templates/model_report.md.jinja2")
+    for language in languages:
+        rules = model[language]
+        min_support, max_support = float("inf"), -1
+        min_conf, max_conf = 1, 0
+        rules_desc = []
+        packages = model.meta["environment"]["packages"]
+        feature_extractor = FeatureExtractor(language=language,
+                                             **rules.origin_config["feature_extractor"])
+        for i, rule in enumerate(rules.rules):
+            min_support = min(min_support, rule.stats.support)
+            max_support = max(max_support, rule.stats.support)
+            min_conf = min(min_conf, rule.stats.conf)
+            max_conf = max(max_conf, rule.stats.conf)
+            rules_desc.append((i, describe_rule(rule, feature_extractor).replace("\n", "<br>")))
+        rules_report.append(template.render(
+            rules_desc=rules_desc, min_support=min_support, max_support=max_support,
+            min_conf=min_conf, max_conf=max_conf, language=language, rules=rules,
+            packages=packages,
+        ))
+    return "\n".join(rules_report)
 
 
 @profile
-def quality_report(input_pattern: str, bblfsh: str, language: str, n_files: int, model_path: str,
-                   ) -> None:
-    """Print several different reports for a given model on a given dataset."""
+def quality_report(input_pattern: str, bblfsh: str, language: str, model_path: str,
+                   config: Union[str, dict] = "{}", log_level: str = "INFO") -> None:
+    """Print quality report for a given model on a given dataset."""
+    slogging.setup(log_level, False)
     log = logging.getLogger("quality_report")
+
+    class FakeStub:
+        def __init__(self, files: Iterable[File]):
+            self.files = files
+
+        def GetFiles(self, *args, **kwargs):
+            return self.files
+
+    class FakeDataService:
+        def __init__(self, bblfsh_client: BblfshClient, files: Iterable[File]):
+            self.bblfsh_client = bblfsh_client
+            self.files = files
+
+        def get_bblfsh(self):
+            return self.bblfsh_client._stub
+
+        def get_data(self):
+            return FakeStub(self.files)
+
+    class FakePointer:
+        def to_pb(self):
+            return None
+
+    config = config if isinstance(config, dict) else json.loads(config)
     model = FormatModel().load(model_path)
     rules = model[language]
-    print("Model parameters: %s" % rules.origin_config)
-    print("Stats about rules: %s" % rules)
-    # prepare input files
     client = BblfshClient(bblfsh)
-    filenames = glob.glob(input_pattern, recursive=True)
-    files = prepare_files(filenames, client, language)
-    print("Number of files: %s" % (len(files)))
-    # extract features and check result
-    fe = FeatureExtractor(language=language, **rules.origin_config["feature_extractor"])
-    res = fe.extract_features(files)
-    if res is None:
-        print("Failed to parse files, aborting report...")
-        return
-    X, y, (vnodes_y, vnodes, vnode_parents, node_parents) = res
-    # predict with model and generate report
-    y_pred, rule_winners, _ = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
-                                            feature_extractor=fe)
-    y, y_pred, vnodes_y, rule_winners, safe_preds = filter_uast_breaking_preds(
-        y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, files={f.path: f for f in files},
-        feature_extractor=fe, stub=client._stub, vnode_parents=vnode_parents,
-        node_parents=node_parents, rule_winners=rule_winners, log=log)
-    target_names = fe.composite_class_representations
-    print(generate_report(y=y, y_pred=y_pred, target_names=target_names, vnodes_y=vnodes_y,
-                          n_files=n_files))
+    files = prepare_files(glob.glob(input_pattern, recursive=True), client, language)
+    log.info("Model parameters: %s" % rules.origin_config)
+    log.info("Rules stats: %s" % rules)
+    log.info("Number of files: %s" % (len(files)))
+    for report in QualityReportAnalyzer(model, input_pattern, config).analyze(
+            FakePointer(), None, data_service=FakeDataService(client, files)):
+        print(report.text)
 
 
-class ReportModel(AnalyzerModel):
-    """Model for ReportAnalyzer - store configuration."""
-
-    NAME = "style.format.quality_report_analyzer.ReportModel"
-
-    def __init__(self, config=None, **kwargs):
-        """Initialize ReportModel with configuration."""
-        super().__init__(**kwargs)
-        self.config = config
-
-    def _generate_tree(self) -> dict:
-        """
-        Return the tree to store in ASDF file.
-
-        :return: dict.
-        """
-        return self.config
-
-    def _load_tree(self, tree: dict) -> None:
-        """
-        Attach the needed data from the tree.
-
-        :param tree: asdf file tree.
-        :return: None
-        """
-        self.config = tree
-
-
-class ReportAnalyzer(Analyzer):
+class ReportAnalyzer(FormatAnalyzer):
     """
     Base class for different kind of reports.
 
-    * analyze - generate report per changed files or aggregated changes.
-    * train - generate report for all files.
+    * analyze - generate report for all files. If you want only aggregated report set aggregate
+    flag to True in analyze config.
+    * train - train or load the model.
 
-    Child classes are required to implement 3 methods:
+    Child classes are required to implement 2 methods:
     * generate_report
     * generate_model_report (optional - by default it will return empty string)
-    * defaults  (optional - by default it will be empty)
     """
 
-    model_type = ReportModel
-    base_config = {"aggregate": False, "model_path": None, "report_parse_failures": False}
-    defaults = {}  # has to be filled in child class. It should store analyzer-specific configs.
+    Changes = NamedTuple("Changes", (("base", File), ("head", File)))
+    defaults_for_analyze = merge_dicts(FormatAnalyzer.defaults_for_analyze,
+                                       {"aggregate": False})
 
-    def __init__(self, model: FormatModel, url: str, config: MutableMapping[str, Any]) -> None:
-        """Initialization."""
-        super().__init__(model, url, config)
-        self.config = self._load_analysis_config(self.config)
-
-    @classmethod
-    def generate_report(cls, y: Union[numpy.ndarray, Iterable[Union[int, float]]],
-                        y_pred: Union[numpy.ndarray, Iterable[Union[int, float]]],
-                        vnodes_y: Iterable[VirtualNode], target_names: Iterable[str],
-                        rule_winners: Iterable[int],
-                        config: MutableMapping[str, Any],
-                        model: FormatAnalyzer,
-                        feature_extractor: FeatureExtractor) -> str:
+    def generate_report(self, fixes: Iterable[FixData]) -> str:
         """
-        Generate report. Has to be implemented in child class.
+        Generate report.
 
-        :param y: labels.
-        :param y_pred: predicted labels.
-        :param vnodes_y: virtual nodes for labels.
-        :param target_names: class names.
-        :param rule_winners: rule winner.
-        :param config: configuration.
-        :param model: pretrained model that was loaded to make report.
-        :param feature_extractor: feature extractor.
-        :return: report.
+        :param fixes: fixes with all required information for report generation.
+        :return: Report.
         """
-        raise NotImplemented
+        raise NotImplementedError()
 
-    @classmethod
-    def generate_model_report(cls, model: FormatModel, config: MutableMapping[str, Any],
-                              feature_extractor: FeatureExtractor) -> str:
+    def generate_model_report(self) -> str:
         """
-        Generate report about model. Has to be implemented in child class.
+        Generate report about the trained model.
 
-        :param model: model that should be described in report.
-        :param config: configuration.
-        :param feature_extractor: feature extractor.
-        :return: report.
+        :return: Report.
         """
         return ""
 
-    @with_changed_uasts_and_contents
     def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
                 data_service: DataService, **data) -> List[Comment]:
         """
-        Analyze changes between revisions and make quality report per file or for all changes.
+        Analyze ptr_from revision and a make quality report for all files in it.
+
+        If you want to get an aggregated report set aggregate flag to True in analyze config.
 
         :param ptr_from: Git repository state pointer to the base revision.
-        :param ptr_to: Git repository state pointer to the head revision.
-        :param data_service: Connection to the Lookout data retrieval service, not used.
-        :param data: Contains "changes" - the list of changes in the pointed state.
+        :param ptr_to: Git repository state pointer to the head revision. Not used.
+        :param data_service: Connection to the Lookout data retrieval service.
+        :param data: Contains "files" - the list of changes in the pointed state.
         :return: List of comments.
         """
-        self.model = FormatModel().load(self.config["model_path"])
-        # prepare data
-        changes = list(data["changes"])
-        base_files_by_lang = files_by_language(c.base for c in changes)
-        head_files_by_lang = files_by_language(c.head for c in changes)
-        # prepare containers for comments and intermediate results
-        if self.config["aggregate"]:
-            agg_y, agg_vnodes_y, agg_y_pred = [], [], []
         comments = []
-        for lang, head_files in head_files_by_lang.items():
-            if lang not in self.model:
-                self.log.warning("skipped %d written in %s. Rules for %s do not exist in model",
-                                 len(head_files), lang, lang)
+        handled_files = set()
+        fixes = []
+        files = request_files(data_service.get_data(), ptr_from, contents=True, uast=True)
+        for fix in self.generate_fixes(data_service,
+                                       [ReportAnalyzer.Changes(File(), f) for f in list(files)]):
+            filepath = fix.head_file.path
+            if fix.error or filepath in handled_files:
                 continue
-            rules = self.model[lang]
-            for file in filter_files(head_files, rules.origin_config["line_length_limit"]):
-                try:
-                    prev_file = base_files_by_lang[lang][file.path]
-                except KeyError:
-                    lines = None
-                else:
-                    lines = [find_new_lines(prev_file, file)]
-                fe = FeatureExtractor(language=lang, **rules.origin_config["feature_extractor"])
-                res = fe.extract_features([file], lines)
-                if res is None:
-                    if self.config["report_parse_failures"]:
-                        comments.append(generate_comment(filename=file.path, confidence=100,
-                                                         line=1, text="Failed to parse this file"))
-                    self.log.warning("Failed to parse %s", file.path)
-                    continue
-                X, y, (vnodes_y, vnodes, vnode_parents, node_parents) = res
-                y_pred, rule_winners, _ = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
-                                                        feature_extractor=fe)
-                y, y_pred, vnodes_y, rule_winners, safe_preds = filter_uast_breaking_preds(
-                    y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, files={file.path: file},
-                    feature_extractor=fe, stub=data_service.get_bblfsh(),
-                    vnode_parents=vnode_parents, node_parents=node_parents,
-                    rule_winners=rule_winners, log=self.log)
-                self.log.debug("y.shape %s" % y.shape)
-                self.log.debug("len(vnodes_y) %s" % len(vnodes_y))
-                self.log.debug("y_pred.shape %s" % y_pred.shape)
-                if self.config["aggregate"] is True:
-                    agg_y.append(y)
-                    agg_vnodes_y.extend(vnodes_y)
-                    agg_y_pred.append(y_pred)
-                else:
-                    target_names = fe.composite_class_representations
-                    assert len(y) == len(y_pred)
-
-                    report = self.generate_report(
-                        y=y, y_pred=y_pred, vnodes_y=vnodes_y, target_names=target_names,
-                        config=self.config, model=self.model, feature_extractor=fe,
-                        rule_winners=rule_winners,
-                    )
-                    comments.append(generate_comment(filename=file.path, confidence=100,
-                                                     line=0, text=report))
-            model_report = self.generate_model_report(self.model, self.config, fe)
-            if model_report:
-                comments.append(generate_comment(filename=file.path, confidence=100,
-                                                 line=0, text=model_report))
+            handled_files.add(filepath)
             if self.config["aggregate"]:
-                agg_y = numpy.hstack(agg_y)
-                target_names = fe.composite_class_representations
-                report = self.generate_report(
-                    y=agg_y, y_pred=numpy.hstack(agg_y_pred), vnodes_y=agg_vnodes_y,
-                    target_names=target_names, config=self.config, model=self.model,
-                    feature_extractor=fe, rule_winners=rule_winners,
-                )
-                comments.append(generate_comment(filename=file.path, confidence=100,
-                                                 line=0, text=report))
+                fixes.append(fix)
+            else:
+                report = self.generate_report(fixes=[fix])
+                comments.append(generate_comment(
+                    filename=filepath, line=0, confidence=100, text=report))
+        if self.config["aggregate"]:
+            report = self.generate_report(fixes=fixes)
+            comments.append(generate_comment(
+                filename="", line=0, confidence=100, text=report))
+        comments.append(generate_comment(
+            filename="", line=0, confidence=100, text=self.generate_model_report()))
         return comments
 
     @classmethod
-    @with_uasts_and_contents
-    def train(cls, ptr: ReferencePointer, config: MutableMapping[str, Any],
-              data_service: DataService, **data) -> None:
+    def train(cls, ptr: ReferencePointer, config: Mapping[str, Any], data_service: DataService,
+              **data) -> FormatModel:
         """
-        Analyze a set of changes from one revision to another and make report for all files.
+        Train a model given the files available or load existing model.
+
+        If you set config["model"] to path in the file system model will be loaded otherwise
+        a model is trained in a regular way.
 
         :param ptr: Git repository state pointer.
-        :param config: configuration dict.
-        :param data: contains "files" - the list of files in the pointed state.
-        :param data_service: connection to the Lookout data retrieval service, not used.
-        :return: AnalyzerModel containing the learned rules, per language.
+        :param config: Configuration dict.
+        :param data: Contains "files" - the list of files in the pointed state.
+        :param data_service: Connection to the Lookout data retrieval service.
+        :return: FormatModel containing the learned rules, per language.
         """
-        config = cls._load_analysis_config(config)
-        assert config["model_path"] is not None, \
-            "'model_path' is missed in configuration. Please check documentation how to make " \
-            "query correct."
-        model = FormatModel().load(config["model_path"])
-        for lang, head_files in files_by_language(data["files"]).items():
-            if lang not in model:
-                cls.log.warning("skipped %d written in %s. Rules for %s do not exist in model",
-                                len(head_files), lang, lang)
-                continue
-            rules = model[lang]
-            filtered_files = list(filter_files(head_files,
-                                               rules.origin_config["line_length_limit"]))
-            fe = FeatureExtractor(language=lang, **rules.origin_config["feature_extractor"])
-            res = fe.extract_features(filtered_files)
-            if res is None:
-                cls.log.warning("Failed to parse files")
-                continue
-            X, y, (vnodes_y, vnodes, vnode_parents, node_parents) = res
-
-            y_pred, rule_winners, _ = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
-                                                    feature_extractor=fe)
-            y, y_pred, vnodes_y, rule_winners, safe_preds = filter_uast_breaking_preds(
-                y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes,
-                files={f.path: f for f in filtered_files}, feature_extractor=fe,
-                stub=data_service.get_bblfsh(), vnode_parents=vnode_parents,
-                node_parents=node_parents, rule_winners=rule_winners, log=cls.log)
-            target_names = fe.composite_class_representations
-            assert len(y) == len(y_pred)
-            report = cls.generate_report(y=y, y_pred=y_pred, vnodes_y=vnodes_y,
-                                         target_names=target_names, config=config, model=model,
-                                         feature_extractor=fe, rule_winners=rule_winners)
-            model_report = cls.generate_model_report(model, config, fe)
-            if model_report:
-                cls.log.info("-" * 20)
-                cls.log.info(model_report)
-            cls.log.info("-" * 20)
-            cls.log.info(report)
-            return ReportModel(config=config)
-
-    @classmethod
-    def _load_analysis_config(cls, config: MutableMapping[str, Any]) -> MutableMapping[str, Any]:
-        """
-        Merge config for analyze call with default config values stored inside this function.
-
-        :param config: User-defined config.
-        :return: Full config.
-        """
-        assert cls.defaults is not None
-        assert isinstance(cls.defaults, MutableMapping)
-        return merge_dicts(cls.base_config, cls.defaults, config)
+        return FormatModel().load(config["model"]) if "model" in config else \
+            super().train(ptr, config, data_service)
 
 
 class QualityReportAnalyzer(ReportAnalyzer):
     """
-    Quality report analyzer.
+    Generate basic quality reports for the model.
 
-    * analyze - generate report per changed files or aggregated changes.
-    * train - generate report for all files.
+    * analyze - generate report for all files. If you want only aggregated report set aggregate
+    flag to True in analyze config.
+    * train - train or load the model.
 
-    How-to:
+    It is possible to run this analyzer independently and query it with lookout-sdk.
+    If you want to use pretrained model it is possible to specify it in config, for example:
+    `--config-json='{"style.format.analyzer.FormatAnalyzer": {"model": "/saved/model.asdf"}}`
+    Otherwise model will be trained with `FormatAnalyzer.train()`
 
+    Usage examples:
     1) Launch analyzer: `analyzer run lookout.style.format.quality_report_analyzer -c config.yml`
-
     2) Query analyzer
-
-    2.1) Quality report query for all files:
+    2.1) Get one quality report per file for pretrained model /saved/model.asdf:
     ```
-    lookout-sdk push ipv4://analyzer:port --git-dir /git/dir/ --from REV1 --to  REV2  \
-    --config-json='{"style.format.analyzer.QualityReportAnalyzer":  \
-    {"model_path": "/saved/model.asdf"}}'
+    lookout-sdk review ipv4://localhost:2000 --git-dir /git/dir/ --from REV1 --to REV2 \
+    --config-json='{"style.format.analyzer.FormatAnalyzer": {"model": "/saved/model.asdf"}}'
     ```
-
-    2.2) Quality report for changes per file:
+    2.2) Get aggregated quality report for all files without pretrained model
     ```
-    lookout-sdk review ipv4://analyzer:port --git-dir /git/dir/ --from REV1 --to  REV2  \
-    --config-json='{"style.format.analyzer.QualityReportAnalyzer":  \
-    {"model_path": "/saved/model.asdf"}}'
-    ```
-
-    2.3) Quality report for aggregated changes:
-    ```
-    lookout-sdk review ipv4://analyzer:port --git-dir /git/dir/ --from REV1 --to  REV2  \
-    --config-json='{"style.format.analyzer.QualityReportAnalyzer":  \
-    {"model_path": "/saved/model.asdf", "aggregate": true}}'
+    lookout-sdk review ipv4://localhost:2000 --git-dir /git/dir/ --from REV1 --to REV2 \
+    --config-json='{"style.format.analyzer.FormatAnalyzer": {"aggregate": true}}'
     ```
     """
 
-    log = logging.getLogger("QualityReportAnalyzer")
-    name = "style.format.analyzer.QualityReportAnalyzer"
     version = "1"
-    description = "Source code formatting quality report analysis: " \
+    description = "Source code formatting quality report generator: " \
                   "whitespace, new lines, quotes, etc."
-    defaults = {"n_files": 10}
+    defaults_for_analyze = merge_dicts(ReportAnalyzer.defaults_for_analyze,
+                                       {"n_files": 10})
 
-    def __init__(self, model: FormatModel, url: str, config: MutableMapping[str, Any]) -> None:
-        """Initialize QualityReportAnalyzer with pretrained model and configuration."""
-        super().__init__(model, url, config)
-        self.config = self._load_analysis_config(self.config)
+    def generate_model_report(self) -> str:
+        """
+        Generate report about the trained model.
 
-    @classmethod
-    def generate_report(cls, y: Union[numpy.ndarray, Iterable[Union[int, float]]],
-                        y_pred: Union[numpy.ndarray, Iterable[Union[int, float]]],
-                        vnodes_y: Iterable[VirtualNode], target_names: Iterable[str],
-                        config: MutableMapping[str, Any], **kwargs) -> str:
+        :return: report.
+        """
+        return generate_model_report(model=self.model)
+
+    def generate_report(self, fixes: Iterable[FixData]) -> str:
         """
         Generate quality report: classification report, confusion matrix, files with most errors.
 
-        :param y: labels.
-        :param y_pred: predicted labels.
-        :param vnodes_y: virtual nodes for labels.
-        :param target_names: class names.
-        :param config: configuration.
-        :param kwargs: helper to handel additional parameters.
         :return: report.
         """
-        return generate_report(y, y_pred, vnodes_y, config["n_files"], target_names)
+        return generate_report(chain.from_iterable(fix.all_vnodes for fix in fixes),
+                               self.config["n_files"])
 
 
 analyzer_class = QualityReportAnalyzer

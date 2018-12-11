@@ -7,3 +7,5 @@ gensim==3.6.0
 # gensim implicitly requires this
 google-compute-engine==2.8.3
 xgboost==0.72.1
+tabulate==0.8.2
+jinja2==2.10
