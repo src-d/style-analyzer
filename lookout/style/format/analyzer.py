@@ -223,7 +223,10 @@ class FormatAnalyzer(Analyzer):
                 "\n\t".join("%-55s %.5E" % (fe.feature_names[i], importances[i])
                             for i in numpy.argsort(-importances)[:25] if importances[i] > 1e-5))
             # throw away imprecise classes
-            model[language] = trainable_rules.rules
+            if trainable_rules.rules.rules:
+                model[language] = trainable_rules.rules
+            else:
+                cls._log.warning("Model for %s had 0 rules. Skipping." % language)
         cls._log.info("trained %s", model)
         return model
 
