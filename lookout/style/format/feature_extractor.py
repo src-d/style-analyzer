@@ -3,6 +3,7 @@ from collections import defaultdict, OrderedDict
 import importlib
 from itertools import chain, islice, zip_longest
 import logging
+from operator import itemgetter
 from typing import (Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Union)
 
 import bblfsh
@@ -732,12 +733,10 @@ class FeatureExtractor:
             if vnode.y is not None:
                 support[vnode.y] += 1
 
-        for class_seq in sorted(support, key=lambda l: -support[l]):
-            # The idea of sorting is to have labels arranged from the most frequent to the less
-            if support[class_seq] < self.cutoff_label_support:
-                break
-        self.labels_to_class_sequences = [key for key, val in support.items()
-                                          if val >= self.cutoff_label_support]
+        # Sort by support to create labels from most frequent to the least frequent
+        self.labels_to_class_sequences = [
+            key for key, val in sorted(support.items(), key=itemgetter(1), reverse=True)
+            if val >= self.cutoff_label_support]
         self.class_sequences_to_labels = {
             class_seq: i for i, class_seq in enumerate(self.labels_to_class_sequences)}
         self._log.debug("Removed %d/%d labels by support %d",

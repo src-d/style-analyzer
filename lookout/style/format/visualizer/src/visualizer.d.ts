@@ -9,9 +9,8 @@ interface VirtualNode {
   end: Position;
   value: string;
   path: string;
-  roles: number[];
-  y: number[];
-  internal_type?: string;
+  y?: number[];
+  labeled_index?: number;
 }
 
 interface Rule {
