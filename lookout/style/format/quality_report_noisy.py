@@ -22,9 +22,10 @@ from lookout.style.format.utils import prepare_files
 from lookout.style.format.virtual_node import VirtualNode
 
 
-REPOSITORIES = """https://github.com/warenlg/axios
-https://github.com/warenlg/jquery"""
-
+REPOSITORIES = """
+https://github.com/warenlg/axios
+https://github.com/warenlg/jquery
+""".strip()
 
 Misprediction = NamedTuple("Misprediction", [("y", numpy.ndarray), ("pred", numpy.ndarray),
                                              ("node", List[VirtualNode]), ("rule", numpy.ndarray)])
@@ -212,8 +213,8 @@ def compute_metrics(changes_count: int, predictions_count: int, true_positive: i
 def plot_curve(repositories: Iterable[str], recalls: Mapping[str, numpy.ndarray],
                precisions: Mapping[str, numpy.ndarray], precision_threshold: float,
                rec_threshold_prec: Mapping[str, float],
-               confidence_threshold_exp: Mapping[str, float], path_to_figure: str
-               ) -> None:
+               confidence_threshold_exp: Mapping[str, float],
+               path_to_figure: str) -> None:
     """
     Plot y versus x as lines and markers using matplotlib.
 
@@ -251,7 +252,8 @@ def plot_curve(repositories: Iterable[str], recalls: Mapping[str, numpy.ndarray]
 
 
 def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float,
-                         support_threshold: int, precision_threshold: float, dir_output) -> None:
+                         support_threshold: int, precision_threshold: float,
+                         dir_output: str) -> None:
     """
     Generate a quality report on the artificial noisy dataset including a precision-recall curve.
 
@@ -270,7 +272,7 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
     precisions, recalls = (defaultdict(list) for _ in range(2))
     n_mistakes, rec_threshold_prec, prec_max_rec, confidence_threshold_exp, max_rec, \
         n_rules, n_rules_filtered = ({} for _ in range(7))
-    for url in REPOSITORIES.split("\n"):
+    for url in REPOSITORIES.splitlines():
         repo = url.split("/")[-1]
         log.info("Fetching %s", url)
         with tempfile.TemporaryDirectory() as tmpdirname:
@@ -279,9 +281,11 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
             cmd1 = "git clone --single-branch --branch master %s %s" % (url, git_dir)
             cmd2 = "git clone --single-branch --branch style-noise-1-per-file %s %s" % (
                     url, git_dir_noisy)
-            process = subprocess.Popen("%s; %s" % (cmd1, cmd2), shell=True)
-            output, error = process.communicate()
-            assert error is None, "Unable to fetch repository %s " % repo
+            try:
+                subprocess.check_call(cmd1.split())
+                subprocess.check_call(cmd2.split())
+            except subprocess.CalledProcessError:
+                raise ConnectionError("Unable to fetch repository %s" % repo)
             input_pattern = os.path.join(git_dir, "**", "*.js")
             input_pattern_noisy = os.path.join(git_dir_noisy, "**", "*.js")
             true_content = get_content_from_repo(input_pattern)
@@ -295,14 +299,17 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
                      len(true_content))
             del true_content, noisy_content
 
-            client = BblfshClient(bblfsh)
-            model_path = os.path.join(git_dir_noisy, "style-analyzer-model", "model.asdf")
-            analyzer = FormatModel().load(model_path)
-            rules = analyzer[language]
-            feature_extractor = FeatureExtractor(language=language,
-                                                 **rules.origin_config["feature_extractor"])
-            vnodes_y_true = files2vnodes(true_files, feature_extractor, client)
-            mispreds_noise = files2mispreds(noisy_files, feature_extractor, rules, client, log)
+            try:
+                client = BblfshClient(bblfsh)
+                model_path = os.path.join(git_dir_noisy, "style-analyzer-model", "model.asdf")
+                analyzer = FormatModel().load(model_path)
+                rules = analyzer[language]
+                feature_extractor = FeatureExtractor(language=language,
+                                                     **rules.origin_config["feature_extractor"])
+                vnodes_y_true = files2vnodes(true_files, feature_extractor, client)
+                mispreds_noise = files2mispreds(noisy_files, feature_extractor, rules, client, log)
+            finally:
+                client._channel.close()
         diff_mispreds = get_diff_mispreds(mispreds_noise, start_changes)
         changes_count = len(start_changes)
 
