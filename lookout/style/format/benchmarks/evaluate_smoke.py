@@ -222,6 +222,7 @@ def calc_metrics(bad_style_code: str, correct_style_code: str, fe: Optional[Feat
     :return: A dictionary with losses and predicted code for "global" and "local" indentation \
              strategies.
     """
+    # TODO (zurk): make optional arguments non-optional.
     if (vnodes is None) ^ (fe is None):
         raise ValueError("vnodes and fe should be both None or not None.")
     losses = {}
@@ -289,7 +290,7 @@ class SmokeEvalFormatAnalyzer(FormatAnalyzer):
         changes = list(data["changes"])
         for fixes in self.generate_fixes(data_service, changes):
             filepath = fixes.head_file.path
-            if not fixes.error or filepath in handled_files:
+            if fixes.error or filepath in handled_files:
                 continue
             handled_files.add(filepath)
             bad_style_code = fixes.head_file.content.decode("utf-8", "replace")
@@ -374,8 +375,7 @@ def evaluate_smoke_entry(inputpath: str, reportdir: str, database: str = None) -
                             "repo_name": row["repo"],
                             "style_name": row["style"],
                             "report_path": reportdir,
-                            "uast_break_check": False,  # Disabled to make Travis happy until
-                            # https://github.com/src-d/lookout/issues/374 is unresolved
+                            "uast_break_check": False,
                         },
                     }
                     server.run("push", fr=row["from"], to=row["to"], port=port,
