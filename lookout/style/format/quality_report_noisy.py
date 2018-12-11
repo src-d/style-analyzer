@@ -37,7 +37,7 @@ def get_content_from_repo(folder: str) -> Mapping[str, str]:
     return content
 
 
-def get_difflib_changes(true_content: Mapping[str, str], noisy_content: Mapping[str, str]
+def get_difflib_changes(true_content: Mapping[str, str], noisy_content: Mapping[str, str],
                         ) -> Tuple[Iterable[str], Iterable[str], Mapping[str, Set[int]], int]:
     """
     Return the files and the first offsets that have been changed when adding random noise.
@@ -65,7 +65,7 @@ def get_difflib_changes(true_content: Mapping[str, str], noisy_content: Mapping[
     return sorted(true_files), sorted(noisy_files), start_changes
 
 
-def files2vnodes(files: Iterable[str], feature_extractor: FeatureExtractor, client: str
+def files2vnodes(files: Iterable[str], feature_extractor: FeatureExtractor, client: str,
                  ) -> Iterable[VirtualNode]:
     """
     Return the `VirtualNode`-s extracted from a list of files.
@@ -123,7 +123,7 @@ def get_mispreds(y: numpy.ndarray, y_pred: numpy.ndarray, nodes: Iterable[Virtua
     return mispreds
 
 
-def get_diff_mispreds(mispreds: Iterable[Misprediction], start_changes: Mapping[str, int]
+def get_diff_mispreds(mispreds: Iterable[Misprediction], start_changes: Mapping[str, int],
                       ) -> Mapping[str, Misprediction]:
     """
     Filter `Misprediction`-s to select those involving at least one line that has been modified.
@@ -202,7 +202,7 @@ def compute_metrics(changes_count: int, predictions_count: int, true_positive: i
 
 
 def plot_curve(repo: str, x: numpy.ndarray, y: numpy.ndarray, precision_threshold: float,
-               rec_threshold_prec: float, confidence_threshold_exp: float, path_to_figure: str
+               rec_threshold_prec: float, confidence_threshold_exp: float, path_to_figure: str,
                ) -> None:
     """
     Plot y versus x as lines and markers using matplotlib.

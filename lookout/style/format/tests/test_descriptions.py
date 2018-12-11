@@ -30,9 +30,9 @@ class DescriptionsTests(unittest.TestCase):
                     "left_siblings_window": 1,
                     "right_siblings_window": 1,
                     "parents_depth": 1,
-                    "node_features": ["start_line", "reserved", "roles"]
-                }
-            }
+                    "node_features": ["start_line", "reserved", "roles"],
+                },
+            },
         })
         base = Path(__file__).parent
         with lzma.open(str(base / "benchmark.js.xz"), mode="rt") as fin:
@@ -61,7 +61,7 @@ class DescriptionsTests(unittest.TestCase):
                          "  %s ≥ %d\n"
                          "	⇒ y = %s\n"
                          "	Confidence: 0.900. Support: 150." % (
-                             name, ceil(4.5), picked_class_name
+                             name, ceil(4.5), picked_class_name,
                          ))
 
     def test_describe_rule_categorical(self):
@@ -77,7 +77,7 @@ class DescriptionsTests(unittest.TestCase):
                          "  %s = %s\n"
                          "	⇒ y = %s\n"
                          "	Confidence: 0.900. Support: 150." % (
-                             name, activated_name, picked_class_name
+                             name, activated_name, picked_class_name,
                          ))
 
     def test_describe_rule_bag(self):
@@ -96,7 +96,7 @@ class DescriptionsTests(unittest.TestCase):
                          "  %s in {%s} and not in {%s}\n"
                          "	⇒ y = %s\n"
                          "	Confidence: 0.900. Support: 150." % (
-                             name, activated_name, not_activated_name, picked_class_name
+                             name, activated_name, not_activated_name, picked_class_name,
                          ))
 
     def test_describe_rule_left(self):
@@ -110,7 +110,7 @@ class DescriptionsTests(unittest.TestCase):
                          "  -1.%s ≥ %d\n"
                          "	⇒ y = %s\n"
                          "	Confidence: 0.900. Support: 150." % (
-                             feature_id.name, ceil(4.5), picked_class_name
+                             feature_id.name, ceil(4.5), picked_class_name,
                          ))
 
     def test_describe_rule_right(self):
@@ -124,7 +124,7 @@ class DescriptionsTests(unittest.TestCase):
                          "  +1.%s ≥ %d\n"
                          "	⇒ y = %s\n"
                          "	Confidence: 0.900. Support: 150." % (
-                             feature_id.name, ceil(4.5), picked_class_name
+                             feature_id.name, ceil(4.5), picked_class_name,
                          ))
 
     def test_describe_rule_parent(self):
@@ -138,7 +138,7 @@ class DescriptionsTests(unittest.TestCase):
                          "  ^1.%s = AnyTypeAnnotation\n"
                          "	⇒ y = %s\n"
                          "	Confidence: 0.900. Support: 150." % (
-                             feature_id.name, picked_class_name
+                             feature_id.name, picked_class_name,
                          ))
 
 

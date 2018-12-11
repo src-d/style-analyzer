@@ -54,7 +54,7 @@ FEATURE_GROUP_TYPES = {
     FeatureGroup.node: VirtualNode,
     FeatureGroup.left: VirtualNode,
     FeatureGroup.right: VirtualNode,
-    FeatureGroup.parents: bblfsh.Node
+    FeatureGroup.parents: bblfsh.Node,
 }
 
 
@@ -139,7 +139,7 @@ class Feature:
     def _clip_int(integer: int) -> int:
         return max(FEATURES_MIN, min(FEATURES_MAX, integer))
 
-    def _compute(self, neighbours: Layout[Sequence[Optional[AnyNode]]]
+    def _compute(self, neighbours: Layout[Sequence[Optional[AnyNode]]],
                  ) -> Tuple[List[int], List[int],  List[int]]:
         raise NotImplementedError()
 
@@ -246,7 +246,7 @@ class NeighbourFeature(Feature, Generic[TVAnyNode]):
 class ComparisonFeature(NeighbourFeature[TVAnyNode]):
     """Base type for features that compare the current node to one of its neighbours."""
 
-    def _compute(self, neighbours: Layout[Sequence[Optional[AnyNode]]]
+    def _compute(self, neighbours: Layout[Sequence[Optional[AnyNode]]],
                  ) -> Tuple[List[int], List[int], List[int]]:
         """Focus on the relevant nodes and compute the feature values."""
         return self._focused_compute(  # type: ignore
@@ -254,7 +254,7 @@ class ComparisonFeature(NeighbourFeature[TVAnyNode]):
             self._convert_nodes(neighbours[self.neighbour_group][self.neighbour_index]))
 
     def _focused_compute(self, nodes: Sequence[VirtualNode],
-                         neighbours: Sequence[Optional[TVAnyNode]]
+                         neighbours: Sequence[Optional[TVAnyNode]],
                          ) -> Tuple[List[int], List[int], List[int]]:
         """Compute the feature values."""
         all_values, all_row_indices, all_column_indices = [], [], []
@@ -284,13 +284,13 @@ class VirtualNodeComparisonFeature(ComparisonFeature[VirtualNode]):
 class NodeFeature(NeighbourFeature[TVAnyNode]):
     """Base type for features that compute a property of a single node."""
 
-    def _compute(self, neighbours: Layout[Sequence[Optional[AnyNode]]]
+    def _compute(self, neighbours: Layout[Sequence[Optional[AnyNode]]],
                  ) -> Tuple[List[int], List[int], List[int]]:
         """Focus on the relevant nodes and compute the feature values."""
         return self._focused_compute(
             self._convert_nodes(neighbours[self.neighbour_group][self.neighbour_index]))
 
-    def _focused_compute(self, nodes: Sequence[Optional[TVAnyNode]]
+    def _focused_compute(self, nodes: Sequence[Optional[TVAnyNode]],
                          ) -> Tuple[List[int], List[int], List[int]]:
         """Compute the feature values."""
         all_values, all_row_indices, all_column_indices = [], [], []

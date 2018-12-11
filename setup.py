@@ -50,7 +50,7 @@ setup(
         "all_cpu": all_cpu_requires,
     },
     tests_require=tests_require,
-    package_data={"": ["LICENSE.md", "README.md"], },
+    package_data={"": ["LICENSE.md", "README.md"]},
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Environment :: Console",
@@ -60,6 +60,6 @@ setup(
         "Programming Language :: Python :: 3.5",
         "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
-        "Topic :: Software Development :: Quality Assurance"
-    ]
+        "Topic :: Software Development :: Quality Assurance",
+    ],
 )

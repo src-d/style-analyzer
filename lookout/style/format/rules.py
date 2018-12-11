@@ -80,7 +80,7 @@ class Rules:
     def __len__(self):
         return len(self._rules)
 
-    def apply(self, X_csr: csr_matrix, return_winner_indices=False
+    def apply(self, X_csr: csr_matrix, return_winner_indices=False,
               ) -> Union[numpy.ndarray, Tuple[numpy.ndarray, numpy.ndarray]]:
         """
         Evaluate the rules against the given features.
@@ -117,7 +117,7 @@ class Rules:
         return prediction
 
     def predict(self, X: numpy.ndarray, vnodes_y: Sequence[VirtualNode],
-                vnodes: Sequence[VirtualNode], feature_extractor: FeatureExtractor
+                vnodes: Sequence[VirtualNode], feature_extractor: FeatureExtractor,
                 ) -> Tuple[numpy.ndarray, numpy.ndarray, "Rules"]:
         """
         Predict classes given the input features and metadata.
@@ -167,7 +167,7 @@ class Rules:
 
     def harmonize_quotes(self, y_pred: numpy.ndarray,
                          vnodes_y: Sequence[VirtualNode], vnodes: Sequence[VirtualNode],
-                         winners: numpy.ndarray, feature_extractor: FeatureExtractor
+                         winners: numpy.ndarray, feature_extractor: FeatureExtractor,
                          ) -> Tuple[numpy.ndarray, numpy.ndarray, "Rules"]:
         """
         Post-process predictions to correct mis-matched quotes.
@@ -274,7 +274,7 @@ class Rules:
 
     @classmethod
     def _compute_triggered(cls, compiled_rules: CompiledRulesType,
-                           rules: Sequence[Rule], x: numpy.ndarray
+                           rules: Sequence[Rule], x: numpy.ndarray,
                            ) -> numpy.ndarray:
         searchsorted = numpy.searchsorted
         triggered = numpy.full(len(rules), 0xff, dtype=numpy.int8)
@@ -501,7 +501,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
 
     @classmethod
     def _tree_to_rules(cls, tree: DecisionTreeClassifier, offset: int = 0,
-                       class_mapping: Optional[numpy.ndarray] = None
+                       class_mapping: Optional[numpy.ndarray] = None,
                        ) -> Tuple[List[Rule], Mapping[int, int]]:
         """
         Convert an sklearn decision tree to a set of rules.
@@ -650,7 +650,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
     def _prune_branches_top_down_greedy(
             self, base_model: Union[DecisionTreeClassifier, RandomForestClassifier],
             rules: Sequence[Rule], X: numpy.ndarray, Y: numpy.ndarray,
-            leaf2rule: Sequence[Mapping[int, int]], budget: Tuple[bool, Union[float, int]]
+            leaf2rule: Sequence[Mapping[int, int]], budget: Tuple[bool, Union[float, int]],
             ) -> List[Rule]:
         """
         Prune branches using a greedy top down algorithm.

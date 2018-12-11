@@ -10,7 +10,7 @@ from pandas.util.testing import assert_frame_equal
 from lookout.style.typos.utils import (
     add_context_info, AFTER_COLUMN, BEFORE_COLUMN, CANDIDATE_COLUMN, filter_suggestions,
     flatten_data, ID_COLUMN, PROBABILITY_COLUMN, rank_candidates, SPLIT_COLUMN, SUGGESTIONS_COLUMN,
-    suggestions_to_df, suggestions_to_flat_df, TYPO_COLUMN
+    suggestions_to_df, suggestions_to_flat_df, TYPO_COLUMN,
 )
 
 TEST_DATA_PATH = str(pathlib.Path(__file__).parent)

@@ -41,10 +41,8 @@ def generate_rule_table(rule_stat: Mapping[Any, RuleStat], feature_extractor: Fe
         report = [["#rule"] + class_names + ["n_mistakes", "support"]]
         for rule in sorted(rule_stat):
             line = ["Rule number %s: " % rule]
-            line.extend(
-                ["%s/%s" % (pred, gt) for gt, pred in zip(rule_stat[rule].gt_classes,
-                                                          rule_stat[rule].pred_classes)]
-            )
+            line.extend(["%s/%s" % (pred, gt) for gt, pred in zip(rule_stat[rule].gt_classes,
+                                                                  rule_stat[rule].pred_classes)])
 
             n_mistakes = int(sum(abs(pred - gt)
                                  for gt, pred in zip(rule_stat[rule].gt_classes,

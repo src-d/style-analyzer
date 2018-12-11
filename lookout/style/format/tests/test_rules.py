@@ -128,7 +128,7 @@ class RulesTests(unittest.TestCase):
                 ])
 
         class FakeModel:
-            def __init__(self, ):
+            def __init__(self):
                 self.tree_ = FakeTree(
                     [1, 2, 4, 6, 8, LEAF, LEAF, LEAF, LEAF, LEAF, LEAF],
                     [10, 3, 5, 7, 9, LEAF, LEAF, LEAF, LEAF, LEAF, LEAF],

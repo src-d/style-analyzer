@@ -61,7 +61,7 @@ class FormatAnalyzer(Analyzer):
         "report_parse_failures": True,
         "uast_break_check": True,
         "comment_template": os.path.join(os.path.dirname(__file__), "templates",
-                                         "comment_default.jinja2")
+                                         "comment_default.jinja2"),
     }
     defaults_for_train = {
         "global": {
@@ -349,7 +349,7 @@ class FormatAnalyzer(Analyzer):
 
     @staticmethod
     def _group_line_nodes(y: Sequence[int], y_pred: Sequence[int], vnodes_y: Sequence[VirtualNode],
-                          new_vnodes: Sequence[VirtualNode], rule_winners: Sequence[int]
+                          new_vnodes: Sequence[VirtualNode], rule_winners: Sequence[int],
                           ) -> Tuple[int, Tuple]:
         """
         Group virtual nodes and related lists from feature extractor by line number.
@@ -427,5 +427,5 @@ class FormatAnalyzer(Analyzer):
                     for lang, lang_config in config.items()}
         except AttributeError as e:
             raise ValueError("Config %s can not be merged with default values config: %s" % (
-                config, global_config
+                config, global_config,
             ))

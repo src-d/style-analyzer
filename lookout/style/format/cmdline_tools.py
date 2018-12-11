@@ -143,7 +143,7 @@ def create_parser() -> ArgumentParser:
         help="Path to the directory where the generated dataset should be stored.")
     gen_smoke_parser.add_argument(
         "--force", default=False, action="store_true",
-        help="Override output directory if exists."
+        help="Override output directory if exists.",
     )
 
     # Evaluate on different styles dataset

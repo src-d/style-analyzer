@@ -111,7 +111,7 @@ class QualityReportTests(PretrainedModelTests):
                 with self.assertRaises(ValueError):
                     quality_report(
                         input_pattern=input_pattern, bblfsh=self.bblfsh, language=self.language,
-                        n_files=10, model_path=empty_model
+                        n_files=10, model_path=empty_model,
                     )
 
     def test_push_ananlyzer(self):

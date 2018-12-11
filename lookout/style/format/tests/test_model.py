@@ -37,7 +37,7 @@ class FormatModelTests(unittest.TestCase):
                 "prune_attributes": False,
                 "min_samples_leaf": 26,
                 "random_state": 1989,
-            }
+            },
         }
         trainer = TrainableRules(**self.config["trainable_rules"], origin_config=self.config)
         trainer.fit(self.test_x, self.test_y)

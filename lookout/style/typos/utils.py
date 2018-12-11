@@ -136,7 +136,7 @@ def add_context_info(data: pandas.DataFrame) -> pandas.DataFrame:
 
 
 def rank_candidates(candidates: pandas.DataFrame, pred_probs: List[float],
-                    n_candidates: int = None, return_all: bool = True
+                    n_candidates: int = None, return_all: bool = True,
                     ) -> Dict[int, List[Tuple[str, float]]]:
     """
     Rank candidates for typos correction based on the correctness probabilities.
@@ -172,7 +172,7 @@ def rank_candidates(candidates: pandas.DataFrame, pred_probs: List[float],
 
 
 def filter_suggestions(typos: pandas.DataFrame, suggestions: Dict[int, List[Tuple[str, float]]],
-                       n_candidates: int=1, return_all: bool=False
+                       n_candidates: int=1, return_all: bool=False,
                        ) -> Dict[int, List[Tuple[str, float]]]:
     """
     Filter correction suggestions.
@@ -188,7 +188,7 @@ def filter_suggestions(typos: pandas.DataFrame, suggestions: Dict[int, List[Tupl
             if return_all or suggestions[index][0][0] != row[TYPO_COLUMN]}
 
 
-def suggestions_to_df(typos: pandas.DataFrame, suggestions: Dict[int, List[Tuple[str, float]]]
+def suggestions_to_df(typos: pandas.DataFrame, suggestions: Dict[int, List[Tuple[str, float]]],
                       ) -> pandas.DataFrame:
     """
     Convert suggestions from dictionary to pandas.DataFrame.

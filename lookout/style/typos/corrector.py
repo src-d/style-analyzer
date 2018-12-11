@@ -167,7 +167,7 @@ class TyposCorrector(Model):
         return self.suggest(typos, candidates, save_candidates_file, n_candidates, return_all)
 
     def suggest_by_batches(self, typos: pandas.DataFrame, n_candidates: int = None,
-                           return_all: bool = True, batch_size: int = 2048
+                           return_all: bool = True, batch_size: int = 2048,
                            ) -> Dict[int, List[Tuple[str, float]]]:
         """
         Correct typos from dataset by batches. Does not support precalculated candidates.
