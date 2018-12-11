@@ -234,7 +234,7 @@ def get_code_chunk(code_lines: Sequence[str], line_number: int) -> str:
     return "\n".join("%d|%s" % (l, code_lines[l]) for l in lines)
 
 
-def rule_to_comment(rule: Rule, feature_extractor: FeatureExtractor, number: Optional[int]=None
+def rule_to_comment(rule: Rule, feature_extractor: FeatureExtractor, number: Optional[int]=None,
                     ) -> str:
     """
     Return the comment for the rule.

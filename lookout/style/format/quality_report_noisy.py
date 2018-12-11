@@ -45,7 +45,7 @@ def get_content_from_repo(folder: str) -> Mapping[str, str]:
     return content
 
 
-def get_difflib_changes(true_content: Mapping[str, str], noisy_content: Mapping[str, str]
+def get_difflib_changes(true_content: Mapping[str, str], noisy_content: Mapping[str, str],
                         ) -> Tuple[Iterable[str], Iterable[str], Mapping[str, Set[int]], int]:
     """
     Return the files and the first offsets that have been changed when adding random noise.
@@ -73,7 +73,7 @@ def get_difflib_changes(true_content: Mapping[str, str], noisy_content: Mapping[
     return sorted(true_files), sorted(noisy_files), start_changes
 
 
-def files2vnodes(files: Iterable[str], feature_extractor: FeatureExtractor, client: str
+def files2vnodes(files: Iterable[str], feature_extractor: FeatureExtractor, client: str,
                  ) -> Iterable[VirtualNode]:
     """
     Return the `VirtualNode`-s extracted from a list of files.
@@ -131,7 +131,7 @@ def get_mispreds(y: numpy.ndarray, y_pred: numpy.ndarray, nodes: Iterable[Virtua
     return mispreds
 
 
-def get_diff_mispreds(mispreds: Iterable[Misprediction], start_changes: Mapping[str, int]
+def get_diff_mispreds(mispreds: Iterable[Misprediction], start_changes: Mapping[str, int],
                       ) -> Mapping[str, Misprediction]:
     """
     Filter `Misprediction`-s to select those involving at least one line that has been modified.
@@ -223,8 +223,8 @@ def plot_curve(repositories: Iterable[str], recalls: Mapping[str, numpy.ndarray]
     :param precision_threshold: Precision threshold tolerated by the model. \
            Limit drawn as a red horizontal line on the figure.
     :param rec_threshold_prec: Dict of maximum recall before passing under the precision threshold.
-    :param confidence_threshold_exp: Dict of confidence limit of the last rule before passing under \
-           the precision threshold.
+    :param confidence_threshold_exp: Dict of confidence limit of the last rule before passing \
+           under the precision threshold.
     :param path_to_figure: Path to the output figure, in png format.
     """
     try:
@@ -269,7 +269,7 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
     repositories = []
     precisions, recalls = (defaultdict(list) for _ in range(2))
     n_mistakes, rec_threshold_prec, prec_max_rec, confidence_threshold_exp, max_rec, \
-    n_rules, n_rules_filtered = ({} for _ in range(7))
+        n_rules, n_rules_filtered = ({} for _ in range(7))
     for url in REPOSITORIES.split("\n"):
         repo = url.split("/")[-1]
         log.info("Fetching %s", url)
@@ -287,11 +287,12 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
             true_content = get_content_from_repo(input_pattern)
             noisy_content = get_content_from_repo(input_pattern_noisy)
 
-            true_files, noisy_files, start_changes = get_difflib_changes(true_content, noisy_content)
+            true_files, noisy_files, start_changes = get_difflib_changes(true_content,
+                                                                         noisy_content)
             if not true_files:
                 raise ValueError("Noisy repo should count at least one artificial mistake")
             log.info("Number of files modified by adding style noise: %d / %d", len(true_files),
-                    len(true_content))
+                     len(true_content))
             del true_content, noisy_content
 
             client = BblfshClient(bblfsh)

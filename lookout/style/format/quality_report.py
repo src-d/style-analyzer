@@ -47,7 +47,7 @@ def generate_report(y, y_pred, vnodes_y, n_files, target_names):
 
 
 @profile
-def quality_report(input_pattern: str, bblfsh: str, language: str, n_files: int, model_path: str
+def quality_report(input_pattern: str, bblfsh: str, language: str, n_files: int, model_path: str,
                    ) -> None:
     """Print several different reports for a given model on a given dataset."""
     log = logging.getLogger("quality_report")
@@ -229,7 +229,7 @@ class ReportAnalyzer(Analyzer):
                     report = self.generate_report(
                         y=y, y_pred=y_pred, vnodes_y=vnodes_y, target_names=target_names,
                         config=self.config, model=self.model, feature_extractor=fe,
-                        rule_winners=rule_winners
+                        rule_winners=rule_winners,
                     )
                     comments.append(generate_comment(filename=file.path, confidence=100,
                                                      line=0, text=report))
@@ -243,7 +243,7 @@ class ReportAnalyzer(Analyzer):
                 report = self.generate_report(
                     y=agg_y, y_pred=numpy.hstack(agg_y_pred), vnodes_y=agg_vnodes_y,
                     target_names=target_names, config=self.config, model=self.model,
-                    feature_extractor=fe, rule_winners=rule_winners
+                    feature_extractor=fe, rule_winners=rule_winners,
                 )
                 comments.append(generate_comment(filename=file.path, confidence=100,
                                                  line=0, text=report))

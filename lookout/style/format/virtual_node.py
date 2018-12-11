@@ -106,7 +106,7 @@ class VirtualNode:
 
     @staticmethod
     def from_node(node: bblfsh.Node, file: str, path: str,
-                  token_unwrappers: Mapping[str, Callable[[str], Tuple[str, str]]]
+                  token_unwrappers: Mapping[str, Callable[[str], Tuple[str, str]]],
                   ) -> Iterable["VirtualNode"]:
         """
         Initialize the VirtualNode from a UAST node. Takes into account prefixes and suffixes.

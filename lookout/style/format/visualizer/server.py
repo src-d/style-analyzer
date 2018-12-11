@@ -34,7 +34,7 @@ def _mapping_to_jsonable(mapping: Mapping[Any, Any]) -> Mapping[Any, Any]:
     return jsonable
 
 
-def _rules_to_jsonable(rules: Rules, feature_extractor: FeatureExtractor
+def _rules_to_jsonable(rules: Rules, feature_extractor: FeatureExtractor,
                        ) -> Sequence[Mapping[str, Any]]:
     return [dict(attrs=describe_rule_attrs(rule, feature_extractor),
                  cls=rule.stats.cls,
@@ -44,7 +44,7 @@ def _rules_to_jsonable(rules: Rules, feature_extractor: FeatureExtractor
             for rule in rules.rules]
 
 
-def _vnode_to_jsonable(vnode: VirtualNode, labeled_indices: Mapping[int, int]
+def _vnode_to_jsonable(vnode: VirtualNode, labeled_indices: Mapping[int, int],
                        ) -> Mapping[str, Any]:
     jsonable = {
         "start": {"offset": int(vnode.start.offset),
@@ -66,7 +66,7 @@ def _vnode_to_jsonable(vnode: VirtualNode, labeled_indices: Mapping[int, int]
 DictOrStr = Dict[str, Union[Dict[str, "DictOrStr"], str]]
 
 
-def _input_matrix_to_descriptions(X_csr: csr_matrix, feature_extractor: FeatureExtractor
+def _input_matrix_to_descriptions(X_csr: csr_matrix, feature_extractor: FeatureExtractor,
                                   ) -> List[DictOrStr]:
     X = X_csr.toarray()
     descriptions = []
