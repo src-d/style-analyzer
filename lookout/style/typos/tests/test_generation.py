@@ -41,6 +41,7 @@ class CandidatesSplitTest(unittest.TestCase):
 
 
 class GeneratorTest(unittest.TestCase):
+    @unittest.skip("CandidatesGenerator.__eq__ needs refactoring. Test is currently flaky.")
     def test_save_load(self):
         generator = CandidatesGenerator()
         generator.construct(VOCABULARY_FILE, VOCABULARY_FILE, FASTTEXT_DUMP_FILE,
