@@ -87,7 +87,7 @@ def filter_uast_breaking_preds(
         vnodes: Sequence[VirtualNode], files: Mapping[str, File],
         feature_extractor: FeatureExtractor, stub: "bblfsh.aliases.ProtocolServiceStub",
         vnode_parents: Mapping[int, bblfsh.Node], node_parents: Mapping[int, bblfsh.Node],
-        rule_winners: numpy.ndarray, log: Logger
+        rule_winners: numpy.ndarray, log: Logger,
         ) -> Tuple[numpy.ndarray, numpy.ndarray, Sequence[VirtualNode], numpy.ndarray,
                    Sequence[int]]:
     """

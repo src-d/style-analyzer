@@ -124,7 +124,7 @@ class IdTyposAnalyzer(Analyzer):
         """
         return DummyAnalyzerModel()
 
-    def check_identifiers(self, identifiers: List[str]
+    def check_identifiers(self, identifiers: List[str],
                           ) -> Dict[int, Dict[str, List[Tuple[str, float]]]]:
         """
         Check tokens from identifiers for typos.
@@ -146,7 +146,7 @@ class IdTyposAnalyzer(Analyzer):
         return grouped_suggestions
 
     def filter_suggestions(self, test_df: pandas.DataFrame,
-                           suggestions: Dict[int, List[Tuple[str, float]]]
+                           suggestions: Dict[int, List[Tuple[str, float]]],
                            ) -> Dict[int, List[Tuple[str, float]]]:
         """
         Filter suggestions based on the repo specifics and confidence threshold.

@@ -27,7 +27,7 @@ from lookout.style.format.virtual_node import VirtualNode
 EMPTY = "␣"
 
 
-def align2(seq1: Sequence, seq2: Sequence, seq2_ghost: Sequence = None
+def align2(seq1: Sequence, seq2: Sequence, seq2_ghost: Sequence = None,
            ) -> Union[Tuple[Sequence, Sequence],
                       Tuple[Sequence, Sequence, Sequence]]:
     """
@@ -101,7 +101,7 @@ def align3(seq1: Sequence, seq2: Sequence, seq3: Sequence) -> Tuple[Sequence, Se
     return res1, res2, res3
 
 
-def calc_aligned_metrics(bad_style_code: str, correct_style_code: str, generated_code: str
+def calc_aligned_metrics(bad_style_code: str, correct_style_code: str, generated_code: str,
                          ) -> Tuple[int, int, int, int]:
     """
     Calculate model quality metrics for aligned sequences.
@@ -363,7 +363,7 @@ def evaluate_smoke_entry(inputpath: str, reportdir: str, database: str = None) -
             index_file = inputpath / "index.csv"
             os.makedirs(reportdir, exist_ok=True)
             with open(report_filename, "w") as report:
-                csv.DictWriter(report, fieldnames=SmokeEvalFormatAnalyzer.REPORT_COLNAMES
+                csv.DictWriter(report, fieldnames=SmokeEvalFormatAnalyzer.REPORT_COLNAMES,
                                ).writeheader()
             with open(str(index_file)) as index:
                 reader = csv.DictReader(index)
@@ -376,7 +376,7 @@ def evaluate_smoke_entry(inputpath: str, reportdir: str, database: str = None) -
                             "report_path": reportdir,
                             "uast_break_check": False,  # Disabled to make Travis happy until
                             # https://github.com/src-d/lookout/issues/374 is unresolved
-                        }
+                        },
                     }
                     server.run("push", fr=row["from"], to=row["to"], port=port,
                                git_dir=str(repopath), log_level="warning",

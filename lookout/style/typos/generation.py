@@ -15,7 +15,7 @@ from tqdm import tqdm
 from lookout.style.typos.symspell import EditDistance, SymSpell
 from lookout.style.typos.utils import (
     add_context_info, CANDIDATE_COLUMN, FEATURES_COLUMN, ID_COLUMN, read_frequencies,
-    read_vocabulary, TYPO_COLUMN
+    read_vocabulary, TYPO_COLUMN,
 )
 
 TypoInfo = NamedTuple("TypoInfo", (("index", int),
@@ -132,7 +132,7 @@ class CandidatesGenerator(Model):
             "Neighbors number %d." % self.neighbors_number,
             "Maximum distance for search %d." % self.max_distance,
             "Maximum distance allowed %d." % self.radius,
-            "Token for distance %d." % self.edit_candidates_number
+            "Token for distance %d." % self.edit_candidates_number,
         ))
 
     def __eq__(self, other: "CandidatesGenerator") -> bool:
@@ -215,7 +215,7 @@ class CandidatesGenerator(Model):
         return candidate_tokens
 
     def _generate_features(self, typo_info: TypoInfo, dist: int, typo_vec: numpy.ndarray,
-                           candidate: str, candidate_vec: numpy.ndarray
+                           candidate: str, candidate_vec: numpy.ndarray,
                            ) -> Features:
         """
         Compile features for a single correction candidate.
@@ -245,13 +245,13 @@ class CandidatesGenerator(Model):
                 self._cos(candidate_vec, after_vec),
                 self._cos(candidate_vec, context_vec),
                 self._cos(typo_vec, candidate_vec),
-                dist
+                dist,
             ),
             before_vec,
             after_vec,
             typo_vec,
             candidate_vec,
-            context_vec)
+            context_vec),
         ).astype(numpy.float32))
 
     def _vec(self, token: str) -> numpy.ndarray:

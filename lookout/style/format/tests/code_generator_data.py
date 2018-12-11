@@ -54,7 +54,7 @@ cases = OrderedDict([
     ("nothing changed", (
         tuple(),
         tuple(),
-        original_code
+        original_code,
     )),
     ("remove new line in the end of 4th line", (
         (22,),
@@ -364,7 +364,7 @@ export default function flashToToast(flash) {
     .map(makeToast)
     .map(({ payload }) => payload);
 }
-"""
+""",
     )),
     ("change indentation decrease to indentation increase 11th line", (
         (66,),
@@ -402,13 +402,13 @@ export default function flashToToast(flash) {
     .map(makeToast)
     .map(({ payload }) => payload);
 }
-"""
+""",
     )),
     ("change indentation decrease to indentation increase 11th line but keep the rest", (
         (66, 71),
         (labels_to_composite[(CLS_NEWLINE, CLS_SPACE_INC, CLS_SPACE_INC)],
          labels_to_composite[(CLS_NEWLINE, CLS_SPACE_DEC, CLS_SPACE_DEC, CLS_SPACE_DEC,
-                              CLS_SPACE_DEC, CLS_SPACE_DEC, CLS_SPACE_DEC)],),
+                              CLS_SPACE_DEC, CLS_SPACE_DEC, CLS_SPACE_DEC)]),
         """import { makeToast } from '../../common/app/Toasts/redux';
 
 export default function flashToToast(flash) {
@@ -442,8 +442,8 @@ export default function flashToToast(flash) {
     .map(makeToast)
     .map(({ payload }) => payload);
 }
-"""
-    ))
+""",
+    )),
 ])
 
 

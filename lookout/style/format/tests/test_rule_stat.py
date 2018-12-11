@@ -38,7 +38,7 @@ class RuleStatTests(PretrainedModelTests):
                 with self.assertRaises(ValueError):
                     print_rules_report(
                         input_pattern=input_pattern, bblfsh=self.bblfsh, language=self.language,
-                        model_path=empty_model
+                        model_path=empty_model,
                     )
 
     def test_push_ananlyzer(self):

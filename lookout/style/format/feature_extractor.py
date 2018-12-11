@@ -361,7 +361,8 @@ class FeatureExtractor:
                 for labels in self.labels_to_class_sequences]
 
     def _create_neighbours(self, vnodes: Sequence[VirtualNode], vnodes_y: Sequence[VirtualNode],
-                           parents: Mapping[int, bblfsh.Node], return_sibling_indices: bool = False
+                           parents: Mapping[int, bblfsh.Node],
+                           return_sibling_indices: bool = False,
                            ) -> Tuple[Layout[Sequence[Optional[AnyNode]]],
                                       Optional[List[List[int]]]]:
         if self.return_sibling_indices:
@@ -544,7 +545,7 @@ class FeatureExtractor:
                     indentation.append(char)
 
     def _merge_classes_to_composite_labels(
-            self, vnodes: Iterable[VirtualNode], path: str, index_labels: bool = False
+            self, vnodes: Iterable[VirtualNode], path: str, index_labels: bool = False,
             ) -> Iterable[VirtualNode]:
         """
         Pack successive predictable nodes into single "composite" labels.
@@ -574,7 +575,7 @@ class FeatureExtractor:
             yield VirtualNode(value=value, start=start, end=end, y=tuple(current_class_seq),
                               path=path)
 
-    def _add_noops(self, vnodes: Sequence[VirtualNode], path: str, index_labels: bool = False
+    def _add_noops(self, vnodes: Sequence[VirtualNode], path: str, index_labels: bool = False,
                    ) -> List[VirtualNode]:
         """
         Add CLS_NOOP nodes in between tokens without labeled nodes to allow for insertions.
@@ -604,7 +605,7 @@ class FeatureExtractor:
 
     @staticmethod
     def _find_parent(vnode_index: int, vnodes: Sequence[VirtualNode],
-                     parents: Mapping[int, bblfsh.Node], closest_left_node_id: int
+                     parents: Mapping[int, bblfsh.Node], closest_left_node_id: int,
                      ) -> Optional[bblfsh.Node]:
         """
         Compute vnode parent as the LCA of the closest left and right babelfish nodes.
@@ -633,7 +634,7 @@ class FeatureExtractor:
             current_right_ancestor_id = id(parents[current_right_ancestor_id])
         return None
 
-    def _keep_sibling(self, sibling: VirtualNode, vnode: VirtualNode, include_labeled: bool
+    def _keep_sibling(self, sibling: VirtualNode, vnode: VirtualNode, include_labeled: bool,
                       ) -> bool:
         if not include_labeled and (
                 sibling.y is not None or sibling.node is None and sibling.value.isspace()):

@@ -25,5 +25,5 @@ def unwrap_use_outer_token(outer_token: str) -> Tuple[str, str]:
 
 TOKEN_UNWRAPPERS = {
     "StringLiteral": unwrap_string_literal,
-    "NumericLiteral": unwrap_use_outer_token
+    "NumericLiteral": unwrap_use_outer_token,
 }
