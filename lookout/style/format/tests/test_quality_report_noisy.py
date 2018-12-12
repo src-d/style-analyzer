@@ -3,7 +3,7 @@ import sys
 import tempfile
 import unittest
 
-from lookout.style.format.quality_report_noisy import quality_report_noisy
+from lookout.style.format.benchmarks.quality_report_noisy import quality_report_noisy
 from lookout.style.format.tests.test_quality_report import Capturing
 
 

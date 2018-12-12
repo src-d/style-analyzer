@@ -20,8 +20,7 @@ from lookout.core.manager import AnalyzerManager
 from lookout.core.test_helpers import server
 from tabulate import tabulate
 
-from lookout.style.format.quality_report import QualityReportAnalyzer
-
+from lookout.style.format.benchmarks.general_report import QualityReportAnalyzer
 
 # TODO(zurk): Move REPOSITORIES to ./benchmarks/data/default_repository_list.csv
 # format: "repository to-commit from-commit"
@@ -136,7 +135,7 @@ def ensure_repo(repository: str, storage_dir: str) -> str:
     # TODO: use dulwich in the future
     git_dir = os.path.join(storage_dir, get_repo_name(repository))  # location for code
     cmd = "git clone --single-branch --branch master %s %s" % (repository, git_dir)
-    subprocess.run(cmd.split()).check_returncode()
+    subprocess.check_call(cmd.split())
     return git_dir
 
 
@@ -173,8 +172,8 @@ def measure_quality(repository: str, from_commit: str, to_commit: str, port: int
     try:
         QualityReportAnalyzer.generate_model_report = \
             capture_report(QualityReportAnalyzer.generate_model_report, "model")
-        QualityReportAnalyzer.generate_report = \
-            capture_report(QualityReportAnalyzer.generate_report, "quality")
+        QualityReportAnalyzer.generate_quality_report = \
+            capture_report(QualityReportAnalyzer.generate_quality_report, "quality")
         with tempfile.TemporaryDirectory(prefix="top-repos-quality-repos-") as tmpdirname:
             git_dir = ensure_repo(repository, tmpdirname)
             server.run("push", fr=from_commit, to=to_commit, port=port, git_dir=git_dir,
@@ -184,8 +183,8 @@ def measure_quality(repository: str, from_commit: str, to_commit: str, port: int
     finally:
         QualityReportAnalyzer.generate_model_report = \
             QualityReportAnalyzer.generate_model_report.original
-        QualityReportAnalyzer.generate_report = \
-            QualityReportAnalyzer.generate_report.original
+        QualityReportAnalyzer.generate_quality_report = \
+            QualityReportAnalyzer.generate_quality_report.original
 
     return report
 
@@ -214,29 +213,28 @@ def calc_avg(arr: Sequence[Sequence], col: int) -> float:
     return numerator / denominator
 
 
-def get_precision_recall_f1_support(report: str) -> (float, float, float, int):
+def _get_precision_recall_f1_support(report: str) -> (float, float, float, int):
     """Extract avg / total precision, recall, f1 score, support from report."""
-    # TODO: append a JSON codeblock to each report and parse it with json.loads
-    # See https://github.com/src-d/style-analyzer/pull/326/files#r236667952
-    for line in report.splitlines():
-        if "weighted avg" in line:
-            _, prec, recall, f1, support = line.split("` | `")
-            prec, recall, f1, support = [float(f.replace("`", "").replace("|", "")) for f in
-                                              (prec, recall, f1, support)]
-            return prec, recall, f1, int(support)
+    data = _get_json_data(report)["weighted avg"]
+    return data["precision"], data["recall"], data["f1-score"], data["support"]
 
 
-def get_model_summary(report: str) -> (int, float):
+def _get_model_summary(report: str) -> (int, float):
     """Extract model summary - number of rules and avg. len."""
-    pattern = " rules, avg.len. "
-    for line in report.splitlines():
-        if pattern in line:
-            line = line.replace("`", "")
-            res = list(map(float, line.split(pattern)))
-            assert len(res) == 2
-            n_rules, avg_len = res
-            n_rules = int(n_rules)
-    return n_rules, avg_len
+    data = _get_json_data(report)
+    # TODO(vmarkovtsev): address this embarrasing hardcode
+    return data["javascript"]["num_rules"], data["javascript"]["avg_rule_len"]
+
+
+def _get_json_data(report: str) -> dict:
+    start_anchor = "```json\n"
+    mrr_start = report.find(start_anchor, report.rfind("</summary>"))
+    if mrr_start < 0:
+        raise ValueError("malformed report")
+    mrr_start += len(start_anchor)
+    mrr_end = report.find("\n```", mrr_start)
+    data = json.loads(report[mrr_start:mrr_end])
+    return data
 
 
 def main(args):
@@ -299,8 +297,8 @@ def main(args):
         with io.StringIO() as output:
             table.append(("repo", "prec", "recall", "f1", "support", "n_rules", "avg_len"))
             for repo, report in reports:
-                precision, recall, f1, support = get_precision_recall_f1_support(report)
-                n_rules, avg_len = get_model_summary(report)
+                precision, recall, f1, support = _get_precision_recall_f1_support(report)
+                n_rules, avg_len = _get_model_summary(report)
                 agg.append((precision, recall, f1, support, n_rules, avg_len))
                 table.append((get_repo_name(repo), precision, recall, f1, support, n_rules,
                               avg_len))

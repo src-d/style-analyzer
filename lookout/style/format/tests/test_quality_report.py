@@ -10,7 +10,9 @@ import unittest
 
 from lookout.core.test_helpers import server
 
-from lookout.style.format.quality_report import quality_report, QualityReportAnalyzer
+from lookout.style.format.benchmarks.general_report import print_reports, QualityReportAnalyzer
+from lookout.style.format.benchmarks.top_repos_quality import _get_json_data, _get_model_summary, \
+    _get_precision_recall_f1_support
 from lookout.style.format.tests.test_analyzer import get_analyze_config, get_train_config
 from lookout.style.format.tests.test_analyzer_integration import (
     FROM_COMMIT, TestAnalyzer, TO_COMMIT)
@@ -26,7 +28,7 @@ class PretrainedModelTests(unittest.TestCase):
 
         # analyzer
         parent_loc = Path(__file__).parent.resolve()
-        cls.base_dir_ = tempfile.TemporaryDirectory(dir=str(parent_loc))
+        cls.base_dir_ = tempfile.TemporaryDirectory()
         cls.base_dir = cls.base_dir_.name
         cls.port = server.find_port()
         # extract repo
@@ -69,26 +71,75 @@ class Capturing(list):
 
 class QualityReportTests(PretrainedModelTests):
     def test_eval_empty_input(self):
-        """Test on empty folder - expect fail."""
+        """Test on empty folder - expect only model report."""
         with tempfile.TemporaryDirectory() as folder:
             input_pattern = os.path.join(folder, "**", "*")
             with Capturing() as output:
-                quality_report(input_pattern=input_pattern, bblfsh=self.bblfsh,
-                               language=self.language, model_path=self.model_path,
-                               config={"uast_break_check": False})
-            self.assertEqual(output[:3],
-                             ["# Model report for javascript", "", "### Rules summary:"])
+                print_reports(input_pattern=input_pattern, bblfsh=self.bblfsh,
+                              language=self.language, model_path=self.model_path,
+                              config={"uast_break_check": False})
+            self.assertEqual(
+                output[:3], [
+                    "# Model report for <unknown url> <unknown reference> <unknown commit>",
+                    "",
+                    "### Dump",
+                ])
             self.assertNotIn("# Quality report", output)
+            self.assertGreater(len(output), 100)
+            output = "\n".join(output)
+            data = _get_json_data(output)["javascript"]
+            self.assertEqual(data["num_rules"], 1269)
+            self.assertEqual(data["avg_rule_len"], 19.10401891252955)
+            self.assertEqual(data["max_conf"], 0.9999756217002869)
+            self.assertEqual(data["min_conf"], 0.19736842811107635)
+            self.assertEqual(data["max_support"], 20528)
+            self.assertEqual(data["min_support"], 16)
+            lines = """|Min support|16|
+|Max support|20528|
+|Min confidence|0.19736842811107635|
+|Max confidence|0.9999756217002869|""".splitlines()
+            for line in lines:
+                self.assertIn(line, output)
+            num_rules, avg_len = _get_model_summary(output)
+            self.assertEqual(num_rules, 1269)
+            self.assertEqual(avg_len, 19.10401891252955)
 
     def test_eval(self):
         """Test on normal input."""
         input_pattern = os.path.join(self.jquery_dir, "**", "*")
         with Capturing() as output:
-            quality_report(input_pattern=input_pattern, bblfsh=self.bblfsh,
-                           language=self.language, model_path=self.model_path,
-                           config={"uast_break_check": False})
-        self.assertEqual(["# Quality report", "", "### Classification report:"], output[:3])
-        self.assertIn("### Rules summary:", output)
+            print_reports(input_pattern=input_pattern, bblfsh=self.bblfsh,
+                          language=self.language, model_path=self.model_path,
+                          config={"uast_break_check": False})
+        self.assertEqual([
+            "# Quality report for javascript / <unknown url> <unknown reference> <unknown commit>",
+            "",
+            "### Classification report"],
+            output[:3])
+        qcount = output.count(
+            "# Quality report for javascript / <unknown url> <unknown reference> <unknown commit>")
+        self.assertEqual(qcount, 14)
+        self.assertIn("### Summary", output)
+        self.assertIn("# Model report for <unknown url> <unknown reference> <unknown commit>",
+                      output)
+        self.assertGreater(len(output), 100)
+        self.assertIn("javascript", _get_json_data("\n".join(output)))
+
+    def test_eval_aggregate(self):
+        """Test on normal input, quality reports are aggregated."""
+        input_pattern = os.path.join(self.jquery_dir, "**", "*")
+        with Capturing() as output:
+            print_reports(input_pattern=input_pattern, bblfsh=self.bblfsh,
+                          language=self.language, model_path=self.model_path,
+                          config={"uast_break_check": False, "aggregate": True})
+        qcount = output.count(
+            "# Quality report for javascript / <unknown url> <unknown reference> <unknown commit>")
+        self.assertEqual(qcount, 1)
+        output = "\n".join(output)
+        output = output[:output.find("# Model report for <unknown url>")]
+        metrics = _get_precision_recall_f1_support(output)
+        self.assertEqual(
+            metrics, (0.7221903953001138, 0.7723108245673567, 0.7246536747360008, 2947))
 
     def test_no_model(self):
         """Test on wrong path to model - expect fail."""
@@ -96,12 +147,12 @@ class QualityReportTests(PretrainedModelTests):
             input_pattern = os.path.join(folder, "**", "*")
             with tempfile.NamedTemporaryFile() as empty_model:
                 with self.assertRaises(ValueError):
-                    quality_report(
+                    print_reports(
                         input_pattern=input_pattern, bblfsh=self.bblfsh, language=self.language,
                         model_path=empty_model, config={"uast_break_check": False})
 
     @unittest.skipUnless(os.getenv("LONG_TESTS", False),
-                         "Timeis labeled and unfiltere-consuming tests are skipped by default.")
+                         "Time-consuming tests are skipped by default.")
     def test_train_review_analyzer_integration(self):
         """Integration test for review event."""
         with TestAnalyzer(port=self.port, db=self.db.name, fs=self.fs.name,

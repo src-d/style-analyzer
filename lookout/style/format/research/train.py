@@ -11,7 +11,7 @@ from lookout.core.slogging import setup
 from yaml import safe_load
 
 from lookout.style.format.analyzer import FormatAnalyzer
-from lookout.style.format.quality_report import prepare_files
+from lookout.style.format.benchmarks.general_report import prepare_files
 
 
 class FakeDataService:
