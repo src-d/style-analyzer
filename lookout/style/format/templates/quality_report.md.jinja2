@@ -14,7 +14,7 @@
 | {%- for el in conf_mat[0] -%} {{ ":---|" }}{%- endfor -%} {{ '\n' -}}
 {% for row in conf_mat %}
 | {%- for el in row -%}
-    `{{ el }}` |
+    {{ el }} |
 {%- endfor -%} {{ '\n' -}}
 {%- endfor %}
 

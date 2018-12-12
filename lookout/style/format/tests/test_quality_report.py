@@ -12,7 +12,7 @@ from lookout.core.test_helpers import server
 
 from lookout.style.format.benchmarks.top_repos_quality import _get_json_data, _get_model_summary, \
     _get_precision_recall_f1_support
-from lookout.style.format.general_report import print_reports, QualityReportAnalyzer
+from lookout.style.format.benchmarks.general_report import print_reports, QualityReportAnalyzer
 from lookout.style.format.tests.test_analyzer import get_analyze_config, get_train_config
 from lookout.style.format.tests.test_analyzer_integration import (
     FROM_COMMIT, TestAnalyzer, TO_COMMIT)
@@ -82,7 +82,7 @@ class QualityReportTests(PretrainedModelTests):
                 output[:3], [
                     "# Model report for <unknown url> <unknown reference> <unknown commit>",
                     "",
-                    "```",
+                    "### Dump",
                 ])
             self.assertNotIn("# Quality report", output)
             self.assertGreater(len(output), 100)

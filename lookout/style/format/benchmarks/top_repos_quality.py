@@ -20,7 +20,7 @@ from lookout.core.manager import AnalyzerManager
 from lookout.core.test_helpers import server
 from tabulate import tabulate
 
-from lookout.style.format.general_report import QualityReportAnalyzer
+from lookout.style.format.benchmarks.general_report import QualityReportAnalyzer
 
 # TODO(zurk): Move REPOSITORIES to ./benchmarks/data/default_repository_list.csv
 # format: "repository to-commit from-commit"
@@ -227,10 +227,11 @@ def _get_model_summary(report: str) -> (int, float):
 
 
 def _get_json_data(report: str) -> dict:
-    mrr_start = report.find("```json\n", report.rfind("</summary>"))
+    start_anchor = "```json\n"
+    mrr_start = report.find(start_anchor, report.rfind("</summary>"))
     if mrr_start < 0:
         raise ValueError("malformed report")
-    mrr_start += 8
+    mrr_start += len(start_anchor)
     mrr_end = report.find("\n```", mrr_start)
     data = json.loads(report[mrr_start:mrr_end])
     return data

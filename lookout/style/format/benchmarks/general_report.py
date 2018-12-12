@@ -302,6 +302,8 @@ class QualityReportAnalyzer(ReportAnalyzer):
         """
         fixes = list(fixes)
         vnodes = chain.from_iterable(fix.all_vnodes for fix in fixes)
+        if not fixes:
+            raise ValueError("There are no fixes for %s", self.model)
         # FIXME(vmarkovtsev): we are taking the first fix here which does not work for >1 language
         return generate_quality_report(
             fixes[0].language, self.model.ptr, vnodes, self.config["max_files"])
