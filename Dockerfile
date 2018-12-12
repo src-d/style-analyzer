@@ -9,7 +9,7 @@ RUN apt-get update && \
     pip3 install --no-cache-dir -r requirements.txt && \
     pip3 uninstall -y pyspark && \
     apt-get remove -y python3-dev libsnappy-dev gcc g++ && \
-    apt-get remove -y .*-doc .*-man >/dev/null && \
+    apt-get remove -y .*-doc >/dev/null && \
     apt-get autoremove -y && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*

@@ -289,7 +289,7 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
                 try:
                     for cmd in (cmd1, cmd2):
                         log.debug("Running: %s", cmd)
-                        subprocess.check_call(cmd.split(), shell=True)
+                        subprocess.check_call(cmd.split())
                 except subprocess.CalledProcessError as e:
                     raise ConnectionError("Unable to fetch repository %s" % repo) from e
                 input_pattern = os.path.join(git_dir, "**", "*.js")
