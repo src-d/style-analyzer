@@ -5,11 +5,14 @@
 * `{{ "Confidence: %s  " % (confidence_threshold) }}`
 * `{{ "Support: %s" % (support_threshold) }}`
 
-### Metrics table for the *jquery/jquery* repository
-  
+### Metrics table
 
-| number of mistakes | recall at threshold precision | precision at max recall | empirical confidence threshold | max recall  |             Number of rules              |
-|:------------------:|:-----------------------------:|:-----------------------:|:------------------------------:|:-----------:|:----------------------------------------:|
-|   {{n_mistakes}}   |     {{rec_threshold_prec}}    |     {{prec_max_rec}}    |  {{confidence_threshold_exp}}  | {{max_rec}} | `{{ n_rules_filtered }} / {{ n_rules }}` |
+| repository |  number of mistakes  | recall at threshold precision | precision at max recall |   empirical confidence threshold   |    max recall     |        Number of rules (filtered / overall)          |
+|:----------:|:--------------------:|:-----------------------------:|:-----------------------:|:----------------------------------:|:-----------------:|:----------------------------------------------------:|
+{% for repo in repos %}
+|  {{repo}}  | {{n_mistakes[repo]}} |  {{rec_threshold_prec[repo]}} |  {{prec_max_rec[repo]}} | {{confidence_threshold_exp[repo]}} | {{max_rec[repo]}} | `{{ n_rules_filtered[repo] }} / {{ n_rules[repo] }}` |
+{% endfor %}
 
-![Precision-Racall curve]({{path_to_figure}})
+### Precision-recall curves
+
+![Precision-Recall curve]({{path_to_figure}})
