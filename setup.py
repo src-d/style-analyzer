@@ -39,6 +39,7 @@ setup(
         "gensim>=3.5.0,<4.0",
         "google-compute-engine>=2.8.3,<3.0",  # for gensim
         "xgboost>=0.72,<2.0",
+        "tabulate>=0.8.0,<2.0",
     ],
     extras_require={
         "tf": tf_requires,
