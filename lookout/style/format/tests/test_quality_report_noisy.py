@@ -23,7 +23,7 @@ class RobustnessTests(unittest.TestCase):
                                      support_threshold=20,
                                      precision_threshold=0.95,
                                      dir_output=tempfile.tempdir,
-                                     repos_url="https://github.com/warenlg/axios")
+                                     repos_urls="https://github.com/warenlg/axios")
             except SystemExit:
                 self.skipTest("Matplotlib is required to run this test")
         pattern = re.compile(r"((?:recall x)|(?:precision y)): \[(\d+.\d+(, \d+.\d+)+)\]")
