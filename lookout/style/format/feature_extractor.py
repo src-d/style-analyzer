@@ -594,7 +594,7 @@ class FeatureExtractor:
                                                 end=Position(0, 1, 1), y=noop_label, path=path))
         for vnode, next_vnode in zip(vnodes, islice(vnodes, 1, None)):
             augmented_vnodes.append(vnode)
-            if vnode.y is None and next_vnode.y is None:
+            if vnode.y is None and not vnode.is_accumulated_indentation and next_vnode.y is None:
                 augmented_vnodes.append(VirtualNode(value="", start=vnode.end, end=vnode.end,
                                                     y=noop_label, path=path))
         augmented_vnodes.append(next_vnode)
