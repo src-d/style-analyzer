@@ -14,6 +14,7 @@ from lookout.core.analyzer import ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2 import File
 from lookout.core.data_requests import DataService, request_files
+from sklearn.exceptions import NotFittedError
 from sklearn.metrics import classification_report, confusion_matrix
 
 from lookout.style.format.analyzer import FixData, FormatAnalyzer
@@ -97,7 +98,7 @@ def generate_model_report(model: FormatModel,
     Generate report about model - description for each rule, min/max support, min/max confidence.
 
     :param model: trained format model.
-    :param languages: Lnguages for which report should be created. You can specify one \
+    :param languages: Languages for which report should be created. You can specify one \
                       language as string, several as list of strings or None for all languages in \
                       the model.
     :return: report in str format.
@@ -107,6 +108,8 @@ def generate_model_report(model: FormatModel,
     languages = languages if isinstance(languages, Iterable) else [languages]
     template = _load_jinja2_template("templates/model_report.md.jinja2")
     for language in languages:
+        if language not in model:
+            raise NotFittedError()
         rules = model[language]
         min_support, max_support = float("inf"), -1
         min_conf, max_conf = 1, 0
@@ -159,6 +162,8 @@ def quality_report(input_pattern: str, bblfsh: str, language: str, model_path: s
 
     config = config if isinstance(config, dict) else json.loads(config)
     model = FormatModel().load(model_path)
+    if language not in model:
+        raise NotFittedError()
     rules = model[language]
     client = BblfshClient(bblfsh)
     files = prepare_files(glob.glob(input_pattern, recursive=True), client, language)

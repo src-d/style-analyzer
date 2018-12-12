@@ -7,6 +7,7 @@ from typing import Any, Iterable, Mapping, MutableMapping, Union
 
 from bblfsh import BblfshClient
 import numpy
+from sklearn.exceptions import NotFittedError
 from tqdm import tqdm
 
 from lookout.style.format.benchmarks.time_profile import profile
@@ -105,6 +106,8 @@ def print_rules_report(input_pattern: str, bblfsh: str, language: str, model_pat
     """Print several different reports for a given model on a given dataset."""
     log = logging.getLogger("print_rules_report")
     model = FormatModel().load(model_path)
+    if language not in model:
+        raise NotFittedError()
     rules = model[language]
     print("Model parameters: %s" % rules.origin_config)
     print("Stats about rules: %s" % rules)

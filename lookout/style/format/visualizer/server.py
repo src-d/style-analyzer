@@ -11,6 +11,7 @@ from flask_cors import CORS
 from lookout.core.api.service_data_pb2 import File
 import numpy
 from scipy.sparse import csr_matrix
+from sklearn.exceptions import NotFittedError
 
 from lookout.style.format.descriptions import describe_rule_attrs, describe_sample
 from lookout.style.format.feature_extractor import FeatureExtractor
@@ -98,6 +99,8 @@ def return_features() -> Response:
     if res.status != 0:
         abort(500)
     model = FormatModel().load(str(Path(__file__).parent / "models" / "model.asdf"))
+    if language not in model:
+        raise NotFittedError()
     rules = model[language]
     file = File(content=code.encode(), uast=res.uast, language="javascript")
     config = rules.origin_config["feature_extractor"]
