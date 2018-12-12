@@ -19,6 +19,38 @@ from lookout.style.format.tests.test_model import compare_models
 Change = NamedTuple("Change", [("base", File), ("head", File)])
 
 
+def get_train_config():
+    return {
+        "global": {
+            "feature_extractor": {
+                "left_siblings_window": 2,
+                "right_siblings_window": 2,
+                "parents_depth": 2,
+                "select_features_number": 250,
+                "return_sibling_indices": False,
+                "cutoff_label_support": 5,
+            },
+            "trainable_rules": {
+                "prune_branches_algorithms": ["reduced-error"],
+                "top_down_greedy_budget": [False, .5],
+                "prune_attributes": False,
+                "uncertain_attributes": False,
+                "n_estimators": 3,
+                "random_state": 42,
+            },
+            "n_iter": 1,
+        },
+    }
+
+
+def get_analyze_config():
+    return {
+        "confidence_threshold": 0.9,
+        "support_threshold": 10,
+        "uast_break_check": False,
+    }
+
+
 class FakeDataService:
     def __init__(self, files: Optional[Iterable[File]], changes: Optional[Iterable[Change]]):
         self.data_stub = FakeDataStub(files, changes)
@@ -82,11 +114,10 @@ class AnalyzerTests(unittest.TestCase):
 
     def test_train(self):
         self.data_service = FakeDataService(files=self.base_files.values(), changes=None)
-        config = {"global": {"n_iter": 1, "feature_extractor": {"cutoff_label_support": 0}}}
-        model1 = FormatAnalyzer.train(self.ptr, config, self.data_service)
+        model1 = FormatAnalyzer.train(self.ptr, get_train_config(), self.data_service)
         self.assertIsInstance(model1, FormatModel)
         self.assertIn("javascript", model1, str(model1))
-        model2 = FormatAnalyzer.train(self.ptr, config, self.data_service)
+        model2 = FormatAnalyzer.train(self.ptr, get_train_config(), self.data_service)
         self.assertEqual(model1["javascript"].rules, model2["javascript"].rules)
         self.assertGreater(len(model1["javascript"]), 10)
         # Check that model can be saved without problems and then load back
@@ -98,11 +129,10 @@ class AnalyzerTests(unittest.TestCase):
 
     def test_train_cutoff_labels(self):
         self.data_service = FakeDataService(files=self.base_files.values(), changes=None)
-        config = {"global": {"n_iter": 1, "feature_extractor": {"cutoff_label_support": 50}}}
-        model1 = FormatAnalyzer.train(self.ptr, config, self.data_service)
+        model1 = FormatAnalyzer.train(self.ptr, get_train_config(), self.data_service)
         self.assertIsInstance(model1, FormatModel)
         self.assertIn("javascript", model1, str(model1))
-        model2 = FormatAnalyzer.train(self.ptr, config, self.data_service)
+        model2 = FormatAnalyzer.train(self.ptr, get_train_config(), self.data_service)
         self.assertEqual(model1["javascript"].rules, model2["javascript"].rules)
         self.assertGreater(len(model1["javascript"]), 10)
         # Check that model can be saved without problems and then load back
@@ -118,20 +148,21 @@ class AnalyzerTests(unittest.TestCase):
             files=self.base_files.values(),
             changes=[Change(base=self.base_files[k], head=self.head_files[k])
                      for k in common])
-        config = {"global": {"n_iter": 1, "cutoff_label_precision": 0.8,
-                             "feature_extractor": {"cutoff_label_support": 50}}}
-        model = FormatAnalyzer.train(self.ptr, config, self.data_service)
-        analyzer = FormatAnalyzer(model, self.ptr.url, {"confidence_threshold": 0.90,
-                                                        "support_threshold": 50})
+        config = get_train_config()
+        # Make uast_break_check only here
+        config["uast_break_check"] = True
+        model = FormatAnalyzer.train(self.ptr, get_train_config(), self.data_service)
+        analyzer = FormatAnalyzer(model, self.ptr.url, get_analyze_config())
         comments = analyzer.analyze(self.ptr, self.ptr, self.data_service)
         self.assertGreater(len(comments), 0)
 
     def test_file_filtering(self):
         self.data_service = FakeDataService(files=self.base_files.values(), changes=None)
-        config = {"global": {"n_iter": 1, "line_length_limit": 0}}
+        config = get_train_config()
+        config["global"]["line_length_limit"] = 0
         model_trained = FormatAnalyzer.train(self.ptr, config, self.data_service)
         self.assertEqual(len(model_trained._rules_by_lang), 0)
-        config = {"global": {"n_iter": 1, "line_length_limit": 500}}
+        config["global"]["line_length_limit"] = 500
         model_trained = FormatAnalyzer.train(self.ptr, config, self.data_service)
         self.assertGreater(len(model_trained._rules_by_lang), 0)
 

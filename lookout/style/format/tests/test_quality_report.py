@@ -11,6 +11,7 @@ import unittest
 from lookout.core.test_helpers import server
 
 from lookout.style.format.quality_report import quality_report, QualityReportAnalyzer
+from lookout.style.format.tests.test_analyzer import get_analyze_config, get_train_config
 from lookout.style.format.tests.test_analyzer_integration import (
     FROM_COMMIT, TestAnalyzer, TO_COMMIT)
 
@@ -106,10 +107,11 @@ class QualityReportTests(PretrainedModelTests):
         with TestAnalyzer(port=self.port, db=self.db.name, fs=self.fs.name,
                           analyzer="lookout.style.format.quality_report"):
             server.run("push", FROM_COMMIT, TO_COMMIT, port=self.port,
-                       git_dir=self.jquery_dir)
+                       git_dir=self.jquery_dir, config_json=json.dumps({
+                            QualityReportAnalyzer.name: get_train_config()}))
             server.run("review", FROM_COMMIT, TO_COMMIT, port=self.port,
                        git_dir=self.jquery_dir, config_json=json.dumps({
-                            QualityReportAnalyzer.name: {"uast_break_check": False}}))
+                            QualityReportAnalyzer.name: get_analyze_config()}))
 
 
 if __name__ == "__main__":
