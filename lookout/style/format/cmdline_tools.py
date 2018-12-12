@@ -52,7 +52,9 @@ def add_rules_thresholds(my_parser: ArgumentParser):
 
     :param my_parser: Parser to add the arguments to.
     """
-    my_parser.add_argument("--confidence-threshold", type=float, default=0.95,
+    # This default values also used in `make report-noisy`.
+    # You should think twice before changing it.
+    my_parser.add_argument("--confidence-threshold", type=float, default=0,
                            help="Confidence threshold to filter relevant rules.")
     my_parser.add_argument("--support-threshold", type=int, default=80,
                            help="Support threshold to filter relevant rules.")
