@@ -55,14 +55,18 @@ def convert_to_sklearn_format(vnodes: Iterable[VirtualNode],
     return y, y_pred, vnodes_y, target_names
 
 
-def _load_jinja2_template(report_temlate_filename: str) -> jinja2.Template:
-    env = jinja2.Environment(trim_blocks=True, lstrip_blocks=True, keep_trailing_newline=True)
-    env.globals.update(range=range)
-    return jinja2.FileSystemLoader(("/", os.path.dirname(__file__), os.getcwd()),
-                                   followlinks=True).load(env, report_temlate_filename)
+def _load_jinja2_template(report_template_filename: str) -> jinja2.Template:
+    env = jinja2.Environment(trim_blocks=True, lstrip_blocks=True, keep_trailing_newline=True,
+                             extensions=["jinja2.ext.do"])
+    loader = jinja2.FileSystemLoader((os.path.join(os.path.dirname(__file__), "templates"),),
+                                     followlinks=True)
+    template = loader.load(env, report_template_filename)
+    # the following is really needed, otherwise e.g. range is undefined
+    template.globals = template.environment.globals
+    return template
 
 
-def generate_report(vnodes, n_files):
+def generate_quality_report(language: str, ptr: ReferencePointer, vnodes, max_files: int):
     """Generate report: classification report, confusion matrix, files with most errors."""
     y, y_pred, vnodes_y, target_names = convert_to_sklearn_format(vnodes)
     # classification report
@@ -83,12 +87,13 @@ def generate_report(vnodes, n_files):
             file_mispred.append(vn.path)
     file_stat = Counter(file_mispred)
     to_show = file_stat.most_common()
-    if n_files > 0:
-        to_show = to_show[:n_files]
+    if max_files > 0:
+        to_show = to_show[:max_files]
 
-    template = _load_jinja2_template("templates/quality_report.md.jinja2")
-    res = template.render(cl_report=c_sorted, conf_mat=mat, target_names=target_names,
-                          files=to_show)
+    template = _load_jinja2_template("quality_report.md.jinja2")
+    # TODO(vmarkovtsev): move all the logic inside the template
+    res = template.render(language=language, ptr=ptr, cl_report=c_sorted, conf_mat=mat,
+                          target_names=target_names, files=to_show)
     return res
 
 
@@ -103,38 +108,20 @@ def generate_model_report(model: FormatModel,
                       the model.
     :return: report in str format.
     """
-    rules_report = []
     languages = languages if languages is not None else model.languages
     languages = languages if isinstance(languages, Iterable) else [languages]
-    template = _load_jinja2_template("templates/model_report.md.jinja2")
     for language in languages:
         if language not in model:
-            raise NotFittedError()
-        rules = model[language]
-        min_support, max_support = float("inf"), -1
-        min_conf, max_conf = 1, 0
-        rules_desc = []
-        packages = model.meta["environment"]["packages"]
-        feature_extractor = FeatureExtractor(language=language,
-                                             **rules.origin_config["feature_extractor"])
-        for i, rule in enumerate(rules.rules):
-            min_support = min(min_support, rule.stats.support)
-            max_support = max(max_support, rule.stats.support)
-            min_conf = min(min_conf, rule.stats.conf)
-            max_conf = max(max_conf, rule.stats.conf)
-            rules_desc.append((i, describe_rule(rule, feature_extractor).replace("\n", "<br>")))
-        rules_report.append(template.render(
-            rules_desc=rules_desc, min_support=min_support, max_support=max_support,
-            min_conf=min_conf, max_conf=max_conf, language=language, rules=rules,
-            packages=packages,
-        ))
-    return "\n".join(rules_report)
+            raise NotFittedError(language)
+    template = _load_jinja2_template("model_report.md.jinja2")
+    return template.render(model=model, languages=languages, FeatureExtractor=FeatureExtractor,
+                           describe_rule=describe_rule)
 
 
 @profile
-def quality_report(input_pattern: str, bblfsh: str, language: str, model_path: str,
-                   config: Union[str, dict] = "{}", log_level: str = "INFO") -> None:
-    """Print quality report for a given model on a given dataset."""
+def print_reports(input_pattern: str, bblfsh: str, language: str, model_path: str,
+                  config: Union[str, dict] = "{}", log_level: str = "INFO") -> None:
+    """Print quality and model reports for a given model on a given dataset."""
     slogging.setup(log_level, False)
     log = logging.getLogger("quality_report")
 
@@ -192,7 +179,7 @@ class ReportAnalyzer(FormatAnalyzer):
     defaults_for_analyze = merge_dicts(FormatAnalyzer.defaults_for_analyze,
                                        {"aggregate": False})
 
-    def generate_report(self, fixes: Iterable[FixData]) -> str:
+    def generate_quality_report(self, fixes: Iterable[FixData]) -> str:
         """
         Generate report.
 
@@ -235,11 +222,11 @@ class ReportAnalyzer(FormatAnalyzer):
             if self.config["aggregate"]:
                 fixes.append(fix)
             else:
-                report = self.generate_report(fixes=[fix])
+                report = self.generate_quality_report(fixes=[fix])
                 comments.append(generate_comment(
                     filename=filepath, line=0, confidence=100, text=report))
         if self.config["aggregate"]:
-            report = self.generate_report(fixes=fixes)
+            report = self.generate_quality_report(fixes=fixes)
             comments.append(generate_comment(
                 filename="", line=0, confidence=100, text=report))
         comments.append(generate_comment(
@@ -297,7 +284,7 @@ class QualityReportAnalyzer(ReportAnalyzer):
     description = "Source code formatting quality report generator: " \
                   "whitespace, new lines, quotes, etc."
     defaults_for_analyze = merge_dicts(ReportAnalyzer.defaults_for_analyze,
-                                       {"n_files": 10})
+                                       {"max_files": 10})
 
     def generate_model_report(self) -> str:
         """
@@ -307,14 +294,17 @@ class QualityReportAnalyzer(ReportAnalyzer):
         """
         return generate_model_report(model=self.model)
 
-    def generate_report(self, fixes: Iterable[FixData]) -> str:
+    def generate_quality_report(self, fixes: Iterable[FixData]) -> str:
         """
         Generate quality report: classification report, confusion matrix, files with most errors.
 
         :return: report.
         """
-        return generate_report(chain.from_iterable(fix.all_vnodes for fix in fixes),
-                               self.config["n_files"])
+        fixes = list(fixes)
+        vnodes = chain.from_iterable(fix.all_vnodes for fix in fixes)
+        # FIXME(vmarkovtsev): we are taking the first fix here which does not work for >1 language
+        return generate_quality_report(
+            fixes[0].language, self.model.ptr, vnodes, self.config["max_files"])
 
 
 analyzer_class = QualityReportAnalyzer

@@ -12,8 +12,8 @@ from tqdm import tqdm
 
 from lookout.style.format.benchmarks.time_profile import profile
 from lookout.style.format.feature_extractor import FeatureExtractor
+from lookout.style.format.general_report import FormatModel, generate_model_report, ReportAnalyzer
 from lookout.style.format.postprocess import filter_uast_breaking_preds
-from lookout.style.format.quality_report import FormatModel, generate_model_report, ReportAnalyzer
 from lookout.style.format.utils import prepare_files
 
 
@@ -200,10 +200,10 @@ class RuleStatAnalyzer(ReportAnalyzer):
         return "\n".join(res)
 
     @classmethod
-    def generate_report(cls, y: Union[numpy.ndarray, Iterable[Union[int, float]]],
-                        y_pred: Union[numpy.ndarray, Iterable[Union[int, float]]],
-                        rule_winners: Iterable[int], feature_extractor: FeatureExtractor,
-                        **kwargs) -> str:
+    def generate_quality_report(cls, y: Union[numpy.ndarray, Iterable[Union[int, float]]],
+                                y_pred: Union[numpy.ndarray, Iterable[Union[int, float]]],
+                                rule_winners: Iterable[int], feature_extractor: FeatureExtractor,
+                                **kwargs) -> str:
         """
         Generate report about predictions and triggered rules.
 
