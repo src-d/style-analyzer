@@ -9,6 +9,7 @@ from sklearn import model_selection, tree
 from lookout.style.format.analyzer import FormatAnalyzer
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.rules import TrainableRules
+from lookout.style.format.tests.test_analyzer import get_train_config
 
 
 class RulesIntegrationTests(unittest.TestCase):
@@ -23,7 +24,7 @@ class RulesIntegrationTests(unittest.TestCase):
         file = File(content=bytes(contents, "utf-8"),
                     uast=uast)
         cls.files = [file]
-        config = FormatAnalyzer._load_train_config({})
+        config = FormatAnalyzer._load_train_config(get_train_config())
         cls.config = config["javascript"]
         cls.extractor = FeatureExtractor(language="javascript", **cls.config["feature_extractor"])
 

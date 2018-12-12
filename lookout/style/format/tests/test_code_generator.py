@@ -10,6 +10,7 @@ from lookout.style.format.analyzer import FormatAnalyzer
 from lookout.style.format.code_generator import CodeGenerator
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.tests.code_generator_data import cases, label_composites
+from lookout.style.format.tests.test_analyzer import get_train_config
 
 
 class GeneratorTestsMeta(type):
@@ -64,7 +65,7 @@ class CodeGeneratorTests(unittest.TestCase, metaclass=GeneratorTestsMeta):
             contents = fin.read()
         with lzma.open(str(base / "benchmark_small.js.uast.xz")) as fin:
             uast = bblfsh.Node.FromString(fin.read())
-        config = FormatAnalyzer._load_train_config({})
+        config = FormatAnalyzer._load_train_config(get_train_config())
         fe_config = config["javascript"]
         cls.feature_extractor = FeatureExtractor(language="javascript",
                                                  label_composites=label_composites,
