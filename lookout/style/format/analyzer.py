@@ -4,11 +4,10 @@ from itertools import chain
 import logging
 import os
 from pprint import pformat
-import threading
 from typing import Any, Iterable, List, Mapping, NamedTuple, Sequence, Tuple
 
+import bblfsh  # noqa: F401
 from jinja2 import Template
-from lookout.core import slogging
 from lookout.core.analyzer import Analyzer, ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2 import File
@@ -16,14 +15,13 @@ from lookout.core.data_requests import DataService, \
     with_changed_uasts_and_contents, with_uasts_and_contents
 from lookout.core.lib import files_by_language, filter_files, find_deleted_lines, find_new_lines
 import numpy
-from skopt import BayesSearchCV
-from skopt.space import Categorical, Integer
 
 from lookout.style.format.classes import CLASS_INDEX, CLS_NEWLINE
 from lookout.style.format.code_generator import CodeGenerator
 from lookout.style.format.descriptions import describe_rule, get_change_description
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.model import FormatModel
+from lookout.style.format.optimizer import Optimizer
 from lookout.style.format.postprocess import filter_uast_breaking_preds
 from lookout.style.format.rules import Rules, TrainableRules
 from lookout.style.format.utils import generate_comment, merge_dicts
@@ -83,7 +81,7 @@ class FormatAnalyzer(Analyzer):
             "trainable_rules": {
                 "prune_branches_algorithms": ["reduced-error"],
                 "top_down_greedy_budget": [False, .5],
-                "prune_attributes": True,
+                "prune_attributes": False,
                 "uncertain_attributes": True,
                 "prune_dataset_ratio": .2,
                 "n_estimators": 10,
@@ -180,39 +178,15 @@ class FormatAnalyzer(Analyzer):
                                  len(files), language, X.shape[0], lower_bound_instances)
                 continue
             cls._log.debug("training the rules model")
-            if not slogging.logs_are_structured:
-                # workaround the check in joblib - everything still works without it
-                threading._MainThread = threading.Thread
-            backup_prune_attributes = lang_config["trainable_rules"]["prune_attributes"]
-            lang_config["trainable_rules"]["prune_attributes"] = False
-            try:
-                bscv = BayesSearchCV(
-                    TrainableRules(**lang_config["trainable_rules"], origin_config=lang_config),
-                    {"base_model_name": Categorical(["sklearn.ensemble.RandomForestClassifier",
-                                                     "sklearn.tree.DecisionTreeClassifier"]),
-                     "max_depth": Categorical([None, 5, 10]),
-                     "max_features": Categorical([None, "auto"]),
-                     "min_samples_split": Integer(2, 20),
-                     "min_samples_leaf": Integer(1, 20)},
-                    n_jobs=lang_config["n_jobs"],
-                    n_iter=lang_config["n_iter"],
-                    cv=lang_config["cv"],
-                    random_state=lang_config["trainable_rules"]["random_state"])
-            finally:
-                lang_config["trainable_rules"]["prune_attributes"] = backup_prune_attributes
-            if not slogging.logs_are_structured:
-                # fool the check in joblib - everything still works without it
-                # this trick allows to run parallel bscv.fit()
-                from unittest.mock import patch
-                with patch("threading._MainThread", threading.Thread):
-                    cls._log.debug("patched joblib")
-                    bscv.fit(X, y)
-            else:
-                bscv.fit(X, y)
-            cls._log.debug("score of the best estimator found: %.6f", bscv.best_score_)
-            cls._log.debug("params of the best estimator found: %s", str(bscv.best_params_))
+            optimizer = Optimizer(n_jobs=lang_config["n_jobs"],
+                                  n_iter=lang_config["n_iter"],
+                                  cv=lang_config["cv"],
+                                  random_state=lang_config["trainable_rules"]["random_state"])
+            best_score, best_params = optimizer.optimize(X, y)
+            cls._log.debug("score of the best estimator found: %.6f", best_score)
+            cls._log.debug("params of the best estimator found: %s", str(best_params))
             cls._log.debug("training the model with complete data")
-            lang_config["trainable_rules"].update(bscv.best_params_)
+            lang_config["trainable_rules"].update(best_params)
             trainable_rules = TrainableRules(**lang_config["trainable_rules"],
                                              origin_config=lang_config)
             trainable_rules.fit(X, y)
