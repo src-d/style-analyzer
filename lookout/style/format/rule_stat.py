@@ -10,9 +10,10 @@ import numpy
 from sklearn.exceptions import NotFittedError
 from tqdm import tqdm
 
+from lookout.style.format.benchmarks.general_report import FormatModel, generate_model_report, \
+    ReportAnalyzer
 from lookout.style.format.benchmarks.time_profile import profile
 from lookout.style.format.feature_extractor import FeatureExtractor
-from lookout.style.format.benchmarks.general_report import FormatModel, generate_model_report, ReportAnalyzer
 from lookout.style.format.postprocess import filter_uast_breaking_preds
 from lookout.style.format.utils import prepare_files
 
