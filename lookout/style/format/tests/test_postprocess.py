@@ -1,4 +1,3 @@
-import logging
 from pathlib import Path
 import tempfile
 import unittest
@@ -20,6 +19,7 @@ class PostprocessingTests(unittest.TestCase):
         cls.language = "javascript"
         cls.data_service = FakeDataService(files=None, changes=None)
         cls.stub = cls.data_service.get_bblfsh()
+        cls.bblfsh_address = "0.0.0.0:9432"
         config = {"global": {"feature_extractor": {"cutoff_label_support": 0}}}
         cls.fe = FeatureExtractor(
             language=cls.language,
@@ -35,7 +35,6 @@ class PostprocessingTests(unittest.TestCase):
         cls.base_dir_.cleanup()
 
     def test_posprocess(self):
-        log = logging.getLogger("postprocess")
         code = "var a = 15"
         uast, errors = parse_uast(self.stub, code, filename="", language=self.language)
         if errors:
@@ -47,8 +46,8 @@ class PostprocessingTests(unittest.TestCase):
         # Introduce a bad pred in position 1 (between var and a): noop will break the code
         y_pred[1] = self.fe.class_sequences_to_labels[self.noop]
         new_y, new_y_pred, new_vnodes_y, new_rule_winners, safe_preds = filter_uast_breaking_preds(
-            y, y_pred, vnodes_y, vnodes, {"test_file": file}, self.fe, self.stub, vnode_parents,
-            node_parents, rule_winners, log)
+            y, y_pred, vnodes_y, vnodes, {"test_file": file}, self.fe, "0.0.0.0:9432",
+            vnode_parents, node_parents, rule_winners)
         bad_preds = set(range(y.shape[0])) - set(safe_preds)
         self.assertEqual(bad_preds, {1})
         self.assertEqual(len(y) - 1, len(new_y))

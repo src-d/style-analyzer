@@ -90,26 +90,29 @@ def files2vnodes(files: Iterable[str], feature_extractor: FeatureExtractor, clie
 
 
 def files2mispreds(files: Iterable[str], feature_extractor: FeatureExtractor, rules: Rules,
-                   client: BblfshClient, log: logging.Logger) -> Iterable[Misprediction]:
+                   bblfsh_address: str, bblfsh_client: BblfshClient, log: logging.Logger,
+                   ) -> Iterable[Misprediction]:
     """
     Return the model's `Misprediction`-s on a list of files.
 
     :param files: List of files to get `Misprediction`-s from.
     :param feature_extractor: FeatureExtractor to use.
     :param rules: Rules to use for prediction.
-    :param client: Babelfish client. Babelfish server should be started accordingly.
+    :param bblfsh_address: Address of bblfshd.
+    :param bblfsh_client: Bblfsh client.
     :param log: Logger.
     :return: List of `Misprediction`-s extracted from a given list of files.
     """
-    files = prepare_files(files, client, feature_extractor.language)
+    files = prepare_files(files, bblfsh_client, feature_extractor.language)
     X, y, (vnodes_y, vnodes, vnode_parents, node_parents) = feature_extractor \
         .extract_features(files)
     y_pred, rule_winners, _ = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
                                             feature_extractor=feature_extractor)
     y, y_pred, vnodes_y, rule_winners, safe_preds = filter_uast_breaking_preds(
         y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes,
-        files={f.path: f for f in files}, feature_extractor=feature_extractor, stub=client._stub,
-        vnode_parents=vnode_parents, node_parents=node_parents, rule_winners=rule_winners, log=log)
+        files={f.path: f for f in files}, feature_extractor=feature_extractor,
+        bblfsh_client=bblfsh_address, vnode_parents=vnode_parents, node_parents=node_parents,
+        rule_winners=rule_winners)
     mispreds = get_mispreds(y, y_pred, vnodes_y, rule_winners)
     return mispreds
 
@@ -251,13 +254,13 @@ def plot_curve(repositories: Iterable[str], recalls: Mapping[str, numpy.ndarray]
     plt.savefig(path_to_figure)
 
 
-def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float,
+def quality_report_noisy(bblfsh_address: str, language: str, confidence_threshold: float,
                          support_threshold: int, precision_threshold: float,
                          dir_output: str, repos_url: Optional[str] = None) -> None:
     """
     Generate a quality report on the artificial noisy dataset including a precision-recall curve.
 
-    :param bblfsh: Babelfish client. Babelfish server should be started accordingly.
+    :param bblfsh_address: Address of bblfshd.
     :param language: Language to consider, others will be discarded.
     :param confidence_threshold: Confidence threshold to filter relevant rules.
     :param support_threshold: Support threshold to filter relevant rules.
@@ -276,7 +279,7 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
     if repos_url is None:
         repos_url = REPOSITORIES
     try:
-        client = BblfshClient(bblfsh)
+        bblfsh_client = BblfshClient(bblfsh_address)
         for url in repos_url.splitlines():
             repo = url.split("/")[-1]
             log.info("Fetching %s", url)
@@ -309,8 +312,9 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
                 rules = analyzer[language]
                 feature_extractor = FeatureExtractor(language=language,
                                                      **rules.origin_config["feature_extractor"])
-                vnodes_y_true = files2vnodes(true_files, feature_extractor, client)
-                mispreds_noise = files2mispreds(noisy_files, feature_extractor, rules, client, log)
+                vnodes_y_true = files2vnodes(true_files, feature_extractor, bblfsh_client)
+                mispreds_noise = files2mispreds(noisy_files, feature_extractor, rules,
+                                                bblfsh_address, bblfsh_client, log)
             diff_mispreds = get_diff_mispreds(mispreds_noise, start_changes)
             changes_count = len(start_changes)
             n_rules[repo] = len(rules.rules)
@@ -345,7 +349,7 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
                 confidence_threshold_exp[repo] = round(rules.rules[i].stats.conf, 3)
                 rec_threshold_prec[repo] = rec
     finally:
-        client._channel.close()
+        bblfsh_client._channel.close()
 
     # compile the precision-recall curves
     path_to_figure = os.path.join(dir_output, "pr_curves.png")

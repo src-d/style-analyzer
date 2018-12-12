@@ -3,6 +3,7 @@ from collections.abc import Mapping as Mapping_abc
 from functools import partial
 import logging
 from pathlib import Path
+from time import time
 from typing import Any, Dict, List, Mapping, Sequence, Union
 
 from bblfsh import BblfshClient
@@ -91,7 +92,7 @@ def _input_matrix_to_descriptions(X_csr: csr_matrix, feature_extractor: FeatureE
 def return_features() -> Response:
     """Featurize the given code."""
     body = request.get_json()
-    code = body["code"]
+    code = body["code"]  # "\n".join([body["code"]] * 10) for stress test
     babelfish_address = body["babelfish_address"]
     language = body["language"]
     client = BblfshClient(babelfish_address)
@@ -112,10 +113,13 @@ def return_features() -> Response:
     X, y, (vnodes_y, vnodes, vnode_parents, node_parents, sibling_indices) = res
     y_pred, rule_winners, rules = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
                                                 feature_extractor=fe)
+    app.logger.info("filtering breaking predictions")
+    start = time()
     _, _, _, _, safe_preds = filter_uast_breaking_preds(
         y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, files={file.path: file},
-        feature_extractor=fe, stub=client._stub, vnode_parents=vnode_parents,
-        node_parents=node_parents, rule_winners=rule_winners, log=app.logger)
+        feature_extractor=fe, bblfsh_client=babelfish_address, vnode_parents=vnode_parents,
+        node_parents=node_parents, rule_winners=rule_winners)
+    app.logger.info("filtered breaking predictions in %ds", time() - start)
     break_uast = [False] * X.shape[0]
     for wrong_pred in set(range(X.shape[0])).difference(safe_preds):
         break_uast[wrong_pred] = True

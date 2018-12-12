@@ -17,7 +17,7 @@ class RobustnessTests(unittest.TestCase):
     def test_quality_report_noisy(self):
         with Capturing() as output:
             try:
-                quality_report_noisy(bblfsh=self.bblfsh,
+                quality_report_noisy(bblfsh_address=self.bblfsh,
                                      language=self.language,
                                      confidence_threshold=0.8,
                                      support_threshold=20,

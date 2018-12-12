@@ -249,7 +249,7 @@ class FormatAnalyzer(Analyzer):
                 else:
                     yield from self._generate_comments_data(
                         lang, file, prev_file, fe, feature_extractor_output,
-                        data_service.get_bblfsh(), rules)
+                        data_service, rules)
 
     def render_comment_text(self, fix_data: FixData) -> str:
         """
@@ -281,7 +281,7 @@ class FormatAnalyzer(Analyzer):
 
     def _generate_comments_data(
             self, language: str, file: File, base_file: File, fe: FeatureExtractor,
-            feature_extractor_output, bblfsh_stub: "bblfsh.aliases.ProtocolServiceStub",
+            feature_extractor_output, data_service: DataService,
             rules: Rules) -> Iterable[FixData]:
         X, y, (vnodes_y, vnodes, vnode_parents, node_parents) = feature_extractor_output
         y_pred, rule_winners, new_rules = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
@@ -289,8 +289,8 @@ class FormatAnalyzer(Analyzer):
         if self.config["uast_break_check"]:
             y, y_pred, vnodes_y, rule_winners, safe_preds = filter_uast_breaking_preds(
                 y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, files={file.path: file},
-                feature_extractor=fe, stub=bblfsh_stub, vnode_parents=vnode_parents,
-                node_parents=node_parents, rule_winners=rule_winners, log=self._log)
+                feature_extractor=fe, data_service=data_service, vnode_parents=vnode_parents,
+                node_parents=node_parents, rule_winners=rule_winners)
         assert len(y) == len(y_pred)
         assert len(y) == len(rule_winners)
         code_generator = CodeGenerator(fe, skip_errors=True)
