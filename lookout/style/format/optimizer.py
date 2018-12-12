@@ -32,14 +32,29 @@ class Optimizer:
     _log = getLogger("Optimizer")
 
     def __init__(self, cv: int, n_iter: int, n_jobs: Optional[int], random_state: int):
-        """Construct an `Optimizer`."""
+        """
+        Construct an `Optimizer`.
+
+        :param cv: Number of folds to use during cross-validation.
+        :param n_iter: Number of optimization iterations. Minimum 10.
+        :param n_jobs: Number of jobs to use. Passed on to cross_val_score.
+        :param random_state: Random seed.
+        """
         self.cv = cv
+        if n_iter < 10:
+            self._log.warning("n_iter values below 10 (%d) are considered as 10.", n_iter)
         self.n_iter = max(10, n_iter)
         self.n_jobs = n_jobs
         self.random_state = random_state
 
     def optimize(self, X: csr_matrix, y: numpy.ndarray) -> Tuple[float, Mapping[str, Any]]:
-        """Conduct hyper-parameters search to find the best base model given the data."""
+        """
+        Conduct hyper-parameters search to find the best base model given the data.
+
+        :param X: Sparse feature matrix.
+        :param y: Labels numpy array.
+        :return: Best base model score and parameters.
+        """
         cost_function = use_named_args(_dimensions)(partial(self._cost, X=X, y=y))
 
         def _minimize() -> OptimizeResult:
