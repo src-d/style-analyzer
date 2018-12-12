@@ -54,9 +54,9 @@ class FormatAnalyzer(Analyzer):
     defaults_for_analyze = {
         "confidence_threshold": 0.95,
         "support_threshold": 80,
-        "report_code_lines": True,
-        "report_triggered_rules": True,
-        "report_parse_failures": True,
+        "report_code_lines": False,
+        "report_triggered_rules": False,
+        "report_parse_failures": False,
         "uast_break_check": True,
         "comment_template": os.path.join(os.path.dirname(__file__), "templates",
                                          "comment_default.jinja2"),
