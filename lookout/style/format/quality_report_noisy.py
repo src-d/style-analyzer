@@ -213,7 +213,7 @@ def compute_metrics(changes_count: int, predictions_count: int, true_positive: i
 def plot_curve(repositories: Iterable[str], recalls: Mapping[str, numpy.ndarray],
                precisions: Mapping[str, numpy.ndarray], precision_threshold: float,
                rec_threshold_prec: Mapping[str, float],
-               confidence_threshold_exp: Mapping[str, float],
+               confidence_threshold_exp: Mapping[str, Tuple[int, float]],
                path_to_figure: str) -> None:
     """
     Plot y versus x as lines and markers using matplotlib.
@@ -237,8 +237,13 @@ def plot_curve(repositories: Iterable[str], recalls: Mapping[str, numpy.ndarray]
     plt.figure(figsize=(15, 10))
     ax = plt.subplot(111)
     for repo in repositories:
-        ax.plot(numpy.asarray(recalls[repo]), numpy.asarray(precisions[repo]), marker="x",
-                linestyle="--", label=repo)
+        x0 = confidence_threshold_exp[repo][0]
+        ax.plot(numpy.asarray(recalls[repo][:x0 + 1]),
+                numpy.asarray(precisions[repo][:x0 + 1]),
+                marker="x", linestyle="--", label=repo)
+        ax.plot(numpy.asarray(recalls[repo][x0:]),
+                numpy.asarray(precisions[repo][x0:]),
+                marker="x", linestyle="--", color="lightgrey")
     plt.axhline(precision_threshold, color="r",
                 label="input precision threshold: %.2f" % (precision_threshold))
     handles, labels = ax.get_legend_handles_labels()
@@ -342,7 +347,7 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
             for i, (prec, rec) in enumerate(zip(precisions[repo], recalls[repo])):
                 if prec < precision_threshold:
                     break
-                confidence_threshold_exp[repo] = round(rules_id[i][1], 4)
+                confidence_threshold_exp[repo] = (i, round(rules_id[i][1], 4))
                 rec_threshold_prec[repo] = rec
     finally:
         client._channel.close()
