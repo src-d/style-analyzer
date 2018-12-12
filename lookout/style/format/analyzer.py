@@ -81,7 +81,7 @@ class FormatAnalyzer(Analyzer):
             "trainable_rules": {
                 "prune_branches_algorithms": ["reduced-error"],
                 "top_down_greedy_budget": [False, .5],
-                "prune_attributes": False,
+                "prune_attributes": True,
                 "uncertain_attributes": True,
                 "prune_dataset_ratio": .2,
                 "n_estimators": 10,
