@@ -21,7 +21,6 @@ from lookout.style.format.rules import Rules
 from lookout.style.format.utils import prepare_files
 from lookout.style.format.virtual_node import VirtualNode
 
-
 REPOSITORIES = """
 https://github.com/warenlg/axios
 https://github.com/warenlg/jquery
@@ -353,7 +352,7 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
                confidence_threshold_exp, path_to_figure)
 
     # compile the markdown template for the report through jinja2
-    loader = jinja2.FileSystemLoader(("/", os.path.dirname(__file__), os.getcwd()),
+    loader = jinja2.FileSystemLoader((os.path.join(os.path.dirname(__file__), "..", "templates"),),
                                      followlinks=True)
     env = jinja2.Environment(
         trim_blocks=True,
@@ -361,7 +360,7 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
         keep_trailing_newline=True,
     )
     env.globals.update(range=range)
-    template = loader.load(env, "templates/noisy_quality_report.md.jinja2")
+    template = loader.load(env, "noisy_quality_report.md.jinja2")
     report = template.render(repos=repos, n_mistakes=n_mistakes,
                              rec_threshold_prec=rec_threshold_prec,
                              prec_max_rec=prec_max_rec,

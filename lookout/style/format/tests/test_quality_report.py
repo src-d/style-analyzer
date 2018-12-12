@@ -139,7 +139,7 @@ class QualityReportTests(PretrainedModelTests):
         output = output[:output.find("# Model report for <unknown url>")]
         metrics = _get_precision_recall_f1_support(output)
         self.assertEqual(
-            metrics, (0.7443157321054488, 0.7700059276822763, 0.7323340980410543, 3374))
+            metrics, (0.7221903953001138, 0.7723108245673567, 0.7246536747360008, 2947))
 
     def test_no_model(self):
         """Test on wrong path to model - expect fail."""

@@ -58,7 +58,7 @@ def convert_to_sklearn_format(vnodes: Iterable[VirtualNode],
 def _load_jinja2_template(report_template_filename: str) -> jinja2.Template:
     env = jinja2.Environment(trim_blocks=True, lstrip_blocks=True, keep_trailing_newline=True,
                              extensions=["jinja2.ext.do"])
-    loader = jinja2.FileSystemLoader((os.path.join(os.path.dirname(__file__), "templates"),),
+    loader = jinja2.FileSystemLoader((os.path.join(os.path.dirname(__file__), "..", "templates"),),
                                      followlinks=True)
     template = loader.load(env, report_template_filename)
     # the following is really needed, otherwise e.g. range is undefined
