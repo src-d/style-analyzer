@@ -7,12 +7,12 @@
 
 ### Metrics table
 
-| repository |  number of mistakes  | recall at threshold precision | precision at max recall |   empirical confidence threshold   |    max recall     |                   Number of rules                    |
+| repository |  number of mistakes  | recall at threshold precision | precision at max recall |   empirical confidence threshold   |    max recall     |        Number of rules (filtered / overall)          |
 |:----------:|:--------------------:|:-----------------------------:|:-----------------------:|:----------------------------------:|:-----------------:|:----------------------------------------------------:|
-{% for repo in repositories %}
+{% for repo in repos %}
 |  {{repo}}  | {{n_mistakes[repo]}} |  {{rec_threshold_prec[repo]}} |  {{prec_max_rec[repo]}} | {{confidence_threshold_exp[repo]}} | {{max_rec[repo]}} | `{{ n_rules_filtered[repo] }} / {{ n_rules[repo] }}` |
 {% endfor %}
 
 ### Precision-recall curves
 
-![Precision-Racall curve]({{path_to_figure}})
+![Precision-Recall curve]({{path_to_figure}})

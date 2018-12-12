@@ -7,7 +7,7 @@ import os
 import subprocess
 import sys
 import tempfile
-from typing import Iterable, List, Mapping, NamedTuple, Set, Tuple
+from typing import Iterable, List, Mapping, NamedTuple, Optional, Set, Tuple
 
 from bblfsh import BblfshClient
 import jinja2
@@ -253,7 +253,7 @@ def plot_curve(repositories: Iterable[str], recalls: Mapping[str, numpy.ndarray]
 
 def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float,
                          support_threshold: int, precision_threshold: float,
-                         dir_output: str) -> None:
+                         dir_output: str, repos_url: Optional[str] = None) -> None:
     """
     Generate a quality report on the artificial noisy dataset including a precision-recall curve.
 
@@ -265,28 +265,31 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
            Limit drawn as a red horizontal line on the figure.
     :param dir_output: Path to the output directory where to store the quality report in Markdown \
            and the precision-recall curve in png format.
+    :param repos_url: Input list of repository urls to fetch and analyze. \
+           Should be strings separated by newlines.
     """
     log = logging.getLogger("quality_report_noisy")
-
-    repositories = []
+    repos = []
     precisions, recalls = (defaultdict(list) for _ in range(2))
     n_mistakes, rec_threshold_prec, prec_max_rec, confidence_threshold_exp, max_rec, \
         n_rules, n_rules_filtered = ({} for _ in range(7))
+    if repos_url is None:
+        repos_url = REPOSITORIES
     try:
         client = BblfshClient(bblfsh)
-        for url in REPOSITORIES.splitlines():
+        for url in repos_url.splitlines():
             repo = url.split("/")[-1]
             log.info("Fetching %s", url)
             with tempfile.TemporaryDirectory() as tmpdirname:
                 git_dir = os.path.join(tmpdirname, repo)
                 git_dir_noisy = os.path.join(tmpdirname, repo + "_noisy")
                 cmd1 = "git clone --single-branch --branch master %s %s" % (url, git_dir)
-                cmd2 = "git clone --single-branch --branch style-noise-1-per-file %s %s" % (
-                        url, git_dir_noisy)
+                cmd2 = "git clone --single-branch --branch style-noise-1-per-file %s %s" \
+                       % (url, git_dir_noisy)
                 try:
                     for cmd in (cmd1, cmd2):
                         log.debug("Running: %s", cmd)
-                        subprocess.check_call(cmd.split())
+                        subprocess.check_call(cmd.split(), shell=True)
                 except subprocess.CalledProcessError as e:
                     raise ConnectionError("Unable to fetch repository %s" % repo) from e
                 input_pattern = os.path.join(git_dir, "**", "*.js")
@@ -330,7 +333,7 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
             print("precision y:", precisions[repo])
 
             # compute some stats and quality metrics for the model's evaluation
-            repositories.append(repo)
+            repos.append(repo)
             n_mistakes[repo] = len(true_files)
             prec_max_rec[repo] = precisions[repo][-1]
             max_rec[repo] = max(recalls[repo])
@@ -346,7 +349,7 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
 
     # compile the precision-recall curves
     path_to_figure = os.path.join(dir_output, "pr_curves.png")
-    plot_curve(repositories, recalls, precisions, precision_threshold, rec_threshold_prec,
+    plot_curve(repos, recalls, precisions, precision_threshold, rec_threshold_prec,
                confidence_threshold_exp, path_to_figure)
 
     # compile the markdown template for the report through jinja2
@@ -359,7 +362,7 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
     )
     env.globals.update(range=range)
     template = loader.load(env, "templates/noisy_quality_report.md.jinja2")
-    report = template.render(repositories=repositories, n_mistakes=n_mistakes,
+    report = template.render(repos=repos, n_mistakes=n_mistakes,
                              rec_threshold_prec=rec_threshold_prec,
                              prec_max_rec=prec_max_rec,
                              confidence_threshold_exp=confidence_threshold_exp,

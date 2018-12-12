@@ -4,7 +4,7 @@ COPY requirements.txt style-analyzer/requirements.txt
 
 RUN apt-get update && \
     apt-get install -y --no-install-suggests --no-install-recommends \
-        libgomp1 libsnappy1v5 libsnappy-dev gcc g++ python3-dev && \
+        libgomp1 libsnappy1v5 libsnappy-dev gcc g++ git python3-dev && \
     cd style-analyzer && \
     pip3 install --no-cache-dir -r requirements.txt && \
     pip3 uninstall -y pyspark && \
