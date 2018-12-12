@@ -253,7 +253,7 @@ def plot_curve(repositories: Iterable[str], recalls: Mapping[str, numpy.ndarray]
 
 def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float,
                          support_threshold: int, precision_threshold: float,
-                         dir_output: str, repos_url: Optional[str] = None) -> None:
+                         dir_output: str, repos_urls: Optional[str] = None) -> None:
     """
     Generate a quality report on the artificial noisy dataset including a precision-recall curve.
 
@@ -265,7 +265,7 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
            Limit drawn as a red horizontal line on the figure.
     :param dir_output: Path to the output directory where to store the quality report in Markdown \
            and the precision-recall curve in png format.
-    :param repos_url: Input list of repository urls to fetch and analyze. \
+    :param repos_urls: Input list of repository urls to fetch and analyze. \
            Should be strings separated by newlines.
     """
     log = logging.getLogger("quality_report_noisy")
@@ -273,11 +273,11 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
     precisions, recalls = (defaultdict(list) for _ in range(2))
     n_mistakes, rec_threshold_prec, prec_max_rec, confidence_threshold_exp, max_rec, \
         n_rules, n_rules_filtered = ({} for _ in range(7))
-    if repos_url is None:
-        repos_url = REPOSITORIES
+    if repos_urls is None:
+        repos_urls = REPOSITORIES
     try:
         client = BblfshClient(bblfsh)
-        for url in repos_url.splitlines():
+        for url in repos_urls.splitlines():
             repo = url.split("/")[-1]
             log.info("Fetching %s", url)
             with tempfile.TemporaryDirectory() as tmpdirname:
@@ -318,7 +318,7 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
                         if r.stats.conf > confidence_threshold
                         and r.stats.support > support_threshold]
             rules_id = sorted(rules_id, key=lambda k: k[1], reverse=True)
-            for i in range(len(rules.rules)):
+            for i in range(len(rules_id)):
                 filtered_mispreds = {k: m for k, m in diff_mispreds.items()
                                      if any(r[0] == m.rule for r in rules_id[:i + 1])}
                 style_fixes = get_style_fixes(filtered_mispreds, vnodes_y_true,
@@ -342,7 +342,7 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
             for i, (prec, rec) in enumerate(zip(precisions[repo], recalls[repo])):
                 if prec < precision_threshold:
                     break
-                confidence_threshold_exp[repo] = round(rules.rules[i].stats.conf, 3)
+                confidence_threshold_exp[repo] = round(rules_id[i][1], 4)
                 rec_threshold_prec[repo] = rec
     finally:
         client._channel.close()
