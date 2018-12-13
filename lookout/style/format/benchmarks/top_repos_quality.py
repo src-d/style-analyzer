@@ -260,7 +260,8 @@ def main(args):
         fs = args.fs if args.fs else os.path.join(tmpdirname, "models")
         os.makedirs(fs, exist_ok=fs)
         with AnalyzerContextManager(port=port, db=database, fs=fs,
-                                    analyzer="lookout.style.format.quality_report", init=False):
+                                    analyzer="lookout.style.format.benchmarks.general_report",
+                                    init=False):
             for repo in REPOSITORIES:
                 repo, to_commit, from_commit = repo.split()
                 report_loc = os.path.join(args.output, get_repo_name(repo))
