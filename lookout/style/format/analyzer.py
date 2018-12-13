@@ -226,7 +226,6 @@ class FormatAnalyzer(Analyzer):
             rules = rules.filter_by_confidence(self.config["confidence_threshold"]) \
                 .filter_by_support(self.config["support_threshold"])
             for file in filter_files(head_files, rules.origin_config["line_length_limit"], log):
-                log.debug("Analyze %s", file.path)
                 try:
                     prev_file = base_files_by_lang[lang][file.path]
                 except KeyError:
