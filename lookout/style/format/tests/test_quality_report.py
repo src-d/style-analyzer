@@ -156,7 +156,7 @@ class QualityReportTests(PretrainedModelTests):
     def test_train_review_analyzer_integration(self):
         """Integration test for review event."""
         with TestAnalyzer(port=self.port, db=self.db.name, fs=self.fs.name,
-                          analyzer="lookout.style.format.quality_report"):
+                          analyzer="lookout.style.format.benchmarks.general_report"):
             server.run("push", FROM_COMMIT, TO_COMMIT, port=self.port,
                        git_dir=self.jquery_dir, config_json=json.dumps({
                             QualityReportAnalyzer.name: get_train_config()}))
