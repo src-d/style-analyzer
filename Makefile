@@ -37,4 +37,3 @@ bblfsh-start:
 		bblfsh/bblfshd\:v2.10.0
 	docker exec style_analyzer_bblfshd bblfshctl driver install \
 		javascript docker://bblfsh/javascript-driver\:v1.2.0
-	(docker exec -it style_analyzer_bblfshd bblfshctl driver list | grep javascript) || (docker rm -f style_analyzer_bblfshd && false)

@@ -11,8 +11,8 @@ class MainTests(unittest.TestCase):
         raw_imports = """
         from lookout.style.format.benchmarks.evaluate_smoke import evaluate_smoke_entry
         from lookout.style.format.benchmarks.generate_smoke import generate_smoke_entry
-        from lookout.style.format.quality_report import quality_report
-        from lookout.style.format.quality_report_noisy import quality_report_noisy
+        from lookout.style.format.benchmarks.general_report import print_reports
+        from lookout.style.format.benchmarks.quality_report_noisy import quality_report_noisy
         from lookout.style.format.rule_stat import print_rules_report
         """
         imports = {}
@@ -22,7 +22,7 @@ class MainTests(unittest.TestCase):
                 parts = line.split(" ")
                 imports[parts[-1]] = parts[1]
         action2handler = {
-            "eval": "quality_report",
+            "eval": "print_reports",
             "rule": "print_rules_report",
             "quality-report-noisy": "quality_report_noisy",
             "gen-smoke-dataset": "generate_smoke_entry",

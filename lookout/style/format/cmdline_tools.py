@@ -67,8 +67,8 @@ def create_parser() -> ArgumentParser:
     # Deferred imports to speed up loading __init__
     from lookout.style.format.benchmarks.evaluate_smoke import evaluate_smoke_entry
     from lookout.style.format.benchmarks.generate_smoke import generate_smoke_entry
-    from lookout.style.format.quality_report import quality_report
-    from lookout.style.format.quality_report_noisy import quality_report_noisy
+    from lookout.style.format.benchmarks.general_report import print_reports
+    from lookout.style.format.benchmarks.quality_report_noisy import quality_report_noisy
     from lookout.style.format.rule_stat import print_rules_report
 
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatterNoNone)
@@ -84,7 +84,7 @@ def create_parser() -> ArgumentParser:
 
     # Evaluation
     eval_parser = add_parser("eval", "Evaluate trained model on given dataset.")
-    eval_parser.set_defaults(handler=quality_report)
+    eval_parser.set_defaults(handler=print_reports)
     add_input_pattern_arg(eval_parser)
     add_bblfsh_arg(eval_parser)
     add_model_args(eval_parser)

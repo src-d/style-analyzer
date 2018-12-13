@@ -1,20 +1,52 @@
-# Model report for {{ language }}
+# Model report for {{ model.ptr|join(" ") }}
 
-### Rules summary:
-`{{ "%s" % rules }}` {{ "\n" }}
-`{{ "Min/max support: %s/%s, min/max conf: %s/%s" % (min_support, max_support, min_conf,
-max_conf) }}`
+### Dump
 
-### Rules description:
+```json
+model.dump()
+```
+
+{% set data = {} %}
+{% for language in languages %}
+## {{ language }}
+    {% set scns = namespace(min_support=1000000000000, max_support=-1, min_conf=1, max_conf=0) %}
+    {% for rule in model[language].rules %}
+        {% set scns.min_support = (scns.min_support, rule.stats.support)|min %}
+        {% set scns.max_support = (scns.max_support, rule.stats.support)|max %}
+        {% set scns.min_conf = (scns.min_conf, rule.stats.conf)|min %}
+        {% set scns.max_conf = (scns.max_conf, rule.stats.conf)|max %}
+    {% endfor %}
+    {% do data.__setitem__(language, {
+        "min_support": scns.min_support,
+        "max_support": scns.max_support,
+        "min_conf": scns.min_conf,
+        "max_conf": scns.max_conf,
+        "num_rules": model[language]|length,
+        "avg_rule_len": model[language].avg_rule_len,
+    }) %}
+### Summary
+`{{ model[language] }}`
+
+| | |
+|-|-|
+|Min support|{{ scns.min_support }}|
+|Max support|{{ scns.max_support }}|
+|Min confidence|{{ scns.min_conf }}|
+|Max confidence|{{ scns.max_conf }}|
+
+### Rules
+
 | rule number | description |
 |----:|:-----|
-{% for rule_desc in rules_desc %}
-| `{{rule_desc[0]}}` | {{rule_desc[1]}} |
+{% set fe = FeatureExtractor(language=language, **model[language].origin_config["feature_extractor"]) %}
+{% for rule in model[language].rules %}
+| {{ loop.index }} | `{{ describe_rule(rule, fe).replace("\n", "<br>") }}` |
 {% endfor %}
 
-### Packages:
-| package | version |
-|----:|:-----|
-{% for package in packages %}
-| `{{package[0]}}` | {{package[1]}} |
-{% endfor %}
+{% endfor %}{# languages #}
+<details>
+    <summary>Machine-readable report</summary>
+```json
+{{ data | tojson }}
+```
+</details>
