@@ -307,7 +307,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
     def __init__(self, *, base_model_name: str = "sklearn.tree.DecisionTreeClassifier",
                  prune_branches_algorithms=("reduced-error", "top-down-greedy"),
                  top_down_greedy_budget: Tuple[bool, Union[float, int]] = (False, 1.0),
-                 prune_attributes=True,
+                 prune_attributes=True, confidence_threshold=0.8,
                  uncertain_attributes=True, prune_dataset_ratio=.2, n_estimators=10,
                  max_depth=None, max_features=None, min_samples_leaf=1, min_samples_split=2,
                  random_state=42, origin_config=None):
@@ -326,6 +326,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
                                        should be a float between 0 and 1 to specify the \
                                        proportion of rules to keep.
         :param prune_attributes: indicates whether to remove useless parts of rules.
+        :param confidence_threshold: Confidence threshold to filter the rules.
         :param uncertain_attributes: indicates whether to **retain** parts of rules with low \
                                      certainty (see "Generating Production Rules From Decision \
                                      Trees" by J.R. Quinlan).
@@ -344,6 +345,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         self.prune_branches_algorithms = prune_branches_algorithms
         self.top_down_greedy_budget = top_down_greedy_budget
         self.prune_attributes = prune_attributes
+        self.confidence_threshold = confidence_threshold
         self.uncertain_attributes = uncertain_attributes
         self.prune_dataset_ratio = prune_dataset_ratio
         # Parameters for base_model must be named the same as in the base_model class
@@ -414,6 +416,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
             return sum(len(r.attrs) for r in rules)
 
         old = count_attrs()
+        rules = [rule for rule in rules if rule.stats.conf > self.confidence_threshold]
         rules = self._merge_rules(rules)
         self._log.debug("merged %d/%d attributes", old - count_attrs(), old)
         if "top-down-greedy" in self.prune_branches_algorithms:
