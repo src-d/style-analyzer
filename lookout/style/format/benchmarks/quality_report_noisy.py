@@ -3,6 +3,7 @@ from collections import defaultdict
 from difflib import SequenceMatcher
 import glob
 import logging
+from operator import itemgetter
 import os
 import subprocess
 import sys
@@ -211,8 +212,7 @@ def compute_metrics(changes_count: int, predictions_count: int, true_positive: i
 
 def plot_curve(repositories: Iterable[str], recalls: Mapping[str, numpy.ndarray],
                precisions: Mapping[str, numpy.ndarray], precision_threshold: float,
-               rec_threshold_prec: Mapping[str, float],
-               confidence_threshold_exp: Mapping[str, Tuple[int, float]],
+               limit_conf_id: Mapping[str, int],
                path_to_figure: str) -> None:
     """
     Plot y versus x as lines and markers using matplotlib.
@@ -222,9 +222,8 @@ def plot_curve(repositories: Iterable[str], recalls: Mapping[str, numpy.ndarray]
     :param precisions: Dict of 1-D numpy array containing the y coordinates.
     :param precision_threshold: Precision threshold tolerated by the model. \
            Limit drawn as a red horizontal line on the figure.
-    :param rec_threshold_prec: Dict of maximum recall before passing under the precision threshold.
-    :param confidence_threshold_exp: Dict of confidence limit of the last rule before passing \
-           under the precision threshold.
+    :param limit_conf_id: Dict of last accepted rule indices according to the maximum \
+           confidence threshold observed.
     :param path_to_figure: Path to the output figure, in png format.
     """
     try:
@@ -236,7 +235,7 @@ def plot_curve(repositories: Iterable[str], recalls: Mapping[str, numpy.ndarray]
     plt.figure(figsize=(15, 10))
     ax = plt.subplot(111)
     for repo in repositories:
-        x0 = confidence_threshold_exp[repo][0]
+        x0 = limit_conf_id[repo]
         ax.plot(numpy.asarray(recalls[repo][x0:]),
                 numpy.asarray(precisions[repo][x0:]),
                 marker="x", linestyle="--", color="lightgrey")
@@ -274,9 +273,10 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
     """
     log = logging.getLogger("quality_report_noisy")
     repos = []
-    precisions, recalls = (defaultdict(list) for _ in range(2))
-    n_mistakes, rec_threshold_prec, prec_max_rec, confidence_threshold_exp, max_rec, \
-        n_rules, n_rules_filtered = ({} for _ in range(7))
+    last_accepted_rule = {}
+    precisions, recalls, accepted_rules = (defaultdict(list) for _ in range(3))
+    n_mistakes, prec_max_rec, confidence_threshold_exp, max_rec, \
+        n_rules, n_rules_filtered = ({} for _ in range(6))
     if repos_urls is None:
         repos_urls = REPOSITORIES
     try:
@@ -344,17 +344,26 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
             n_rules_filtered[repo] = len(rules_id)
             # compute the confidence and recall limit for the given precision threshold
             for i, (prec, rec) in enumerate(zip(precisions[repo], recalls[repo])):
-                if prec < precision_threshold:
-                    break
-                confidence_threshold_exp[repo] = (i, round(rules_id[i][1], 4))
-                rec_threshold_prec[repo] = rec
+                if prec >= precision_threshold:
+                    accepted_rules[repo].append((i, rules_id[i][1], rec))
+            last_accepted_rule[repo] = min(accepted_rules[repo], key=itemgetter(1))
+            confidence_threshold_exp[repo] = (last_accepted_rule[repo][0],
+                                              last_accepted_rule[repo][1])
     finally:
         client._channel.close()
 
+    # compute the index of the last accepted rule according to the maximum confidence threshold
+    limit_conf_id = {}
+    max_confidence_threshold_exp = max(confidence_threshold_exp.values(), key=itemgetter(1))
+    for repo, rules in accepted_rules.items():
+        for rule in rules:
+            if rule[1] < max_confidence_threshold_exp[1]:
+                break
+            limit_conf_id[repo] = rule[0]
+
     # compile the precision-recall curves
     path_to_figure = os.path.join(dir_output, "pr_curves.png")
-    plot_curve(repos, recalls, precisions, precision_threshold, rec_threshold_prec,
-               confidence_threshold_exp, path_to_figure)
+    plot_curve(repos, recalls, precisions, precision_threshold, limit_conf_id, path_to_figure)
 
     # compile the markdown template for the report through jinja2
     loader = jinja2.FileSystemLoader((os.path.join(os.path.dirname(__file__), "..", "templates"),),
@@ -367,9 +376,8 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
     env.globals.update(range=range)
     template = loader.load(env, "noisy_quality_report.md.jinja2")
     report = template.render(repos=repos, n_mistakes=n_mistakes,
-                             rec_threshold_prec=rec_threshold_prec,
                              prec_max_rec=prec_max_rec,
-                             confidence_threshold_exp=confidence_threshold_exp,
+                             confidence_threshold_exp=round(max_confidence_threshold_exp[1], 2),
                              max_rec=max_rec, confidence_threshold=confidence_threshold,
                              support_threshold=support_threshold,
                              n_rules=n_rules, n_rules_filtered=n_rules_filtered,
