@@ -81,7 +81,8 @@ class QualityReportTests(PretrainedModelTests):
                               config={"uast_break_check": False})
             self.assertEqual(
                 output[:3], [
-                    "# Model report for <unknown url> <unknown reference> <unknown commit>",
+                    "# Model report for https://github.com/jquery/jquery refs/heads/master "
+                    "c2026b117d1ca5b2e42a52c7e2a8ae8988cf0d4b",
                     "",
                     "### Dump",
                 ])
@@ -113,15 +114,18 @@ class QualityReportTests(PretrainedModelTests):
                           language=self.language, model_path=self.model_path,
                           config={"uast_break_check": False})
         self.assertEqual([
-            "# Quality report for javascript / <unknown url> <unknown reference> <unknown commit>",
+            "# Quality report for javascript / https://github.com/jquery/jquery refs/heads/master"
+            " c2026b117d1ca5b2e42a52c7e2a8ae8988cf0d4b",
             "",
             "### Classification report"],
             output[:3])
         qcount = output.count(
-            "# Quality report for javascript / <unknown url> <unknown reference> <unknown commit>")
+            "# Quality report for javascript / https://github.com/jquery/jquery refs/heads/master"
+            " c2026b117d1ca5b2e42a52c7e2a8ae8988cf0d4b")
         self.assertEqual(qcount, 14)
         self.assertIn("### Summary", output)
-        self.assertIn("# Model report for <unknown url> <unknown reference> <unknown commit>",
+        self.assertIn("# Model report for https://github.com/jquery/jquery refs/heads/master"
+                      " c2026b117d1ca5b2e42a52c7e2a8ae8988cf0d4b",
                       output)
         self.assertGreater(len(output), 100)
         self.assertIn("javascript", _get_json_data("\n".join(output)))
@@ -134,10 +138,11 @@ class QualityReportTests(PretrainedModelTests):
                           language=self.language, model_path=self.model_path,
                           config={"uast_break_check": False, "aggregate": True})
         qcount = output.count(
-            "# Quality report for javascript / <unknown url> <unknown reference> <unknown commit>")
+            "# Quality report for javascript / https://github.com/jquery/jquery refs/heads/master"
+            " c2026b117d1ca5b2e42a52c7e2a8ae8988cf0d4b")
         self.assertEqual(qcount, 1)
         output = "\n".join(output)
-        output = output[:output.find("# Model report for <unknown url>")]
+        output = output[:output.find("# Model report for https://github.com/jquery/jquery")]
         metrics = _get_precision_recall_f1_support(output)
         self.assertEqual(
             metrics, (0.7221903953001138, 0.7723108245673567, 0.7246536747360008, 2947))

@@ -281,6 +281,7 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
         repos_urls = REPOSITORIES
     try:
         client = BblfshClient(bblfsh)
+        log.info("URLs: %s", repos_urls)
         for url in repos_urls.splitlines():
             repo = url.split("/")[-1]
             log.info("Fetching %s", url)
