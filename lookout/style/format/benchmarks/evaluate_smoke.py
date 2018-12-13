@@ -335,7 +335,7 @@ class SmokeEvalFormatAnalyzer(FormatAnalyzer):
 analyzer_class = SmokeEvalFormatAnalyzer
 
 
-def evaluate_smoke_entry(inputpath: str, reportdir: str, database: str = None) -> None:
+def evaluate_smoke_entry(inputpath: str, reportdir: str, database: str) -> None:
     """
     CLI entry point.
     """
