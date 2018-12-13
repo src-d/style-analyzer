@@ -10,11 +10,11 @@ from typing import Sequence, Union
 import unittest
 from unittest.mock import patch
 
+from lookout.__main__ import main as launch_analyzer
 from lookout.core.event_listener import EventListener
 from lookout.core.test_helpers.server import find_port, run as launch_server
 
-# PyCharm has a bug and inserts a new line here
-from lookout.__main__ import main as launch_analyzer  # noqa: I202, I100
+from lookout.style.format.tests import long_test
 
 FROM_COMMIT = "HEAD" + "^" * 9
 TO_COMMIT = "HEAD"
@@ -106,13 +106,12 @@ class BaseAnalyzerIntegrationTests(unittest.TestCase):
         self.analyzer.__exit__()
 
 
-@unittest.skipUnless(os.getenv("LONG_TESTS", False),
-                     "Time-consuming tests are skipped by default.")
+@long_test
 class AnalyzerIntegrationTests(BaseAnalyzerIntegrationTests):
     @classmethod
     def setUpClass(cls):
         parent = Path(__file__).parent.resolve()
-        cls.base_dir_ = tempfile.TemporaryDirectory(dir=str(parent))
+        cls.base_dir_ = tempfile.TemporaryDirectory()
         cls.base_dir = cls.base_dir_.name
         cls.jquery_dir = os.path.join(cls.base_dir, "jquery")
         # str() is needed for Python 3.5

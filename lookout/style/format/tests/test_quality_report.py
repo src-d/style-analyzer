@@ -13,6 +13,7 @@ from lookout.core.test_helpers import server
 from lookout.style.format.benchmarks.general_report import print_reports, QualityReportAnalyzer
 from lookout.style.format.benchmarks.top_repos_quality import _get_json_data, _get_model_summary, \
     _get_precision_recall_f1_support
+from lookout.style.format.tests import long_test
 from lookout.style.format.tests.test_analyzer import get_analyze_config, get_train_config
 from lookout.style.format.tests.test_analyzer_integration import (
     FROM_COMMIT, TestAnalyzer, TO_COMMIT)
@@ -151,8 +152,7 @@ class QualityReportTests(PretrainedModelTests):
                         input_pattern=input_pattern, bblfsh=self.bblfsh, language=self.language,
                         model_path=empty_model, config={"uast_break_check": False})
 
-    @unittest.skipUnless(os.getenv("LONG_TESTS", False),
-                         "Time-consuming tests are skipped by default.")
+    @long_test
     def test_train_review_analyzer_integration(self):
         """Integration test for review event."""
         with TestAnalyzer(port=self.port, db=self.db.name, fs=self.fs.name,
