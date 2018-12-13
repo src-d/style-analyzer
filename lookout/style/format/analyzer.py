@@ -59,7 +59,7 @@ class FormatAnalyzer(Analyzer):
         "report_parse_failures": False,
         "uast_break_check": True,
         "comment_template": os.path.join(os.path.dirname(__file__), "templates",
-                                         "comment_default.jinja2"),
+                                         "comment.jinja2"),
     }
     defaults_for_train = {
         "global": {

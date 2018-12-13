@@ -29,7 +29,7 @@ class CodeGeneratorTests(unittest.TestCase):
                 return "<change description>"
             return fake_get_change_description
         comment_template_flie = os.path.join(os.path.dirname(__file__), "..", "templates",
-                                             "comment_default.jinja2")
+                                             "comment.jinja2")
         config = {
             "report_code_lines": True,
             "report_triggered_rules": True,
