@@ -1,10 +1,12 @@
 """Facilities to report the quality of a given model on a given dataset."""
 from collections import Counter, defaultdict, OrderedDict
+import copy
 import glob
 from itertools import chain
 import json
 import logging
 import os
+import pprint
 from typing import Any, Iterable, List, Mapping, NamedTuple, Optional, Tuple, Union
 
 from bblfsh import BblfshClient
@@ -58,6 +60,10 @@ def convert_to_sklearn_format(vnodes: Iterable[VirtualNode],
 def _load_jinja2_template(report_template_filename: str) -> jinja2.Template:
     env = jinja2.Environment(trim_blocks=True, lstrip_blocks=True, keep_trailing_newline=True,
                              extensions=["jinja2.ext.do"])
+    env.filters.update({
+        "pformat": pprint.pformat,
+        "deepcopy": copy.deepcopy,
+    })
     loader = jinja2.FileSystemLoader((os.path.join(os.path.dirname(__file__), "..", "templates"),),
                                      followlinks=True)
     template = loader.load(env, report_template_filename)
