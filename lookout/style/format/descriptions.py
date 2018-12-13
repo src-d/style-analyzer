@@ -38,7 +38,7 @@ def describe_rule(rule: Rule, feature_extractor: FeatureExtractor) -> str:
     if feature_extractor.features is None or feature_extractor.index_to_feature is None:
         raise NotFittedError()
     attr_descriptions = describe_rule_attrs(rule, feature_extractor)
-    return "  %s\n\t⇒ y = %s\n\tConfidence: %.3f. Support: %d." % (
+    return "  %s\n⇒ y = %s\nConfidence: %.3f. Support: %d." % (
         "\n\t∧ ".join(attr_descriptions),
         "".join(CLASS_REPRESENTATIONS[c]
                 for c in feature_extractor.labels_to_class_sequences[rule.stats.cls]),

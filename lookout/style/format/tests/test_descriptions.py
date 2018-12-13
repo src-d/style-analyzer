@@ -62,8 +62,8 @@ class DescriptionsTests(unittest.TestCase):
                     artificial=False)
         self.assertEqual(describe_rule(rule, self.fe),
                          "  %s ≥ %d\n"
-                         "	⇒ y = %s\n"
-                         "	Confidence: 0.900. Support: 150." % (
+                         "⇒ y = %s\n"
+                         "Confidence: 0.900. Support: 150." % (
                              name, ceil(4.5), picked_class_name,
                          ))
 
@@ -78,8 +78,8 @@ class DescriptionsTests(unittest.TestCase):
                     artificial=False)
         self.assertEqual(describe_rule(rule, self.fe),
                          "  %s = %s\n"
-                         "	⇒ y = %s\n"
-                         "	Confidence: 0.900. Support: 150." % (
+                         "⇒ y = %s\n"
+                         "Confidence: 0.900. Support: 150." % (
                              name, activated_name, picked_class_name,
                          ))
 
@@ -97,8 +97,8 @@ class DescriptionsTests(unittest.TestCase):
                     stats=RuleStats(picked_class, 0.9, 150), artificial=False)
         self.assertEqual(describe_rule(rule, self.fe),
                          "  %s in {%s} and not in {%s}\n"
-                         "	⇒ y = %s\n"
-                         "	Confidence: 0.900. Support: 150." % (
+                         "⇒ y = %s\n"
+                         "Confidence: 0.900. Support: 150." % (
                              name, activated_name, not_activated_name, picked_class_name,
                          ))
 
@@ -111,8 +111,8 @@ class DescriptionsTests(unittest.TestCase):
                     artificial=False)
         self.assertEqual(describe_rule(rule, self.fe),
                          "  -1.%s ≥ %d\n"
-                         "	⇒ y = %s\n"
-                         "	Confidence: 0.900. Support: 150." % (
+                         "⇒ y = %s\n"
+                         "Confidence: 0.900. Support: 150." % (
                              feature_id.name, ceil(4.5), picked_class_name,
                          ))
 
@@ -125,8 +125,8 @@ class DescriptionsTests(unittest.TestCase):
                     artificial=False)
         self.assertEqual(describe_rule(rule, self.fe),
                          "  +1.%s ≥ %d\n"
-                         "	⇒ y = %s\n"
-                         "	Confidence: 0.900. Support: 150." % (
+                         "⇒ y = %s\n"
+                         "Confidence: 0.900. Support: 150." % (
                              feature_id.name, ceil(4.5), picked_class_name,
                          ))
 
@@ -139,8 +139,8 @@ class DescriptionsTests(unittest.TestCase):
                     artificial=False)
         self.assertEqual(describe_rule(rule, self.fe),
                          "  ^1.%s = AnyTypeAnnotation\n"
-                         "	⇒ y = %s\n"
-                         "	Confidence: 0.900. Support: 150." % (
+                         "⇒ y = %s\n"
+                         "Confidence: 0.900. Support: 150." % (
                              feature_id.name, picked_class_name,
                          ))
 
