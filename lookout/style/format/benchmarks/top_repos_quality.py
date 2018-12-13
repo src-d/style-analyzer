@@ -339,7 +339,7 @@ def create_parser() -> ArgumentParser:
         help="If this flag is used - force to overwrite results stored in output directory. "
              "If not - stored results will be used if they exist.")
     parser.add_argument(
-        "-b", "--bblfsh-address", default="localhost:9432", help="Bblfsh address to use.")
+        "-b", "--bblfsh", default="localhost:9432", help="Bblfsh address to use.")
     parser.add_argument(
         "--train-config", default="{}",
         help="Config for analyzer train in json format.")
