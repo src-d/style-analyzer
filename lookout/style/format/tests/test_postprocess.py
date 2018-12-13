@@ -25,7 +25,7 @@ class PostprocessingTests(unittest.TestCase):
             language=cls.language,
             **FormatAnalyzer._load_train_config(config)[cls.language]["feature_extractor"])
         cls.parent_loc = Path(__file__).parent.resolve()
-        cls.base_dir_ = tempfile.TemporaryDirectory(dir=str(cls.parent_loc))
+        cls.base_dir_ = tempfile.TemporaryDirectory()
         cls.base_dir = cls.base_dir_.name
         cls.noop = (CLASS_INDEX[CLS_NOOP],)
         cls.space = (CLASS_INDEX[CLS_SPACE],)

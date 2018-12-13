@@ -408,7 +408,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
                 leaf2rule.append(leaf2rule_partial)
                 rules.extend(rules_partial)
             if "reduced-error" in self.prune_branches_algorithms:
-                self._log.debug("pruned %d/%d branches w/ reduced error pruning", old - new, old)
+                self._log.debug("pruned %d/%d branches with reduced error pruning", old - new, old)
 
         def count_attrs():
             return sum(len(r.attrs) for r in rules)
