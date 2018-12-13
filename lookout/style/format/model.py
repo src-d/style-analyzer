@@ -45,14 +45,17 @@ class FormatModel(AnalyzerModel):
         return result.getvalue()
 
     def _generate_tree(self) -> dict:
+        tree = super()._generate_tree()
         languages = self.languages
-        return dict(
+        tree.update(
             languages=languages,
             origin_configs=[self[lang].origin_config for lang in languages],
             ruless=[self._disassemble_rules(self[lang].rules) for lang in languages],
         )
+        return tree
 
     def _load_tree(self, tree: dict) -> None:
+        super()._load_tree(tree)
         for lang, origin_config, rules in zip(
                 tree["languages"], tree["origin_configs"], tree["ruless"]):
             self[lang] = Rules(self._assemble_rules(rules), deepcopy(origin_config))
