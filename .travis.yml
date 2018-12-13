@@ -23,6 +23,7 @@ stages:
 _install: &_install
   - pip install --upgrade pip cython codecov
   - pip install -e .[test,plot]
+  - find lookout -name tests -type d -exec chmod 555 {} \;
 _coverage: &_coverage
   - SCRIPT="coverage run --concurrency=multiprocessing -m unittest discover
             && coverage combine
