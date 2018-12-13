@@ -3,7 +3,7 @@
 ### Dump
 
 ```json
-model.dump()
+{{ model }}
 ```
 
 {% set data = {} %}
@@ -25,7 +25,7 @@ model.dump()
         "avg_rule_len": model[language].avg_rule_len,
     }) %}
 ### Summary
-`{{ model[language] }}`
+{{ model[language] }}
 
 | | |
 |-|-|
@@ -33,6 +33,15 @@ model.dump()
 |Max support|{{ scns.max_support }}|
 |Min confidence|{{ scns.min_conf }}|
 |Max confidence|{{ scns.max_conf }}|
+
+### Configuration
+
+```json
+    {% set cfg = model[language].origin_config|deepcopy %}
+    {% do cfg["feature_extractor"].__setitem__("label_composites", "<cut>") %}
+    {% do cfg["feature_extractor"].__setitem__("selected_features", "<cut>") %}
+{{ cfg|pformat(width=100) }}
+```
 
 ### Rules
 
