@@ -145,7 +145,7 @@ class QualityReportTests(PretrainedModelTests):
         output = output[:output.find("# Model report for https://github.com/jquery/jquery")]
         metrics = _get_precision_recall_f1_support(output)
         self.assertEqual(
-            metrics, (0.7221903953001138, 0.7723108245673567, 0.7246536747360008, 2947))
+            metrics, (0.8397747184701836, 0.8174414658975229, 0.7846189138709921, 2947))
 
     def test_no_model(self):
         """Test on wrong path to model - expect fail."""
