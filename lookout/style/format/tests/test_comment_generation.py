@@ -45,7 +45,7 @@ class CodeGeneratorTests(unittest.TestCase):
             error="Failed to parse", language=language, feature_extractor=None,
             winner_rules=[34], suggested_code=suggested_code, all_vnodes=[],
             fixed_vnodes=[VirtualNode(start=Position(10, 2, 1), end=Position(12, 3, 1),
-                                      value="!", y=1)])
+                                      value="!", y=(1,))])
         try:
 
             functools.partial = fake_partitial

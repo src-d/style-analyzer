@@ -450,9 +450,9 @@ class FeatureExtractor:
                 continue
             if not node.value.isspace():
                 if node.value == "'":
-                    node.y = CLASS_INDEX[CLS_SINGLE_QUOTE]
+                    node.y = (CLASS_INDEX[CLS_SINGLE_QUOTE],)
                 elif node.value == '"':
-                    node.y = CLASS_INDEX[CLS_DOUBLE_QUOTE]
+                    node.y = (CLASS_INDEX[CLS_DOUBLE_QUOTE],)
                 yield node
                 continue
             lines = node.value.split("\r\n")
@@ -465,9 +465,9 @@ class FeatureExtractor:
                 # only tabs and spaces are possible
                 for i, char in enumerate(node.value):
                     if char == "\t":
-                        cls = CLASS_INDEX[CLS_TAB]
+                        cls = (CLASS_INDEX[CLS_TAB],)
                     else:
-                        cls = CLASS_INDEX[CLS_SPACE]
+                        cls = (CLASS_INDEX[CLS_SPACE],)
                     offset, lineno, col = node.start
                     yield VirtualNode(
                         char,
@@ -486,7 +486,7 @@ class FeatureExtractor:
                     newline,
                     Position(start_offset, lineno, start_col),
                     Position(start_offset + len(newline), lineno, start_col + len(newline)),
-                    y=CLASS_INDEX[CLS_NEWLINE], path=path)
+                    y=(CLASS_INDEX[CLS_NEWLINE],), path=path)
                 line_offset += len(line) + len(sep)
             line = lines[-1]
             my_indent = list(line)
@@ -507,9 +507,9 @@ class FeatureExtractor:
                 # indentation decreases
                 for char in indentation[len(line):]:
                     if char == "\t":
-                        cls = CLASS_INDEX[CLS_TAB_DEC]
+                        cls = (CLASS_INDEX[CLS_TAB_DEC],)
                     else:
-                        cls = CLASS_INDEX[CLS_SPACE_DEC]
+                        cls = (CLASS_INDEX[CLS_SPACE_DEC],)
                     yield VirtualNode(
                         "",
                         Position(offset, lineno, col),
@@ -525,9 +525,9 @@ class FeatureExtractor:
                 # indentation is stable or increases
                 for i, char in enumerate(my_indent):
                     if char == "\t":
-                        cls = CLASS_INDEX[CLS_TAB_INC]
+                        cls = (CLASS_INDEX[CLS_TAB_INC],)
                     else:
-                        cls = CLASS_INDEX[CLS_SPACE_INC]
+                        cls = (CLASS_INDEX[CLS_SPACE_INC],)
                     yield VirtualNode(
                         char,
                         Position(offset + i, lineno, col + i),
@@ -569,7 +569,7 @@ class FeatureExtractor:
                     start = vnode.start
                 end = vnode.end
                 value += vnode.value
-                current_class_seq.append(vnode.y)
+                current_class_seq.extend(vnode.y)
         if current_class_seq:
             assert value
             yield VirtualNode(value=value, start=start, end=end, y=tuple(current_class_seq),
