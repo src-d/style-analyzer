@@ -35,7 +35,7 @@ class VirtualNode:
     """
 
     def __init__(self, value: str, start: Position, end: Position,
-                 *, node: bblfsh.Node = None, y: Union[int, Tuple[int]] = None,
+                 *, node: bblfsh.Node = None, y: Optional[Tuple[int, ...]] = None,
                  is_accumulated_indentation: bool=False,  path: str = None) -> None:
         """
         Construct a VirtualNode.
@@ -54,8 +54,7 @@ class VirtualNode:
         self.value = value
         assert start.line >= 1 and start.col >= 1, "start line and column are 1-based like UASTs"
         assert end.line >= 1 and end.col >= 1, "end line and column are 1-based like UASTs"
-        ys = set(y) if isinstance(y, tuple) else set([y])
-        assert y is None or ys <= EMPTY_CLS or start.offset < end.offset, "illegal empty node"
+        assert y is None or set(y) <= EMPTY_CLS or start.offset < end.offset, "illegal empty node"
         assert not is_accumulated_indentation or y is None, "y can not be set for accumulated " \
                                                             "indentation node."
         self.start = start
@@ -71,9 +70,8 @@ class VirtualNode:
     def __repr__(self) -> str:
         return ("VirtualNode(\"%s\", y=%s, start=%s, end=%s, node=%s, path=\"%s\")" % (
                     self.value.replace("\n", "\\n").replace("\t", "\\t"),
-                    "None" if self.y is None else
-                    CLASS_REPRESENTATIONS[self.y] if isinstance(self.y, int) else
-                    "".join(CLASS_REPRESENTATIONS[yi] for yi in self.y),
+                    "None" if self.y is None else "".join(CLASS_REPRESENTATIONS[c]
+                                                          for c in self.y),
                     tuple(self.start),
                     tuple(self.end),
                     id(self.node) if self.node is not None else "None",

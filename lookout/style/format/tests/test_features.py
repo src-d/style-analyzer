@@ -1,4 +1,4 @@
-from collections import defaultdict
+from collections import Counter
 from itertools import islice
 import lzma
 from pathlib import Path
@@ -75,7 +75,7 @@ class FeaturesTests(unittest.TestCase):
         nodes = list(self.extractor._classify_vnodes(nodes, "test_file"))
         text = "".join(n.value for n in nodes)
         self.assertEqual(text, self.contents)
-        cls_counts = defaultdict(int)
+        cls_counts = Counter()
         offset = line = col = 0
         for n in nodes:
             if line == n.start.line - 1:
@@ -83,7 +83,7 @@ class FeaturesTests(unittest.TestCase):
                 col = 1
             self.assertEqual((offset, line, col), n.start, n.value)
             if n.y is not None:
-                cls_counts[CLASSES[n.y]] += 1
+                cls_counts.update(map(CLASSES.__getitem__, n.y))
             offset, line, col = n.end
         self.assertEqual(cls_counts[CLS_SPACE_INC], cls_counts[CLS_SPACE_DEC])
         self.assertGreater(cls_counts[CLS_SPACE_INC], 0)
@@ -94,13 +94,13 @@ class FeaturesTests(unittest.TestCase):
 
     def test_compute_labels_mappings(self):
         pos1, pos2 = Position(1, 1, 1), Position(10, 2, 1)
-        files = [VirtualNode("", pos1, pos2, y=1)] * 2 + \
-            [VirtualNode("", pos1, pos2), VirtualNode("", pos1, pos2, y=2),
-             VirtualNode("", pos1, pos2, y=3)]
+        files = [VirtualNode("", pos1, pos2, y=(1,))] * 2 + \
+            [VirtualNode("", pos1, pos2), VirtualNode("", pos1, pos2, y=(2,)),
+             VirtualNode("", pos1, pos2, y=(3,))]
         self.extractor.cutoff_label_support = 2
         self.extractor._compute_labels_mappings(files)
-        self.assertEqual(self.extractor.labels_to_class_sequences, [1])
-        self.assertEqual(self.extractor.class_sequences_to_labels, {1: 0})
+        self.assertEqual(self.extractor.labels_to_class_sequences, [(1,)])
+        self.assertEqual(self.extractor.class_sequences_to_labels, {(1,): 0})
 
     def test_extract_features(self):
         file = File(content=bytes(self.contents, "utf-8"),
