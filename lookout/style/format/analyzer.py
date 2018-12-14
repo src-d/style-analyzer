@@ -52,7 +52,7 @@ class FormatAnalyzer(Analyzer):
     version = 1
     description = "Source code formatting: whitespace, new lines, quotes, braces."
     defaults_for_analyze = {
-        "confidence_threshold": 0.95,
+        "confidence_threshold": 0.92,
         "support_threshold": 80,
         "report_code_lines": False,
         "report_triggered_rules": False,
