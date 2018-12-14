@@ -110,12 +110,13 @@ def return_features() -> Response:
     if res is None:
         abort(500)
     X, y, (vnodes_y, vnodes, vnode_parents, node_parents, sibling_indices) = res
-    y_pred, rule_winners, rules = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
-                                                feature_extractor=fe)
+    y_pred, rule_winners, rules, grouped_quote_predictions = rules.predict(
+        X=X, vnodes_y=vnodes_y, vnodes=vnodes, feature_extractor=fe)
     _, _, _, _, safe_preds = filter_uast_breaking_preds(
         y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, files={file.path: file},
         feature_extractor=fe, stub=client._stub, vnode_parents=vnode_parents,
-        node_parents=node_parents, rule_winners=rule_winners, log=app.logger)
+        node_parents=node_parents, rule_winners=rule_winners,
+        grouped_quote_predictions=grouped_quote_predictions)
     break_uast = [False] * X.shape[0]
     for wrong_pred in set(range(X.shape[0])).difference(safe_preds):
         break_uast[wrong_pred] = True

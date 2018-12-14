@@ -1,5 +1,5 @@
 """Train and compile rules for multi-class classification using an sklearn base model."""
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from copy import deepcopy
 import functools
 from importlib import import_module
@@ -43,6 +43,10 @@ RuleStats = NamedTuple("RuleStats", (("cls", int), ("conf", float), ("support", 
 
 Rule = NamedTuple("RuleType", (("attrs", Tuple[RuleAttribute, ...]), ("stats", RuleStats),
                                ("artificial", bool)))
+
+QuotedNodeTriple = NamedTuple("QuotedNodeTriple", (("left", VirtualNode), ("target", VirtualNode),
+                                                   ("right", VirtualNode)))
+QuotedNodeTripleMapping = Mapping[int, Optional[QuotedNodeTriple]]
 
 
 class Rules:
@@ -116,9 +120,10 @@ class Rules:
             return prediction, winner_indices
         return prediction
 
-    def predict(self, X: numpy.ndarray, vnodes_y: Sequence[VirtualNode],
-                vnodes: Sequence[VirtualNode], feature_extractor: FeatureExtractor,
-                ) -> Tuple[numpy.ndarray, numpy.ndarray, "Rules"]:
+    def predict(
+            self, X: numpy.ndarray, vnodes_y: Sequence[VirtualNode], vnodes: Sequence[VirtualNode],
+            feature_extractor: FeatureExtractor,
+            ) -> Tuple[numpy.ndarray, numpy.ndarray, "Rules", QuotedNodeTripleMapping]:
         """
         Predict classes given the input features and metadata.
 
@@ -129,8 +134,12 @@ class Rules:
         :return: The predictions, the winning rules and the new Rules.
         """
         y_pred, winners = self.apply(X, True)
-        return self.harmonize_quotes(y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes,
-                                     winners=winners, feature_extractor=feature_extractor)
+        grouped_quote_predictions = self._group_quote_predictions(vnodes_y, vnodes)
+        new_y_pred, new_winners, new_rules = self.harmonize_quotes(
+            y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, winners=winners,
+            feature_extractor=feature_extractor,
+            grouped_quote_predictions=grouped_quote_predictions)
+        return new_y_pred, new_winners, new_rules, grouped_quote_predictions
 
     def filter_by_confidence(self, confidence_threshold: float) -> "Rules":
         """
@@ -165,9 +174,26 @@ class Rules:
         feature_extractor.labels_to_class_sequences.append(labels)
         return len(feature_extractor.labels_to_class_sequences) - 1
 
-    def harmonize_quotes(self, y_pred: numpy.ndarray,
-                         vnodes_y: Sequence[VirtualNode], vnodes: Sequence[VirtualNode],
-                         winners: numpy.ndarray, feature_extractor: FeatureExtractor,
+    def _group_quote_predictions(self, vnodes_y: Sequence[VirtualNode],
+                                 vnodes: Sequence[VirtualNode]) -> QuotedNodeTripleMapping:
+        quotes_classes = frozenset((CLASS_INDEX[CLS_DOUBLE_QUOTE], CLASS_INDEX[CLS_SINGLE_QUOTE]))
+        y_indices = {id(vnode): i for i, vnode in enumerate(vnodes_y)}
+        grouped_predictions = OrderedDict()
+        for vnode1, vnode2, vnode3 in zip(vnodes, islice(vnodes, 1, None),
+                                          islice(vnodes, 2, None)):
+            if (id(vnode1) not in y_indices or id(vnode3) not in y_indices or vnode2.node is None
+                    or vnode1.y[-1] not in quotes_classes or vnode3.y[0] != vnode1.y[-1]):
+                continue
+            vnode2_roles = frozenset(role_name(role_id) for role_id in vnode2.node.roles)
+            if "STRING" in vnode2_roles:
+                grouped_predictions[id(vnode1)] = vnode1, vnode2, vnode3
+                grouped_predictions[id(vnode3)] = None
+        return grouped_predictions
+
+    def harmonize_quotes(self, y_pred: numpy.ndarray, vnodes_y: Sequence[VirtualNode],
+                         vnodes: Sequence[VirtualNode], winners: numpy.ndarray,
+                         feature_extractor: FeatureExtractor,
+                         grouped_quote_predictions: QuotedNodeTripleMapping,
                          ) -> Tuple[numpy.ndarray, numpy.ndarray, "Rules"]:
         """
         Post-process predictions to correct mis-matched quotes.
@@ -181,6 +207,7 @@ class Rules:
         :param vnodes: Sequence of virtual nodes representing the input.
         :param winners: Indices of the rules that were used to compute the predictions.
         :param feature_extractor: FeatureExtractor used to extract features.
+        :param grouped_quote_predictions: Quotes predictions (handled differenlty from the rest).
         :return: Updated y, winners and new rules.
         """
         quotes_classes = {CLASS_INDEX[CLS_DOUBLE_QUOTE], CLASS_INDEX[CLS_SINGLE_QUOTE]}
@@ -205,14 +232,10 @@ class Rules:
             processed_y[y_i] = processed_rules[rule_index].stats.cls
 
         y_indices = {id(vnode): i for i, vnode in enumerate(vnodes_y)}
-        for vnode1, vnode2, vnode3 in zip(vnodes, islice(vnodes, 1, None),
-                                          islice(vnodes, 2, None)):
-            if (id(vnode1) not in y_indices or id(vnode3) not in y_indices or vnode2.node is None
-                    or vnode1.y[-1] not in quotes_classes or vnode3.y[0] != vnode1.y[-1]):
+        for group in grouped_quote_predictions.values():
+            if group is None:
                 continue
-            vnode2_roles = frozenset(role_name(role_id) for role_id in vnode2.node.roles)
-            if "STRING" not in vnode2_roles:
-                continue
+            vnode1, vnode2, vnode3 = group
             y_i_1 = y_indices[id(vnode1)]
             y_i_3 = y_indices[id(vnode3)]
             stats_vnode1 = processed_rules[winners[y_i_1]].stats

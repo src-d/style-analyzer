@@ -59,7 +59,7 @@ class Optimizer:
 
         def _minimize() -> OptimizeResult:
             return gp_minimize(cost_function, _dimensions, n_calls=self.n_iter,
-                               random_state=self.random_state)
+                               random_state=self.random_state, verbose=True)
 
         if not logs_are_structured:
             # fool the check in joblib - everything still works without it

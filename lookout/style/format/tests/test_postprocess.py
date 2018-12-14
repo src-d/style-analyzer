@@ -1,42 +1,52 @@
-import logging
-from pathlib import Path
-import tempfile
+from collections import OrderedDict
+from typing import Mapping, Optional, Sequence, Tuple
 import unittest
 
 from lookout.core.api.service_data_pb2 import File
 from lookout.core.data_requests import parse_uast
+from lookout.core.slogging import setup as slogging_setup
 import numpy
 
 from lookout.style.format.analyzer import FormatAnalyzer
-from lookout.style.format.classes import CLASS_INDEX, CLS_NOOP, CLS_SPACE
+from lookout.style.format.classes import (CLASS_INDEX, CLS_DOUBLE_QUOTE, CLS_NOOP,
+                                          CLS_SINGLE_QUOTE, CLS_SPACE)
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.postprocess import filter_uast_breaking_preds
 from lookout.style.format.tests.test_analyzer import FakeDataService
+from lookout.style.format.virtual_node import VirtualNode
 
 
 class PostprocessingTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        slogging_setup("DEBUG", False)
         cls.language = "javascript"
         cls.data_service = FakeDataService(files=None, changes=None)
         cls.stub = cls.data_service.get_bblfsh()
-        config = {"global": {"feature_extractor": {"cutoff_label_support": 0}}}
-        cls.fe = FeatureExtractor(
-            language=cls.language,
-            **FormatAnalyzer._load_train_config(config)[cls.language]["feature_extractor"])
-        cls.parent_loc = Path(__file__).parent.resolve()
-        cls.base_dir_ = tempfile.TemporaryDirectory()
-        cls.base_dir = cls.base_dir_.name
-        cls.noop = (CLASS_INDEX[CLS_NOOP],)
-        cls.space = (CLASS_INDEX[CLS_SPACE],)
+        cls.config = FormatAnalyzer._load_train_config({
+            "global": {"feature_extractor": {"cutoff_label_support": 0}},
+        })[cls.language]["feature_extractor"]
 
-    @classmethod
-    def tearDownClass(cls):
-        cls.base_dir_.cleanup()
+    def setUp(self):
+        self.fe = FeatureExtractor(language=self.language, **self.config)
 
-    def test_posprocess(self):
-        log = logging.getLogger("postprocess")
-        code = "var a = 15"
+    def _to_label(self, classes: Sequence[str]) -> Tuple[int, ...]:
+        return self.fe.class_sequences_to_labels[tuple(CLASS_INDEX[cls] for cls in classes)]
+
+    @staticmethod
+    def _grouped_predictions_mapping(vnodes: Sequence[VirtualNode], indices: Sequence[int]):
+        result = OrderedDict()
+        if indices is None:
+            return result
+        y_index = [i for i, vnode in enumerate(vnodes) if vnode.y is not None]
+        for i in indices:
+            y_i = y_index[i]
+            result[id(vnodes[y_i])] = (vnodes[y_i], vnodes[y_i + 1], vnodes[y_i + 2])
+            result[id(vnodes[y_i + 2])] = None
+        return result
+
+    def edit_and_test(self, code: str, modifs: Mapping[int, Sequence[str]],
+                      quote_indices: Optional[Tuple[int, ...]] = None) -> None:
         uast, errors = parse_uast(self.stub, code, filename="", language=self.language)
         if errors:
             self.fail("Could not parse the testing code.")
@@ -44,17 +54,29 @@ class PostprocessingTests(unittest.TestCase):
         X, y, (vnodes_y, vnodes, vnode_parents, node_parents) = self.fe.extract_features([file])
         y_pred = y.copy()
         rule_winners = numpy.zeros(y.shape)
-        # Introduce a bad pred in position 1 (between var and a): noop will break the code
-        y_pred[1] = self.fe.class_sequences_to_labels[self.noop]
+        for index, classes in modifs.items():
+            y_pred[index] = self._to_label(classes)
+        grouped_quote_predictions = self._grouped_predictions_mapping(vnodes, quote_indices)
         new_y, new_y_pred, new_vnodes_y, new_rule_winners, safe_preds = filter_uast_breaking_preds(
             y, y_pred, vnodes_y, vnodes, {"test_file": file}, self.fe, self.stub, vnode_parents,
-            node_parents, rule_winners, log)
+            node_parents, rule_winners, grouped_quote_predictions=grouped_quote_predictions)
         bad_preds = set(range(y.shape[0])) - set(safe_preds)
-        self.assertEqual(bad_preds, {1})
-        self.assertEqual(len(y) - 1, len(new_y))
-        self.assertEqual(len(y_pred) - 1, len(new_y_pred))
-        self.assertEqual(len(vnodes_y) - 1, len(new_vnodes_y))
-        self.assertEqual(len(rule_winners) - 1, len(new_rule_winners))
+        self.assertEqual(bad_preds, modifs.keys())
+        self.assertEqual(len(y) - len(modifs), len(new_y))
+        self.assertEqual(len(y_pred) - len(modifs), len(new_y_pred))
+        self.assertEqual(len(vnodes_y) - len(modifs), len(new_vnodes_y))
+        self.assertEqual(len(rule_winners) - len(modifs), len(new_rule_winners))
+
+    def test_posprocess(self):
+        self.edit_and_test("var a = 0", {1: (CLS_NOOP,)})
+
+    def test_bad_quotes(self):
+        self.edit_and_test("""var a = '"0"'; var c = "0";""",
+                           {3: (CLS_SPACE, CLS_DOUBLE_QUOTE), 4: (CLS_DOUBLE_QUOTE,)},
+                           (3,))
+
+    def test_lonely_quote(self):
+        self.edit_and_test("var a = 0; var b = 'c';", {2: (CLS_SINGLE_QUOTE)})
 
 
 if __name__ == "__main__":
