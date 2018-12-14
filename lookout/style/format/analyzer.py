@@ -83,6 +83,7 @@ class FormatAnalyzer(Analyzer):
                 "top_down_greedy_budget": [False, .5],
                 "prune_attributes": True,
                 "uncertain_attributes": True,
+                "confidence_threshold": 0.8,
                 "prune_dataset_ratio": .2,
                 "n_estimators": 10,
                 "random_state": 42,
