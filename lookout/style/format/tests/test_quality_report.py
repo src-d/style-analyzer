@@ -23,6 +23,8 @@ class PretrainedModelTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """Prepare environment & train the model for tests."""
+        if not server.exefile.exists():
+            server.fetch()
         # required config
         cls.bblfsh = "0.0.0.0:9432"
         cls.language = "javascript"
@@ -144,8 +146,9 @@ class QualityReportTests(PretrainedModelTests):
         output = "\n".join(output)
         output = output[:output.find("# Model report for https://github.com/jquery/jquery")]
         metrics = _get_precision_recall_f1_support(output)
-        self.assertEqual(
-            metrics, (0.8397747184701836, 0.8174414658975229, 0.7846189138709921, 2947))
+        self.assertAlmostEqual(
+            metrics, (0.8397747184701836, 0.8174414658975229, 0.7846189138709921, 2947),
+            delta=1e-15)
 
     def test_no_model(self):
         """Test on wrong path to model - expect fail."""

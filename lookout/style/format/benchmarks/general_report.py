@@ -19,7 +19,7 @@ from lookout.core.data_requests import DataService, request_files
 from sklearn.exceptions import NotFittedError
 from sklearn.metrics import classification_report, confusion_matrix
 
-from lookout.style.format.analyzer import FixData, FormatAnalyzer
+from lookout.style.format.analyzer import FileFix, FormatAnalyzer
 from lookout.style.format.benchmarks.time_profile import profile
 from lookout.style.format.classes import CLASS_REPRESENTATIONS
 from lookout.style.format.descriptions import describe_rule
@@ -185,7 +185,7 @@ class ReportAnalyzer(FormatAnalyzer):
     defaults_for_analyze = merge_dicts(FormatAnalyzer.defaults_for_analyze,
                                        {"aggregate": False})
 
-    def generate_quality_report(self, fixes: Iterable[FixData]) -> str:
+    def generate_quality_report(self, fixes: Iterable[FileFix]) -> str:
         """
         Generate report.
 
@@ -216,15 +216,13 @@ class ReportAnalyzer(FormatAnalyzer):
         :return: List of comments.
         """
         comments = []
-        handled_files = set()
         fixes = []
         files = request_files(data_service.get_data(), ptr_from, contents=True, uast=True)
-        for fix in self.generate_fixes(data_service,
-                                       [ReportAnalyzer.Changes(File(), f) for f in list(files)]):
+        for fix in self.generate_file_fixes(
+                data_service, [ReportAnalyzer.Changes(File(), f) for f in list(files)]):
             filepath = fix.head_file.path
-            if fix.error or filepath in handled_files:
+            if fix.error:
                 continue
-            handled_files.add(filepath)
             if self.config["aggregate"]:
                 fixes.append(fix)
             else:
@@ -300,16 +298,16 @@ class QualityReportAnalyzer(ReportAnalyzer):
         """
         return generate_model_report(model=self.model)
 
-    def generate_quality_report(self, fixes: Iterable[FixData]) -> str:
+    def generate_quality_report(self, fixes: Iterable[FileFix]) -> str:
         """
         Generate quality report: classification report, confusion matrix, files with most errors.
 
         :return: report.
         """
         fixes = list(fixes)
-        vnodes = chain.from_iterable(fix.all_vnodes for fix in fixes)
         if not fixes:
             raise ValueError("There are no fixes for %s", self.model)
+        vnodes = chain.from_iterable(fix.file_vnodes for fix in fixes)
         # FIXME(vmarkovtsev): we are taking the first fix here which does not work for >1 language
         return generate_quality_report(
             fixes[0].language, self.model.ptr, vnodes, self.config["max_files"])
