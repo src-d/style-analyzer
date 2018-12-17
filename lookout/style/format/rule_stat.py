@@ -105,7 +105,6 @@ def generate_report(y: Union[numpy.ndarray, Iterable[Union[int, float]]],
 @profile
 def print_rules_report(input_pattern: str, bblfsh: str, language: str, model_path: str) -> None:
     """Print several different reports for a given model on a given dataset."""
-    log = logging.getLogger("print_rules_report")
     model = FormatModel().load(model_path)
     if language not in model:
         raise NotFittedError()
@@ -127,12 +126,13 @@ def print_rules_report(input_pattern: str, bblfsh: str, language: str, model_pat
         return
 
     X, y, (vnodes_y, vnodes, vnode_parents, node_parents) = res
-    y_pred, rule_winners, _ = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
-                                            feature_extractor=fe)
+    y_pred, rule_winners, _, grouped_quote_predictions = rules.predict(
+        X=X, vnodes_y=vnodes_y, vnodes=vnodes, feature_extractor=fe)
     y, y_pred, vnodes_y, rule_winners, safe_preds = filter_uast_breaking_preds(
         y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, files={f.path: f for f in files},
         feature_extractor=fe, stub=client._stub, vnode_parents=vnode_parents,
-        node_parents=node_parents, rule_winners=rule_winners, log=log)
+        node_parents=node_parents, rule_winners=rule_winners,
+        grouped_quote_predictions=grouped_quote_predictions)
 
     print(generate_report(y=y, y_pred=y_pred, winners=rule_winners, feature_extractor=fe))
 

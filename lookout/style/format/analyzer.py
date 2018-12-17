@@ -93,7 +93,7 @@ class FormatAnalyzer(Analyzer):
                 "random_state": 42,
             },
             "n_jobs": -1,
-            "n_iter": 5,
+            "n_iter": 10,
             "cv": 3,
             "line_length_limit": 500,
             "lower_bound_instances": 500,
@@ -295,13 +295,14 @@ class FormatAnalyzer(Analyzer):
             bblfsh_stub: "bblfsh.aliases.ProtocolServiceStub", rules: Rules,
     ) -> Tuple[List[LineFix], List[VirtualNode]]:
         X, y, (vnodes_y, vnodes, vnode_parents, node_parents) = feature_extractor_output
-        y_pred, rule_winners, new_rules = rules.predict(X=X, vnodes_y=vnodes_y, vnodes=vnodes,
-                                                        feature_extractor=fe)
+        y_pred, rule_winners, new_rules, grouped_quote_predictions = rules.predict(
+            X=X, vnodes_y=vnodes_y, vnodes=vnodes, feature_extractor=fe)
         if self.config["uast_break_check"]:
             y, y_pred, vnodes_y, rule_winners, safe_preds = filter_uast_breaking_preds(
                 y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, files={file.path: file},
                 feature_extractor=fe, stub=bblfsh_stub, vnode_parents=vnode_parents,
-                node_parents=node_parents, rule_winners=rule_winners, log=self._log)
+                node_parents=node_parents, rule_winners=rule_winners,
+                grouped_quote_predictions=grouped_quote_predictions)
         assert len(y) == len(y_pred)
         assert len(y) == len(rule_winners)
         code_generator = CodeGenerator(fe, skip_errors=True)

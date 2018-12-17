@@ -15,7 +15,8 @@ from sklearn.feature_selection import SelectKBest, VarianceThreshold
 
 from lookout.style.format.classes import (
     CLASS_INDEX, CLASS_PRINTABLES, CLASS_REPRESENTATIONS, CLS_DOUBLE_QUOTE, CLS_NEWLINE, CLS_NOOP,
-    CLS_SINGLE_QUOTE, CLS_SPACE, CLS_SPACE_DEC, CLS_SPACE_INC, CLS_TAB, CLS_TAB_DEC, CLS_TAB_INC)
+    CLS_SINGLE_QUOTE, CLS_SPACE, CLS_SPACE_DEC, CLS_SPACE_INC, CLS_TAB, CLS_TAB_DEC, CLS_TAB_INC,
+    INDEX_CLS_TO_STR)
 from lookout.style.format.features import (  # noqa: F401
     Feature, FEATURE_CLASSES, FeatureGroup, FeatureId, FeatureLayout, Layout,
     MultipleValuesFeature, MutableFeatureLayout, MutableLayout)
@@ -359,6 +360,11 @@ class FeatureExtractor:
         """
         return ["".join(CLASS_PRINTABLES[label] for label in labels)
                 for labels in self.labels_to_class_sequences]
+
+    def label_to_str(self, label: int) -> str:
+        """Convert a label to string."""
+        return "".join(INDEX_CLS_TO_STR[cls]
+                       for cls in self.labels_to_class_sequences[label])
 
     def _create_neighbours(self, vnodes: Sequence[VirtualNode], vnodes_y: Sequence[VirtualNode],
                            parents: Mapping[int, bblfsh.Node],
