@@ -1,5 +1,8 @@
+import os
+from pathlib import Path
 import re
 import sys
+import tarfile
 import tempfile
 import unittest
 
@@ -15,6 +18,13 @@ class RobustnessTests(unittest.TestCase):
         cls.bblfsh = "0.0.0.0:9432"
         cls.language = "javascript"
 
+        parent_loc = Path(__file__).parent.resolve()
+        cls.base_dir_ = tempfile.TemporaryDirectory()
+        cls.base_dir = cls.base_dir_.name
+        with tarfile.open(str(parent_loc / "jquery_noisy.tar.xz")) as tar:
+            tar.extractall(path=cls.base_dir)
+        cls.jquery_dir = os.path.join(cls.base_dir, "jquery_noisy", "jquery")
+
     @unittest.skipIf(sys.version_info.minor == 5, "Python 3.5 is not yet supported by difflib")
     def test_quality_report_noisy(self):
         slogging.setup("DEBUG", False)
@@ -26,7 +36,7 @@ class RobustnessTests(unittest.TestCase):
                                      support_threshold=20,
                                      precision_threshold=0.95,
                                      dir_output=tempfile.tempdir,
-                                     repos_urls="https://github.com/warenlg/axios")
+                                     repos=self.jquery_dir)
             except SystemExit:
                 self.skipTest("Matplotlib is required to run this test")
         pattern = re.compile(r"((?:recall x)|(?:precision y)): \[(\d+.\d+(, \d+.\d+)+)\]")

@@ -111,8 +111,8 @@ def create_parser() -> ArgumentParser:
         "-l", "--language", default="javascript",
         help="Programming language to use.")
     quality_report_noisy_parser.add_argument(
-        "--repos-urls", type=str,
-        help="List of repository urls to fetch and analyze. Should be strings separated "
+        "--repos", type=str,
+        help="list of urls or paths to the repositories to analyze. Should be strings separated "
              "by newlines.")
     quality_report_noisy_parser.add_argument(
         "--precision-threshold", type=float, default=0.95,
