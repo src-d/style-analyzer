@@ -12,7 +12,6 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 from lookout.core.analyzer import ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.data_requests import DataService, with_changed_uasts_and_contents
-from lookout.core.lib import files_by_language
 from lookout.core.test_helpers import server
 import pandas
 from tqdm import tqdm
@@ -286,15 +285,13 @@ class SmokeEvalFormatAnalyzer(FormatAnalyzer):
         :return: List of comments.
         """
         report = []
-        handled_files = set()
         changes = list(data["changes"])
-        for fixes in self.generate_fixes(data_service, changes):
-            filepath = fixes.head_file.path
-            if fixes.error or filepath in handled_files:
+        for file_fix in self.generate_file_fixes(data_service, changes):
+            filepath = file_fix.head_file.path
+            if file_fix.error:
                 continue
-            handled_files.add(filepath)
-            bad_style_code = fixes.head_file.content.decode("utf-8", "replace")
-            correct_style_code = fixes.base_file.content.decode("utf-8", "replace")
+            bad_style_code = file_fix.head_file.content.decode("utf-8", "replace")
+            correct_style_code = file_fix.base_file.content.decode("utf-8", "replace")
             row = {
                 "repo": self.config["repo_name"],
                 "style": self.config["style_name"],
@@ -303,31 +300,9 @@ class SmokeEvalFormatAnalyzer(FormatAnalyzer):
                 "correct_style_file": correct_style_code,
             }
             row.update(calc_metrics(
-                bad_style_code, correct_style_code, fixes.feature_extractor,
-                fixes.all_vnodes, url=ptr_to.url, commit=ptr_to.commit))
+                bad_style_code, correct_style_code, file_fix.feature_extractor,
+                file_fix.file_vnodes, url=ptr_to.url, commit=ptr_to.commit))
             report.append(row)
-
-        # handle file without comments
-        base_files_by_lang = files_by_language(c.base for c in changes)
-        head_files_by_lang = files_by_language(c.head for c in changes)
-        for lang, head_files in head_files_by_lang.items():
-            for head_file in head_files:
-                if head_file in handled_files:
-                    continue
-                bad_style_code = head_files_by_lang[lang][head_file].content.decode(
-                    "utf-8", "replace")
-                correct_style_code = base_files_by_lang[lang][head_file].content.decode(
-                    "utf-8", "replace")
-                row = {
-                    "repo": self.config["repo_name"],
-                    "filepath": head_files_by_lang[lang][head_file].path,
-                    "style": self.config["style_name"],
-                    "bad_style_file": bad_style_code,
-                    "correct_style_file": correct_style_code,
-                }
-                row.update(calc_metrics(bad_style_code, correct_style_code,
-                                        fe=None, vnodes=None, url=None, commit=None))
-                report.append(row)
         self._dump_report(report, Path(self.config["report_path"]))
         return []
 

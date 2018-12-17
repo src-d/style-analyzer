@@ -3,7 +3,7 @@ import os
 import unittest
 
 from lookout.style.format import descriptions, FormatAnalyzer
-from lookout.style.format.analyzer import FixData
+from lookout.style.format.analyzer import FileFix, LineFix
 from lookout.style.format.virtual_node import Position, VirtualNode
 
 
@@ -40,16 +40,17 @@ class CodeGeneratorTests(unittest.TestCase):
         line_number = 2
         suggested_code = "<new code line>"
         partial_backup = functools.partial
-        fix_data = FixData(
-            base_file=None, head_file=FakeHeadFile, confidence=100, line_number=line_number,
-            error="Failed to parse", language=language, feature_extractor=None,
-            winner_rules=[34], suggested_code=suggested_code, all_vnodes=[],
-            fixed_vnodes=[VirtualNode(start=Position(10, 2, 1), end=Position(12, 3, 1),
-                                      value="!", y=(1,))])
+        line_fix = LineFix(
+            line_number=line_number, winner_rules=[34], suggested_code=suggested_code,
+            fixed_vnodes=[VirtualNode(start=Position(10, 2, 1), end=Position(12, 3, 1), value="!",
+                                      y=(1,))], confidence=100)
+        file_fix = FileFix(error="", line_fixes=[line_fix], language=language, base_file=None,
+                           feature_extractor=None, file_vnodes=[], head_file=FakeHeadFile)
+
         try:
 
             functools.partial = fake_partitial
-            text = analyzer.render_comment_text(fix_data)
+            text = analyzer.render_comment_text(file_fix, 0)
             res = """format: style mismatch:
 ```<language>
 1|<first code line>
