@@ -32,7 +32,6 @@ LineFix = NamedTuple("LineFix", (
     ("line_number", int),                     # line number for the comment
     ("suggested_code", str),                  # code line predicted by our model
     ("fixed_vnodes", List[VirtualNode]),      # VirtualNode-s with fixed y
-    ("winner_rules", List[int]),              # rule indices for fixed_vnodes
     ("confidence", int),                      # overall confidence in the prediction, 0-100
 ))
 
@@ -283,7 +282,6 @@ class FormatAnalyzer(Analyzer):
                 new_code_line=line_fix.suggested_code,  # code line suggested by our model
                 rules=rules.rules,                      # list of rules belonging to the model
                 fixed_vnodes=line_fix.fixed_vnodes,     # VirtualNode-s with changed y
-                winner_rules=line_fix.winner_rules,     # winner rule indices for fixed_vnodes
                 confidence=line_fix.confidence,         # overall confidence in the prediction
                 describe_rule=_describe_rule,           # function to format a rule as text
                 describe_change=_describe_change,       # function to format a change as text
@@ -297,6 +295,7 @@ class FormatAnalyzer(Analyzer):
         X, y, (vnodes_y, vnodes, vnode_parents, node_parents) = feature_extractor_output
         y_pred, rule_winners, new_rules, grouped_quote_predictions = rules.predict(
             X=X, vnodes_y=vnodes_y, vnodes=vnodes, feature_extractor=fe)
+        y_pred = rules.fill_missing_predictions(y_pred, y)
         if self.config["uast_break_check"]:
             y, y_pred, vnodes_y, rule_winners, safe_preds = filter_uast_breaking_preds(
                 y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, files={file.path: file},
@@ -306,7 +305,7 @@ class FormatAnalyzer(Analyzer):
         assert len(y) == len(y_pred)
         assert len(y) == len(rule_winners)
         code_generator = CodeGenerator(fe, skip_errors=True)
-        new_vnodes = code_generator.apply_predicted_y(vnodes, vnodes_y, y_pred)
+        new_vnodes = code_generator.apply_predicted_y(vnodes, vnodes_y, rule_winners, new_rules)
         token_fixes = []
         for line_number, line in self._group_line_nodes(
                 y, y_pred, vnodes_y, new_vnodes, rule_winners):
@@ -321,7 +320,6 @@ class FormatAnalyzer(Analyzer):
                 line_number=line_number,        # line number for the comment
                 suggested_code=new_code_line,   # code line suggested by our model
                 fixed_vnodes=fixed_vnodes,      # VirtualNode-s with changed y
-                winner_rules=line_winners,      # winner rule indices for fixed_vnodes
                 confidence=confidence,          # overall confidence in the prediction, 0-100
             ))
         return token_fixes, new_vnodes

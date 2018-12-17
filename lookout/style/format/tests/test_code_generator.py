@@ -9,8 +9,22 @@ from lookout.core.api.service_data_pb2 import File
 from lookout.style.format.analyzer import FormatAnalyzer
 from lookout.style.format.code_generator import CodeGenerator
 from lookout.style.format.feature_extractor import FeatureExtractor
+from lookout.style.format.rules import Rule, RuleStats
 from lookout.style.format.tests.code_generator_data import cases, label_composites
 from lookout.style.format.tests.test_analyzer import get_train_config
+
+
+class FakeSeq:
+    def __init__(self, ys):
+        self.ys = ys
+
+    def __getitem__(self, item):
+        return Rule(tuple(), RuleStats(self.ys[item], 1., 1000), False)
+
+
+class FakeRules:
+    def __init__(self, ys):
+        self.rules = FakeSeq(ys)
 
 
 class GeneratorTestsMeta(type):
@@ -33,7 +47,8 @@ class GeneratorTestsMeta(type):
             for i, yi in zip(y_indexes, y_pred):
                 y_cur[i] = yi
             code_generator = CodeGenerator(self.feature_extractor)
-            pred_vnodes = code_generator.apply_predicted_y(self.vnodes, self.vnodes_y, y_cur)
+            pred_vnodes = code_generator.apply_predicted_y(
+                self.vnodes, self.vnodes_y, list(range(len(self.vnodes_y))), FakeRules(y_cur))
             generated_file = code_generator.generate(pred_vnodes, "global")
             self.assertEqual(generated_file, result)
         return _test
@@ -48,7 +63,8 @@ class GeneratorTestsMeta(type):
             for i, yi in zip(y_indexes, y_pred):
                 y_cur[i] = yi
             code_generator = CodeGenerator(self.feature_extractor)
-            pred_vnodes = code_generator.apply_predicted_y(self.vnodes, self.vnodes_y, y_cur)
+            pred_vnodes = code_generator.apply_predicted_y(
+                self.vnodes, self.vnodes_y, list(range(len(self.vnodes_y))), FakeRules(y_cur))
             generated_file = code_generator.generate(pred_vnodes, "local")
             self.assertEqual(generated_file, result_local)
 

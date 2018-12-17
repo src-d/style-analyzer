@@ -2,12 +2,11 @@
 import logging
 from typing import List, Sequence
 
-import numpy
-
 from lookout.style.format.classes import (
     CLASS_INDEX, CLASS_REPRESENTATIONS, CLASSES, CLS_DOUBLE_QUOTE, CLS_NEWLINE, CLS_NOOP,
     CLS_SINGLE_QUOTE, CLS_SPACE_DEC, CLS_SPACE_INC, CLS_TAB_DEC, CLS_TAB_INC, CLS_TO_STR)
 from lookout.style.format.feature_extractor import FeatureExtractor
+from lookout.style.format.rules import Rules
 from lookout.style.format.virtual_node import VirtualNode
 
 
@@ -58,7 +57,9 @@ class CodeGenerator:
 
     def apply_predicted_y(self, vnodes: Sequence[VirtualNode],
                           vnodes_y: Sequence[VirtualNode],
-                          y_pred: numpy.ndarray) -> List[VirtualNode]:
+                          rule_winners: Sequence[int],
+                          rules: Rules,
+                          ) -> List[VirtualNode]:
         """
         Update labels for the sequence of VirtualNode-s. We also discard NOOPs.
 
@@ -66,15 +67,19 @@ class CodeGenerator:
                        Should be ordered by position.
         :param vnodes_y: Sequence of the labeled `VirtualNode`-s corresponding to labeled samples.\
                          Should be ordered by start position value.
-        :param y_pred: The model predictions for `vnodes_y` `VirtualNode`-s.
+        :param rule_winners: Sequence of applied rules to generate y_pred.
+        :param rules: Rules that were used for prediction.
         :return: The list of VirtualNode-s with adjusted labels. "y_old" attribute of each node \
                  contains the previous label.
         """
         result = []
-        for vnode, y_new in self._iterate_vnodes(vnodes, vnodes_y, y_pred):
+        for vnode, y_new, applied_rule in \
+                self._iterate_vnodes(vnodes, vnodes_y, rule_winners, rules):
             vnode = vnode.copy()
             if y_new != vnode.y:
                 vnode.y, vnode.y_old = y_new, vnode.y
+                if applied_rule:
+                    vnode.applied_rule = applied_rule
             result.append(vnode)
         return result
 
@@ -188,7 +193,7 @@ class CodeGenerator:
                                       "vnode: %s, y_new: %s" % (node_repr, y_new_repr))
         return True
 
-    def _iterate_vnodes(self, vnodes, vnodes_y, y_pred):
+    def _iterate_vnodes(self, vnodes, vnodes_y, rule_winners, rules):
         y_index = 0
         j = 0
         for i, vnode in enumerate(vnodes):
@@ -199,9 +204,11 @@ class CodeGenerator:
                     self.log.debug("Node #%d, y #%d: %s", i, j, repr(vnode))
                     j += 1
             if y_index >= len(vnodes_y) or id(vnode) != id(vnodes_y[y_index]):
-                yield vnode, vnode.y
+                yield vnode, vnode.y, None
             else:
-                yield vnode, self.feature_extractor.labels_to_class_sequences[y_pred[y_index]]
+                rule = rules.rules[rule_winners[y_index]]
+                yield (vnode, self.feature_extractor.labels_to_class_sequences[rule.stats.cls],
+                       rule)
                 y_index += 1
 
     def _handle_error(self, msg):

@@ -146,9 +146,10 @@ class QualityReportTests(PretrainedModelTests):
         output = "\n".join(output)
         output = output[:output.find("# Model report for https://github.com/jquery/jquery")]
         metrics = _get_precision_recall_f1_support(output)
-        self.assertAlmostEqual(
-            metrics, (0.8397747184701836, 0.8174414658975229, 0.7846189138709921, 2947),
-            delta=1e-15)
+        expected_metrics = (0.9191398589201619, 0.6745843230403801, 0.7385002866178716, 2947)
+        self.assertEqual(len(metrics), len(expected_metrics))
+        for metric_value, expected_metric_value in zip(metrics, expected_metrics):
+            self.assertAlmostEqual(metric_value, expected_metric_value, delta=1e-15)
 
     def test_no_model(self):
         """Test on wrong path to model - expect fail."""

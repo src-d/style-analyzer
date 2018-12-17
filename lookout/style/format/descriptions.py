@@ -7,7 +7,7 @@ from typing import List, Optional, Sequence, Tuple
 from numpy import flatnonzero, floating, ndarray
 from sklearn.exceptions import NotFittedError
 
-from lookout.style.format.classes import CLASS_INDEX, CLASS_REPRESENTATIONS, CLS_NOOP
+from lookout.style.format.classes import CLASS_INDEX, CLS_NOOP
 from lookout.style.format.feature_extractor import FeatureExtractor, FEATURES_MAX, FEATURES_MIN
 from lookout.style.format.features import BagFeature, CategoricalFeature, OrdinalFeature
 from lookout.style.format.rules import Rule
@@ -38,10 +38,10 @@ def describe_rule(rule: Rule, feature_extractor: FeatureExtractor) -> str:
     if feature_extractor.features is None or feature_extractor.index_to_feature is None:
         raise NotFittedError()
     attr_descriptions = describe_rule_attrs(rule, feature_extractor)
+    composite_class_repr = feature_extractor.composite_class_representations
     return "  %s\n⇒ y = %s\nConfidence: %.3f. Support: %d." % (
         "\n\t∧ ".join(attr_descriptions),
-        "".join(CLASS_REPRESENTATIONS[c]
-                for c in feature_extractor.labels_to_class_sequences[rule.stats.cls]),
+        "".join(composite_class_repr[rule.stats.cls]),
         rule.stats.conf,
         rule.stats.support)
 
