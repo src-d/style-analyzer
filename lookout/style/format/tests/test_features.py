@@ -1,7 +1,9 @@
 from collections import Counter
+from copy import deepcopy
 from itertools import islice
 import lzma
 from pathlib import Path
+from typing import Sequence, Tuple
 import unittest
 
 import bblfsh
@@ -28,9 +30,9 @@ class FeaturesTests(unittest.TestCase):
 
     def setUp(self):
         config = FormatAnalyzer._load_train_config(get_train_config())
-        final_config = config["javascript"]
+        self.final_config = config["javascript"]
         self.extractor = FeatureExtractor(language="javascript",
-                                          **final_config["feature_extractor"])
+                                          **self.final_config["feature_extractor"])
 
     def test_parse_file_exact_match(self):
         test_js_code_filepath = Path(__file__).parent / "for_parse_test.js.xz"
@@ -137,6 +139,22 @@ class FeaturesTests(unittest.TestCase):
 
         self.check_X_y(*self.extractor.extract_features(
             files, [list(range(1, self.contents.count("\n") + 1))] * 2))
+
+    def test_empty_strings(self):
+        config = deepcopy(self.final_config["feature_extractor"])
+        config["cutoff_label_support"] = 0
+        client = bblfsh.BblfshClient("0.0.0.0:9432")
+
+        def get_class_sequences_from_code(code: str) -> Sequence[Tuple[int, ...]]:
+            uast = client.parse(filename="", language="javascript", contents=code.encode()).uast
+            extractor = FeatureExtractor(language="javascript", **config)
+            result = extractor.extract_features([File(content=code.encode(), uast=uast, path="")])
+            if result is None:
+                self.fail("Could not parse test code.")
+            _, _, (vnodes_y, _, _, _) = result
+            return [vnode.y for vnode in vnodes_y]
+        self.assertEqual(get_class_sequences_from_code("var a = '';"),
+                         get_class_sequences_from_code("var a = 'a';"))
 
     def test_extract_features_some_lines(self):
         file = File(content=bytes(self.contents, "utf-8"),

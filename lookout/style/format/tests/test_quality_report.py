@@ -146,7 +146,7 @@ class QualityReportTests(PretrainedModelTests):
         output = "\n".join(output)
         output = output[:output.find("# Model report for https://github.com/jquery/jquery")]
         metrics = _get_precision_recall_f1_support(output)
-        expected_metrics = (0.9191398589201619, 0.6745843230403801, 0.7385002866178716, 2947)
+        expected_metrics = (0.9220615191829985, 0.673337856173677, 0.7376592242904151, 2948)
         self.assertEqual(len(metrics), len(expected_metrics))
         for metric_value, expected_metric_value in zip(metrics, expected_metrics):
             self.assertAlmostEqual(metric_value, expected_metric_value, delta=1e-15)
