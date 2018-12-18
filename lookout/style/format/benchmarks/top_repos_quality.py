@@ -9,7 +9,7 @@ import logging.handlers
 import os
 import subprocess
 import tempfile
-from typing import Iterable, Optional, Sequence, Type, Union
+from typing import Iterable, NamedTuple, Optional, Sequence, Type, Union
 
 from lookout.core import slogging
 from lookout.core.analyzer import Analyzer
@@ -201,7 +201,7 @@ def measure_quality(repository: str, from_commit: str, to_commit: str, port: int
     return report
 
 
-def calc_weighted_avg(arr: Sequence[Sequence], col: int, weight_col: int = 3) -> float:
+def calc_weighted_avg(arr: Sequence[Sequence], col: int, weight_col: int = 5) -> float:
     """Calculate average value in `col` weighted by column `weight_col`."""
     numerator, denominator = 0, 0
     # TODO: switch to numpy arrays
@@ -225,10 +225,26 @@ def calc_avg(arr: Sequence[Sequence], col: int) -> float:
     return numerator / denominator
 
 
-def _get_precision_recall_f1_support(report: str) -> (float, float, float, int):
+Metrics = NamedTuple("Metrics", (
+    ("precision", float),
+    ("recall", float),
+    ("full_recall", float),
+    ("f1", float),
+    ("ppcr", float),
+    ("support", int),
+    ("full_support", int),
+))
+
+
+def _get_metrics(report: str) -> Metrics:
     """Extract avg / total precision, recall, f1 score, support from report."""
-    data = _get_json_data(report)["weighted avg"]
-    return data["precision"], data["recall"], data["f1-score"], data["support"]
+    data = _get_json_data(report)
+    avg = data["cl_report"]["micro avg"]
+    avg_full = data["cl_report_full"]["micro avg"]
+    return Metrics(
+        precision=avg["precision"], recall=avg["recall"], full_recall=avg_full["recall"],
+        f1=avg["f1-score"], ppcr=data["ppcr"], support=avg["support"],
+        full_support=avg_full["support"])
 
 
 def _get_model_summary(report: str) -> (int, float):
@@ -305,21 +321,20 @@ def main(args):
                     continue
 
         # precision, recall, f1, support, n_rules, avg_len stats
-        agg = []
         table = []
         with io.StringIO() as output:
-            table.append(("repo", "prec", "recall", "f1", "support", "n_rules", "avg_len"))
             for repo, report in reports:
-                precision, recall, f1, support = _get_precision_recall_f1_support(report.quality)
+                metrics = _get_metrics(report.quality)
+                if not table:
+                    table.append(("repo",) + metrics._fields + ("Rules Number",
+                                                                "Average Rule Len"))
                 n_rules, avg_len = _get_model_summary(report.model)
-                agg.append((precision, recall, f1, support, n_rules, avg_len))
-                table.append((get_repo_name(repo), precision, recall, f1, support, n_rules,
-                              avg_len))
-            # weighted average
-            table.append(("Weighted average", *("%.2f" % calc_weighted_avg(agg, i)
-                                                for i in range(3))))
-            # average
-            table.append(("Average", *("%.2f" % calc_avg(agg, i) for i in range(6))))
+                table.append((get_repo_name(repo),) + metrics + (n_rules, avg_len))
+            average = tuple("%.3f" % calc_avg(table[1:], i) for i in range(1, 9))
+            weighted_average = tuple("%.3f" % calc_weighted_avg(table[1:], i) for i in range(1, 5))
+            weighted_average += (calc_weighted_avg(table[1:], 5, 6),)
+            table.append(("Average",) + average)
+            table.append(("Weighted average",) + weighted_average)
             print(tabulate(table, tablefmt="pipe", headers="firstrow"), file=output)
             summary = output.getvalue()
         print(summary)

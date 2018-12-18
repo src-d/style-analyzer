@@ -42,6 +42,9 @@ FileFix = NamedTuple("FileFix", (
     ("file_vnodes", List[VirtualNode]),       # fixed VirtualNode-s which correspond to this file
     ("head_file", File),                      # file from head revision
     ("base_file", File),                      # file from base revision
+    ("y_pred_pure", numpy.ndarray),           # raw rules.predict() output. It can contain
+                                              # negative values for a prediction refusal.
+    ("y", numpy.ndarray),                     # final vector of predictions with all fixes applied
 ))
 
 
@@ -252,13 +255,14 @@ class FormatAnalyzer(Analyzer):
                         log.warning("Failed to parse %s", file.path)
                         yield FileFix(error="Failed to parse", head_file=file, language=lang,
                                       feature_extractor=fe, base_file=prev_file, file_vnodes=[],
-                                      line_fixes=[])
+                                      line_fixes=[], y_pred_pure=None, y=None)
                 else:
-                    fixes, file_vnodes = self._generate_token_fixes(
+                    fixes, file_vnodes, y_pred_pure, y = self._generate_token_fixes(
                         file, fe, feature_extractor_output, data_service.get_bblfsh(), rules)
                     log.debug("%s %d fixes", file.path, len(fixes))
                     yield FileFix(error="", head_file=file, language=lang, feature_extractor=fe,
-                                  base_file=prev_file, file_vnodes=file_vnodes, line_fixes=fixes)
+                                  base_file=prev_file, file_vnodes=file_vnodes, line_fixes=fixes,
+                                  y_pred_pure=y_pred_pure, y=y)
 
     def render_comment_text(self, file_fix: FileFix, fix_index: int) -> str:
         """
@@ -292,17 +296,18 @@ class FormatAnalyzer(Analyzer):
     def _generate_token_fixes(
             self, file: File, fe: FeatureExtractor, feature_extractor_output,
             bblfsh_stub: "bblfsh.aliases.ProtocolServiceStub", rules: Rules,
-    ) -> Tuple[List[LineFix], List[VirtualNode]]:
+    ) -> Tuple[List[LineFix], List[VirtualNode], numpy.ndarray, numpy.ndarray]:
         X, y, (vnodes_y, vnodes, vnode_parents, node_parents) = feature_extractor_output
-        y_pred, rule_winners, new_rules, grouped_quote_predictions = rules.predict(
+        y_pred_pure, rule_winners, new_rules, grouped_quote_predictions = rules.predict(
             X=X, vnodes_y=vnodes_y, vnodes=vnodes, feature_extractor=fe)
-        y_pred = rules.fill_missing_predictions(y_pred, y)
+        y_pred = rules.fill_missing_predictions(y_pred_pure, y)
         if self.config["uast_break_check"]:
             y, y_pred, vnodes_y, rule_winners, safe_preds = filter_uast_breaking_preds(
                 y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, files={file.path: file},
                 feature_extractor=fe, stub=bblfsh_stub, vnode_parents=vnode_parents,
                 node_parents=node_parents, rule_winners=rule_winners,
                 grouped_quote_predictions=grouped_quote_predictions)
+            y_pred_pure = y_pred_pure[safe_preds]
         assert len(y) == len(y_pred)
         assert len(y) == len(rule_winners)
         code_generator = CodeGenerator(fe, skip_errors=True)
@@ -323,7 +328,7 @@ class FormatAnalyzer(Analyzer):
                 fixed_vnodes=fixed_vnodes,      # VirtualNode-s with changed y
                 confidence=confidence,          # overall confidence in the prediction, 0-100
             ))
-        return token_fixes, new_vnodes
+        return token_fixes, new_vnodes, y_pred_pure, y
 
     @staticmethod
     def _get_comment_confidence(line_ys: Sequence[int], line_ys_pred: Sequence[int],
