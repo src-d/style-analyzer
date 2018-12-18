@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from typing import Mapping, Optional, Sequence, Tuple
+from typing import FrozenSet, Mapping, Optional, Sequence, Tuple
 import unittest
 
 from lookout.core.api.service_data_pb2 import File
@@ -34,7 +34,8 @@ class PostprocessingTests(unittest.TestCase):
         return self.fe.class_sequences_to_labels[tuple(CLASS_INDEX[cls] for cls in classes)]
 
     @staticmethod
-    def _grouped_predictions_mapping(vnodes: Sequence[VirtualNode], indices: Sequence[int]):
+    def _grouped_predictions_mapping(vnodes: Sequence[VirtualNode],
+                                     indices: Optional[Sequence[int]]):
         result = OrderedDict()
         if indices is None:
             return result
@@ -45,8 +46,9 @@ class PostprocessingTests(unittest.TestCase):
             result[id(vnodes[y_i + 2])] = None
         return result
 
-    def edit_and_test(self, code: str, modifs: Mapping[int, Sequence[str]],
-                      quote_indices: Optional[Tuple[int, ...]] = None) -> None:
+    def edit_and_test(self, code: str, modifs: Mapping[int, Sequence[str]], *,
+                      quote_indices: Optional[Tuple[int, ...]] = None,
+                      bad_indices: Optional[FrozenSet[int]] = None) -> None:
         uast, errors = parse_uast(self.stub, code, filename="", language=self.language)
         if errors:
             self.fail("Could not parse the testing code.")
@@ -61,22 +63,24 @@ class PostprocessingTests(unittest.TestCase):
             y, y_pred, vnodes_y, vnodes, {"test_file": file}, self.fe, self.stub, vnode_parents,
             node_parents, rule_winners, grouped_quote_predictions=grouped_quote_predictions)
         bad_preds = set(range(y.shape[0])) - set(safe_preds)
-        self.assertEqual(bad_preds, modifs.keys())
-        self.assertEqual(len(y) - len(modifs), len(new_y))
-        self.assertEqual(len(y_pred) - len(modifs), len(new_y_pred))
-        self.assertEqual(len(vnodes_y) - len(modifs), len(new_vnodes_y))
-        self.assertEqual(len(rule_winners) - len(modifs), len(new_rule_winners))
+        bad = modifs.keys() if bad_indices is None else bad_indices
+        self.assertEqual(bad_preds, bad)
+        self.assertEqual(len(y) - len(bad), len(new_y))
+        self.assertEqual(len(y_pred) - len(bad), len(new_y_pred))
+        self.assertEqual(len(vnodes_y) - len(bad), len(new_vnodes_y))
+        self.assertEqual(len(rule_winners) - len(bad), len(new_rule_winners))
 
     def test_posprocess(self):
         self.edit_and_test("var a = 0", {1: (CLS_NOOP,)})
 
-    def test_bad_quotes(self):
+    def test_bad_and_good_quotes(self):
         self.edit_and_test("""var a = '"0"'; var c = "0";""",
-                           {3: (CLS_SPACE, CLS_DOUBLE_QUOTE), 4: (CLS_DOUBLE_QUOTE,)},
-                           (3,))
+                           {3: (CLS_SPACE, CLS_DOUBLE_QUOTE), 4: (CLS_DOUBLE_QUOTE,),
+                            8: (CLS_SPACE, CLS_SINGLE_QUOTE), 9: (CLS_SINGLE_QUOTE,)},
+                           quote_indices=(3, 8), bad_indices=frozenset((3, 4)))
 
     def test_lonely_quote(self):
-        self.edit_and_test("var a = 0; var b = 'c';", {2: (CLS_SINGLE_QUOTE)})
+        self.edit_and_test("var a = 0; var b = 'c';", {2: (CLS_SINGLE_QUOTE)}, quote_indices=(8,))
 
 
 if __name__ == "__main__":

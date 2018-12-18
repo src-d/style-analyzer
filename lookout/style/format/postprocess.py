@@ -132,7 +132,7 @@ def filter_uast_breaking_preds(
             if group is None:
                 continue
             vnode1, vnode2, vnode3 = group
-            content_before = file_content[vn_y.start.offset:vn_y.end.offset]
+            content_before = file_content[vnode1.start.offset:vnode3.end.offset]
             content_after = (feature_extractor.label_to_str(y_pred[i]) + vnode2.value
                              + feature_extractor.label_to_str(y_pred[i + 1]))
             parsed_before, errors = parse_uast(stub, content_before, filename="",
