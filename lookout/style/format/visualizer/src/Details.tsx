@@ -24,7 +24,11 @@ const Details = (props: IProps) => (
           </dd>
           <dt>ŷ</dt>
           <dd>
-            {props.classRepresentations[props.prediction]} ({props.prediction})
+            {props.prediction === -1
+              ? "Not predicted"
+              : `${props.classRepresentations[props.prediction]} (${
+                  props.prediction
+                })`}
           </dd>
           <dt>Rule</dt>
           <dd>{props.rule === null ? "None" : props.rule}</dd>

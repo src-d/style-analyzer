@@ -40,15 +40,16 @@ class CodeGeneratorTests(unittest.TestCase):
         line_number = 2
         suggested_code = "<new code line>"
         partial_backup = functools.partial
+        vnode = VirtualNode(start=Position(10, 2, 1), end=Position(12, 3, 1), value="!",
+                            y=(1,))
+        vnode.applied_rule = FakeRules.rules[34]
         line_fix = LineFix(
-            line_number=line_number, winner_rules=[34], suggested_code=suggested_code,
-            fixed_vnodes=[VirtualNode(start=Position(10, 2, 1), end=Position(12, 3, 1), value="!",
-                                      y=(1,))], confidence=100)
+            line_number=line_number, suggested_code=suggested_code,
+            fixed_vnodes=[vnode], confidence=100)
         file_fix = FileFix(error="", line_fixes=[line_fix], language=language, base_file=None,
                            feature_extractor=None, file_vnodes=[], head_file=FakeHeadFile)
 
         try:
-
             functools.partial = fake_partitial
             text = analyzer.render_comment_text(file_fix, 0)
             res = """format: style mismatch:
@@ -62,7 +63,7 @@ class CodeGeneratorTests(unittest.TestCase):
 ```
 
 <change description>
-Triggered rule # 34
+Triggered rule
 ```
 <rule # 34>
 ```

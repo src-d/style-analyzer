@@ -112,6 +112,7 @@ def return_features() -> Response:
     X, y, (vnodes_y, vnodes, vnode_parents, node_parents, sibling_indices) = res
     y_pred, rule_winners, rules, grouped_quote_predictions = rules.predict(
         X=X, vnodes_y=vnodes_y, vnodes=vnodes, feature_extractor=fe)
+    refuse_to_predict = y_pred < 0
     _, _, _, _, safe_preds = filter_uast_breaking_preds(
         y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, files={file.path: file},
         feature_extractor=fe, stub=client._stub, vnode_parents=vnode_parents,
@@ -128,6 +129,7 @@ def return_features() -> Response:
         "features": _input_matrix_to_descriptions(X, fe),
         "ground_truths": y.tolist(),
         "predictions": y_pred.tolist(),
+        "refuse_to_predict": refuse_to_predict.tolist(),
         "sibling_indices": sibling_indices,
         "rules": _rules_to_jsonable(rules, fe),
         "winners": rule_winners.tolist(),

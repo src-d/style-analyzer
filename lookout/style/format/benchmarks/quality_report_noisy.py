@@ -106,6 +106,7 @@ def files2mispreds(files: Iterable[str], feature_extractor: FeatureExtractor, ru
         .extract_features(files)
     y_pred, rule_winners, _, grouped_quote_predictions = rules.predict(
         X=X, vnodes_y=vnodes_y, vnodes=vnodes, feature_extractor=feature_extractor)
+    y_pred = rules.fill_missing_predictions(y_pred, y)
     y, y_pred, vnodes_y, rule_winners, safe_preds = filter_uast_breaking_preds(
         y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes,
         files={f.path: f for f in files}, feature_extractor=feature_extractor, stub=client._stub,

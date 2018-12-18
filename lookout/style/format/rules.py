@@ -92,19 +92,19 @@ class Rules:
         :param X_csr: input features.
         :param return_winner_indices: whether to return the winning rule index for each sample.
         :return: array of the same length as X with predictions or tuple of two arrays of the same\
-                 length as X containing (predictions, winner rule indices).
+                 length as X containing (predictions, winner rule indices). In case no rule was \
+                 triggered for feature row, corresponding result equals to -1.
         """
         X = X_csr.toarray()
         self._log.debug("predicting %d samples using %d rules", len(X), len(self._rules))
         rules = self._rules
         _compute_triggered = self._compute_triggered
-        prediction = numpy.zeros(len(X), dtype=numpy.int32)
+        prediction = numpy.full(len(X), -1, dtype=numpy.int32)
         if return_winner_indices:
-            winner_indices = numpy.zeros(len(X), dtype=numpy.int32)
+            winner_indices = numpy.full(len(X), -2, dtype=numpy.int32)
         for xi, x in enumerate(X):
             ris = _compute_triggered(self._compiled, rules, x)
             if len(ris) == 0:
-                # self._log.warning("no rule!")
                 continue
             if len(ris) > 1:
                 confs = numpy.zeros(len(ris), dtype=numpy.float32)
@@ -116,12 +116,13 @@ class Rules:
             prediction[xi] = rules[winner_index].stats.cls
             if return_winner_indices:
                 winner_indices[xi] = winner_index
+        self._log.debug("No rule was triggered in %d cases.", numpy.sum(prediction == -1))
         if return_winner_indices:
             return prediction, winner_indices
         return prediction
 
     def predict(
-            self, X: numpy.ndarray, vnodes_y: Sequence[VirtualNode], vnodes: Sequence[VirtualNode],
+            self, X: csr_matrix, vnodes_y: Sequence[VirtualNode], vnodes: Sequence[VirtualNode],
             feature_extractor: FeatureExtractor,
             ) -> Tuple[numpy.ndarray, numpy.ndarray, "Rules", QuotedNodeTripleMapping]:
         """
@@ -134,12 +135,32 @@ class Rules:
         :return: The predictions, the winning rules and the new Rules.
         """
         y_pred, winners = self.apply(X, True)
-        grouped_quote_predictions = self._group_quote_predictions(vnodes_y, vnodes)
-        new_y_pred, new_winners, new_rules = self.harmonize_quotes(
-            y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, winners=winners,
-            feature_extractor=feature_extractor,
+        triggered = y_pred > 0
+        vnodes_y_triggered = [vny for t, vny in zip(triggered, vnodes_y) if t]
+        # What if we have prediction for one quote label and do not have for another?
+        # Should we change both or should we keep original?
+        grouped_quote_predictions = self._group_quote_predictions(vnodes_y_triggered, vnodes)
+        y_pred[triggered], winners[triggered], new_rules = self.harmonize_quotes(
+            y_pred=y_pred[triggered], vnodes_y=vnodes_y_triggered, vnodes=vnodes,
+            winners=winners[triggered], feature_extractor=feature_extractor,
             grouped_quote_predictions=grouped_quote_predictions)
-        return new_y_pred, new_winners, new_rules, grouped_quote_predictions
+        return y_pred, winners, new_rules, grouped_quote_predictions
+
+    @staticmethod
+    def fill_missing_predictions(y: numpy.ndarray, y_fallback: numpy.ndarray,
+                                 ) -> numpy.ndarray:
+        """
+        Fill missing predictions with original labels.
+
+        :param y: Array with predictions. Negative values are considered as missing predictions.
+        :param y_fallback: Original labels. Vector should have the same length as `y`.
+        :return: Filled array with labels. The array have the same size as original.
+        """
+        assert y.shape == y_fallback.shape, "y and y_fallback should have the same shape."
+        no_rule_triggered = y < -1
+        y = y.copy()
+        y[no_rule_triggered] = y_fallback[no_rule_triggered]
+        return y
 
     def filter_by_confidence(self, confidence_threshold: float) -> "Rules":
         """
