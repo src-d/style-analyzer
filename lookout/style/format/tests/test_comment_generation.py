@@ -47,7 +47,8 @@ class CodeGeneratorTests(unittest.TestCase):
             line_number=line_number, suggested_code=suggested_code,
             fixed_vnodes=[vnode], confidence=100)
         file_fix = FileFix(error="", line_fixes=[line_fix], language=language, base_file=None,
-                           feature_extractor=None, file_vnodes=[], head_file=FakeHeadFile)
+                           feature_extractor=None, file_vnodes=[], head_file=FakeHeadFile,
+                           y=None, y_pred_pure=None)
 
         try:
             functools.partial = fake_partitial

@@ -1,5 +1,5 @@
 """Facilities to report the quality of a given model on a given dataset."""
-from collections import Counter, defaultdict, OrderedDict
+from collections import Counter, OrderedDict
 import copy
 import glob
 from itertools import chain
@@ -7,7 +7,7 @@ import json
 import logging
 import os
 import pprint
-from typing import Any, Iterable, List, Mapping, NamedTuple, Optional, Tuple, Type, Union
+from typing import Any, Iterable, List, Mapping, NamedTuple, Optional, Sequence, Type, Union
 
 from bblfsh import BblfshClient
 import jinja2
@@ -16,45 +16,17 @@ from lookout.core.analyzer import ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2 import Change, File
 from lookout.core.data_requests import DataService, request_files
+import numpy
 from sklearn.exceptions import NotFittedError
 from sklearn.metrics import classification_report, confusion_matrix
 
 from lookout.style.format.analyzer import FileFix, FormatAnalyzer
 from lookout.style.format.benchmarks.time_profile import profile
-from lookout.style.format.classes import CLASS_REPRESENTATIONS
 from lookout.style.format.descriptions import describe_rule
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.model import FormatModel
 from lookout.style.format.utils import generate_comment, merge_dicts, prepare_files
 from lookout.style.format.virtual_node import VirtualNode
-
-
-def convert_to_sklearn_format(vnodes: Iterable[VirtualNode],
-                              ) -> Tuple[List[int], List[int], List[VirtualNode], List[str]]:
-    """
-    Convert VirtualNode-s sequence to true targets, predicted targets and corresponding vnodes.
-
-    :param vnodes: VirtualNode-s sequence.
-    :return: true targets, predicted targets, corresponding vnodes and target names.
-    """
-    y, y_pred, vnodes_y = [], [], []
-    class_sequences_to_labels = defaultdict(lambda: len(class_sequences_to_labels))
-    for vnode in vnodes:
-        if vnode.y is None:
-            continue
-        vnodes_y.append(vnode)
-        if hasattr(vnode, "y_old"):
-            y.append(class_sequences_to_labels[vnode.y_old])
-            y_pred.append(class_sequences_to_labels[vnode.y])
-        else:
-            y.append(class_sequences_to_labels[vnode.y])
-            y_pred.append(class_sequences_to_labels[vnode.y])
-
-    labels_to_class_sequences = {label: seq for seq, label in class_sequences_to_labels.items()}
-    target_names = ["".join(CLASS_REPRESENTATIONS[cls] for cls in labels_to_class_sequences[i])
-                    for i in range(len(labels_to_class_sequences))]
-
-    return y, y_pred, vnodes_y, target_names
 
 
 def _load_jinja2_template(report_template_filename: str) -> jinja2.Template:
@@ -72,12 +44,22 @@ def _load_jinja2_template(report_template_filename: str) -> jinja2.Template:
     return template
 
 
-def generate_quality_report(language: str, ptr: ReferencePointer, vnodes, max_files: int):
+def generate_quality_report(language: str, ptr: ReferencePointer, vnodes: Sequence[VirtualNode],
+                            y: numpy.ndarray, y_pred_pure: numpy.ndarray, max_files: int,
+                            target_names: Sequence[str]):
     """Generate report: classification report, confusion matrix, files with most errors."""
-    y, y_pred, vnodes_y, target_names = convert_to_sklearn_format(vnodes)
     # classification report
-    c_report = classification_report(y, y_pred, output_dict=True, target_names=target_names,
-                                     labels=list(range(len(target_names))))
+    have_prediction = y_pred_pure >= 0
+    # Predicted Positive Condition Rate calculation
+    ppcr = numpy.sum(have_prediction) / have_prediction.shape[0]
+
+    c_report = classification_report(
+        y[have_prediction], y_pred_pure[have_prediction], output_dict=True,
+        target_names=target_names, labels=list(range(len(target_names))))
+    c_report_full = classification_report(
+        y, y_pred_pure, output_dict=True,
+        target_names=target_names, labels=list(range(len(target_names))))
+
     avr_keys = ["macro avg", "micro avg", "weighted avg"]
     c_sorted = OrderedDict((key, c_report[key])
                            for key in sorted(c_report, key=lambda k: -c_report[k]["support"])
@@ -85,12 +67,12 @@ def generate_quality_report(language: str, ptr: ReferencePointer, vnodes, max_fi
     for key in avr_keys:
         c_sorted[key] = c_report[key]
     # confusion matrix
-    mat = confusion_matrix(y, y_pred)
+    mat = confusion_matrix(y, y_pred_pure)
     # sort files by mispredictions
     file_mispred = []
-    for gt, pred, vn in zip(y, y_pred, vnodes_y):
-        if gt != pred:
-            file_mispred.append(vn.path)
+    for vnode in vnodes:
+        if vnode.y != getattr(vnode, "y_old", vnode.y):
+            file_mispred.append(vnode.path)
     file_stat = Counter(file_mispred)
     to_show = file_stat.most_common()
     if max_files > 0:
@@ -98,8 +80,9 @@ def generate_quality_report(language: str, ptr: ReferencePointer, vnodes, max_fi
 
     template = _load_jinja2_template("quality_report.md.jinja2")
     # TODO(vmarkovtsev): move all the logic inside the template
-    res = template.render(language=language, ptr=ptr, cl_report=c_sorted, conf_mat=mat,
-                          target_names=target_names, files=to_show)
+    res = template.render(language=language, ptr=ptr, conf_mat=mat, target_names=target_names,
+                          files=to_show, cl_report=c_sorted, cl_report_full=c_report_full,
+                          ppcr=ppcr)
     return res
 
 
@@ -363,9 +346,12 @@ class QualityReportAnalyzer(ReportAnalyzer):
         if not fixes:
             raise ValueError("There are no fixes for %s", self.model)
         vnodes = chain.from_iterable(fix.file_vnodes for fix in fixes)
+        ys = numpy.hstack(fix.y for fix in fixes)
+        y_pred_pure = numpy.hstack(fix.y_pred_pure for fix in fixes)
         # FIXME(vmarkovtsev): we are taking the first fix here which does not work for >1 language
         return generate_quality_report(
-            fixes[0].language, self.model.ptr, vnodes, self.config["max_files"])
+            fixes[0].language, self.model.ptr, vnodes, ys, y_pred_pure, self.config["max_files"],
+            fixes[0].feature_extractor.composite_class_representations)
 
 
 analyzer_class = QualityReportAnalyzer

@@ -12,8 +12,8 @@ from lookout.core.test_helpers import server
 from numpy.testing import assert_almost_equal
 
 from lookout.style.format.benchmarks.general_report import print_reports, QualityReportAnalyzer
-from lookout.style.format.benchmarks.top_repos_quality import _get_json_data, _get_model_summary, \
-    _get_precision_recall_f1_support
+from lookout.style.format.benchmarks.top_repos_quality import _get_json_data, _get_metrics, \
+    _get_model_summary, Metrics
 from lookout.style.format.tests import long_test
 from lookout.style.format.tests.test_analyzer import get_analyze_config, get_train_config
 from lookout.style.format.tests.test_analyzer_integration import (
@@ -146,9 +146,15 @@ class QualityReportTests(PretrainedModelTests):
         self.assertEqual(qcount, 1)
         output = "\n".join(output)
         output = output[:output.find("# Model report for https://github.com/jquery/jquery")]
-        metrics = _get_precision_recall_f1_support(output)
-        expected_metrics = (0.9220615191829985, 0.673337856173677, 0.7376592242904151, 2948)
-        self.assertEqual(len(metrics), len(expected_metrics))
+        metrics = _get_metrics(output)
+        expected_metrics = Metrics(
+            precision=0.9830682401231401,
+            recall=0.9830682401231401,
+            full_recall=0.649932157394844,
+            f1=0.9830682401231401,
+            ppcr=0.6611261872455902,
+            support=1949,
+            full_support=2948)
         assert_almost_equal(metrics, expected_metrics, decimal=15)
 
     def test_no_model(self):

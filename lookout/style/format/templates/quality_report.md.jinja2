@@ -2,15 +2,23 @@
 
 ### Classification report
 
-| class | precision | recall | f1-score | support |
-|----:|:-----|:-------|:-----|:-----|
-{% for class in cl_report %}
-| `{{ class }}` | `{{ "%.2f" % cl_report[class]["precision"] }}` | `{{ "%.2f" % cl_report[class]["recall"] }}` | `{{ "%.2f" % cl_report[class]["f1-score"] }}` | `{{ cl_report[class]["support"] }}` |
+PPCR: {{ "%.3f" % ppcr }}
+
+| Class | Precision | Recall | Full Recall | F1-score | Support | Full Support | PPCR |
+|------:|:----------|:-------|:------------|:---------|:--------|:-------------|:-----|
+{% for class in cl_report -%}
+| `{{ class }}` | {{ "%.3f" % cl_report[class]["precision"] -}}
+| {{ "%.3f" % cl_report[class]["recall"] -}}
+| {{ "%.3f" % cl_report_full[class]["recall"] -}}
+| {{ "%.3f" % cl_report[class]["f1-score"] -}}
+| {{ cl_report[class]["support"] -}}
+| {{ "%.3f" % cl_report_full[class]["support"] -}}
+| {{ "%.3f" % (cl_report[class]["support"] / cl_report_full[class]["support"] if cl_report_full[class]["support"] != 0 else 0 ) }} |
 {% endfor %}
 
 ### Confusion matrix
 
-| {% for i in target_names %} {{ "%s|" % i }}{% endfor %} {{ '\n' -}}
+|refusal| {% for i in target_names %} {{ "%s|" % i }}{% endfor %} {{ '\n' -}}
 | {%- for el in conf_mat[0] -%} {{ ":---|" }}{%- endfor -%} {{ '\n' -}}
 {% for row in conf_mat %}
 | {%- for el in row -%}
@@ -29,6 +37,10 @@
 <details>
     <summary>Machine-readable report</summary>
 ```json
-{{ cl_report | tojson }}
+{
+  "cl_report": {{ cl_report | tojson }},
+  "cl_report_full": {{ cl_report_full | tojson }},
+  "ppcr": {{ ppcr | tojson }}
+}
 ```
 </details>
