@@ -35,7 +35,6 @@ def _load_jinja2_template(report_template_filename: str) -> jinja2.Template:
     env.filters.update({
         "pformat": pprint.pformat,
         "deepcopy": copy.deepcopy,
-        "dict": dict,
     })
     loader = jinja2.FileSystemLoader((os.path.join(os.path.dirname(__file__), "..", "templates"),),
                                      followlinks=True)

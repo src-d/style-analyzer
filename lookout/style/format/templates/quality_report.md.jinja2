@@ -37,6 +37,10 @@ PPCR: {{ "%.3f" % ppcr }}
 <details>
     <summary>Machine-readable report</summary>
 ```json
-{{ dict(cl_report=cl_report, cl_report_full=cl_report_full, ppcr=ppcr) | tojson }}
+{
+  "cl_report": {{ cl_report | tojson }},
+  "cl_report_full": {{ cl_report_full | tojson }},
+  "ppcr": {{ ppcr | tojson }}
+}
 ```
 </details>
