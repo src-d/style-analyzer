@@ -9,6 +9,7 @@ import tempfile
 import unittest
 
 from lookout.core.test_helpers import server
+from numpy.testing import assert_almost_equal
 
 from lookout.style.format.benchmarks.general_report import print_reports, QualityReportAnalyzer
 from lookout.style.format.benchmarks.top_repos_quality import _get_json_data, _get_model_summary, \
@@ -148,8 +149,7 @@ class QualityReportTests(PretrainedModelTests):
         metrics = _get_precision_recall_f1_support(output)
         expected_metrics = (0.9220615191829985, 0.673337856173677, 0.7376592242904151, 2948)
         self.assertEqual(len(metrics), len(expected_metrics))
-        for metric_value, expected_metric_value in zip(metrics, expected_metrics):
-            self.assertAlmostEqual(metric_value, expected_metric_value, delta=1e-15)
+        assert_almost_equal(metrics, expected_metrics, decimal=15)
 
     def test_no_model(self):
         """Test on wrong path to model - expect fail."""
