@@ -27,7 +27,6 @@ from lookout.style.format.rules import Rules, TrainableRules
 from lookout.style.format.utils import generate_comment, merge_dicts
 from lookout.style.format.virtual_node import VirtualNode
 
-
 LineFix = NamedTuple("LineFix", (
     ("line_number", int),                     # line number for the comment
     ("suggested_code", str),                  # code line predicted by our model
@@ -245,6 +244,7 @@ class FormatAnalyzer(Analyzer):
                         find_new_lines(prev_file, file),
                         find_deleted_lines(prev_file, file),
                     )))
+                log.debug("%s %s", file.path, lines)
                 fe = FeatureExtractor(language=lang, **rules.origin_config["feature_extractor"])
                 feature_extractor_output = fe.extract_features([file], [lines])
                 if feature_extractor_output is None:
@@ -256,6 +256,7 @@ class FormatAnalyzer(Analyzer):
                 else:
                     fixes, file_vnodes = self._generate_token_fixes(
                         file, fe, feature_extractor_output, data_service.get_bblfsh(), rules)
+                    log.debug("%s %d fixes", file.path, len(fixes))
                     yield FileFix(error="", head_file=file, language=lang, feature_extractor=fe,
                                   base_file=prev_file, file_vnodes=file_vnodes, line_fixes=fixes)
 
