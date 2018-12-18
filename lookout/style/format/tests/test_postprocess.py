@@ -2,14 +2,15 @@ from collections import OrderedDict
 from typing import FrozenSet, Mapping, Optional, Sequence, Tuple
 import unittest
 
+import bblfsh
 from lookout.core.api.service_data_pb2 import File
 from lookout.core.data_requests import parse_uast
 from lookout.core.slogging import setup as slogging_setup
 import numpy
 
 from lookout.style.format.analyzer import FormatAnalyzer
-from lookout.style.format.classes import (CLASS_INDEX, CLS_DOUBLE_QUOTE, CLS_NOOP,
-                                          CLS_SINGLE_QUOTE, CLS_SPACE)
+from lookout.style.format.classes import (
+    CLASS_INDEX, CLS_DOUBLE_QUOTE, CLS_NOOP, CLS_SINGLE_QUOTE, CLS_SPACE)
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.postprocess import filter_uast_breaking_preds
 from lookout.style.format.tests.test_analyzer import FakeDataService
@@ -21,11 +22,16 @@ class PostprocessingTests(unittest.TestCase):
     def setUpClass(cls):
         slogging_setup("DEBUG", False)
         cls.language = "javascript"
-        cls.data_service = FakeDataService(files=None, changes=None)
+        cls.bblfsh_client = bblfsh.BblfshClient("0.0.0.0:9432")
+        cls.data_service = FakeDataService(cls.bblfsh_client, files=None, changes=None)
         cls.stub = cls.data_service.get_bblfsh()
         cls.config = FormatAnalyzer._load_train_config({
             "global": {"feature_extractor": {"cutoff_label_support": 0}},
         })[cls.language]["feature_extractor"]
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.bblfsh_client._channel.close()
 
     def setUp(self):
         self.fe = FeatureExtractor(language=self.language, **self.config)

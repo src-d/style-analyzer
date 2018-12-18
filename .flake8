@@ -10,4 +10,5 @@ import-order-style=appnexus
 application-package-names=lookout.style
 per-file-ignores=
     **/tests/*:D
+    **/test*.py:D
     lookout/style/typos/symspell.py:D

@@ -7,14 +7,14 @@ import json
 import logging
 import os
 import pprint
-from typing import Any, Iterable, List, Mapping, NamedTuple, Optional, Tuple, Union
+from typing import Any, Iterable, List, Mapping, NamedTuple, Optional, Tuple, Type, Union
 
 from bblfsh import BblfshClient
 import jinja2
 from lookout.core import slogging
 from lookout.core.analyzer import ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
-from lookout.core.api.service_data_pb2 import File
+from lookout.core.api.service_data_pb2 import Change, File
 from lookout.core.data_requests import DataService, request_files
 from sklearn.exceptions import NotFittedError
 from sklearn.metrics import classification_report, confusion_matrix
@@ -124,36 +124,50 @@ def generate_model_report(model: FormatModel,
                            describe_rule=describe_rule)
 
 
-@profile
-def print_reports(input_pattern: str, bblfsh: str, language: str, model_path: str,
-                  config: Union[str, dict] = "{}", log_level: str = "INFO") -> None:
-    """Print quality and model reports for a given model on a given dataset."""
-    slogging.setup(log_level, False)
-    log = logging.getLogger("quality_report")
+class FakeStub:
+    """Data service stub mock which returns the list of bound files and changes."""
 
-    class FakeStub:
-        def __init__(self, files: Iterable[File]):
-            self.files = files
+    def __init__(self, files: Iterable[File], changes: Iterable[Change]):
+        """Initialize a new instance of FakeStub."""
+        self.files = files
+        self.changes = changes
 
-        def GetFiles(self, *args, **kwargs):
-            return self.files
+    def GetFiles(self, *args, **kwargs):
+        """Return the list of File-s."""
+        return self.files
 
-    class FakeDataService:
-        def __init__(self, bblfsh_client: BblfshClient, files: Iterable[File]):
-            self.bblfsh_client = bblfsh_client
-            self.files = files
+    def GetChanges(self, _):
+        """Return the list of Change-s."""
+        return self.changes
 
-        def get_bblfsh(self):
-            return self.bblfsh_client._stub
 
-        def get_data(self):
-            return FakeStub(self.files)
+class FakeDataService:
+    """Data service mock which returns the list of bound files and changes through FakeStub."""
 
+    def __init__(self, bblfsh_client: BblfshClient, files: Iterable[File],
+                 changes: Iterable[Change]):
+        """Initialize a new instance of FakeDataService."""
+        self.bblfsh_client = bblfsh_client
+        self.files = files
+        self.changes = changes
+
+    def get_bblfsh(self):
+        """Return the Babelfish gRPC stub."""
+        return self.bblfsh_client._stub
+
+    def get_data(self):
+        """Return the FakeStub to pretend that the server is running."""
+        return FakeStub(self.files, self.changes)
+
+
+def analyze_files(analyzer_type: Type[FormatAnalyzer], config: dict, model_path: str,
+                  language: str, bblfsh: str, input_pattern: str, log: logging.Logger,
+                  ) -> List[FileFix]:
+    """Run the model, record the fixes for each file and return them."""
     class FakePointer:
         def to_pb(self):
             return None
 
-    config = config if isinstance(config, dict) else json.loads(config)
     model = FormatModel().load(model_path)
     if language not in model:
         raise NotFittedError()
@@ -163,12 +177,74 @@ def print_reports(input_pattern: str, bblfsh: str, language: str, model_path: st
     log.info("Model parameters: %s" % rules.origin_config)
     log.info("Rules stats: %s" % rules)
     log.info("Number of files: %s" % (len(files)))
-    for report in QualityReportAnalyzer(model, input_pattern, config).analyze(
-            FakePointer(), None, data_service=FakeDataService(client, files)):
+    return analyzer_type(model, input_pattern, config).analyze(
+        FakePointer(), None, data_service=FakeDataService(client, files, []))
+
+
+@profile
+def print_reports(input_pattern: str, bblfsh: str, language: str, model_path: str,
+                  config: Union[str, dict] = "{}", log_level: str = "INFO") -> None:
+    """Print quality and model reports for a given model on a given dataset."""
+    slogging.setup(log_level, False)
+    log = logging.getLogger("quality_report")
+    config = config if isinstance(config, dict) else json.loads(config)
+    for report in analyze_files(
+            QualityReportAnalyzer, config, model_path, language, bblfsh, input_pattern, log):
         print(report.text)
 
 
-class ReportAnalyzer(FormatAnalyzer):
+class FormatAnalyzerSpy(FormatAnalyzer):
+    """
+    The class which runs the FormatAnalyzer and returns the found fixes.
+    """
+
+    Changes = NamedTuple("Changes", (("base", File), ("head", File)))
+
+    def run(self, ptr_from: ReferencePointer,
+            data_service_head: DataService,
+            data_service_base: Optional[DataService] = None) -> Iterable[FileFix]:
+        """
+        Analyze ptr_from revision and a make quality report for all files in it.
+
+        If you want to get an aggregated report set aggregate flag to True in analyze config.
+
+        :param ptr_from: Git repository state pointer to the base revision.
+        :param data_service_head: Connection to the Lookout data retrieval service to get \
+                                the new files.
+        :param data_service_base: Connection to the Lookout data retrieval service to get \
+                                  the initial files. If it is None, we assume the empty contents.
+        :return: Generator of fixes for each file.
+        """
+        files_head = request_files(
+            data_service_head.get_data(), ptr_from, contents=True, uast=True)
+        if data_service_base is not None:
+            files_base = request_files(
+                data_service_base.get_data(), ptr_from, contents=True, uast=True)
+        else:
+            files_base = [File() for f in files_head]
+        return self.generate_file_fixes(
+            data_service_head, [self.Changes(f1, f2) for f1, f2 in zip(files_base, files_head)])
+
+    @classmethod
+    def train(cls, ptr: ReferencePointer, config: Mapping[str, Any], data_service: DataService,
+              **data) -> FormatModel:
+        """
+        Train a model given the files available or load existing model.
+
+        If you set config["model"] to path in the file system model will be loaded otherwise
+        a model is trained in a regular way.
+
+        :param ptr: Git repository state pointer.
+        :param config: Configuration dict.
+        :param data: Contains "files" - the list of files in the pointed state.
+        :param data_service: Connection to the Lookout data retrieval service.
+        :return: FormatModel containing the learned rules, per language.
+        """
+        return FormatModel().load(config["model"]) if "model" in config else \
+            super().train(ptr, config, data_service)
+
+
+class ReportAnalyzer(FormatAnalyzerSpy):
     """
     Base class for different kind of reports.
 
@@ -181,7 +257,6 @@ class ReportAnalyzer(FormatAnalyzer):
     * generate_model_report (optional - by default it will return empty string)
     """
 
-    Changes = NamedTuple("Changes", (("base", File), ("head", File)))
     defaults_for_analyze = merge_dicts(FormatAnalyzer.defaults_for_analyze,
                                        {"aggregate": False})
 
@@ -217,9 +292,7 @@ class ReportAnalyzer(FormatAnalyzer):
         """
         comments = []
         fixes = []
-        files = request_files(data_service.get_data(), ptr_from, contents=True, uast=True)
-        for fix in self.generate_file_fixes(
-                data_service, [ReportAnalyzer.Changes(File(), f) for f in list(files)]):
+        for fix in self.run(ptr_from, data_service):
             filepath = fix.head_file.path
             if fix.error:
                 continue
@@ -236,24 +309,6 @@ class ReportAnalyzer(FormatAnalyzer):
         comments.append(generate_comment(
             filename="", line=0, confidence=100, text=self.generate_model_report()))
         return comments
-
-    @classmethod
-    def train(cls, ptr: ReferencePointer, config: Mapping[str, Any], data_service: DataService,
-              **data) -> FormatModel:
-        """
-        Train a model given the files available or load existing model.
-
-        If you set config["model"] to path in the file system model will be loaded otherwise
-        a model is trained in a regular way.
-
-        :param ptr: Git repository state pointer.
-        :param config: Configuration dict.
-        :param data: Contains "files" - the list of files in the pointed state.
-        :param data_service: Connection to the Lookout data retrieval service.
-        :return: FormatModel containing the learned rules, per language.
-        """
-        return FormatModel().load(config["model"]) if "model" in config else \
-            super().train(ptr, config, data_service)
 
 
 class QualityReportAnalyzer(ReportAnalyzer):

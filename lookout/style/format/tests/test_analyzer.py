@@ -4,7 +4,7 @@ import lzma
 from pathlib import Path
 import tarfile
 from tempfile import TemporaryFile
-from typing import Dict, Iterable, NamedTuple, Optional
+from typing import Dict, NamedTuple
 import unittest
 
 import bblfsh
@@ -12,6 +12,7 @@ from lookout.core.analyzer import ReferencePointer
 from lookout.core.api.service_data_pb2 import File
 
 from lookout.style.format.analyzer import FormatAnalyzer
+from lookout.style.format.benchmarks.general_report import FakeDataService
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.model import FormatModel
 from lookout.style.format.tests.test_model import compare_models
@@ -51,30 +52,6 @@ def get_analyze_config():
     }
 
 
-class FakeDataService:
-    def __init__(self, files: Optional[Iterable[File]], changes: Optional[Iterable[Change]]):
-        self.data_stub = FakeDataStub(files, changes)
-        self.bblfsh_client = bblfsh.BblfshClient("0.0.0.0:9432")
-
-    def get_data(self):
-        return self.data_stub
-
-    def get_bblfsh(self):
-        return self.bblfsh_client._stub
-
-
-class FakeDataStub:
-    def __init__(self, files: Optional[Iterable[File]], changes: Optional[Iterable[Change]]):
-        self.files = files
-        self.changes = changes
-
-    def GetFiles(self, _):
-        return self.files
-
-    def GetChanges(self, _):
-        return self.changes
-
-
 class AnalyzerTests(unittest.TestCase):
     @staticmethod
     def get_files_from_tar(tar_path: str) -> Dict[str, File]:
@@ -107,13 +84,15 @@ class AnalyzerTests(unittest.TestCase):
         cls.head_files = cls.get_files_from_tar(str(base / "freecodecamp-head.tar.xz"))
         cls.ptr = ReferencePointer("someurl", "someref", "somecommit")
         FeatureExtractor._log.level = logging.DEBUG
+        cls.bblfsh_client = bblfsh.BblfshClient("0.0.0.0:9432")
 
-    def tearDown(self):
-        if hasattr(self, "data_service"):
-            self.data_service.bblfsh_client._channel.close()
+    @classmethod
+    def tearDownClass(cls):
+        cls.bblfsh_client._channel.close()
 
     def test_train(self):
-        self.data_service = FakeDataService(files=self.base_files.values(), changes=None)
+        self.data_service = FakeDataService(
+            self.bblfsh_client, files=self.base_files.values(), changes=[])
         model1 = FormatAnalyzer.train(self.ptr, get_train_config(), self.data_service)
         self.assertIsInstance(model1, FormatModel)
         self.assertIn("javascript", model1, str(model1))
@@ -128,7 +107,8 @@ class AnalyzerTests(unittest.TestCase):
             compare_models(self, model2, model3)
 
     def test_train_cutoff_labels(self):
-        self.data_service = FakeDataService(files=self.base_files.values(), changes=None)
+        self.data_service = FakeDataService(
+            self.bblfsh_client, files=self.base_files.values(), changes=[])
         model1 = FormatAnalyzer.train(self.ptr, get_train_config(), self.data_service)
         self.assertIsInstance(model1, FormatModel)
         self.assertIn("javascript", model1, str(model1))
@@ -145,6 +125,7 @@ class AnalyzerTests(unittest.TestCase):
     def test_analyze(self):
         common = self.base_files.keys() & self.head_files.keys()
         self.data_service = FakeDataService(
+            self.bblfsh_client,
             files=self.base_files.values(),
             changes=[Change(base=self.base_files[k], head=self.head_files[k])
                      for k in common])
@@ -157,7 +138,8 @@ class AnalyzerTests(unittest.TestCase):
         self.assertGreater(len(comments), 0)
 
     def test_file_filtering(self):
-        self.data_service = FakeDataService(files=self.base_files.values(), changes=None)
+        self.data_service = FakeDataService(
+            self.bblfsh_client, files=self.base_files.values(), changes=[])
         config = get_train_config()
         config["global"]["line_length_limit"] = 0
         model_trained = FormatAnalyzer.train(self.ptr, config, self.data_service)
