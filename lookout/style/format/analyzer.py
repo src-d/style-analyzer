@@ -336,9 +336,11 @@ class FormatAnalyzer(Analyzer):
         return int(round(confidence * 100 / confidence_count))
 
     @staticmethod
-    def _group_line_nodes(y: Sequence[int], y_pred: Sequence[int], vnodes_y: Sequence[VirtualNode],
-                          new_vnodes: Sequence[VirtualNode], rule_winners: Sequence[int],
-                          ) -> Tuple[int, Tuple]:
+    def _group_line_nodes(
+        y: Sequence[int], y_pred: Sequence[int], vnodes_y: Sequence[VirtualNode],
+        new_vnodes: Sequence[VirtualNode], rule_winners: Sequence[int],
+        ) -> Tuple[int, Tuple[Sequence[int], Sequence[int], Sequence[VirtualNode],
+                              Sequence[VirtualNode], Sequence[int]]]:
         """
         Group virtual nodes and related lists from feature extractor by line number.
 
@@ -356,39 +358,34 @@ class FormatAnalyzer(Analyzer):
         :param rule_winners: List of rule winners.
         :return: 1-based line number and sublists of corresponding items from all input sequences.
         """
-        line_ys, line_ys_pred, line_vnodes_y, line_winners = [], [], [], []
-        generate_comment = False
-        vnodes_index = 0
-        for yi, y_predi, vnode_y, winner in zip(y, y_pred, vnodes_y, rule_winners):
-            if not line_ys or vnode_y.start.line == line_vnodes_y[0].start.line:
-                # collect all nodes on the same line
-                line_ys.append(yi)
-                line_ys_pred.append(y_predi)
-                line_vnodes_y.append(vnode_y)
-                line_winners.append(winner)
-                if yi != y_predi:
-                    generate_comment = True
-                continue
-            else:
-                if generate_comment:
-                    line_vnodes = []
-                    for vnode in new_vnodes[vnodes_index:]:
-                        if vnode.start.line > line_vnodes_y[0].start.line:
-                            if (line_vnodes and line_vnodes[-1].y is not None and
-                                    CLASS_INDEX[CLS_NEWLINE] in line_vnodes[-1].y):
-                                break
-                            else:
-                                line_vnodes.append(vnode)
-                                continue
-                        if vnode.end.line < line_vnodes_y[0].start.line:
-                            continue
+        line_no = None
+        line_items = None
+        result = []
+        for (yi, y_predi, vnode_y, winner) in zip(y, y_pred, vnodes_y, rule_winners):
+            if vnode_y.start.line != line_no:
+                if line_items:
+                    result.append((line_no, zip(*line_items)))
+                line_items = []
+                line_no = vnode_y.start.line
+            if yi != y_predi:
+                line_items.append((yi, y_predi, vnode_y, winner))
+        if line_items:
+            result.append((line_no, zip(*line_items)))
+
+        for line_no, (line_y, line_y_pred, line_vnodes_y, line_rule_winners) in result:
+            line_vnodes = []
+            for vnode in new_vnodes:
+                if vnode.start.line > line_no:
+                    if (line_vnodes and line_vnodes[-1].y is not None and
+                            CLASS_INDEX[CLS_NEWLINE] in line_vnodes[-1].y):
+                        break
+                    else:
                         line_vnodes.append(vnode)
-                        vnodes_index += 1
-                    yield (int(line_vnodes_y[0].start.line),
-                           (line_ys, line_ys_pred, line_vnodes_y, line_vnodes, line_winners))
-                generate_comment = yi != y_predi
-                line_ys, line_ys_pred, line_vnodes_y, line_winners = (
-                    [yi], [y_predi], [vnode_y], [winner])
+                        continue
+                elif vnode.end.line >= line_no:
+                    line_vnodes.append(vnode)
+            yield (int(line_vnodes_y[0].start.line),
+                   (line_y, line_y_pred, line_vnodes_y, line_vnodes, line_rule_winners))
 
     @classmethod
     def _load_analyze_config(cls, config: Mapping[str, Any]) -> Mapping[str, Any]:
