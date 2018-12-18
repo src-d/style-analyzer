@@ -124,7 +124,6 @@ def return_features() -> Response:
     labeled_indices = {id(vnode): i for i, vnode in enumerate(vnodes_y)}
     app.logger.info("returning features of shape %d, %d" % X.shape)
     app.logger.info("length of rules: %d", len(rules))
-    # TODO (zurk): Add refuse_to_predict to visualization
     return jsonify({
         "code": code,
         "features": _input_matrix_to_descriptions(X, fe),
