@@ -137,8 +137,6 @@ class Rules:
         y_pred, winners = self.apply(X, True)
         triggered = y_pred > 0
         vnodes_y_triggered = [vny for t, vny in zip(triggered, vnodes_y) if t]
-        # What if we have prediction for one quote label and do not have for another?
-        # Should we change both or should we keep original?
         grouped_quote_predictions = self._group_quote_predictions(vnodes_y_triggered, vnodes)
         y_pred[triggered], winners[triggered], new_rules = self.harmonize_quotes(
             y_pred=y_pred[triggered], vnodes_y=vnodes_y_triggered, vnodes=vnodes,
