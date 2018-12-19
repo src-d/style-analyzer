@@ -153,11 +153,11 @@ def create_parser() -> ArgumentParser:
         help="Path for report performance output directory.")
     add_bblfsh_arg(eval_gen_styles_parser)
     eval_gen_styles_parser.add_argument(
-        "--train-config-json", type=json.loads, default="{}",
-        help="Config for train step.")
+        "--train-config", type=json.loads, default="{}",
+        help="Json config for train step.")
     eval_gen_styles_parser.add_argument(
-        "--analyze-config-json", type=json.loads, default="{}",
-        help="Config for analyze step.")
+        "--analyze-config", type=json.loads, default="{}",
+        help=" Json config for analyze step.")
     eval_gen_styles_parser.add_argument(
         "--database", type=str, default=None,
         help="Path to the sqlite3 database with trained models metadata. "

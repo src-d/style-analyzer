@@ -310,8 +310,8 @@ class SmokeEvalFormatAnalyzer(FormatAnalyzer):
 analyzer_class = SmokeEvalFormatAnalyzer
 
 
-def evaluate_smoke_entry(inputpath: str, reportdir: str, database: str, train_config: dict,
-                         analyze_config: dict) -> None:
+def evaluate_smoke_entry(inputpath: str, reportdir: str, database: str, bblfsh: str,
+                         train_config: dict, analyze_config: dict) -> None:
     """
     CLI entry point.
     """
@@ -355,10 +355,10 @@ def evaluate_smoke_entry(inputpath: str, reportdir: str, database: str, train_co
                                 "report_path": reportdir,
                             })}
                     server.run("push", fr=row["from"], to=row["to"], port=port,
-                               git_dir=str(repopath), log_level="warning",
+                               git_dir=str(repopath), log_level="warning", bblfsh=bblfsh,
                                config_json=json.dumps(train_config))
                     server.run("review", fr=row["from"], to=row["to"], port=port,
-                               git_dir=str(repopath), log_level="warning",
+                               git_dir=str(repopath), log_level="warning", bblfsh=bblfsh,
                                config_json=json.dumps(config_json))
             log.info("Quality report saved to %s", reportdir)
 
