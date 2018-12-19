@@ -198,13 +198,14 @@ class FormatAnalyzerSpy(FormatAnalyzer):
                                   the initial files. If it is None, we assume the empty contents.
         :return: Generator of fixes for each file.
         """
-        files_head = request_files(
-            data_service_head.get_data(), ptr_from, contents=True, uast=True)
+        files_head = list(request_files(
+            data_service_head.get_data(), ptr_from, contents=True, uast=True))
+
         if data_service_base is not None:
-            files_base = request_files(
-                data_service_base.get_data(), ptr_from, contents=True, uast=True)
+            files_base = list(request_files(
+                data_service_base.get_data(), ptr_from, contents=True, uast=True))
         else:
-            files_base = [File() for f in files_head]
+            files_base = [File(path=f.path) for f in files_head]
         return self.generate_file_fixes(
             data_service_head, [self.Changes(f1, f2) for f1, f2 in zip(files_base, files_head)])
 
@@ -344,7 +345,7 @@ class QualityReportAnalyzer(ReportAnalyzer):
         """
         fixes = list(fixes)
         if not fixes:
-            raise ValueError("There are no fixes for %s", self.model)
+            raise ValueError("There are no fixes for %s" % self.model.dump())
         vnodes = chain.from_iterable(fix.file_vnodes for fix in fixes)
         ys = numpy.hstack(fix.y for fix in fixes)
         y_pred_pure = numpy.hstack(fix.y_pred_pure for fix in fixes)
