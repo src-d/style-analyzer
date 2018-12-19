@@ -21,7 +21,7 @@ setup(
     description="Machine learning-based assisted code review - code style analyzers.",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    version=".".join(map(str, lookout_style.__version__)),
+    version=lookout_style.__version__,
     license="AGPL-3.0",
     author="source{d}",
     author_email="machine-learning@sourced.tech",
