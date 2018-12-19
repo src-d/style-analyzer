@@ -2,6 +2,7 @@
 Command line utilities to check the quality of a model on a given dataset, visualize errors, etc.
 """
 from argparse import ArgumentParser
+import json
 from typing import Any
 
 from lookout.core.cmdline import ArgumentDefaultsHelpFormatterNoNone
@@ -151,6 +152,12 @@ def create_parser() -> ArgumentParser:
         "reportdir", type=str,
         help="Path for report performance output directory.")
     add_bblfsh_arg(eval_gen_styles_parser)
+    eval_gen_styles_parser.add_argument(
+        "--train-config-json", type=json.loads, default="{}",
+        help="Config for train step.")
+    eval_gen_styles_parser.add_argument(
+        "--analyze-config-json", type=json.loads, default="{}",
+        help="Config for analyze step.")
     eval_gen_styles_parser.add_argument(
         "--database", type=str, default=None,
         help="Path to the sqlite3 database with trained models metadata. "

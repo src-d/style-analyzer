@@ -8,6 +8,7 @@ from lookout.style.format.benchmarks import generate_smoke
 from lookout.style.format.benchmarks.evaluate_smoke import (
     align2, align3, calc_aligned_metrics,
     evaluate_smoke_entry)
+from lookout.style.format.tests.test_analyzer import get_analyze_config, get_train_config
 
 
 class EvaluateSmokeTests(unittest.TestCase):
@@ -125,7 +126,8 @@ class EvaluateSmokeTests(unittest.TestCase):
             with open(os.path.join(outputpath, "index.csv"), "w") as index:
                 index.write("\n".join(index_content[::3]))
             report_dir = os.path.join(outputpath, "report")
-            evaluate_smoke_entry(outputpath, report_dir, None)
+            evaluate_smoke_entry(outputpath, report_dir, None,
+                                 get_train_config(), get_analyze_config())
             report = pandas.read_csv(os.path.join(report_dir, "report.csv"))
             self.assertEqual(len(report), 11)
             self.assertEqual(len(report.columns), 15)
