@@ -23,7 +23,8 @@ class RobustnessTests(unittest.TestCase):
         cls.base_dir = cls.base_dir_.name
         with tarfile.open(str(parent_loc / "jquery_noisy.tar.xz")) as tar:
             tar.extractall(path=cls.base_dir)
-        cls.jquery_dir = os.path.join(cls.base_dir, "jquery_noisy", "jquery")
+        cls.jquery_dir = str(Path(cls.base_dir) / "jquery_noisy" / "jquery")
+        os.symlink(str(parent_loc / "jquery_noisy.asdf"), str(Path(cls.jquery_dir) / "model.asdf"))
 
     @unittest.skipIf(sys.version_info.minor == 5, "Python 3.5 is not yet supported by difflib")
     def test_quality_report_noisy(self):

@@ -59,7 +59,7 @@ class FormatModelTests(unittest.TestCase):
         fm = FormatModel()
         self.assertEqual(fm.dump(), "<unknown name>/[1, 0, 0] <unknown url> <unknown commit>")
 
-        DUMP = """<unknown name>/[2] https://github.com/jquery/jquery c2026b117d1ca5b2e42a52c7e2a8ae8988cf0d4b
+        DUMP = """style.format.analyzer.FormatAnalyzer/[3] https://github.com/jquery/jquery c2026b117d1ca5b2e42a52c7e2a8ae8988cf0d4b
 
 # javascript
 1269 rules, avg.len. 19.1"""  # noqa

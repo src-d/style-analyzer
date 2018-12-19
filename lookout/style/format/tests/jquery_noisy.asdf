@@ -95,7 +95,7 @@ meta:
     python: "3.7.1 (default, Oct 22 2018, 11:21:55) \n[GCC 8.2.0]"
   model: code-format
   parent: 885bd4cb-9c15-46c3-9eee-df540be59046
-  uuid: bf4a0d04-b3d9-4f2d-b0bb-57ad01529acd
+  uuid: be71a98a-9f32-4a22-8eaa-51593189cf8d
   version: [3]
 name: style.format.analyzer.FormatAnalyzer
 origin_configs:
