@@ -323,7 +323,7 @@ class QualityReportAnalyzer(ReportAnalyzer):
     ```
     """
 
-    version = "1"
+    version = 1
     description = "Source code formatting quality report generator: " \
                   "whitespace, new lines, quotes, etc."
     defaults_for_analyze = merge_dicts(ReportAnalyzer.defaults_for_analyze,
