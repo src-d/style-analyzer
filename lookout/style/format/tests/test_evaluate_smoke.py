@@ -126,7 +126,7 @@ class EvaluateSmokeTests(unittest.TestCase):
             with open(os.path.join(outputpath, "index.csv"), "w") as index:
                 index.write("\n".join(index_content[::3]))
             report_dir = os.path.join(outputpath, "report")
-            evaluate_smoke_entry(outputpath, report_dir, None,
+            evaluate_smoke_entry(outputpath, report_dir, None, "0.0.0.0:9432",
                                  get_train_config(), get_analyze_config())
             report = pandas.read_csv(os.path.join(report_dir, "report.csv"))
             self.assertEqual(len(report), 11)
