@@ -1,5 +1,6 @@
 """Measure quality on several top repositories."""
 from argparse import ArgumentParser, Namespace
+from datetime import datetime
 import functools
 import importlib
 import io
@@ -290,8 +291,29 @@ def main(args):
         with AnalyzerContextManager(port=port, db=database, fs=fs,
                                     analyzer="lookout.style.format.benchmarks.general_report",
                                     init=False):
-            for repo in REPOSITORIES:
+            start_time = datetime.now()
+            for ri, repo in enumerate(REPOSITORIES):
                 repo, to_commit, from_commit = repo.split()
+                now = datetime.now()
+                if ri > 0:
+                    left = (len(REPOSITORIES) - ri) / ri * (now - start_time)
+                else:
+                    left = None
+                log.info("\n%s\n"
+                         "= %-76s =\n"
+                         "= %2d / %2d%s=\n"
+                         "= Now:  %-60s%s=\n"
+                         "= Left: %-40s%s=\n"
+                         "= Ends: %-60s%s=\n"
+                         "%s",
+                         "="*80,
+                         repo,
+                         ri + 1, len(REPOSITORIES), " " * 70,
+                         now, " " * 11,
+                         left, " " * 31,
+                         now + left if left is not None else None, " " * 11,
+                         "=" * 80,
+                         )
                 report_loc = os.path.join(args.output, get_repo_name(repo))
                 quality_rep_loc = report_loc + ".quality_report.md"
                 model_rep_loc = report_loc + ".model_report.md"
