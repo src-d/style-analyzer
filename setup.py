@@ -21,7 +21,7 @@ setup(
     description="Machine learning-based assisted code review - code style analyzers.",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    version=".".join(map(str, lookout_style.__version__)),
+    version=lookout_style.__version__,
     license="AGPL-3.0",
     author="source{d}",
     author_email="machine-learning@sourced.tech",
@@ -32,7 +32,7 @@ setup(
     keywords=["machine learning on source code", "babelfish", "lookout"],
     install_requires=[
         "sourced-ml>=0.7.2,<0.8",
-        "lookout-sdk-ml>=0.4.3,<0.5",
+        "lookout-sdk-ml>=0.5.0,<0.6",
         "scikit-learn>=0.20,<2.0",
         "scikit-optimize>=0.5,<2.0",
         "pandas>=0.22,<2.0",

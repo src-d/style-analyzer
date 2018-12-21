@@ -20,7 +20,7 @@ from lookout.style.format.analyzer import FormatAnalyzer
 from lookout.style.format.code_generator import CodeGenerator
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.tests.test_analyzer_integration import TestAnalyzer
-from lookout.style.format.utils import flatten_dict
+from lookout.style.format.utils import flatten_dict, merge_dicts
 from lookout.style.format.virtual_node import VirtualNode
 
 EMPTY = "␣"
@@ -310,7 +310,8 @@ class SmokeEvalFormatAnalyzer(FormatAnalyzer):
 analyzer_class = SmokeEvalFormatAnalyzer
 
 
-def evaluate_smoke_entry(inputpath: str, reportdir: str, database: str) -> None:
+def evaluate_smoke_entry(inputpath: str, reportdir: str, database: str, bblfsh: str,
+                         train_config: dict, analyze_config: dict) -> None:
     """
     CLI entry point.
     """
@@ -318,7 +319,8 @@ def evaluate_smoke_entry(inputpath: str, reportdir: str, database: str) -> None:
     report_filename = os.path.join(reportdir, "report.csv")
     log = logging.getLogger("evaluate_smoke")
     port = server.find_port()
-    train_config = {analyzer_class.name: {"global": {"cutoff_label_precision": 0}}}
+    train_config = {analyzer_class.name: train_config}
+
     if database is None:
         db = tempfile.NamedTemporaryFile(dir=inputpath, prefix="db", suffix=".sqlite3")
         database = db.name
@@ -346,18 +348,17 @@ def evaluate_smoke_entry(inputpath: str, reportdir: str, database: str) -> None:
                 for row in tqdm(reader):
                     repopath = inputpath / row["repo"]
                     config_json = {
-                        analyzer_class.name: {
-                            "repo_name": row["repo"],
-                            "style_name": row["style"],
-                            "report_path": reportdir,
-                            "uast_break_check": False,
-                        },
-                    }
+                        analyzer_class.name:
+                            merge_dicts(analyze_config, {
+                                "repo_name": row["repo"],
+                                "style_name": row["style"],
+                                "report_path": reportdir,
+                            })}
                     server.run("push", fr=row["from"], to=row["to"], port=port,
-                               git_dir=str(repopath), log_level="warning",
+                               git_dir=str(repopath), log_level="warning", bblfsh=bblfsh,
                                config_json=json.dumps(train_config))
                     server.run("review", fr=row["from"], to=row["to"], port=port,
-                               git_dir=str(repopath), log_level="warning",
+                               git_dir=str(repopath), log_level="warning", bblfsh=bblfsh,
                                config_json=json.dumps(config_json))
             log.info("Quality report saved to %s", reportdir)
 

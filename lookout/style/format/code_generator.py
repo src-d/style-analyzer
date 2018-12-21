@@ -1,12 +1,14 @@
 """Code generator that able to generate new source code from format model style suggestions."""
 import logging
-from typing import List, Sequence
+from typing import Iterable, List, Optional, Sequence, Tuple
+
+from numpy import ndarray
 
 from lookout.style.format.classes import (
     CLASS_INDEX, CLASS_REPRESENTATIONS, CLASSES, CLS_DOUBLE_QUOTE, CLS_NEWLINE, CLS_NOOP,
     CLS_SINGLE_QUOTE, CLS_SPACE_DEC, CLS_SPACE_INC, CLS_TAB_DEC, CLS_TAB_INC, CLS_TO_STR)
 from lookout.style.format.feature_extractor import FeatureExtractor
-from lookout.style.format.rules import Rules
+from lookout.style.format.rules import Rule, Rules
 from lookout.style.format.virtual_node import VirtualNode
 
 
@@ -170,7 +172,7 @@ class CodeGenerator:
 
         return "".join(tokens)
 
-    def _can_set_label(self, y_new: Sequence[int], y_old: Sequence[int],
+    def _can_set_label(self, y_new: Optional[Sequence[int]], y_old: Sequence[int],
                        node_repr: str = "") -> bool:
         """
         Check if a new label is applicable to a VirtualNode.
@@ -193,7 +195,10 @@ class CodeGenerator:
                                       "vnode: %s, y_new: %s" % (node_repr, y_new_repr))
         return True
 
-    def _iterate_vnodes(self, vnodes, vnodes_y, rule_winners, rules):
+    def _iterate_vnodes(self, vnodes: Sequence[VirtualNode], vnodes_y: Sequence[VirtualNode],
+                        rule_winners: ndarray, rules: Rules,
+                        ) -> Iterable[Tuple[VirtualNode, Optional[Tuple[int, ...]],
+                                            Optional[Rule]]]:
         y_index = 0
         j = 0
         for i, vnode in enumerate(vnodes):
@@ -211,7 +216,7 @@ class CodeGenerator:
                        rule)
                 y_index += 1
 
-    def _handle_error(self, msg):
+    def _handle_error(self, msg: str) -> bool:
         self.log.debug("%s url: %s, commit: %s. %s.",
                        msg, self.url, self.commit, "Skipping" if self.skip_errors else
                        "Set skip_errors=True to skip faulty suggestions")
@@ -221,7 +226,7 @@ class CodeGenerator:
 
 
 class _State:
-    def __init__(self, change_locally):
+    def __init__(self, change_locally: bool) -> None:
         self.change_locally = change_locally
         self.indent_delta = 0
         self.indent_increase_tokens = []
@@ -230,7 +235,7 @@ class _State:
         self.line_added = False
         self.accumulated_indentation = ""
 
-    def update(self, y_old, y_new):
+    def update(self, y_old: Sequence[int], y_new: Optional[Sequence[int]]) -> None:
         self.line_beginning = (y_new is not None and
                                CodeGenerator.NEWLINE_INDEX in y_new)
         self.line_added = (y_new is not None and
@@ -242,11 +247,11 @@ class _State:
         if self.change_locally and not self.line_beginning:
             self.indent_delta = 0
 
-    def reset_indentation(self):
+    def reset_indentation(self) -> None:
         self.indent_delta = 0
         self.accumulated_indentation = ""
 
-    def handle_indentation_changes(self, y_old, y_new):
+    def handle_indentation_changes(self, y_old: Sequence[int], y_new: Sequence[int]) -> None:
         n_y_space_inc = y_old.count(CLASS_INDEX[CLS_SPACE_INC])
         n_y_space_dec = y_old.count(CLASS_INDEX[CLS_SPACE_DEC])
         n_y_new_space_inc = y_new.count(CLASS_INDEX[CLS_SPACE_INC])

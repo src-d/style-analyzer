@@ -65,6 +65,7 @@ matrix:
         - pip3 install twine
       before_script: skip
       script:
+        - test $(python3 setup.py --version) == $TRAVIS_TAG
         - python3 setup.py bdist_wheel
       deploy: *_deploy
     - name: 'Push image to Docker Hub'

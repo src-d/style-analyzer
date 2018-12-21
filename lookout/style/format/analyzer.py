@@ -1,4 +1,5 @@
 """Analyzer that detects bad formatting by learning on the existing code in the repository."""
+from collections import defaultdict
 import functools
 from itertools import chain
 import logging
@@ -14,6 +15,7 @@ from lookout.core.api.service_data_pb2 import Change, File
 from lookout.core.data_requests import DataService, \
     with_changed_uasts_and_contents, with_uasts_and_contents
 from lookout.core.lib import files_by_language, filter_files, find_deleted_lines, find_new_lines
+from lookout.core.metrics import submit_event
 import numpy
 
 from lookout.style.format.classes import CLASS_INDEX, CLS_NEWLINE
@@ -51,7 +53,6 @@ FileFix = NamedTuple("FileFix", (
 class FormatAnalyzer(Analyzer):
     """Detect bad formatting by training on existing code and analyzing pull requests."""
 
-    _log = logging.getLogger("FormatAnalyzer")
     model_type = FormatModel
     name = "style.format.analyzer.FormatAnalyzer"
     version = 1
@@ -113,6 +114,7 @@ class FormatAnalyzer(Analyzer):
         :param config: Configuration to use to analyze pull requests.
         """
         super().__init__(model, url, config)
+        self._log = logging.getLogger(type(self).__name__)
         self.config = self._load_analyze_config(self.config)
         with open(self.config["comment_template"], encoding="utf-8") as f:
             self.comment_template = Template(f.read(), trim_blocks=True, lstrip_blocks=True)
@@ -156,26 +158,27 @@ class FormatAnalyzer(Analyzer):
         :param data_service: connection to the Lookout data retrieval service.
         :return: AnalyzerModel containing the learned rules, per language.
         """
-        cls._log.info("train %s %s %s", ptr.url, ptr.commit,
-                      pformat(config, width=4096, compact=True))
+        _log = logging.getLogger(cls.__name__)
+        _log.info("train %s %s %s", ptr.url, ptr.commit, pformat(config, width=4096, compact=True))
         model = FormatModel().construct(cls, ptr)
         config = cls._load_train_config(config)
         for language, files in files_by_language(data["files"]).items():
             try:
                 lang_config = config[language]
             except KeyError:
-                cls._log.warning("Language %s is not supported, skipped", language)
+                _log.warning("language %s is not supported, skipped", language)
                 continue
+            submit_event("%s.train.%s.files" % (cls.name, language), len(files))
             if len(files) == 0:
-                cls._log.info("Zero files after filtering, language %s is skipped.", language)
+                _log.info("zero files after filtering, language %s is skipped.", language)
                 continue
             try:
                 fe = FeatureExtractor(language=language, **lang_config["feature_extractor"])
             except ImportError:
-                cls._log.warning("skipped %d %s files - not supported", len(files), language)
+                _log.warning("skipped %d %s files - not supported", len(files), language)
                 continue
             else:
-                cls._log.info("training on %d %s files", len(files), language)
+                _log.info("training on %d %s files", len(files), language)
             # we sort to make the features reproducible
             X, y, _ = fe.extract_features(sorted(files.values(), key=lambda x: x.path))
             X, selected_features = fe.select_features(X, y)
@@ -183,34 +186,36 @@ class FormatAnalyzer(Analyzer):
             lang_config["feature_extractor"]["label_composites"] = fe.labels_to_class_sequences
             lower_bound_instances = lang_config["lower_bound_instances"]
             if X.shape[0] < lower_bound_instances:
-                cls._log.warning("skipped %d %s files: too few samples (%d/%d)",
-                                 len(files), language, X.shape[0], lower_bound_instances)
+                _log.warning("skipped %d %s files: too few samples (%d/%d)",
+                             len(files), language, X.shape[0], lower_bound_instances)
                 continue
-            cls._log.debug("training the rules model")
+            _log.debug("training the rules model")
             optimizer = Optimizer(n_jobs=lang_config["n_jobs"],
                                   n_iter=lang_config["n_iter"],
                                   cv=lang_config["cv"],
                                   random_state=lang_config["trainable_rules"]["random_state"])
             best_score, best_params = optimizer.optimize(X, y)
-            cls._log.debug("score of the best estimator found: %.6f", best_score)
-            cls._log.debug("params of the best estimator found: %s", str(best_params))
-            cls._log.debug("training the model with complete data")
+            _log.debug("score of the best estimator found: %.6f", best_score)
+            _log.debug("params of the best estimator found: %s", str(best_params))
+            _log.debug("training the model with complete data")
             lang_config["trainable_rules"].update(best_params)
             trainable_rules = TrainableRules(**lang_config["trainable_rules"],
                                              origin_config=lang_config)
             trainable_rules.fit(X, y)
             importances = trainable_rules.feature_importances_
-            cls._log.debug(
-                "Feature importances from %s:\n\t%s",
+            _log.debug(
+                "feature importances from %s:\n\t%s",
                 lang_config["trainable_rules"]["base_model_name"],
                 "\n\t".join("%-55s %.5E" % (fe.feature_names[i], importances[i])
                             for i in numpy.argsort(-importances)[:25] if importances[i] > 1e-5))
+            submit_event("%s.train.%s.rules" % (cls.name, language), len(trainable_rules.rules))
+            # TODO(vmarkovtsev): save the achieved precision, recall, etc. to the model
             # throw away imprecise classes
             if trainable_rules.rules.rules:
                 model[language] = trainable_rules.rules
             else:
-                cls._log.warning("Model for %s had 0 rules. Skipping." % language)
-        cls._log.info("trained %s", model)
+                _log.warning("model for %s has 0 rules. Skipping.", language)
+        _log.info("trained %s", model)
         return model
 
     def generate_file_fixes(self, data_service: DataService, changes: Sequence[Change],
@@ -227,6 +232,8 @@ class FormatAnalyzer(Analyzer):
         log = self._log
         base_files_by_lang = files_by_language(c.base for c in changes)
         head_files_by_lang = files_by_language(c.head for c in changes)
+        processed_files_counter = defaultdict(int)
+        processed_fixes_counter = defaultdict(int)
         for lang, head_files in head_files_by_lang.items():
             if lang not in self.model:
                 log.warning("skipped %d written in %s. Rules for %s do not exist in model",
@@ -240,6 +247,7 @@ class FormatAnalyzer(Analyzer):
                                      client=data_service.bblfsh_client,
                                      language=lang,
                                      log=log):
+                processed_files_counter[lang] += 1
                 try:
                     prev_file = base_files_by_lang[lang][file.path]
                 except KeyError:
@@ -254,6 +262,7 @@ class FormatAnalyzer(Analyzer):
                 fe = FeatureExtractor(language=lang, **rules.origin_config["feature_extractor"])
                 feature_extractor_output = fe.extract_features([file], [lines])
                 if feature_extractor_output is None:
+                    submit_event("%s.analyze.%s.parse_failures" % (self.name, lang), 1)
                     if self.config["report_parse_failures"]:
                         log.warning("Failed to parse %s", file.path)
                         yield FileFix(error="Failed to parse", head_file=file, language=lang,
@@ -263,9 +272,14 @@ class FormatAnalyzer(Analyzer):
                     fixes, file_vnodes, y_pred_pure, y = self._generate_token_fixes(
                         file, fe, feature_extractor_output, data_service.get_bblfsh(), rules)
                     log.debug("%s %d fixes", file.path, len(fixes))
+                    processed_fixes_counter[lang] += len(fixes)
                     yield FileFix(error="", head_file=file, language=lang, feature_extractor=fe,
                                   base_file=prev_file, file_vnodes=file_vnodes, line_fixes=fixes,
                                   y_pred_pure=y_pred_pure, y=y)
+        for key, val in processed_files_counter.items():
+            submit_event("%s.analyze.%s.files" % (self.name, key), val)
+        for key, val in processed_fixes_counter.items():
+            submit_event("%s.analyze.%s.fixes" % (self.name, key), val)
 
     def render_comment_text(self, file_fix: FileFix, fix_index: int) -> str:
         """

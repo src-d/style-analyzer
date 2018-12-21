@@ -176,7 +176,7 @@ class RuleStatAnalyzer(ReportAnalyzer):
 
     log = logging.getLogger("RuleStatAnalyzer")
     name = "style.format.analyzer.RuleStatAnalyzer"
-    version = "1"
+    version = 1
     description = "Source code formatting rule stats analysis: " \
                   "support, triggered rules, errors, etc."
 
