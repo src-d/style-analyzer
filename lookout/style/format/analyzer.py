@@ -166,7 +166,6 @@ class FormatAnalyzer(Analyzer):
             except KeyError:
                 cls._log.warning("Language %s is not supported, skipped", language)
                 continue
-            files = filter_files(files, lang_config["line_length_limit"], cls._log)
             if len(files) == 0:
                 cls._log.info("Zero files after filtering, language %s is skipped.", language)
                 continue
@@ -178,7 +177,7 @@ class FormatAnalyzer(Analyzer):
             else:
                 cls._log.info("training on %d %s files", len(files), language)
             # we sort to make the features reproducible
-            X, y, _ = fe.extract_features(sorted(files, key=lambda x: x.path))
+            X, y, _ = fe.extract_features(sorted(files.values(), key=lambda x: x.path))
             X, selected_features = fe.select_features(X, y)
             lang_config["feature_extractor"]["selected_features"] = selected_features
             lang_config["feature_extractor"]["label_composites"] = fe.labels_to_class_sequences
@@ -236,7 +235,11 @@ class FormatAnalyzer(Analyzer):
             rules = self.model[lang]
             rules = rules.filter_by_confidence(self.config["confidence_threshold"]) \
                 .filter_by_support(self.config["support_threshold"])
-            for file in filter_files(head_files, rules.origin_config["line_length_limit"], log):
+            for file in filter_files(filenames=head_files.keys(),
+                                     line_length_limit=rules.origin_config["line_length_limit"],
+                                     client=data_service.bblfsh_client,
+                                     language=lang,
+                                     log=log):
                 try:
                     prev_file = base_files_by_lang[lang][file.path]
                 except KeyError:

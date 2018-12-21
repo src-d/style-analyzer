@@ -1,17 +1,18 @@
 """Facilities to train a FormatModel without a lookout server."""
 from argparse import ArgumentParser
 import glob
+import logging
 from os.path import join
 from typing import Iterable, Optional
 
 from bblfsh.client import BblfshClient
 from lookout.core.analyzer import ReferencePointer
 from lookout.core.api.service_data_pb2 import Change, File
+from lookout.core.lib import filter_files
 from lookout.core.slogging import setup
 from yaml import safe_load
 
 from lookout.style.format.analyzer import FormatAnalyzer
-from lookout.style.format.benchmarks.general_report import prepare_files
 
 
 class FakeDataService:
@@ -45,7 +46,7 @@ class FakeDataStub:
         return self.changes
 
 
-def train(training_dir: str, output_path: str, language: str, bblfsh: str, config: str
+def train(training_dir: str, output_path: str, language: str, bblfsh: str, config: str,
           ) -> None:
     """
     Train a FormatModel for debugging purposes.
@@ -56,17 +57,20 @@ def train(training_dir: str, output_path: str, language: str, bblfsh: str, confi
     :param bblfsh: Address of the babelfish server.
     :param config: Path to a YAML config to use during the training.
     """
+    log = logging.getLogger("train")
     bblfsh_client = BblfshClient(bblfsh)
     if config is not None:
         with open(config) as fh:
             config = safe_load(fh)
     else:
-        config = {}
+        config = FormatAnalyzer.defaults_for_train
     filenames = glob.glob(join(training_dir, "**", "*"), recursive=True)
     model = FormatAnalyzer.train(
         ReferencePointer("someurl", "someref", "somecommit"),
         config,
-        FakeDataService(bblfsh_client, prepare_files(filenames, bblfsh_client, language), None)
+        FakeDataService(bblfsh_client, filter_files(filenames=filenames,
+                                                    line_length_limit=config["global"]["line_length_limit"],
+                                                    client=bblfsh_client, language=language, log=log), None)
     )
     model.save(output_path)
 

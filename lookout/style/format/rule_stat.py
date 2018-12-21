@@ -6,6 +6,7 @@ import logging
 from typing import Any, Iterable, Mapping, MutableMapping, Union
 
 from bblfsh import BblfshClient
+from lookout.core.lib import filter_files
 import numpy
 from sklearn.exceptions import NotFittedError
 from tqdm import tqdm
@@ -15,7 +16,6 @@ from lookout.style.format.benchmarks.general_report import FormatModel, generate
 from lookout.style.format.benchmarks.time_profile import profile
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.postprocess import filter_uast_breaking_preds
-from lookout.style.format.utils import prepare_files
 
 
 class RuleStat:
@@ -116,7 +116,9 @@ def print_rules_report(input_pattern: str, bblfsh: str, language: str, model_pat
     print(generate_model_report(model, language, fe))
     client = BblfshClient(bblfsh)
     filenames = glob.glob(input_pattern, recursive=True)
-    files = prepare_files(filenames, client, language)
+    files = filter_files(filenames=filenames,
+                         line_length_limit=rules.origin_config["line_length_config"],
+                         client=client, language=language)
     print("Number of files: %s" % (len(files)))
 
     res = fe.extract_features(files)

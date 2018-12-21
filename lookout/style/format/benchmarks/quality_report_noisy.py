@@ -12,14 +12,13 @@ from typing import Iterable, List, Mapping, NamedTuple, Optional, Set, Tuple
 
 from bblfsh import BblfshClient
 import jinja2
+from lookout.core.lib import filter_filepaths, filter_files
 import numpy
 
 from lookout.style.format.feature_extractor import FeatureExtractor
-from lookout.style.format.files_filtering import filter_filepaths
 from lookout.style.format.model import FormatModel
 from lookout.style.format.postprocess import filter_uast_breaking_preds
 from lookout.style.format.rules import Rules
-from lookout.style.format.utils import prepare_files
 from lookout.style.format.virtual_node import VirtualNode
 
 REPOSITORIES = """
@@ -74,34 +73,39 @@ def get_difflib_changes(true_content: Mapping[str, str], noisy_content: Mapping[
     return sorted(true_files), sorted(noisy_files), start_changes
 
 
-def files2vnodes(files: Iterable[str], feature_extractor: FeatureExtractor, client: str,
-                 ) -> Iterable[VirtualNode]:
+def files2vnodes(filenames: Iterable[str], feature_extractor: FeatureExtractor, rules: Rules,
+                 client: BblfshClient) -> Iterable[VirtualNode]:
     """
     Return the `VirtualNode`-s extracted from a list of files.
 
-    :param files: List of files to get `Misprediction`-s and `VirtualNode`-s from.
+    :param filenames: List of files to get `Misprediction`-s and `VirtualNode`-s from.
     :param feature_extractor: FeatureExtractor to use.
+    :param rules: Rules to use for prediction.
     :param client: Babelfish client. Babelfish server should be started accordingly.
     :return: List of `VirtualNode`-s extracted from a given list of files.
     """
-    files = prepare_files(files, client, feature_extractor.language)
+    files = filter_files(filenames=filenames,
+                         line_length_limit=rules.origin_config["line_length_limit"],
+                         client=client, language=feature_extractor.language)
     _, _, (vnodes_y, _, _, _) = feature_extractor.extract_features(files)
     return vnodes_y
 
 
-def files2mispreds(files: Iterable[str], feature_extractor: FeatureExtractor, rules: Rules,
+def files2mispreds(filenames: Iterable[str], feature_extractor: FeatureExtractor, rules: Rules,
                    client: BblfshClient, log: logging.Logger) -> Iterable[Misprediction]:
     """
     Return the model's `Misprediction`-s on a list of files.
 
-    :param files: List of files to get `Misprediction`-s from.
+    :param filenames: List of files to get `Misprediction`-s from.
     :param feature_extractor: FeatureExtractor to use.
     :param rules: Rules to use for prediction.
     :param client: Babelfish client. Babelfish server should be started accordingly.
     :param log: Logger.
     :return: List of `Misprediction`-s extracted from a given list of files.
     """
-    files = prepare_files(files, client, feature_extractor.language)
+    files = filter_files(filenames=filenames,
+                         line_length_limit=rules.origin_config["line_length_limit"],
+                         client=client, language=feature_extractor.language)
     X, y, (vnodes_y, vnodes, vnode_parents, node_parents) = feature_extractor \
         .extract_features(files)
     y_pred, rule_winners, _, grouped_quote_predictions = rules.predict(
@@ -321,7 +325,7 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
                 rules = analyzer[language]
                 feature_extractor = FeatureExtractor(language=language,
                                                      **rules.origin_config["feature_extractor"])
-                vnodes_y_true = files2vnodes(true_files, feature_extractor, client)
+                vnodes_y_true = files2vnodes(true_files, feature_extractor, rules, client)
                 mispreds_noise = files2mispreds(noisy_files, feature_extractor, rules, client, log)
                 diff_mispreds = get_diff_mispreds(mispreds_noise, start_changes)
                 changes_count = len(start_changes)

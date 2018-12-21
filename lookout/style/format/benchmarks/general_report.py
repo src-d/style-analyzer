@@ -16,6 +16,7 @@ from lookout.core.analyzer import ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2 import Change, File
 from lookout.core.data_requests import DataService, request_files
+from lookout.core.lib import filter_files
 import numpy
 from sklearn.exceptions import NotFittedError
 from sklearn.metrics import classification_report, confusion_matrix
@@ -25,7 +26,7 @@ from lookout.style.format.benchmarks.time_profile import profile
 from lookout.style.format.descriptions import describe_rule
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.model import FormatModel
-from lookout.style.format.utils import generate_comment, merge_dicts, prepare_files
+from lookout.style.format.utils import generate_comment, merge_dicts
 from lookout.style.format.virtual_node import VirtualNode
 
 
@@ -156,7 +157,9 @@ def analyze_files(analyzer_type: Type[FormatAnalyzer], config: dict, model_path:
         raise NotFittedError()
     rules = model[language]
     client = BblfshClient(bblfsh)
-    files = prepare_files(glob.glob(input_pattern, recursive=True), client, language)
+    files = filter_files(filenames=glob.glob(input_pattern, recursive=True),
+                         line_length_limit=rules.origin_config["line_length_limit"],
+                         client=client, language=language, log=log)
     log.info("Model parameters: %s" % rules.origin_config)
     log.info("Rules stats: %s" % rules)
     log.info("Number of files: %s" % (len(files)))
