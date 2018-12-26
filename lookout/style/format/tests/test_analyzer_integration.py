@@ -1,7 +1,7 @@
 import logging
-import os
 from pathlib import Path
 import re
+import shutil
 import tarfile
 import tempfile
 import threading
@@ -113,14 +113,14 @@ class AnalyzerIntegrationTests(BaseAnalyzerIntegrationTests):
         parent = Path(__file__).parent.resolve()
         cls.base_dir_ = tempfile.TemporaryDirectory()
         cls.base_dir = cls.base_dir_.name
-        cls.jquery_dir = os.path.join(cls.base_dir, "jquery")
-        # str() is needed for Python 3.5
         with tarfile.open(str(parent / "jquery.tar.xz")) as tar:
-            tar.extractall(path=cls.base_dir)
+            tar.extractall()
+        # str() is needed for Python 3.5
+        cls.jquery_dir = str(Path(parent) / "jquery")
 
     @classmethod
     def tearDownClass(cls):
-        cls.base_dir_.cleanup()
+        shutil.rmtree(cls.jquery_dir)
 
     def test_review(self):
         launch_server(

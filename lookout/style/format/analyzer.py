@@ -14,7 +14,7 @@ from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2 import Change, File
 from lookout.core.data_requests import DataService, \
     with_changed_uasts_and_contents, with_uasts_and_contents
-from lookout.core.lib import files_by_language, filter_files, find_deleted_lines, find_new_lines
+from lookout.core.lib import files_by_language, find_deleted_lines, find_new_lines
 from lookout.core.metrics import submit_event
 import numpy
 
@@ -242,11 +242,7 @@ class FormatAnalyzer(Analyzer):
             rules = self.model[lang]
             rules = rules.filter_by_confidence(self.config["confidence_threshold"]) \
                 .filter_by_support(self.config["support_threshold"])
-            for file in filter_files(filenames=head_files.keys(),
-                                     line_length_limit=rules.origin_config["line_length_limit"],
-                                     client=data_service.bblfsh_client,
-                                     language=lang,
-                                     log=log):
+            for file in head_files.values():
                 processed_files_counter[lang] += 1
                 try:
                     prev_file = base_files_by_lang[lang][file.path]

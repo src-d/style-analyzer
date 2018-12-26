@@ -1,15 +1,17 @@
-from collections import defaultdict
+import glob
 import logging
-import lzma
+import os
 from pathlib import Path
+import shutil
 import tarfile
 from tempfile import TemporaryFile
-from typing import Dict, NamedTuple
+from typing import NamedTuple
 import unittest
 
 import bblfsh
 from lookout.core.analyzer import ReferencePointer
 from lookout.core.api.service_data_pb2 import File
+from lookout.core.lib import filter_files
 
 from lookout.style.format.analyzer import FormatAnalyzer
 from lookout.style.format.benchmarks.general_report import FakeDataService
@@ -53,46 +55,39 @@ def get_analyze_config():
 
 
 class AnalyzerTests(unittest.TestCase):
-    @staticmethod
-    def get_files_from_tar(tar_path: str) -> Dict[str, File]:
-        files = defaultdict(lambda: [None, None])
-        with tarfile.open(tar_path) as tar:
-            for member in tar:
-                name = member.name
-                if name == ".":
-                    continue
-                file = tar.extractfile(member)
-                uast = True if name.endswith(".uast") else False
-                content = file.read()
-                if uast:
-                    name = name[:-5]
-                    content = bblfsh.Node.FromString(content)
-                files[name][uast] = content
-        for key, (content, uast) in files.items():
-            files[key] = File(path=key, content=content, uast=uast, language="JavaScript")
-        return files
-
     @classmethod
     def setUpClass(cls):
         logging.basicConfig(level=logging.INFO)
         logging.getLogger("FormatAnalyzer").setLevel(logging.DEBUG)
-        base = Path(__file__).parent
-        # str() is needed for Python 3.5
-        with lzma.open(str(base / "benchmark.uast.xz")) as fin:
-            cls.uast = bblfsh.Node.FromString(fin.read())
-        cls.base_files = cls.get_files_from_tar(str(base / "freecodecamp-base.tar.xz"))
-        cls.head_files = cls.get_files_from_tar(str(base / "freecodecamp-head.tar.xz"))
         cls.ptr = ReferencePointer("someurl", "someref", "somecommit")
         FeatureExtractor._log.level = logging.DEBUG
         cls.bblfsh_client = bblfsh.BblfshClient("0.0.0.0:9432")
+        parent_loc = Path(__file__).parent.resolve()
+        with tarfile.open(str(parent_loc / "jquery_noisy.tar.xz")) as tar:
+            tar.extractall()
+        cls.jquery_dir = str(Path(parent_loc) / "jquery_noisy")
+        base_jquery_pattern = os.path.join(cls.jquery_dir, "jquery", "*.js")
+        head_jquery_pattern = os.path.join(cls.jquery_dir, "jquery_noisy", "*.js")
+        cls.base_filenames = glob.glob(base_jquery_pattern, recursive=True)
+        cls.head_filenames = glob.glob(head_jquery_pattern, recursive=True)
+        cls.base_files = filter_files(filenames=cls.base_filenames,
+                                      line_length_limit=500,
+                                      client=cls.bblfsh_client,
+                                      language="javascript")
+        cls.head_files = filter_files(filenames=cls.head_filenames,
+                                      line_length_limit=500,
+                                      client=cls.bblfsh_client,
+                                      language="javascript")
 
     @classmethod
     def tearDownClass(cls):
         cls.bblfsh_client._channel.close()
+        shutil.rmtree(cls.jquery_dir)
 
     def test_train(self):
-        self.data_service = FakeDataService(
-            self.bblfsh_client, files=self.base_files.values(), changes=[])
+        self.data_service = FakeDataService(bblfsh_client=self.bblfsh_client,
+                                            files=self.base_files,
+                                            changes=[])
         model1 = FormatAnalyzer.train(self.ptr, get_train_config(), self.data_service)
         self.assertIsInstance(model1, FormatModel)
         self.assertIn("javascript", model1, str(model1))
@@ -107,8 +102,9 @@ class AnalyzerTests(unittest.TestCase):
             compare_models(self, model2, model3)
 
     def test_train_cutoff_labels(self):
-        self.data_service = FakeDataService(
-            self.bblfsh_client, files=self.base_files.values(), changes=[])
+        self.data_service = FakeDataService(bblfsh_client=self.bblfsh_client,
+                                            files=self.base_files,
+                                            changes=[])
         model1 = FormatAnalyzer.train(self.ptr, get_train_config(), self.data_service)
         self.assertIsInstance(model1, FormatModel)
         self.assertIn("javascript", model1, str(model1))
@@ -123,12 +119,10 @@ class AnalyzerTests(unittest.TestCase):
             compare_models(self, model2, model3)
 
     def test_analyze(self):
-        common = self.base_files.keys() & self.head_files.keys()
         self.data_service = FakeDataService(
-            self.bblfsh_client,
-            files=self.base_files.values(),
-            changes=[Change(base=self.base_files[k], head=self.head_files[k])
-                     for k in common])
+            bblfsh_client=self.bblfsh_client,
+            files=self.base_files,
+            changes=[Change(base=b, head=h) for b, h in zip(self.base_files, self.head_files)])
         config = get_train_config()
         # Make uast_break_check only here
         config["uast_break_check"] = True
@@ -139,12 +133,16 @@ class AnalyzerTests(unittest.TestCase):
 
     def test_file_filtering(self):
         self.data_service = FakeDataService(
-            self.bblfsh_client, files=self.base_files.values(), changes=[])
+            bblfsh_client=self.bblfsh_client,
+            files=filter_files(filenames=self.base_filenames, line_length_limit=0,
+                               client=self.bblfsh_client, language="javascript"),
+            changes=[])
         config = get_train_config()
-        config["global"]["line_length_limit"] = 0
         model_trained = FormatAnalyzer.train(self.ptr, config, self.data_service)
         self.assertEqual(len(model_trained._rules_by_lang), 0)
-        config["global"]["line_length_limit"] = 500
+        self.data_service = FakeDataService(bblfsh_client=self.bblfsh_client,
+                                            files=self.base_files,
+                                            changes=[])
         model_trained = FormatAnalyzer.train(self.ptr, config, self.data_service)
         self.assertGreater(len(model_trained._rules_by_lang), 0)
 

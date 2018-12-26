@@ -2,11 +2,8 @@
 from copy import deepcopy
 from typing import Any, Dict, Iterable, Mapping
 
-from bblfsh import BblfshClient
-from bblfsh.client import NonUTF8ContentException
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2 import File
-from tqdm import tqdm
 
 
 class FakeDataStub:
