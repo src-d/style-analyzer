@@ -47,7 +47,7 @@ fs: /tmp
 ```
 
 5. Run the analyzer `python3 -m lookout run lookout.style.format -c config.yml`
-6. File a fake pull request `./lookout-sdk review -v`
+6. File a fake pull request `./lookout-sdk review`
 
 Your git repository should contain a sufficient number of JavaScript files so that it is possible
 to infer sane, statistically significant rules.
