@@ -1,5 +1,6 @@
 """Measure quality on several top repositories."""
 from argparse import ArgumentParser, Namespace
+from collections import OrderedDict
 from datetime import datetime
 import functools
 import importlib
@@ -49,6 +50,8 @@ REPOSITORIES = [
     "https://github.com/atom/atom 108b23210759a8c5b2f51ac99659be5dc31a7371 a3c320dd707b915da2192427bcceea166edbd6d4",  # noqa: E501
     "https://github.com/nodejs/node 6eda924c189e44a36fc97a7cfae41b69483d5bfb 315b1c656cee39c989015cc2b17fe8c864dbc3dd",  # noqa: E501
 ]
+
+FLOAT_PRECISION = ".3f"
 
 
 class AnalyzerContextManager:
@@ -159,7 +162,7 @@ class QualityReport:
 def measure_quality(repository: str, from_commit: str, to_commit: str, port: int,
                     review_config: dict, train_config: dict) -> QualityReport:
     """
-    Generate quality and model reports for a repository.
+    Generate quality and model reports for a repository. If it fails it returns empty reports.
 
     :param repository: URL of repository.
     :param from_commit: Hash of commit.
@@ -231,10 +234,17 @@ Metrics = NamedTuple("Metrics", (
     ("recall", float),
     ("full_recall", float),
     ("f1", float),
+    ("full_f1", float),
     ("ppcr", float),
     ("support", int),
     ("full_support", int),
 ))
+Metrics.__doc__ = """Metrics for the quality report. Metrics are calculated on the samples subset
+where predictions were made.  `full_` prefix means that metric was calculated on all available
+samples. Without `full_` means that metric was calculated only on samples where it has prediction
+from the model. `ppcr` means predicted positive condition rate and shows the ratio of samples where
+the model was able to predict.
+"""
 
 
 def _get_metrics(report: str) -> Metrics:
@@ -244,8 +254,8 @@ def _get_metrics(report: str) -> Metrics:
     avg_full = data["cl_report_full"]["micro avg"]
     return Metrics(
         precision=avg["precision"], recall=avg["recall"], full_recall=avg_full["recall"],
-        f1=avg["f1-score"], ppcr=data["ppcr"], support=avg["support"],
-        full_support=avg_full["support"])
+        f1=avg["f1-score"], full_f1=avg_full["f1-score"], ppcr=data["ppcr"],
+        support=avg["support"], full_support=avg_full["support"])
 
 
 def _get_model_summary(report: str) -> (int, float):
@@ -337,27 +347,52 @@ def main(args):
                             report.quality = f.read()
                         with open(model_rep_loc, encoding="utf-8") as f:
                             report.model = f.read()
-                    reports.append((repo, report))
+                    if report.quality is not None and report.model is not None:
+                        reports.append((repo, report))
+                    else:
+                        log.warning("skipped %s: quality %s model %s", repo,
+                                    report.quality is not None, report.model is not None)
                 except Exception:
                     log.exception("-" * 20 + "\nFailed to process %s repo", repo)
                     continue
 
         # precision, recall, f1, support, n_rules, avg_len stats
         table = []
+        fields2id = OrderedDict()
+        additional_fields = ("Rules Number", "Average Rule Len")
         with io.StringIO() as output:
             for repo, report in reports:
                 metrics = _get_metrics(report.quality)
                 if not table:
-                    table.append(("repo",) + metrics._fields + ("Rules Number",
-                                                                "Average Rule Len"))
+                    table.append(("repo",) + metrics._fields + additional_fields)
+                    for i, field in enumerate(table[0]):
+                        fields2id[field] = i
                 n_rules, avg_len = _get_model_summary(report.model)
                 table.append((get_repo_name(repo),) + metrics + (n_rules, avg_len))
-            average = tuple("%.3f" % calc_avg(table[1:], i) for i in range(1, 9))
-            weighted_average = tuple("%.3f" % calc_weighted_avg(table[1:], i) for i in range(1, 5))
-            weighted_average += (calc_weighted_avg(table[1:], 5, 6),)
+            average = tuple(("%" + FLOAT_PRECISION) % calc_avg(table[1:], fields2id[field])
+                            for field in metrics._fields)
+            average += tuple(("%" + FLOAT_PRECISION) % calc_avg(table[1:], fields2id[field])
+                             for field in additional_fields)
+            fields_to_weight = (
+                ("precision", "support"), ("recall", "support"), ("full_recall", "full_support"),
+                ("f1", "support"), ("full_f1", "full_support"), ("ppcr", "support"),
+            )
+            weighted_average = []
+            for field, weight_field in fields_to_weight:
+                weighted_average.append(("%" + FLOAT_PRECISION) % calc_weighted_avg(
+                    table[1:], col=fields2id[field], weight_col=fields2id[weight_field]))
             table.append(("Average",) + average)
-            table.append(("Weighted average",) + weighted_average)
-            print(tabulate(table, tablefmt="pipe", headers="firstrow"), file=output)
+            table.append(("Weighted average",) + tuple(weighted_average))
+            float_fields = ("precision", "recall", "full_recall", "f1", "full_f1", "ppcr")
+            floatfmts = []
+            for field in fields2id:
+                if field in float_fields:
+                    floatfmts.append(FLOAT_PRECISION)
+                else:
+                    floatfmts.append("g")
+
+            print(tabulate(table, tablefmt="pipe", headers="firstrow", floatfmt=floatfmts),
+                  file=output)
             summary = output.getvalue()
         print(summary)
         summary_loc = os.path.join(args.output, "summary.md")
