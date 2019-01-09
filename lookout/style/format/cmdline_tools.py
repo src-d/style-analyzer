@@ -72,7 +72,6 @@ def create_parser() -> ArgumentParser:
     from lookout.style.format.benchmarks.generate_smoke import generate_smoke_entry
     from lookout.style.format.benchmarks.general_report import print_reports
     from lookout.style.format.benchmarks.quality_report_noisy import quality_report_noisy
-    from lookout.style.format.rule_stat import print_rules_report
 
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatterNoNone)
 
@@ -94,13 +93,6 @@ def create_parser() -> ArgumentParser:
     eval_parser.add_argument("-n", "--n-files", default=0, type=int,
                              help="How many files with most mispredictions to show. "
                                   "If n <= 0 show all.")
-
-    # Rules statistics
-    rule_parser = add_parser("rule", "Statistics about rules.")
-    rule_parser.set_defaults(handler=print_rules_report)
-    add_input_pattern_arg(rule_parser)
-    add_bblfsh_arg(rule_parser)
-    add_model_args(rule_parser)
 
     # Generate the quality report based on the artificial noisy dataset
     quality_report_noisy_parser = add_parser("quality-report-noisy", "Quality report on the "
