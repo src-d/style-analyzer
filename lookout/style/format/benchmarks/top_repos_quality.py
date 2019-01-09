@@ -170,7 +170,7 @@ def measure_quality(repository: str, from_commit: str, to_commit: str, port: int
     :param port: Port for QualityReportAnalyzer.
     :param review_config: config for review.
     :param train_config: config for train.
-    :param bblfsh: Babelfish server address to use. Specify None to use default value.
+    :param bblfsh: Babelfish server address to use. Specify None to use the default value.
     :return: Reports.
     """
     report = QualityReport(None, None)
