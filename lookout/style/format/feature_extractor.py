@@ -668,7 +668,7 @@ class FeatureExtractor:
         :return: list of `VirtualNode`-s and the parents.
         """
         # build the line mapping
-        lines = contents.split("\n")
+        lines = contents.splitlines()
         line_offsets = numpy.zeros(len(lines) + 1, dtype=numpy.int32)
         pos = 0
         for i, line in enumerate(lines):
