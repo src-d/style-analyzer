@@ -13,7 +13,7 @@ PPCR: {{ "%.3f" % ppcr }}
 | {{ "%.3f" % cl_report[class]["f1-score"] -}}
 | {{ "%.3f" % cl_report_full[class]["f1-score"] -}}
 | {{ cl_report[class]["support"] -}}
-| {{ "%.3f" % cl_report_full[class]["support"] -}}
+| {{ cl_report_full[class]["support"] -}}
 | {{ "%.3f" % (cl_report[class]["support"] / cl_report_full[class]["support"] if cl_report_full[class]["support"] != 0 else 0 ) }} |
 {% endfor %}
 
