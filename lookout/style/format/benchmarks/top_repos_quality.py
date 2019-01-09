@@ -160,7 +160,8 @@ class QualityReport:
 
 
 def measure_quality(repository: str, from_commit: str, to_commit: str, port: int,
-                    review_config: dict, train_config: dict, bblfsh: str) -> QualityReport:
+                    review_config: dict, train_config: dict, bblfsh: Optional[str],
+                    ) -> QualityReport:
     """
     Generate quality and model reports for a repository. If it fails it returns empty reports.
 
