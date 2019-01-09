@@ -41,13 +41,13 @@ The following steps are required to try the "format" analyzer.
 4. Write the configuration file, e.g. `config.yml`:
 
 ```yaml
-server: 0.0.0.0:2000
+server: 0.0.0.0:9930
 db: sqlite:////tmp/lookout.sqlite
 fs: /tmp
 ```
 
 5. Run the analyzer `python3 -m lookout run lookout.style.format -c config.yml`
-6. File a fake pull request `./lookout-sdk review -v ipv4://localhost:2000`
+6. File a fake pull request `./lookout-sdk review`
 
 Your git repository should contain a sufficient number of JavaScript files so that it is possible
 to infer sane, statistically significant rules.
