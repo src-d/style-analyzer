@@ -147,14 +147,11 @@ class QualityReportTests(PretrainedModelTests):
         output = "\n".join(output)
         output = output[:output.find("# Model report for https://github.com/jquery/jquery")]
         metrics = _get_metrics(output)
-        expected_metrics = Metrics(
-            precision=0.9830682401231401,
-            recall=0.9830682401231401,
-            full_recall=0.649932157394844,
-            f1=0.9830682401231401,
-            ppcr=0.6611261872455902,
-            support=1949,
-            full_support=2948)
+        expected_metrics = Metrics(precision=0.9830682401231401, ppcr=0.6611261872455902,
+                                   recall=0.9830682401231401, full_recall=0.649932157394844,
+                                   f1=0.9830682401231401, full_f1=0.7825199101490709,
+                                   support=1949, full_support=2948)
+
         assert_almost_equal(metrics, expected_metrics, decimal=15)
 
     def test_no_model(self):

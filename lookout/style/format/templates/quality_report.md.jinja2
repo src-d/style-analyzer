@@ -4,13 +4,14 @@
 
 PPCR: {{ "%.3f" % ppcr }}
 
-| Class | Precision | Recall | Full Recall | F1-score | Support | Full Support | PPCR |
-|------:|:----------|:-------|:------------|:---------|:--------|:-------------|:-----|
+| Class | Precision | Recall | Full Recall | F1-score | Full F1-score | Support | Full Support | PPCR |
+|------:|:----------|:-------|:------------|:---------|:---------|:--------|:-------------|:-----|
 {% for class in cl_report -%}
 | `{{ class }}` | {{ "%.3f" % cl_report[class]["precision"] -}}
 | {{ "%.3f" % cl_report[class]["recall"] -}}
 | {{ "%.3f" % cl_report_full[class]["recall"] -}}
 | {{ "%.3f" % cl_report[class]["f1-score"] -}}
+| {{ "%.3f" % cl_report_full[class]["f1-score"] -}}
 | {{ cl_report[class]["support"] -}}
 | {{ "%.3f" % cl_report_full[class]["support"] -}}
 | {{ "%.3f" % (cl_report[class]["support"] / cl_report_full[class]["support"] if cl_report_full[class]["support"] != 0 else 0 ) }} |
