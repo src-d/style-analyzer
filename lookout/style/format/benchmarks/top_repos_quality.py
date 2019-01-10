@@ -160,7 +160,8 @@ class QualityReport:
 
 
 def measure_quality(repository: str, from_commit: str, to_commit: str, port: int,
-                    review_config: dict, train_config: dict) -> QualityReport:
+                    review_config: dict, train_config: dict, bblfsh: Optional[str],
+                    ) -> QualityReport:
     """
     Generate quality and model reports for a repository. If it fails it returns empty reports.
 
@@ -170,6 +171,7 @@ def measure_quality(repository: str, from_commit: str, to_commit: str, port: int
     :param port: Port for QualityReportAnalyzer.
     :param review_config: config for review.
     :param train_config: config for train.
+    :param bblfsh: Babelfish server address to use. Specify None to use the default value.
     :return: Reports.
     """
     report = QualityReport(None, None)
@@ -193,9 +195,11 @@ def measure_quality(repository: str, from_commit: str, to_commit: str, port: int
         with tempfile.TemporaryDirectory(prefix="top-repos-quality-repos-") as tmpdirname:
             git_dir = ensure_repo(repository, tmpdirname)
             server.run("push", fr=from_commit, to=to_commit, port=port, git_dir=git_dir,
-                       log_level="warning", config_json=json.dumps(train_config))
+                       log_level="warning", bblfsh=bblfsh,
+                       config_json=json.dumps(train_config))
             server.run("review", fr=from_commit, to=to_commit, port=port, git_dir=git_dir,
-                       log_level="warning", config_json=json.dumps(review_config))
+                       log_level="warning", bblfsh=bblfsh,
+                       config_json=json.dumps(review_config))
     finally:
         QualityReportAnalyzer.generate_model_report = \
             QualityReportAnalyzer.generate_model_report.original
@@ -334,7 +338,8 @@ def main(args):
                         # Skip this step if report was already generated
                         report = measure_quality(
                             repo, to_commit=to_commit, from_commit=from_commit, port=port,
-                            review_config=review_config, train_config=train_config)
+                            review_config=review_config, train_config=train_config,
+                            bblfsh=args.bblfsh)
                         if report.quality is not None:
                             with open(quality_rep_loc, "w", encoding="utf-8") as f:
                                 f.write(report.quality)
@@ -411,7 +416,7 @@ def create_parser() -> ArgumentParser:
         help="If this flag is used - force to overwrite results stored in output directory. "
              "If not - stored results will be used if they exist.")
     parser.add_argument(
-        "-b", "--bblfsh", default="localhost:9432", help="Bblfsh address to use.")
+        "-b", "--bblfsh", help="Bblfsh address to use.")
     parser.add_argument(
         "--train-config", default="{}",
         help="Config for analyzer train in json format.")
