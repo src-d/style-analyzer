@@ -668,13 +668,21 @@ class FeatureExtractor:
         :return: list of `VirtualNode`-s and the parents.
         """
         # build the line mapping
-        lines = contents.splitlines()
+        lines = contents.splitlines(keepends=True)
+        # Check if there is a newline in the end of file. Yes, you can just check
+        # lines[-1][-1] == "\n" but if someone decide to use weird '\u2028' unicode character for
+        # new line this condition gives wrong result.
+        eof_new_line = lines[-1].splitlines()[0] != lines[-1]
+        if eof_new_line:
+            # We add last line as empty one because it actually exists, but .splitlines() does not
+            # return it.
+            lines.append("")
         line_offsets = numpy.zeros(len(lines) + 1, dtype=numpy.int32)
         pos = 0
         for i, line in enumerate(lines):
             line_offsets[i] = pos
-            pos += len(line) + 1
-        line_offsets[-1] = pos
+            pos += len(line)
+        line_offsets[-1] = pos + 1
 
         # walk the tree: collect nodes with assigned tokens and build the parents map
         node_tokens = []
