@@ -68,8 +68,8 @@ class VirtualNode:
         return self.value
 
     def __repr__(self) -> str:
-        return ("VirtualNode(\"%s\", y=%s, start=%s, end=%s, node=%s, path=\"%s\")" % (
-                    self.value.replace("\n", "\\n").replace("\t", "\\t"),
+        return ("VirtualNode(%s, y=%s, start=%s, end=%s, node=%s, path=\"%s\")" % (
+                    repr(self.value),
                     "None" if self.y is None else "".join(CLASS_REPRESENTATIONS[c]
                                                           for c in self.y),
                     tuple(self.start),
