@@ -70,7 +70,19 @@ class FeaturesTests(unittest.TestCase):
             if n.node is not None:
                 self.assertIsNotNone(parents.get(id(n.node)), n)
             offset, line, col = n.end
+        self.assertEqual(len(self.contents), offset)
+        # New line ends on the next line
+        self.assertEqual(len(self.contents.splitlines()) + 1, line)
         self.assertEqual("".join(text), self.contents)
+
+    def test_parse_file_with_trailing_space(self):
+        contents = self.contents + " "
+        nodes, parents = self.extractor._parse_file(contents, self.uast, "test_file")
+        offset, line, col = nodes[-1].end
+        self.assertEqual(len(contents), offset)
+        # Space token always ends on the same line
+        self.assertEqual(len(contents.splitlines()), line)
+        self.assertEqual("".join(n.value for n in nodes), contents)
 
     def test_classify_vnodes(self):
         nodes, _ = self.extractor._parse_file(self.contents, self.uast, "test_file")
