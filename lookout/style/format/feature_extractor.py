@@ -461,12 +461,10 @@ class FeatureExtractor:
                     node.y = (CLASS_INDEX[CLS_DOUBLE_QUOTE],)
                 yield node
                 continue
-            lines = node.value.split("\r\n")
-            if len(lines) > 1:
-                sep = "\r\n"
-            else:
-                lines = node.value.split("\n")
-                sep = "\n"
+            lines = node.value.splitlines(keepends=True)
+            if lines[-1].splitlines()[0] != lines[-1]:
+                # We add last line as empty one to mimic .split("\n") behaviour
+                lines.append("")
             if len(lines) == 1:
                 # only tabs and spaces are possible
                 for i, char in enumerate(node.value):
@@ -484,17 +482,16 @@ class FeatureExtractor:
             line_offset = 0
             for i, line in enumerate(lines[:-1]):
                 # `line` contains trailing whitespaces, we add it to the newline node
-                newline = line + sep
                 start_offset = node.start.offset + line_offset
                 start_col = node.start.col if i == 0 else 1
                 lineno = node.start.line + i
                 yield VirtualNode(
-                    newline,
+                    line,
                     Position(start_offset, lineno, start_col),
-                    Position(start_offset + len(newline), lineno, start_col + len(newline)),
+                    Position(start_offset + len(line), lineno + 1, 1),
                     y=(CLASS_INDEX[CLS_NEWLINE],), path=path)
-                line_offset += len(line) + len(sep)
-            line = lines[-1]
+                line_offset += len(line)
+            line = lines[-1].splitlines()[0] if lines[-1] else ""
             my_indent = list(line)
             offset, lineno, col = node.end
             offset -= len(line)
