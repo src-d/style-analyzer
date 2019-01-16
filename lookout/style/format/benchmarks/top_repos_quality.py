@@ -9,10 +9,10 @@ import json
 import logging
 import logging.handlers
 import os
-import subprocess
 import tempfile
 from typing import Iterable, NamedTuple, Optional, Sequence, Type, Union
 
+from dulwich import porcelain
 from lookout.core import slogging
 from lookout.core.analyzer import Analyzer
 from lookout.core.cmdline import ArgumentDefaultsHelpFormatterNoNone, create_model_repo_from_args
@@ -20,6 +20,7 @@ from lookout.core.data_requests import DataService
 from lookout.core.event_listener import EventListener
 from lookout.core.manager import AnalyzerManager
 from lookout.core.test_helpers import server
+import numpy
 from tabulate import tabulate
 
 from lookout.style.format.benchmarks.general_report import QualityReportAnalyzer
@@ -136,10 +137,8 @@ def ensure_repo(repository: str, storage_dir: str) -> str:
     if os.path.exists(repository):
         return repository
     # clone repository
-    # TODO: use dulwich in the future
     git_dir = os.path.join(storage_dir, get_repo_name(repository))  # location for code
-    cmd = "git clone --single-branch --branch master %s %s" % (repository, git_dir)
-    subprocess.check_call(cmd.split())
+    porcelain.clone(repository, git_dir)
     return git_dir
 
 
@@ -209,28 +208,22 @@ def measure_quality(repository: str, from_commit: str, to_commit: str, port: int
     return report
 
 
-def calc_weighted_avg(arr: Sequence[Sequence], col: int, weight_col: int = 5) -> float:
+def calc_weighted_avg(arr: Union[Sequence[Sequence], numpy.ndarray], col: int,
+                      weight_col: int = 5) -> float:
     """Calculate average value in `col` weighted by column `weight_col`."""
-    numerator, denominator = 0, 0
-    # TODO: switch to numpy arrays
-    for row in arr:
-        numerator += row[col] * row[weight_col]
-        denominator += row[weight_col]
+    arr = numpy.array(arr)
+    weights_ = arr[:, weight_col].astype(float)
+    col_ = arr[:, col].astype(float)
+    numerator = (col_ * weights_).sum()
+    denominator = weights_.sum()
     if denominator == 0:
         return 1
     return numerator / denominator
 
 
-def calc_avg(arr: Sequence[Sequence], col: int) -> float:
+def calc_avg(arr: Union[Sequence[Sequence], numpy.ndarray], col: int) -> float:
     """Calculate average value in `col`."""
-    numerator, denominator = 0, 0
-    # TODO: switch to numpy arrays
-    for row in arr:
-        numerator += row[col]
-        denominator += 1
-    if denominator == 0:
-        return 1
-    return numerator / denominator
+    return numpy.array(arr)[:, col].astype(float).sum() / len(arr)
 
 
 Metrics = NamedTuple("Metrics", (
