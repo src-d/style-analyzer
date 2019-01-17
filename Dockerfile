@@ -1,4 +1,4 @@
-FROM srcd/lookout-sdk-ml
+FROM srcd/lookout-sdk-ml:0.6.2
 
 COPY requirements.txt style-analyzer/requirements.txt
 

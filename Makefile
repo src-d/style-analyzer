@@ -19,6 +19,12 @@ check:
 	flake8 --count
 	pylint lookout
 
+.ONESHELL:
+docker-check:
+	@version=$$(grep lookout-sdk-ml requirements.txt|cut -d"=" -f3)
+	grep "FROM srcd/lookout-sdk-ml:$$version" Dockerfile >/dev/null
+	docker pull srcd/lookout-sdk-ml:$$version
+
 docker-test:
 	docker ps | grep bblfshd  # bblfsh server should be run. Try `make bblfsh-start` command.
 	docker run --rm -it --network host \
