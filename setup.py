@@ -15,6 +15,8 @@ plot_requires = ["matplotlib>=2.0,<3.0"]
 web_requires = ["Flask>=1.0.0,<2.0", "Flask-Cors>=3.0.0,<4.0"]
 all_cpu_requires = tests_require + tf_requires + plot_requires + web_requires
 all_gpu_requires = tests_require + tf_gpu_requires + plot_requires + web_requires
+exclude_packages = ("lookout.style.format.tests", "lookout.style.typos.tests") \
+    if not os.getenv("LOOKOUT_STYLE_ANALYZER_SETUP_INCLUDE_TESTS", False) else ()
 
 setup(
     name="lookout-style",
@@ -27,7 +29,7 @@ setup(
     author_email="machine-learning@sourced.tech",
     url="https://github.com/src-d/style-analyzer",
     download_url="https://github.com/src-d/style-analyzer",
-    packages=find_packages(exclude=("lookout.style.format.tests",)),
+    packages=find_packages(exclude=exclude_packages),
     namespace_packages=["lookout"],
     keywords=["machine learning on source code", "babelfish", "lookout"],
     install_requires=[
@@ -51,7 +53,19 @@ setup(
         "all_cpu": all_cpu_requires,
     },
     tests_require=tests_require,
-    package_data={"": ["LICENSE.md", "README.md"]},
+    package_data={"": ["../LICENSE.md", "../README.md", "../requirements.txt", "README.md"],
+                  "lookout.style.format": ["templates/*.jinja2"],
+                  "lookout.style.format.benchmarks": ["data/js_smoke_init.tar.xz"],
+                  "lookout.style.format.langs": ["*.jinja2"],
+                  "lookout.style.format.tests": ["*.asdf", "*.xz"],
+                  "lookout.style.format.tests.bugs.001_analyze_skips_lines":
+                      ["find_chrome_base.js", "find_chrome_head.js",
+                       "style.format.analyzer.FormatAnalyzer_1.asdf"],
+                  "lookout.style.format.tests.bugs.002_bad_line_positions":
+                      ["browser-policy-content.js"],
+                  "lookout.style.format.tests.bugs.003_classify_vnodes_negative_col":
+                      ["jquery.layout.js"],
+                  "lookout.style.typos.tests": ["*.asdf", "*.xz", "*.pkl", "id_vecs_10.bin"]},
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Environment :: Console",
