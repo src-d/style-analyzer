@@ -2,7 +2,7 @@
 from functools import partial
 from logging import getLogger
 from threading import Thread
-from typing import Any, Mapping, Optional, Tuple
+from typing import Any, Mapping, Optional, Sequence, Tuple
 
 from lookout.core.slogging import logs_are_structured
 import numpy
@@ -16,14 +16,6 @@ from skopt.space import Categorical, Integer
 from skopt.utils import use_named_args
 
 
-_dimensions = [
-    Categorical(name="base_model_name", categories=["sklearn.ensemble.RandomForestClassifier",
-                                                    "sklearn.tree.DecisionTreeClassifier"]),
-    Categorical(name="max_depth", categories=[None, 5, 10]),
-    Categorical(name="max_features", categories=[None, "auto"]),
-    Integer(name="min_samples_split", low=2, high=20),
-    Integer(name="min_samples_leaf", low=1, high=20),
-]
 
 
 class Optimizer:
@@ -31,7 +23,12 @@ class Optimizer:
 
     _log = getLogger("Optimizer")
 
-    def __init__(self, cv: int, n_iter: int, n_jobs: Optional[int], random_state: int):
+    def __init__(self, cv: int, n_iter: int, n_jobs: Optional[int], random_state: int,
+                 base_model_name_categories: Sequence[str],
+                 max_depth_categories: Sequence[Optional[int]],
+                 max_features_categories: Sequence[Optional[str]], min_samples_leaf_min: int,
+                 min_samples_leaf_max: int, min_samples_split_min: int,
+                 min_samples_split_max: int) -> None:
         """
         Construct an `Optimizer`.
 
@@ -39,6 +36,17 @@ class Optimizer:
         :param n_iter: Number of optimization iterations. Minimum 10.
         :param n_jobs: Number of jobs to use. Passed on to cross_val_score.
         :param random_state: Random seed.
+        :param base_model_name_categories: Base model names considered during search
+        :param max_depth_categories: Depths considered during search.
+        :param max_features_categories: Features considered during search.
+        :param min_samples_leaf_min: Minimum of the minimum of samples in a leaf considered \
+                                     during search.
+        :param min_samples_leaf_max: Maximum of the minimum of samples in a leaf considered \
+                                     during search.
+        :param min_samples_split_min: Minimum of the minimum of samples in a split considered \
+                                      during search.
+        :param min_samples_split_max: Maximum of the minimum of samples in a split considered \
+                                      during search.
         """
         self.cv = cv
         if n_iter < 10:
@@ -46,6 +54,14 @@ class Optimizer:
         self.n_iter = max(10, n_iter)
         self.n_jobs = n_jobs
         self.random_state = random_state
+        self.dimensions = [
+            Categorical(name="base_model_name", categories=base_model_name_categories),
+            Categorical(name="max_depth", categories=max_depth_categories),
+            Categorical(name="max_features", categories=max_features_categories),
+            Integer(name="min_samples_split", low=min_samples_split_min,
+                    high=min_samples_split_max),
+            Integer(name="min_samples_leaf", low=min_samples_leaf_min, high=min_samples_leaf_max),
+        ]
 
     def optimize(self, X: csr_matrix, y: numpy.ndarray) -> Tuple[float, Mapping[str, Any]]:
         """
@@ -55,10 +71,10 @@ class Optimizer:
         :param y: Labels numpy array.
         :return: Best base model score and parameters.
         """
-        cost_function = use_named_args(_dimensions)(partial(self._cost, X=X, y=y))
+        cost_function = use_named_args(self.dimensions)(partial(self._cost, X=X, y=y))
 
         def _minimize() -> OptimizeResult:
-            return gp_minimize(cost_function, _dimensions, n_calls=self.n_iter,
+            return gp_minimize(cost_function, self.dimensions, n_calls=self.n_iter,
                                random_state=self.random_state, verbose=True)
 
         if not logs_are_structured:
@@ -71,7 +87,7 @@ class Optimizer:
         else:
             res = _minimize()
         best_score = -res.fun
-        best_params = {dim.name: x for x, dim in zip(res.x, _dimensions)}
+        best_params = {dim.name: x for x, dim in zip(res.x, self.dimensions)}
         return best_score, best_params
 
     def _cost(self, *, X: csr_matrix, y: numpy.ndarray, **params: Any) -> float:

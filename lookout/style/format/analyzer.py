@@ -93,11 +93,21 @@ class FormatAnalyzer(Analyzer):
                 "confidence_threshold": 0.8,
                 "prune_dataset_ratio": .2,
                 "n_estimators": 10,
-                "random_state": 42,
             },
-            "n_jobs": -1,
-            "n_iter": 10,
-            "cv": 3,
+            "optimizer": {
+                "n_iter": 10,
+                "cv": 3,
+                "n_jobs": -1,
+                "base_model_name_categories": ["sklearn.ensemble.RandomForestClassifier",
+                                               "sklearn.tree.DecisionTreeClassifier"],
+                "max_depth_categories": [None, 5, 10],
+                "max_features_categories": [None, "auto"],
+                "min_samples_leaf_min": 90,
+                "min_samples_leaf_max": 120,
+                "min_samples_split_min": 180,
+                "min_samples_split_max": 240,
+            },
+            "random_state": 42,
             "test_dataset_ratio": 0.0,
             "line_length_limit": 500,
             "lower_bound_instances": 500,
@@ -171,7 +181,7 @@ class FormatAnalyzer(Analyzer):
             except KeyError:
                 _log.warning("language %s is not supported, skipped", language)
                 continue
-            random_state = lang_config["trainable_rules"]["random_state"]
+            random_state = lang_config["random_state"]
             files = filter_files(
                 files, lang_config["line_length_limit"], lang_config["overall_size_limit"],
                 random_state, _log)
@@ -208,16 +218,14 @@ class FormatAnalyzer(Analyzer):
                              len(files), language, X_train.shape[0], lower_bound_instances)
                 continue
             _log.debug("training the rules model")
-            optimizer = Optimizer(n_jobs=lang_config["n_jobs"],
-                                  n_iter=lang_config["n_iter"],
-                                  cv=lang_config["cv"],
-                                  random_state=random_state)
+            optimizer = Optimizer(**lang_config["optimizer"], random_state=random_state)
             best_score, best_params = optimizer.optimize(X_train, y_train)
             _log.debug("score of the best estimator found: %.6f", best_score)
             _log.debug("params of the best estimator found: %s", str(best_params))
             _log.debug("training the model with complete data")
             lang_config["trainable_rules"].update(best_params)
             trainable_rules = TrainableRules(**lang_config["trainable_rules"],
+                                             random_state=random_state,
                                              origin_config=lang_config)
             trainable_rules.fit(X_train, y_train)
             importances = trainable_rules.feature_importances_
