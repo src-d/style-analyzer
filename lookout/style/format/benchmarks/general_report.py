@@ -198,10 +198,10 @@ class FormatAnalyzerSpy(FormatAnalyzer):
     def train(cls, ptr: ReferencePointer, config: Mapping[str, Any], data_service: DataService,
               **data) -> FormatModel:
         """
-        Train a model_report given the files available or load existing model_report.
+        Train a model given the files available or load the existing model.
 
-        If you set config["model_report"] to path in the file system model_report will be loaded otherwise
-        a model_report is trained in a regular way.
+        If you set config["model"] to path in the file system model will be loaded otherwise
+        a model is trained in a regular way.
 
         :param ptr: Git repository state pointer.
         :param config: Configuration dict.

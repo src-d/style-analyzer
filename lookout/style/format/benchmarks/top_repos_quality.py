@@ -247,11 +247,11 @@ Metrics = NamedTuple("Metrics", (
     ("support", int),
     ("full_support", int),
 ))
-Metrics.__doc__ = """Metrics for the quality report. Metrics are calculated on the samples 
-subset where predictions were made. `full_` prefix means that metric was calculated on all 
-available samples. Without `full_` means that metric was calculated only on samples where it has 
-prediction from the model. `ppcr` means predicted positive condition rate and shows the 
-ratio of samples where the model_report was able to predict.
+Metrics.__doc__ = """Metrics for the quality report. Metrics are calculated on the samples
+ subset where predictions were made. `full_` prefix means that metric was calculated on all
+ available samples. Without `full_` means that metric was calculated only on samples where it has
+ prediction from the model. `ppcr` means predicted positive condition rate and shows the
+ ratio of samples where the model was able to predict.
 """
 
 
@@ -333,7 +333,7 @@ def main(args):
                          "=" * 80,
                          )
                 report_loc = os.path.join(args.output, get_repo_name(repo))
-                train_rep_loc = report_loc + "train_report.md"
+                train_rep_loc = report_loc + ".train_report.md"
                 model_rep_loc = report_loc + ".model_report.md"
                 test_rep_loc = report_loc + ".test_report.md"
                 # generate or read report
@@ -376,10 +376,10 @@ def main(args):
                     continue
 
         # precision, recall, f1, support, n_rules, avg_len stats
-        table = []
-        fields2id = OrderedDict()
         additional_fields = ("Rules Number", "Average Rule Len")
         for report_name in ("train_report", "test_report"):
+            table = []
+            fields2id = OrderedDict()
             with io.StringIO() as output:
                 for repo, report in reports:
                     metrics = _get_metrics(getattr(report, report_name))
@@ -415,6 +415,7 @@ def main(args):
                 print(tabulate(table, tablefmt="pipe", headers="firstrow", floatfmt=floatfmts),
                       file=output)
                 summary = output.getvalue()
+            print(report_name)
             print(summary)
             summary_loc = os.path.join(args.output, "summary-%s.md" % report_name)
             with open(summary_loc, "w", encoding="utf-8") as f:
