@@ -36,7 +36,7 @@ class Optimizer:
         :param n_iter: Number of optimization iterations. Minimum 10.
         :param n_jobs: Number of jobs to use. Passed on to cross_val_score.
         :param random_state: Random seed.
-        :param base_model_name_categories: Base model names considered during search
+        :param base_model_name_categories: Base model names considered during search.
         :param max_depth_categories: Depths considered during search.
         :param max_features_categories: Features considered during search.
         :param min_samples_leaf_min: Minimum of the minimum of samples in a leaf considered \
