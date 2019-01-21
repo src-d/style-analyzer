@@ -37,9 +37,11 @@ def get_train_config():
                 "prune_attributes": False,
                 "uncertain_attributes": False,
                 "n_estimators": 3,
-                "random_state": 42,
             },
-            "n_iter": 1,
+            "optimizer": {
+                "n_iter": 6,
+            },
+            "random_state": 42,
         },
     }
 
@@ -98,7 +100,7 @@ class AnalyzerTests(unittest.TestCase):
         self.assertIn("javascript", model1, str(model1))
         model2 = FormatAnalyzer.train(self.ptr, get_train_config(), self.data_service)
         self.assertEqual(model1["javascript"].rules, model2["javascript"].rules)
-        self.assertGreater(len(model1["javascript"]), 10)
+        self.assertGreater(len(model1["javascript"]), 5)
         # Check that model can be saved without problems and then load back
         with TemporaryFile(prefix="analyzer_model-", suffix=".asdf") as f:
             model2.save(f)
@@ -114,7 +116,7 @@ class AnalyzerTests(unittest.TestCase):
         self.assertIn("javascript", model1, str(model1))
         model2 = FormatAnalyzer.train(self.ptr, get_train_config(), self.data_service)
         self.assertEqual(model1["javascript"].rules, model2["javascript"].rules)
-        self.assertGreater(len(model1["javascript"]), 10)
+        self.assertGreater(len(model1["javascript"]), 5)
         # Check that model can be saved without problems and then load back
         with TemporaryFile(prefix="analyzer_model-", suffix=".asdf") as f:
             model2.save(f)
