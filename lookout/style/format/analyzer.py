@@ -21,7 +21,7 @@ import numpy
 
 from lookout.style.format.classes import CLASS_INDEX, CLS_NEWLINE
 from lookout.style.format.code_generator import CodeGenerator
-from lookout.style.format.descriptions import describe_rule, get_change_description
+from lookout.style.format.descriptions import describe_rule, get_change_description, hash_rule
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.model import FormatModel
 from lookout.style.format.optimizer import Optimizer
@@ -318,6 +318,8 @@ class FormatAnalyzer(Analyzer):
         rules = self.model[file_fix.language]
         _describe_rule = functools.partial(
             describe_rule, feature_extractor=file_fix.feature_extractor)
+        _hash_rule = functools.partial(
+            hash_rule, feature_extractor=file_fix.feature_extractor)
         _describe_change = functools.partial(
             get_change_description, feature_extractor=file_fix.feature_extractor)
         code_lines = file_fix.head_file.content.decode("utf-8", "replace").splitlines()
@@ -332,6 +334,7 @@ class FormatAnalyzer(Analyzer):
                 fixed_vnodes=line_fix.fixed_vnodes,     # VirtualNode-s with changed y
                 confidence=line_fix.confidence,         # overall confidence in the prediction
                 describe_rule=_describe_rule,           # function to format a rule as text
+                hash_rule=_hash_rule,                   # function to generate a 8-char hash
                 describe_change=_describe_change,       # function to format a change as text
                 zip=zip,                                # Jinja2 does not have zip() by default
             )

@@ -13,7 +13,7 @@ format: style mismatch:
 
 {% endif %}
 {% for vnode in fixed_vnodes %}
-{{ describe_change(vnode) }}
+`{{ hash_rule(vnode.applied_rule) }}` {{ describe_change(vnode) }}
     {% if config.report_triggered_rules %}
 Triggered rule
 ```
