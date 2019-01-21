@@ -154,7 +154,7 @@ def analyze_files(analyzer_type: Type[FormatAnalyzer], config: dict, model_path:
 @profile
 def print_reports(input_pattern: str, bblfsh: str, language: str, model_path: str,
                   config: Union[str, dict] = "{}", log_level: str = "INFO") -> None:
-    """Print quality and model reports for a given model on a given dataset."""
+    """Print reports for a given model on a given dataset."""
     slogging.setup(log_level, False)
     log = logging.getLogger("quality_report")
     config = config if isinstance(config, dict) else json.loads(config)
@@ -174,9 +174,7 @@ class FormatAnalyzerSpy(FormatAnalyzer):
             data_service_head: DataService,
             data_service_base: Optional[DataService] = None) -> Iterable[FileFix]:
         """
-        Analyze ptr_from revision and a make quality report for all files in it.
-
-        If you want to get an aggregated report set aggregate flag to True in analyze config.
+        Run `generate_file_fixes` for all files in ptr_from revision.
 
         :param ptr_from: Git repository state pointer to the base revision.
         :param data_service_head: Connection to the Lookout data retrieval service to get \
@@ -200,10 +198,10 @@ class FormatAnalyzerSpy(FormatAnalyzer):
     def train(cls, ptr: ReferencePointer, config: Mapping[str, Any], data_service: DataService,
               **data) -> FormatModel:
         """
-        Train a model given the files available or load existing model.
+        Train a model_report given the files available or load existing model_report.
 
-        If you set config["model"] to path in the file system model will be loaded otherwise
-        a model is trained in a regular way.
+        If you set config["model_report"] to path in the file system model_report will be loaded otherwise
+        a model_report is trained in a regular way.
 
         :param ptr: Git repository state pointer.
         :param config: Configuration dict.
@@ -231,7 +229,7 @@ class ReportAnalyzer(FormatAnalyzerSpy):
     defaults_for_analyze = merge_dicts(FormatAnalyzer.defaults_for_analyze,
                                        {"aggregate": False})
 
-    def generate_quality_report(self, fixes: Iterable[FileFix]) -> str:
+    def generate_train_report(self, fixes: Iterable[FileFix]) -> str:
         """
         Generate report on the train dataset.
 
@@ -259,7 +257,7 @@ class ReportAnalyzer(FormatAnalyzerSpy):
     def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
                 data_service: DataService, **data) -> List[Comment]:
         """
-        Analyze ptr_from revision and a make quality report for all files in it.
+        Analyze ptr_from revision and generate reports for all files in it.
 
         If you want to get an aggregated report set aggregate flag to True in analyze config.
 
@@ -278,11 +276,11 @@ class ReportAnalyzer(FormatAnalyzerSpy):
             if self.config["aggregate"]:
                 fixes.append(fix)
             else:
-                report = self.generate_quality_report(fixes=[fix])
+                report = self.generate_train_report(fixes=[fix])
                 comments.append(generate_comment(
                     filename=filepath, line=0, confidence=100, text=report))
         if self.config["aggregate"]:
-            report = self.generate_quality_report(fixes=fixes)
+            report = self.generate_train_report(fixes=fixes)
             comments.append(generate_comment(
                 filename="", line=0, confidence=100, text=report))
         comments.append(generate_comment(
@@ -340,9 +338,9 @@ class QualityReportAnalyzer(ReportAnalyzer):
         """
         return generate_model_report(model=self.model)
 
-    def generate_quality_report(self, fixes: Iterable[FileFix]) -> str:
+    def generate_train_report(self, fixes: Iterable[FileFix]) -> str:
         """
-        Generate quality report: classification report, confusion matrix, files with most errors.
+        Generate train report: classification report, confusion matrix, files with most errors.
 
         :return: report.
         """
@@ -357,7 +355,7 @@ class QualityReportAnalyzer(ReportAnalyzer):
         # FIXME(vmarkovtsev): we are taking the first fix here which does not work for >1 language
         return generate_quality_report(
             fixes[0].language, report, self.model.ptr, vnodes, self.config["max_files"],
-            name="Quality")
+            name="Train")
 
     def generate_test_report(self) -> str:
         """

@@ -92,7 +92,7 @@ class QualityReportTests(PretrainedModelTests):
                 ])
             self.assertGreater(len(output), 100)
             output = "\n".join(output)
-            self.assertNotIn("# Quality report", output)
+            self.assertNotIn("# Train report", output)
             test_report_start = output.find("Test report")
             self.assertEqual(test_report_start, -1)
             model_data = _get_json_data(output)["javascript"]
@@ -115,7 +115,7 @@ class QualityReportTests(PretrainedModelTests):
 
     def test_eval(self):
         """Test on normal input."""
-        q_report_header = "# Quality report for javascript"
+        q_report_header = "# Train report for javascript"
         input_pattern = os.path.join(self.jquery_dir, "**", "*")
         with Capturing() as output:
             print_reports(input_pattern=input_pattern, bblfsh=self.bblfsh,
@@ -133,7 +133,7 @@ class QualityReportTests(PretrainedModelTests):
 
     def test_eval_aggregate(self):
         """Test on normal input, quality reports are aggregated."""
-        q_report_header = "# Quality report for javascript"
+        q_report_header = "# Train report for javascript"
         input_pattern = os.path.join(self.jquery_dir, "**", "*")
         with Capturing() as output:
             print_reports(input_pattern=input_pattern, bblfsh=self.bblfsh,
