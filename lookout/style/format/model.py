@@ -58,9 +58,9 @@ class FormatModel(AnalyzerModel):
 
     def _load_tree(self, tree: dict) -> None:
         super()._load_tree(tree)
-        for lang, origin_config, rules in zip(
-                tree["languages"], tree["origin_configs"], tree["ruless"]):
-            report = {"test": {}, "train": {}}
+        for lang, origin_config, rules, report in zip(
+                tree["languages"], tree["origin_configs"], tree["ruless"],
+                tree["classification_reports"]):
             self[lang] = Rules(self._assemble_rules(rules), deepcopy(origin_config))
             self[lang]._classification_report = self._assemble_classification_report(report)
 

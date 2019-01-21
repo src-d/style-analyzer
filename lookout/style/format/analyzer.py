@@ -411,6 +411,8 @@ class FormatAnalyzer(Analyzer):
         confidence = 0
         confidence_count = 0
         for yi, y_predi, winner in zip(line_ys, line_ys_pred, line_winners):
+            if winner < 0:
+                continue
             if yi != y_predi:
                 confidence += rules.rules[winner].stats.conf
                 confidence_count += 1
@@ -443,6 +445,8 @@ class FormatAnalyzer(Analyzer):
         line_items = None
         result = []
         for (yi, y_predi, vnode_y, winner) in zip(y, y_pred, vnodes_y, rule_winners):
+            if winner < 0:
+                continue
             if vnode_y.start.line != line_no:
                 if line_items:
                     result.append((line_no, zip(*line_items)))

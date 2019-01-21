@@ -94,7 +94,8 @@ class QualityReportTests(PretrainedModelTests):
             output = "\n".join(output)
             self.assertNotIn("# Train report", output)
             test_report_start = output.find("Test report")
-            self.assertEqual(test_report_start, -1)
+            self.assertNotEqual(test_report_start, -1)
+            output = output[:test_report_start]
             model_data = _get_json_data(output)["javascript"]
             self.assertEqual(model_data, {
                 "avg_rule_len": 12.719585849870578,
@@ -126,6 +127,9 @@ class QualityReportTests(PretrainedModelTests):
         self.assertIn("### Classification report", output)
         self.assertGreater(len(output), 100)
         output = "\n".join(output)
+        test_report_start = output.find("Test report")
+        self.assertNotEqual(test_report_start, -1)
+        output = output[:test_report_start]
         self.assertIn("javascript", _get_json_data(output))
         self.assertIn("# Model report", output)
         qcount = output.count(q_report_header)

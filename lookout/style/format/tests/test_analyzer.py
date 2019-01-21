@@ -125,11 +125,26 @@ class AnalyzerTests(unittest.TestCase):
             compare_models(self, model2, model3)
 
     def test_analyze(self):
+        class FakeUAST:
+            def __init__(self):
+                self.children = []
+
+        class FakeFile:
+            def __init__(self, path, content, uast, language):
+                self.path = path
+                self.content = content
+                self.uast = uast
+                self.language = language
+
+        def remove_uast(file):
+            return FakeFile(path=file.path, content=file.content, uast=FakeUAST(),
+                        language="JavaScript")
+
         common = self.base_files.keys() & self.head_files.keys()
         self.data_service = FakeDataService(
             self.bblfsh_client,
             files=self.base_files.values(),
-            changes=[Change(base=self.base_files[k], head=self.head_files[k])
+            changes=[Change(base=remove_uast(self.base_files[k]), head=self.head_files[k])
                      for k in common])
         config = get_train_config()
         # Make uast_break_check only here

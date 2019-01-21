@@ -214,9 +214,10 @@ class CodeGenerator:
                 rule_winner = rule_winners[y_index]
                 if rule_winner < 0:
                     yield vnode, vnode.y, None
-                rule = rules.rules[rule_winner]
-                yield (vnode, self.feature_extractor.labels_to_class_sequences[rule.stats.cls],
-                       rule)
+                else:
+                    rule = rules.rules[rule_winner]
+                    yield (vnode, self.feature_extractor.labels_to_class_sequences[rule.stats.cls],
+                           rule)
                 y_index += 1
 
     def _handle_error(self, msg: str) -> bool:
