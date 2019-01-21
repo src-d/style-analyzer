@@ -1,11 +1,13 @@
 """Commonly used utils."""
 from copy import deepcopy
-from typing import Any, Dict, Iterable, Mapping
+from typing import Any, Dict, Iterable, Mapping, Sequence
 
 from bblfsh import BblfshClient
 from bblfsh.client import NonUTF8ContentException
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2 import File
+import numpy
+import sklearn.metrics
 from tqdm import tqdm
 
 from lookout.style.format.files_filtering import filter_filepaths
@@ -149,3 +151,30 @@ def generate_comment(filename: str, confidence: int, line: int, text: str) -> Co
     comment.line = line
     comment.text = text
     return comment
+
+
+def get_classification_report(y_pred: numpy.ndarray, y_true: numpy.ndarray,
+                              target_names: Sequence[str]) -> Mapping[str, Any]:
+    """
+    Colllect the main information that is needed for quality report generation.
+
+    :param y_pred: predicted target values.
+    :param y_true: true targets.
+    :param target_names: labels to names mapping.
+    :return: Dictionary with the report information inside.
+    """
+    have_prediction = y_pred >= 0
+    # Predicted Positive Condition Rate calculation
+    ppcr = numpy.sum(have_prediction) / have_prediction.shape[0]
+    report = sklearn.metrics.classification_report(
+        y_true[have_prediction], y_pred[have_prediction], output_dict=True,
+        target_names=target_names, labels=list(range(len(target_names))))
+    report_full = sklearn.metrics.classification_report(
+        y_true, y_pred, output_dict=True,
+        target_names=target_names, labels=list(range(len(target_names))))
+    confusion_matrix = sklearn.metrics.confusion_matrix(y_true, y_pred)
+    return {"ppcr": ppcr,
+            "report": report,
+            "report_full": report_full,
+            "confusion_matrix": confusion_matrix,
+            "target_names": target_names}

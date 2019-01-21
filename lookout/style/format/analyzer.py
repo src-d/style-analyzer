@@ -5,6 +5,7 @@ from itertools import chain
 import logging
 import os
 from pprint import pformat
+import random
 from typing import Any, Iterable, List, Mapping, NamedTuple, Sequence, Tuple
 
 import bblfsh  # noqa: F401
@@ -97,6 +98,7 @@ class FormatAnalyzer(Analyzer):
             "n_jobs": -1,
             "n_iter": 10,
             "cv": 3,
+            "test_dataset_ratio": 0.0,
             "line_length_limit": 500,
             "lower_bound_instances": 500,
         },
@@ -180,38 +182,55 @@ class FormatAnalyzer(Analyzer):
                 continue
             else:
                 _log.info("training on %d %s files", len(files), language)
+
+            train_files, test_files = FormatAnalyzer.get_train_test_split(
+                files, lang_config["test_dataset_ratio"],
+                random_state=lang_config["trainable_rules"]["random_state"])
+
             # we sort to make the features reproducible
-            X, y, _ = fe.extract_features(sorted(files, key=lambda x: x.path))
-            X, selected_features = fe.select_features(X, y)
+            train_files = sorted(train_files, key=lambda x: x.path)
+            test_files = sorted(test_files, key=lambda x: x.path)
+            X_train, y_train, _ = fe.extract_features(train_files)
+            X_train, selected_features = fe.select_features(X_train, y_train)
+            if test_files:
+                X_test, y_test, _ = fe.extract_features(test_files)
+                X_test, selected_features = fe.select_features(X_test, y_test)
+            if lang_config["test_dataset_ratio"]:
+                _log.debug("Real test ratio is %.3f",
+                           X_test.shape[0] / (X_test.shape[0] + X_train.shape[0])
+                           if test_files else 0)
             lang_config["feature_extractor"]["selected_features"] = selected_features
             lang_config["feature_extractor"]["label_composites"] = fe.labels_to_class_sequences
             lower_bound_instances = lang_config["lower_bound_instances"]
-            if X.shape[0] < lower_bound_instances:
+            if X_train.shape[0] < lower_bound_instances:
                 _log.warning("skipped %d %s files: too few samples (%d/%d)",
-                             len(files), language, X.shape[0], lower_bound_instances)
+                             len(files), language, X_train.shape[0], lower_bound_instances)
                 continue
             _log.debug("training the rules model")
             optimizer = Optimizer(n_jobs=lang_config["n_jobs"],
                                   n_iter=lang_config["n_iter"],
                                   cv=lang_config["cv"],
                                   random_state=lang_config["trainable_rules"]["random_state"])
-            best_score, best_params = optimizer.optimize(X, y)
+            best_score, best_params = optimizer.optimize(X_train, y_train)
             _log.debug("score of the best estimator found: %.6f", best_score)
             _log.debug("params of the best estimator found: %s", str(best_params))
             _log.debug("training the model with complete data")
             lang_config["trainable_rules"].update(best_params)
             trainable_rules = TrainableRules(**lang_config["trainable_rules"],
                                              origin_config=lang_config)
-            trainable_rules.fit(X, y)
+            trainable_rules.fit(X_train, y_train)
             importances = trainable_rules.feature_importances_
             _log.debug(
                 "feature importances from %s:\n\t%s",
                 lang_config["trainable_rules"]["base_model_name"],
                 "\n\t".join("%-55s %.5E" % (fe.feature_names[i], importances[i])
                             for i in numpy.argsort(-importances)[:25] if importances[i] > 1e-5))
+            trainable_rules.rules.generate_classification_report(
+                X_train, y_train, "train", fe.composite_class_representations)
+            if test_files:
+                trainable_rules.rules.generate_classification_report(
+                    X_test, y_test, "test", fe.composite_class_representations)
             submit_event("%s.train.%s.rules" % (cls.name, language), len(trainable_rules.rules))
-            # TODO(vmarkovtsev): save the achieved precision, recall, etc. to the model
-            # throw away imprecise classes
             if trainable_rules.rules.rules:
                 model[language] = trainable_rules.rules
             else:
@@ -343,6 +362,38 @@ class FormatAnalyzer(Analyzer):
                 confidence=confidence,          # overall confidence in the prediction, 0-100
             ))
         return token_fixes, new_vnodes, y_pred_pure, y
+
+    @staticmethod
+    def get_train_test_split(files: Sequence[File], test_dataset_ratio: float,
+                             random_state: int) -> Tuple[Sequence[File], Sequence[File]]:
+        """
+        Create train test split for the files collection.
+
+        File size is estimated by its length. If there is at least two files, it is guaranteed to
+        have at least one in test dataset.
+
+        :param files: The list of `File`-s (see service_data.proto) of the same language.
+        :param test_dataset_ratio: The fraction of data that should be taken for test dataset.
+
+        :param random_state: Random state.
+        :return: Train files and test files.
+        """
+        if test_dataset_ratio == 0:
+            return files, []
+        random.seed(random_state)
+        files = random.sample(files, k=len(files))
+        target_train_length = sum(map(lambda f: len(f.content), files)) * (1 - test_dataset_ratio)
+
+        accumulated_train_length = 0
+        i = 0
+        for i, file in enumerate(files):  # noqa: B007
+            accumulated_train_length += len(file.content)
+            if accumulated_train_length >= target_train_length:
+                break
+        min_files_number = min(1, len(files) - 1)
+        if len(files) - i - 1 < min_files_number:
+            i = len(files) - min_files_number - 1
+        return files[:i + 1], files[i + 1:]
 
     @staticmethod
     def _get_comment_confidence(line_ys: Sequence[int], line_ys_pred: Sequence[int],
