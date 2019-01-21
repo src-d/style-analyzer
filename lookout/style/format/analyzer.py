@@ -101,6 +101,7 @@ class FormatAnalyzer(Analyzer):
             "test_dataset_ratio": 0.0,
             "line_length_limit": 500,
             "lower_bound_instances": 500,
+            "overall_size_limit": 2 << 20,  # 2 MB
         },
         # selected settings for each particular language which overwrite "global"
         # empty {} is still required if we do not have any adjustments
@@ -170,7 +171,10 @@ class FormatAnalyzer(Analyzer):
             except KeyError:
                 _log.warning("language %s is not supported, skipped", language)
                 continue
-            files = filter_files(files, lang_config["line_length_limit"], _log)
+            random_state = lang_config["trainable_rules"]["random_state"]
+            files = filter_files(
+                files, lang_config["line_length_limit"], lang_config["overall_size_limit"],
+                random_state, _log)
             submit_event("%s.train.%s.files" % (cls.name, language), len(files))
             if len(files) == 0:
                 _log.info("zero files after filtering, language %s is skipped.", language)
@@ -182,12 +186,9 @@ class FormatAnalyzer(Analyzer):
                 continue
             else:
                 _log.info("training on %d %s files", len(files), language)
-
             train_files, test_files = FormatAnalyzer.get_train_test_split(
-                files, lang_config["test_dataset_ratio"],
-                random_state=lang_config["trainable_rules"]["random_state"])
-
-            # we sort to make the features reproducible
+                files, lang_config["test_dataset_ratio"], random_state=random_state)
+            # ensure that the features are reproducible
             train_files = sorted(train_files, key=lambda x: x.path)
             test_files = sorted(test_files, key=lambda x: x.path)
             X_train, y_train, _ = fe.extract_features(train_files)
@@ -210,7 +211,7 @@ class FormatAnalyzer(Analyzer):
             optimizer = Optimizer(n_jobs=lang_config["n_jobs"],
                                   n_iter=lang_config["n_iter"],
                                   cv=lang_config["cv"],
-                                  random_state=lang_config["trainable_rules"]["random_state"])
+                                  random_state=random_state)
             best_score, best_params = optimizer.optimize(X_train, y_train)
             _log.debug("score of the best estimator found: %.6f", best_score)
             _log.debug("params of the best estimator found: %s", str(best_params))
@@ -262,7 +263,8 @@ class FormatAnalyzer(Analyzer):
             rules = self.model[lang]
             rules = rules.filter_by_confidence(self.config["confidence_threshold"]) \
                 .filter_by_support(self.config["support_threshold"])
-            for file in filter_files(head_files, rules.origin_config["line_length_limit"], log):
+            for file in filter_files(head_files, rules.origin_config["line_length_limit"],
+                                     rules.origin_config["overall_size_limit"], log=log):
                 processed_files_counter[lang] += 1
                 try:
                     prev_file = base_files_by_lang[lang][file.path]

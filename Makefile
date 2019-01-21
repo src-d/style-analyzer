@@ -21,7 +21,8 @@ check:
 
 .ONESHELL:
 docker-check:
-	@version=$$(grep lookout-sdk-ml requirements.txt|cut -d"=" -f3)
+	@set -e
+	version=$$(grep lookout-sdk-ml requirements.txt|cut -d"=" -f3)
 	grep "FROM srcd/lookout-sdk-ml:$$version" Dockerfile >/dev/null
 	docker pull srcd/lookout-sdk-ml:$$version
 
