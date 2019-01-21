@@ -17,12 +17,14 @@ from scipy.stats import fisher_exact
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.exceptions import NotFittedError
-from sklearn.metrics import accuracy_score, confusion_matrix, precision_recall_fscore_support
+from sklearn.metrics import accuracy_score, confusion_matrix, \
+    precision_recall_fscore_support
 from sklearn.model_selection import train_test_split
 from sklearn.tree import _tree as Tree, DecisionTreeClassifier
 
 from lookout.style.format.classes import CLASS_INDEX, CLS_DOUBLE_QUOTE, CLS_SINGLE_QUOTE
 from lookout.style.format.feature_extractor import FeatureExtractor
+from lookout.style.format.utils import get_classification_report
 from lookout.style.format.virtual_node import VirtualNode
 
 RuleAttribute = NamedTuple(
@@ -77,12 +79,24 @@ class Rules:
         self._rules = tuple(rules)  # Rule list is constant
         self._compiled = self._compile(rules)
         self._origin_config = origin_config
+        self._classification_report = {"test": {}, "train": {}}  # type: Dict[str, Dict[str, Any]]
 
     def __str__(self):
         return "%d rules, avg.len. %.1f" % (len(self._rules), self.avg_rule_len)
 
     def __len__(self):
         return len(self._rules)
+
+    @property
+    def classification_report(self) -> Dict[str, Dict]:
+        """
+        Property for classification report with quality metrics.
+
+        Return empty dict if unset.
+        Can be set for a dataset with generate_classification_report() method.
+        :return: Classification report.
+        """
+        return self._classification_report
 
     def apply(self, X_csr: csr_matrix, return_winner_indices=False,
               ) -> Union[numpy.ndarray, Tuple[numpy.ndarray, numpy.ndarray]]:
@@ -183,6 +197,24 @@ class Rules:
         self._log.debug("Filtered rules by support >= %d: %d -> %d",
                         support_threshold, len(self._rules), len(rules))
         return Rules(rules, self._origin_config)
+
+    def generate_classification_report(self, X: csr_matrix, y: numpy.ndarray, dataset_type: str,
+                                       target_names: Sequence[str]) -> None:
+        """
+        Calculate and store classification report with quality metrics for given dataset.
+
+        :param X: Features matrix.
+        :param y: target vector.
+        :param dataset_type: Can be set to "test" or "train" only. Marks passing data as train or \
+                             test.
+        :param target_names: Classes names in y.
+        """
+        # TODO(zurk): multi-language support.
+        assert dataset_type in {"test", "train"}, "Unknown dataset_type='%s'. Known are 'test' " \
+                                                  "and 'train'" % dataset_type
+        y_pred = self.apply(X)
+        self._classification_report[dataset_type] = get_classification_report(
+            y_pred, y, target_names)
 
     @staticmethod
     def _get_composite(feature_extractor: FeatureExtractor, labels: Tuple[int, ...]) -> int:

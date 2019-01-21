@@ -18,14 +18,14 @@ from lookout.core.api.service_data_pb2 import Change, File
 from lookout.core.data_requests import DataService, request_files
 import numpy
 from sklearn.exceptions import NotFittedError
-from sklearn.metrics import classification_report, confusion_matrix
 
 from lookout.style.format.analyzer import FileFix, FormatAnalyzer
 from lookout.style.format.benchmarks.time_profile import profile
 from lookout.style.format.descriptions import describe_rule
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.model import FormatModel
-from lookout.style.format.utils import generate_comment, merge_dicts, prepare_files
+from lookout.style.format.utils import generate_comment, get_classification_report, \
+    merge_dicts, prepare_files
 from lookout.style.format.virtual_node import VirtualNode
 
 
@@ -44,30 +44,16 @@ def _load_jinja2_template(report_template_filename: str) -> jinja2.Template:
     return template
 
 
-def generate_quality_report(language: str, ptr: ReferencePointer, vnodes: Sequence[VirtualNode],
-                            y: numpy.ndarray, y_pred_pure: numpy.ndarray, max_files: int,
-                            target_names: Sequence[str]):
+def generate_quality_report(language: str, report: Mapping[str, Any], ptr: ReferencePointer,
+                            vnodes: Sequence[VirtualNode], max_files: int, name: str) -> str:
     """Generate report: classification report, confusion matrix, files with most errors."""
-    # classification report
-    have_prediction = y_pred_pure >= 0
-    # Predicted Positive Condition Rate calculation
-    ppcr = numpy.sum(have_prediction) / have_prediction.shape[0]
-
-    c_report = classification_report(
-        y[have_prediction], y_pred_pure[have_prediction], output_dict=True,
-        target_names=target_names, labels=list(range(len(target_names))))
-    c_report_full = classification_report(
-        y, y_pred_pure, output_dict=True,
-        target_names=target_names, labels=list(range(len(target_names))))
-
-    avr_keys = ["macro avg", "micro avg", "weighted avg"]
-    c_sorted = OrderedDict((key, c_report[key])
-                           for key in sorted(c_report, key=lambda k: -c_report[k]["support"])
-                           if key not in avr_keys)
-    for key in avr_keys:
-        c_sorted[key] = c_report[key]
-    # confusion matrix
-    mat = confusion_matrix(y, y_pred_pure)
+    avg_keys = {"macro avg", "micro avg", "weighted avg"}
+    sorted_report = OrderedDict((key, report["report"][key])
+                                for key in sorted(report["report"],
+                                                  key=lambda k: -report["report"][k]["support"])
+                                if key not in avg_keys)
+    for key in avg_keys:
+        sorted_report[key] = report["report"][key]
     # sort files by mispredictions
     file_mispred = []
     for vnode in vnodes:
@@ -80,9 +66,10 @@ def generate_quality_report(language: str, ptr: ReferencePointer, vnodes: Sequen
 
     template = _load_jinja2_template("quality_report.md.jinja2")
     # TODO(vmarkovtsev): move all the logic inside the template
-    res = template.render(language=language, ptr=ptr, conf_mat=mat, target_names=target_names,
-                          files=to_show, cl_report=c_sorted, cl_report_full=c_report_full,
-                          ppcr=ppcr)
+    res = template.render(language=language, ptr=ptr, conf_mat=report["confusion_matrix"],
+                          target_names=report["target_names"], files=to_show,
+                          cl_report=sorted_report, ppcr=report["ppcr"],
+                          cl_report_full=report["report_full"], name=name)
     return res
 
 
@@ -246,7 +233,7 @@ class ReportAnalyzer(FormatAnalyzerSpy):
 
     def generate_quality_report(self, fixes: Iterable[FileFix]) -> str:
         """
-        Generate report.
+        Generate report on the train dataset.
 
         :param fixes: fixes with all required information for report generation.
         :return: Report.
@@ -260,6 +247,14 @@ class ReportAnalyzer(FormatAnalyzerSpy):
         :return: Report.
         """
         return ""
+
+    def generate_test_report(self) -> str:
+        """
+        Generate report on the test dataset.
+
+        :return: Report.
+        """
+        raise NotImplementedError()
 
     def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
                 data_service: DataService, **data) -> List[Comment]:
@@ -292,6 +287,11 @@ class ReportAnalyzer(FormatAnalyzerSpy):
                 filename="", line=0, confidence=100, text=report))
         comments.append(generate_comment(
             filename="", line=0, confidence=100, text=self.generate_model_report()))
+        try:
+            comments.append(generate_comment(
+                filename="", line=0, confidence=100, text=self.generate_test_report()))
+        except ValueError:
+            pass
         return comments
 
 
@@ -328,6 +328,9 @@ class QualityReportAnalyzer(ReportAnalyzer):
                   "whitespace, new lines, quotes, etc."
     defaults_for_analyze = merge_dicts(ReportAnalyzer.defaults_for_analyze,
                                        {"max_files": 10})
+    defaults_for_train = merge_dicts(ReportAnalyzer.defaults_for_train,
+                                     {"global": {"test_dataset_ratio": 0.2,
+                                                 }})
 
     def generate_model_report(self) -> str:
         """
@@ -349,10 +352,26 @@ class QualityReportAnalyzer(ReportAnalyzer):
         vnodes = chain.from_iterable(fix.file_vnodes for fix in fixes)
         ys = numpy.hstack(fix.y for fix in fixes)
         y_pred_pure = numpy.hstack(fix.y_pred_pure for fix in fixes)
+        report = get_classification_report(
+            y_pred_pure, ys, fixes[0].feature_extractor.composite_class_representations)
         # FIXME(vmarkovtsev): we are taking the first fix here which does not work for >1 language
         return generate_quality_report(
-            fixes[0].language, self.model.ptr, vnodes, ys, y_pred_pure, self.config["max_files"],
-            fixes[0].feature_extractor.composite_class_representations)
+            fixes[0].language, report, self.model.ptr, vnodes, self.config["max_files"],
+            name="Quality")
+
+    def generate_test_report(self) -> str:
+        """
+        Generate report on the test dataset.
+
+        :return: Report.
+        """
+        for lang in self.model:
+            classification_report = self.model[lang].classification_report["test"]
+            if not classification_report:
+                raise ValueError(
+                    "Test classification report is unavailable for language %s. Skipping." % lang)
+            return generate_quality_report(lang, classification_report, self.model.ptr, [], 0,
+                                           name="Test")
 
 
 analyzer_class = QualityReportAnalyzer

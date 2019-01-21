@@ -211,7 +211,10 @@ class CodeGenerator:
             if y_index >= len(vnodes_y) or id(vnode) != id(vnodes_y[y_index]):
                 yield vnode, vnode.y, None
             else:
-                rule = rules.rules[rule_winners[y_index]]
+                rule_winner = rule_winners[y_index]
+                if rule_winner < 0:
+                    yield vnode, vnode.y, None
+                rule = rules.rules[rule_winner]
                 yield (vnode, self.feature_extractor.labels_to_class_sequences[rule.stats.cls],
                        rule)
                 y_index += 1

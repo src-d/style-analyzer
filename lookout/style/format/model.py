@@ -51,6 +51,8 @@ class FormatModel(AnalyzerModel):
             languages=languages,
             origin_configs=[self[lang].origin_config for lang in languages],
             ruless=[self._disassemble_rules(self[lang].rules) for lang in languages],
+            classification_reports=[self._disassemble_classification_report(
+                self[lang].classification_report) for lang in languages],
         )
         return tree
 
@@ -58,7 +60,9 @@ class FormatModel(AnalyzerModel):
         super()._load_tree(tree)
         for lang, origin_config, rules in zip(
                 tree["languages"], tree["origin_configs"], tree["ruless"]):
+            report = {"test": {}, "train": {}}
             self[lang] = Rules(self._assemble_rules(rules), deepcopy(origin_config))
+            self[lang]._classification_report = self._assemble_classification_report(report)
 
     def __len__(self) -> int:
         return len(self._rules_by_lang)
@@ -83,6 +87,21 @@ class FormatModel(AnalyzerModel):
 
     def __contains__(self, lang: str) -> bool:
         return lang in self._rules_by_lang
+
+    @staticmethod
+    def _assemble_classification_report(report: dict) -> dict:
+        for key in report:
+            if report[key]:
+                report[key]["confusion_matrix"] = numpy.array(report[key]["confusion_matrix"])
+        return report
+
+    @staticmethod
+    def _disassemble_classification_report(report: dict) -> dict:
+        report = deepcopy(report)
+        for key in report:
+            if report[key]:
+                report[key]["confusion_matrix"] = report[key]["confusion_matrix"].tolist()
+        return report
 
     @staticmethod
     def _assemble_rules(rules_tree: dict) -> List[Rule]:
