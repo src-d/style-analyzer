@@ -138,7 +138,7 @@ class AnalyzerTests(unittest.TestCase):
 
         def remove_uast(file):
             return FakeFile(path=file.path, content=file.content, uast=FakeUAST(),
-                        language="JavaScript")
+                            language="JavaScript")
 
         common = self.base_files.keys() & self.head_files.keys()
         self.data_service = FakeDataService(

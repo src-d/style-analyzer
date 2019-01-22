@@ -134,7 +134,7 @@ def create_parser() -> ArgumentParser:
 
     # Evaluate on different styles dataset
     eval_smoke_parser = add_parser("eval-smoke-dataset",
-                                        "Evaluate on the dataset with different styles.")
+                                   "Evaluate on the dataset with different styles.")
     eval_smoke_parser.set_defaults(handler=evaluate_smoke_entry)
     eval_smoke_parser.add_argument(
         "inputpath", type=str,
