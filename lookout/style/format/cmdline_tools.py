@@ -133,24 +133,26 @@ def create_parser() -> ArgumentParser:
     )
 
     # Evaluate on different styles dataset
-    eval_gen_styles_parser = add_parser("eval-smoke-dataset",
+    eval_smoke_parser = add_parser("eval-smoke-dataset",
                                         "Evaluate on the dataset with different styles.")
-    eval_gen_styles_parser.set_defaults(handler=evaluate_smoke_entry)
-    eval_gen_styles_parser.add_argument(
+    eval_smoke_parser.set_defaults(handler=evaluate_smoke_entry)
+    eval_smoke_parser.add_argument(
         "inputpath", type=str,
         help="Path to the directory where the generated dataset is stored. "
              "To generate a dataset run gen-smoke-dataset command.")
-    eval_gen_styles_parser.add_argument(
+    eval_smoke_parser.add_argument(
         "reportdir", type=str,
         help="Path for report performance output directory.")
-    add_bblfsh_arg(eval_gen_styles_parser)
-    eval_gen_styles_parser.add_argument(
+    eval_smoke_parser.add_argument(
+        "--bblfsh",
+        help="Babelfish server's address.")
+    eval_smoke_parser.add_argument(
         "--train-config", type=json.loads, default="{}",
         help="Json config for train step.")
-    eval_gen_styles_parser.add_argument(
+    eval_smoke_parser.add_argument(
         "--analyze-config", type=json.loads, default="{}",
         help=" Json config for analyze step.")
-    eval_gen_styles_parser.add_argument(
+    eval_smoke_parser.add_argument(
         "--database", type=str, default=None,
         help="Path to the sqlite3 database with trained models metadata. "
              "Enables reusing previously trained models.")
