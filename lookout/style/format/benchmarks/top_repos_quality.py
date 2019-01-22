@@ -391,8 +391,8 @@ def main(args):
                     table.append((get_repo_name(repo),) + metrics + (n_rules, avg_len))
                 average = tuple(("%" + FLOAT_PRECISION) % calc_avg(table[1:], fields2id[field])
                                 for field in metrics._fields)
-                average += tuple(("%" + FLOAT_PRECISION) % calc_avg(table[1:], fields2id[field])
-                                 for field in additional_fields)
+                average += tuple(("%.0f", "%.1f")[i] % calc_avg(table[1:], fields2id[field])
+                                 for i, field in enumerate(additional_fields))
                 fields_to_weight = (
                     ("precision", "support"), ("recall", "support"),
                     ("full_recall", "full_support"), ("f1", "support"),
@@ -402,13 +402,15 @@ def main(args):
                 for field, weight_field in fields_to_weight:
                     weighted_average.append(("%" + FLOAT_PRECISION) % calc_weighted_avg(
                         table[1:], col=fields2id[field], weight_col=fields2id[weight_field]))
-                table.append(("Average",) + average)
-                table.append(("Weighted average",) + tuple(weighted_average))
+                table.append(("average",) + average)
+                table.append(("weighted average",) + tuple(weighted_average))
                 float_fields = ("precision", "recall", "full_recall", "f1", "full_f1", "ppcr")
                 floatfmts = []
                 for field in fields2id:
                     if field in float_fields:
                         floatfmts.append(FLOAT_PRECISION)
+                    elif field == "Average Rule Len":
+                        floatfmts.append(".1f")
                     else:
                         floatfmts.append("g")
 
