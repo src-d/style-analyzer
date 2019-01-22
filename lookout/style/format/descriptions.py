@@ -2,10 +2,11 @@
 from collections import defaultdict
 from functools import singledispatch
 from math import ceil, floor
-from typing import List, Optional, Sequence, Tuple
+from typing import List, Sequence, Tuple
 
 from numpy import flatnonzero, floating, ndarray
 from sklearn.exceptions import NotFittedError
+import xxhash
 
 from lookout.style.format.classes import CLASS_INDEX, CLS_NOOP
 from lookout.style.format.feature_extractor import FeatureExtractor, FEATURES_MAX, FEATURES_MIN
@@ -46,6 +47,21 @@ def describe_rule(rule: Rule, feature_extractor: FeatureExtractor) -> str:
         rule.stats.support)
 
 
+def hash_rule(rule: Rule, feature_extractor: FeatureExtractor) -> str:
+    """
+    Hash rule contents to 8 hex characters. The same content produces the same hash all the time.
+
+    :param rule: The rule to describe.
+    :param feature_extractor: The FeatureExtractor used to create those rules.
+    :return: String of length 8.
+    """
+    hasher = xxhash.xxh32(seed=7)
+    for attr in describe_rule_attrs(rule, feature_extractor):
+        hasher.update(attr.strip())
+    hasher.update(feature_extractor.composite_class_representations[rule.stats.cls])
+    return hasher.hexdigest()
+
+
 def describe_rule_attrs(rule: Rule, feature_extractor: FeatureExtractor) -> Sequence[str]:
     """
     Format the rule as text.
@@ -65,9 +81,9 @@ def describe_rule_attrs(rule: Rule, feature_extractor: FeatureExtractor) -> Sequ
     return [_describe_rule_splits(feature_extractor.features[group][node_index][feature_id],
                                   "%s%s" % (group.format(node_index), feature_id.name),
                                   splits)
-            for group, nodes in grouped.items()
-            for node_index, feature_ids in nodes.items()
-            for feature_id, splits in feature_ids.items()]
+            for group, nodes in sorted(grouped.items())
+            for node_index, feature_ids in sorted(nodes.items())
+            for feature_id, splits in sorted(feature_ids.items())]
 
 
 @singledispatch
@@ -232,18 +248,3 @@ def get_code_chunk(code_lines: Sequence[str], line_number: int) -> str:
     """
     lines = list(range(max(0, line_number - 2), line_number + 1))
     return "\n".join("%d|%s" % (l, code_lines[l]) for l in lines)
-
-
-def rule_to_comment(rule: Rule, feature_extractor: FeatureExtractor, number: Optional[int]=None,
-                    ) -> str:
-    """
-    Return the comment for the rule.
-
-    :param rule: The rule to convert to string.
-    :param number: Triggered rule number if applicable.
-    :param feature_extractor: Corresponding feature extractor.
-    :return: String comment.
-    """
-    number = "<NA>" if number is None else str(number)
-    return "Triggered rule # %s:\n```\n\t%s\n```" % (
-        number, describe_rule(rule, feature_extractor))

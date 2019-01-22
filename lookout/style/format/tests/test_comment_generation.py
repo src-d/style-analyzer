@@ -63,7 +63,7 @@ class CodeGeneratorTests(unittest.TestCase):
 <new code line>
 ```
 
-<change description>
+`<change description>` <change description>
 Triggered rule
 ```
 <rule # 34>

@@ -14,14 +14,14 @@ $(MAKEFILE):
 	git clone --quiet --depth 1 -b $(CI_BRANCH) $(CI_REPOSITORY) $(CI_PATH);
 -include $(MAKEFILE)
 
+.ONESHELL:
+.POSIX:
 check:
 	! grep -R /tmp lookout/style/*/tests
 	flake8 --count
 	pylint lookout
 
-.ONESHELL:
 docker-check:
-	@set -e
 	version=$$(grep lookout-sdk-ml requirements.txt|cut -d"=" -f3)
 	grep "FROM srcd/lookout-sdk-ml:$$version" Dockerfile >/dev/null
 	docker pull srcd/lookout-sdk-ml:$$version

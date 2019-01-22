@@ -5,7 +5,7 @@ from setuptools import find_packages, setup
 
 lookout_style = SourceFileLoader("lookout", "./lookout/style/__init__.py").load_module()
 
-with open(os.path.join(os.path.dirname(__file__), "README.md")) as f:
+with open(os.path.join(os.path.dirname(__file__), "README.md"), encoding="utf-8") as f:
     long_description = f.read()
 
 tests_require = ["docker>=3.4.0,<4.0"]

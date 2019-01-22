@@ -16,8 +16,6 @@ from skopt.space import Categorical, Integer
 from skopt.utils import use_named_args
 
 
-
-
 class Optimizer:
     """Optimize base model hyper-parameters."""
 
