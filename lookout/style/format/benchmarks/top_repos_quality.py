@@ -391,7 +391,7 @@ def main(args):
                     table.append((get_repo_name(repo),) + metrics + (n_rules, avg_len))
                 average = tuple(("%" + FLOAT_PRECISION) % calc_avg(table[1:], fields2id[field])
                                 for field in metrics._fields)
-                average += tuple(("%.0f", "%.1f")[i] % calc_avg(table[1:], fields2id[field])
+                average += tuple(("%d", "%.1f")[i] % calc_avg(table[1:], fields2id[field])
                                  for i, field in enumerate(additional_fields))
                 fields_to_weight = (
                     ("precision", "support"), ("recall", "support"),
