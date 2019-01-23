@@ -2,6 +2,7 @@
 from functools import partial
 from logging import getLogger
 from threading import Thread
+import time
 from typing import Any, Mapping, Optional, Sequence, Tuple
 
 from lookout.core.slogging import logs_are_structured
@@ -72,8 +73,9 @@ class Optimizer:
         cost_function = use_named_args(self.dimensions)(partial(self._cost, X=X, y=y))
 
         def _minimize() -> OptimizeResult:
+            callback = _VerboseLogCallback(self._log)
             return gp_minimize(cost_function, self.dimensions, n_calls=self.n_iter,
-                               random_state=self.random_state, verbose=True)
+                               random_state=self.random_state, callback=callback)
 
         if not logs_are_structured:
             # fool the check in joblib - everything still works without it
@@ -101,3 +103,35 @@ class Optimizer:
         base_model = base_model_class(**params_copy)
         cv = StratifiedKFold(self.cv, random_state=self.random_state)
         return -numpy.mean(cross_val_score(base_model, X, y, cv=cv, n_jobs=self.n_jobs))
+
+
+class _VerboseLogCallback:
+    """
+    Callback to control the verbosity and log output properly.
+
+    Adopted from skopt library, VerboseCallback class.
+    """
+
+    def __init__(self, log):
+        """
+        Init method.
+
+        :param log: logger Instance to log optimization steps.
+        """
+        self._log = log
+        self.iter_no = 1
+        self._start_time = time.time()
+
+    def __call__(self, res):
+        """
+        Call callback method.
+
+        :param res: The optimization as a OptimizeResult object.
+        :return: None
+        """
+        self._log.debug(
+            "Iteration No: %.3d. Time taken: %0.4f. Function value obtained: %0.4f. Current"
+            " minimum: %0.4f.", self.iter_no, time.time() - self._start_time, res.func_vals[-1],
+            res.fun)
+        self.iter_no += 1
+        self._start_time = time.time()
