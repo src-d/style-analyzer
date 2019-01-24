@@ -383,8 +383,9 @@ def main(args):
                             fields2id[field] = i
                     n_rules, avg_len = _get_model_summary(report.model_report)
                     table.append((get_repo_name(repo),) + metrics + (n_rules, avg_len))
-                average = tuple(("%" + FLOAT_PRECISION) % calc_avg(table[1:], fields2id[field])
-                                for field in metrics._fields)
+                avgvals = tuple(calc_avg(table[1:], fields2id[field]) for field in metrics._fields)
+                average = tuple(("%" + FLOAT_PRECISION) % v for v in avgvals[:-2])
+                average += tuple("%d" % v for v in avgvals[-2:])  # support, full_support
                 average += tuple(("%d", "%.1f")[i] % calc_avg(table[1:], fields2id[field])
                                  for i, field in enumerate(additional_fields))
                 fields_to_weight = (
