@@ -195,7 +195,6 @@ class FormatAnalyzer(Analyzer):
             X_train, selected_features = fe.select_features(X_train, y_train)
             if test_files:
                 X_test, y_test, _ = fe.extract_features(test_files)
-                X_test, selected_features = fe.select_features(X_test, y_test)
             if lang_config["test_dataset_ratio"]:
                 _log.debug("Real test ratio is %.3f",
                            X_test.shape[0] / (X_test.shape[0] + X_train.shape[0])
