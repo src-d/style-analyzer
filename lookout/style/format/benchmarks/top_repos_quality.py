@@ -348,6 +348,7 @@ def main(args):
                             with open(test_rep_loc, "w", encoding="utf-8") as f:
                                 f.write(report.test_report)
                     else:
+                        log.info("Found existing reports for %s in %s", repo, args.output)
                         report = QualityReport()
                         with open(train_rep_loc, encoding="utf-8") as f:
                             report.train_report = f.read()
