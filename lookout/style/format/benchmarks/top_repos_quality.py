@@ -41,7 +41,7 @@ REPOSITORIES = [
     "https://github.com/reduxjs/redux 902484ed735d38aec06683c847810a7218d8dba2 b307091af4d7e846d9e5f080fb81caf4a8b4aab1",  # noqa: E501
     "https://github.com/storybooks/storybook b28217f887af533a17cb1498887d6b4bd41bd643 4c46f273719427788d568c037f285907aabd17f9",  # noqa: E501
     "https://github.com/laravel/telescope 534030114f47696fe3f3b08ea7ca49467428f2af 6f0a10ec586cfa1a22218b6778bf9c1572b97912",  # noqa: E501
-    "https://github.com/vuejs/vue-cli 2024f4e52097bed96b527d2e519dccba334f434b 85e4f9839ba88d1283b10bb3112582792b8dac6e",  # noqa: E501
+    "https://github.com/hakimel/reveal.js 0b3e7839ebf4ed8b6c180aca0abafa28c67aee6d 247771e129f431fc751140d8da4c2fe60815a51f",  # noqa: E501
     "https://github.com/meteor/meteor c3309b123a7220ac24cbe73661184ee946bca01f 62fa9927ce34cff064cc3991439553e7c52b5258",  # noqa: E501
     "https://github.com/webpack/webpack babe736cfa1ef7e8014ed32ba4a4ec38049dce14 3e74cb428af04eedac60ae13d2420d2b5bd3bde1",  # noqa: E501
     # TODO: add after bblfsh python client v3 is released and we use it
