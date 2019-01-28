@@ -2,6 +2,7 @@
 from copy import deepcopy
 import io
 from itertools import islice
+from pprint import pprint
 from typing import Dict, Iterable, List, Mapping, Tuple  # noqa: F401
 
 from lookout.core.analyzer import AnalyzerModel
@@ -41,8 +42,20 @@ class FormatModel(AnalyzerModel):
         result = io.StringIO()
         result.write(super().dump())
         for lang, rules in sorted(self._rules_by_lang.items()):
-            result.write("\n\n# %s\n%s" % (lang, rules))
-        return result.getvalue()
+            result.write("\n\n# %s\n%s\n" % (lang, rules))
+            try:
+                for ds in ("train", "test"):
+                    print("## %s" % ds, file=result)
+                    print("PPCR: %f" % self[lang].classification_report[ds]["ppcr"], file=result)
+                    for r in ("report", "report_full"):
+                        print("### %s" % r, file=result)
+                        for avg in ("macro", "micro", "weighted"):
+                            print(avg, file=result)
+                            pprint(self[lang].classification_report[ds][r]["%s avg" % avg],
+                                   stream=result)
+            except KeyError:
+                print("<classification report was not computed>", file=result)
+        return result.getvalue().strip()
 
     def _generate_tree(self) -> dict:
         tree = super()._generate_tree()
