@@ -35,7 +35,6 @@ def get_train_config():
                 "prune_branches_algorithms": ["reduced-error"],
                 "top_down_greedy_budget": [False, .5],
                 "prune_attributes": False,
-                "uncertain_attributes": False,
                 "n_estimators": 3,
             },
             "optimizer": {

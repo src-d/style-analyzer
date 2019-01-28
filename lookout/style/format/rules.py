@@ -9,11 +9,11 @@ from typing import (Any, Dict, Iterable, List, Mapping, NamedTuple, Optional,
                     Sequence, Set, Tuple, Union)
 
 from bblfsh import role_name
+from igraph import Graph
 from lookout.core.ports import Type
 import numpy
 from numpy import count_nonzero
 from scipy.sparse import csr_matrix
-from scipy.stats import fisher_exact
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.exceptions import NotFittedError
@@ -21,6 +21,7 @@ from sklearn.metrics import accuracy_score, confusion_matrix, \
     precision_recall_fscore_support
 from sklearn.model_selection import train_test_split
 from sklearn.tree import _tree as Tree, DecisionTreeClassifier
+from tqdm import tqdm
 
 from lookout.style.format.classes import CLASS_INDEX, CLS_DOUBLE_QUOTE, CLS_SINGLE_QUOTE
 from lookout.style.format.feature_extractor import FeatureExtractor
@@ -382,7 +383,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
                  prune_branches_algorithms=("reduced-error", "top-down-greedy"),
                  top_down_greedy_budget: Tuple[bool, Union[float, int]] = (False, 1.0),
                  prune_attributes=True, confidence_threshold=0.8,
-                 uncertain_attributes=True, prune_dataset_ratio=.2, n_estimators=10,
+                 attribute_similarity_threshold=0.93, prune_dataset_ratio=.2, n_estimators=10,
                  max_depth=None, max_features=None, min_samples_leaf=1, min_samples_split=2,
                  random_state=42, origin_config=None):
         """
@@ -392,7 +393,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
                                 Must be either "sklearn.tree.DecisionTreeClassifier" or \
                                 "sklearn.ensemble.RandomForestClassifier".
         :param prune_branches_algorithms: branch pruning algorithms to use.
-        :param top_down_greedy_budget: Tuple describing the budget of the top down algorithm: \
+        :param top_down_greedy_budget: tuple describing the budget of the top down algorithm: \
                                        boolean to indicate if it's absolute (True) or not \
                                        (False). If the first value is True (absolute budget), the \
                                        second  should be an integer describing the maximum number \
@@ -400,10 +401,9 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
                                        should be a float between 0 and 1 to specify the \
                                        proportion of rules to keep.
         :param prune_attributes: indicates whether to remove useless parts of rules.
-        :param confidence_threshold: Confidence threshold to filter the rules.
-        :param uncertain_attributes: indicates whether to **retain** parts of rules with low \
-                                     certainty (see "Generating Production Rules From Decision \
-                                     Trees" by J.R. Quinlan).
+        :param confidence_threshold: confidence threshold to filter the rules.
+        :param attribute_similarity_threshold: remove attribute comparisons which trigger on \
+                                               similar samples.
         :param prune_dataset_ratio: Ratio of the dataset to use for pruning during training.
         :param n_estimators: n_estimators parameter of the base model.
         :param max_depth: max_depth parameter of the base model.
@@ -420,7 +420,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         self.top_down_greedy_budget = top_down_greedy_budget
         self.prune_attributes = prune_attributes
         self.confidence_threshold = confidence_threshold
-        self.uncertain_attributes = uncertain_attributes
+        self.attribute_similarity_threshold = attribute_similarity_threshold
         self.prune_dataset_ratio = prune_dataset_ratio
         # Parameters for base_model must be named the same as in the base_model class
         self.n_estimators = n_estimators
@@ -499,9 +499,13 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
                 base_model, rules, X_prune, y_prune, leaf2rule, self.top_down_greedy_budget)
             self._log.debug("pruned %d/%d rules w/ greedy pruning", old - len(rules), old)
         if self.prune_attributes:
-            old = count_attrs()
-            rules = self._prune_attributes(rules, X_prune, y_prune, not self.uncertain_attributes)
-            self._log.debug("pruned %d/%d attributes", old - count_attrs(), old)
+            old_attrs = count_attrs()
+            old_rules_len = len(rules)
+            rules = self._prune_attributes(
+                rules, X_prune, y_prune, self.attribute_similarity_threshold)
+            self._log.debug("pruned %d/%d attributes (%d/%d rules)",
+                            old_attrs - count_attrs(), old_attrs, old_rules_len - len(rules),
+                            old_rules_len)
         self._rules = Rules(rules, self._origin_config)
         return self
 
@@ -782,66 +786,61 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
     @classmethod
     def _prune_attributes(cls, rules: Iterable[Rule],
                           X: csr_matrix, Y: numpy.ndarray,
-                          prune_uncertain: bool) -> List[Rule]:
+                          sim_threshold: float) -> List[Rule]:
         """
         Remove the attribute comparisons which do not influence the rule decision.
 
-        Based on:
-
-        "Generating Production Rules From Decision Trees" by J. R. Quinlan.
-        https://www.ijcai.org/Proceedings/87-1/Papers/063.pdf
-
-        "Simplifying Decision Trees" by J. R. Quinlan.
-        https://dspace.mit.edu/bitstream/handle/1721.1/6453/AIM-930.pdf
+        We treat two attribute comparisons as similar if the samples on which they trigger and \
+        mistake are similar by Jaccard metric.
 
         :param rules: List of rules to simplify.
         :param X: Input features, used to exclude the irrelevant attributes.
         :param Y: Input labels.
-        :param prune_uncertain: Whether to apply an extra pruning condition.
+        :param sim_threshold: how many attributes to prune. Must be between 0 and 1. \
+                              The closer to 0, the fewer attributes are left.
         :return: New list of simplified rules.
         """
-        def confidence(v, not_v):
-            return (v - 0.5) / (v + not_v)
-
+        new_rules_set = set()
         new_rules = []
-        intervals = {}
-        attrs = defaultdict(set)
-        for branch, _, _ in rules:
-            for rule_attr in branch:
-                attrs[rule_attr.feature].add(rule_attr.threshold)
-        for key, vals in attrs.items():
-            attrs[key] = numpy.array(sorted(vals))
-            intervals[key] = [defaultdict(int) for _ in range(len(vals) + 1)]
-        searchsorted = numpy.searchsorted
-        for x, y in zip(X.toarray(), Y):
-            for attr, val in enumerate(x):
-                interval = intervals.get(attr)
-                if interval is not None:
-                    interval[searchsorted(attrs[attr], val)][y] += 1
-        for key, vals in attrs.items():
-            attrs[key] = {v: i for i, v in enumerate(vals)}
-        for vals in intervals.values():
-            for vec in vals:
-                vec[-1] = sum(vec.values())
+        if cls._log.isEnabledFor(logging.INFO):
+            rules = tqdm(rules)
+        x_array = X.toarray()
+        not_cs = {}
         for rule, stats, artificial in rules:
+            if artificial:
+                new_rules.append(rule)
+                continue
             c = stats.cls
-            new_verbs = []
+            not_c = not_cs.setdefault(c, Y != c)
+            triggered = []
             for feature, cmp, thr in rule:
-                table = numpy.zeros((2, 2), dtype=numpy.int32)
-                for i, interval in enumerate(intervals[feature]):
-                    row = int((i <= attrs[feature][thr]) == cmp)
-                    num_same_cls = interval[c]
-                    table[row, 0] += num_same_cls
-                    table[row, 1] += interval[-1] - num_same_cls
-                if prune_uncertain:
-                    if confidence(table[0, 0] + table[1, 0], table[0, 1] + table[1, 1]) \
-                            >= confidence(table[0, 0], table[0, 1]):
-                        continue
-                _, p = fisher_exact(table)
-                if p < 0.01:
-                    new_verbs.append(RuleAttribute(feature, cmp, thr))
-            if new_verbs:
-                new_rules.append(Rule(attrs=tuple(new_verbs), stats=stats, artificial=artificial))
+                if cmp:
+                    triggered.append(numpy.nonzero((x_array[:, feature] > thr) & not_c)[0])
+                else:
+                    triggered.append(numpy.nonzero((x_array[:, feature] <= thr) & not_c)[0])
+            graph = Graph()
+            graph.add_vertices(len(rule))
+            for x, tx in enumerate(triggered):
+                for y, ty in enumerate(triggered[x + 1:]):
+                    y += x + 1
+                    sim = len(set(tx).intersection(set(ty))) / len(set(tx).union(set(ty)))
+                    if sim > sim_threshold:
+                        graph.add_edge(x, y)
+            erased = set()
+            retained = set()
+            cliques = sorted(graph.cliques(2), key=lambda c: -len(c))
+            for clique in cliques:
+                retained.add(min(clique))
+            for clique in cliques:
+                erased.update(set(sorted(clique)[1:]) - retained)
+            if len(erased) == 0:
+                new_rule = Rule(rule, stats, artificial)
+            else:
+                new_rule = Rule(
+                    tuple(r for i, r in enumerate(rule) if i not in erased), stats, artificial)
+            if new_rule.attrs not in new_rules_set:
+                new_rules.append(new_rule)
+                new_rules_set.add(new_rule.attrs)
         return new_rules
 
     @staticmethod
