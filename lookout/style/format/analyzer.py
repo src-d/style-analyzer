@@ -111,7 +111,7 @@ class FormatAnalyzer(Analyzer):
             "test_dataset_ratio": 0.0,
             "line_length_limit": 500,
             "lower_bound_instances": 500,
-            "overall_size_limit": 2 << 20,  # 2 MB
+            "overall_size_limit": 5 << 20,  # 5 MB
         },
         # selected settings for each particular language which overwrite "global"
         # empty {} is still required if we do not have any adjustments
