@@ -9,6 +9,7 @@ import xxhash
 from lookout.style.format.classes import CLASS_INDEX, CLS_NOOP
 from lookout.style.format.feature_extractor import FeatureExtractor, FEATURES_MAX, FEATURES_MIN
 from lookout.style.format.features import BagFeature, CategoricalFeature, Feature, OrdinalFeature
+from lookout.style.format.model import FormatModel
 from lookout.style.format.rules import Rule, RuleAttribute
 from lookout.style.format.virtual_node import VirtualNode
 
@@ -281,3 +282,21 @@ def get_code_chunk(code_lines: Sequence[str], line_number: int) -> str:
     """
     lines = list(range(max(0, line_number - 2), line_number + 1))
     return "\n".join("%d|%s" % (l, code_lines[l]) for l in lines)
+
+
+def dump_rule(model: FormatModel, rule_hash: str):
+    """
+    Print the rule contained in the model by hash.
+
+    :param model: Trained model.
+    :param rule_hash: 8-char rule hash.
+    :return: Nothing
+    """
+    for lang in model.languages:
+        rules = model[lang]
+        fe = FeatureExtractor(language=lang, **rules.origin_config["feature_extractor"])
+        for rule in rules.rules:
+            h = hash_rule(rule, fe)
+            if h == rule_hash:
+                print(lang)
+                print("    " + describe_rule(rule, fe).replace("\t", "    "))
