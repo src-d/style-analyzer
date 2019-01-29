@@ -1,17 +1,15 @@
 """Features and rules description utils."""
-from collections import defaultdict
-from functools import singledispatch
 from math import ceil, floor
-from typing import List, Sequence, Tuple
+from typing import List, Sequence
 
-from numpy import flatnonzero, floating, ndarray
+from numpy import flatnonzero, ndarray
 from sklearn.exceptions import NotFittedError
 import xxhash
 
 from lookout.style.format.classes import CLASS_INDEX, CLS_NOOP
 from lookout.style.format.feature_extractor import FeatureExtractor, FEATURES_MAX, FEATURES_MIN
-from lookout.style.format.features import BagFeature, CategoricalFeature, OrdinalFeature
-from lookout.style.format.rules import Rule
+from lookout.style.format.features import BagFeature, CategoricalFeature, Feature, OrdinalFeature
+from lookout.style.format.rules import Rule, RuleAttribute
 from lookout.style.format.virtual_node import VirtualNode
 
 
@@ -72,24 +70,19 @@ def describe_rule_attrs(rule: Rule, feature_extractor: FeatureExtractor) -> Sequ
     :param feature_extractor: The FeatureExtractor used to create those rules.
     :return: The description of the rule.
     """
-    if feature_extractor.features is None or feature_extractor.index_to_feature is None:
-        raise NotFittedError()
-    grouped = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
-    for feature_index, cmp, threshold in rule.attrs:
-        group, node_index, feature_id, index = feature_extractor.index_to_feature[feature_index]
-        grouped[group][node_index][feature_id].append((cmp, threshold, index))
-    return [_describe_rule_splits(feature_extractor.features[group][node_index][feature_id],
-                                  "%s%s" % (group.format(node_index), feature_id.name),
-                                  splits)
-            for group, nodes in sorted(grouped.items())
-            for node_index, feature_ids in sorted(nodes.items())
-            for feature_id, splits in sorted(feature_ids.items())]
+    result = []
+
+    for feature, feature_id, splits, node_index, group in rule.group_features(feature_extractor):
+        desc = describe_rule_splits(
+            feature, "%s%s" % (group.format(node_index), feature_id.name), splits)
+        result.append(desc)
+
+    return result
 
 
-@singledispatch
-def describe_sample(feature: BagFeature, values: ndarray) -> str:
+def describe_sample_bag(feature: BagFeature, values: ndarray) -> str:
     """
-    Describe a sample given its feature values.
+    Describe a bag sample given its feature values.
 
     :param feature: The feature that computed the values to describe.
     :param values: The values to describe.
@@ -103,10 +96,9 @@ def describe_sample(feature: BagFeature, values: ndarray) -> str:
                               for index in active) if len(active) else "∅"
 
 
-@describe_sample.register(CategoricalFeature)
 def describe_sample_categorical(feature: CategoricalFeature, values: ndarray) -> str:
     """
-    Describe a sample given its feature values.
+    Describe a categorical sample given its feature values.
 
     :param feature: The feature that computed the values to describe.
     :param values: The values to describe.
@@ -119,10 +111,9 @@ def describe_sample_categorical(feature: CategoricalFeature, values: ndarray) ->
     return selected_names[active[0]] if len(active) else "∅"
 
 
-@describe_sample.register(OrdinalFeature)
 def describe_sample_ordinal(feature: OrdinalFeature, values: ndarray) -> str:
     """
-    Describe a sample given its feature value.
+    Describe an ordinal sample given its feature value.
 
     :param feature: The feature that computed the values to describe.
     :param values: The value to describe, in an array.
@@ -133,11 +124,32 @@ def describe_sample_ordinal(feature: OrdinalFeature, values: ndarray) -> str:
     return str(values[0])
 
 
-@singledispatch
-def _describe_rule_splits(feature: BagFeature, name: str,
-                          splits: List[Tuple[bool, floating, int]]) -> str:
+SAMPLE_DESCRIBERS = {
+    BagFeature: describe_sample_bag,
+    CategoricalFeature: describe_sample_categorical,
+    OrdinalFeature: describe_sample_ordinal,
+}
+
+
+def describe_sample(feature: Feature, values: ndarray) -> str:
     """
-    Describe parts of a rule in natural language.
+    Describe a sample given its feature value.
+
+    :param feature: The feature that computed the values to describe.
+    :param values: The value to describe, in an array.
+    :return: A string that describe the value of this feature.
+    """
+    for cls in type(feature).__mro__:
+        try:
+            return SAMPLE_DESCRIBERS[cls](feature, values)
+        except KeyError:
+            continue
+    raise KeyError("no sample describer is registered for %s" % type(feature).__name__)
+
+
+def _describe_rule_splits_bag(feature: BagFeature, name: str, splits: List[RuleAttribute]) -> str:
+    """
+    Describe parts of a bag rule in natural language.
 
     :param feature: The feature used for the splits to describe.
     :param name: The name to use for the feature used in the split.
@@ -148,7 +160,7 @@ def _describe_rule_splits(feature: BagFeature, name: str,
     """
     included = set()
     excluded = set()
-    for cmp, _, index in splits:
+    for index, cmp, _ in splits:
         if cmp:
             included.add(feature.names[index])
         else:
@@ -163,11 +175,10 @@ def _describe_rule_splits(feature: BagFeature, name: str,
     return description
 
 
-@_describe_rule_splits.register(CategoricalFeature)
-def _describe_rule_parts_categorical(feature: CategoricalFeature, name: str,
-                                     splits: List[Tuple[bool, floating, int]]) -> str:
+def _describe_rule_splits_categorical(feature: CategoricalFeature, name: str,
+                                      splits: List[RuleAttribute]) -> str:
     """
-    Describe parts of a rule in natural language.
+    Describe parts of a categorical rule in natural language.
 
     :param feature: The feature used for the splits to describe.
     :param name: The name to use for the feature used in the split.
@@ -178,7 +189,7 @@ def _describe_rule_parts_categorical(feature: CategoricalFeature, name: str,
     """
     included = None
     excluded = set()
-    for cmp, _, index in splits:
+    for index, cmp, _ in splits:
         if cmp:
             included = feature.names[index]
         else:
@@ -186,16 +197,40 @@ def _describe_rule_parts_categorical(feature: CategoricalFeature, name: str,
     description = name
     if included:
         description += " = %s" % included
-        if excluded:
-            description += " and"
-    if excluded:
+    if excluded and not included:
         description += " not in {%s}" % ", ".join(excluded)
     return description
 
 
-@_describe_rule_splits.register(OrdinalFeature)
-def _describe_rule_parts_ordinal(feature: OrdinalFeature, name: str,
-                                 splits: List[Tuple[bool, floating, int]]) -> str:
+def _describe_rule_splits_ordinal(_, name: str, splits: List[RuleAttribute]) -> str:
+    """
+    Describe a part of an ordinal rule in natural language.
+
+    :param _: The feature used for the splits to describe.
+    :param name: The name to use for the feature used in the split.
+    :param splits: List of the tuple representing the splits to describe. The tuples contain the \
+                   comparison, the threshold and an ignored value here to be consistent with \
+                   other types of features. The wrapping list is also needed for this reason.
+    :return: A string describing the given rule splits.
+    """
+    _, cmp, threshold = splits[0]
+    if cmp:
+        if threshold > FEATURES_MAX - 1:
+            return "%s = %d" % (name, FEATURES_MAX)
+        return "%s ≥ %d" % (name, ceil(threshold))
+    elif threshold < FEATURES_MIN + 1:
+        return "%s = %d" % (name, FEATURES_MIN)
+    return "%s ≤ %d" % (name, floor(threshold))
+
+
+RULE_SPLITS_DESCRIBERS = {
+    BagFeature: _describe_rule_splits_bag,
+    CategoricalFeature: _describe_rule_splits_categorical,
+    OrdinalFeature: _describe_rule_splits_ordinal,
+}
+
+
+def describe_rule_splits(feature: Feature, name: str, splits: List[RuleAttribute]) -> str:
     """
     Describe a part of a rule in natural language.
 
@@ -206,14 +241,12 @@ def _describe_rule_parts_ordinal(feature: OrdinalFeature, name: str,
                    other types of features. The wrapping list is also needed for this reason.
     :return: A string describing the given rule splits.
     """
-    cmp, threshold, _ = splits[0]
-    if cmp:
-        if threshold > FEATURES_MAX - 1:
-            return "%s = %d" % (name, FEATURES_MAX)
-        return "%s ≥ %d" % (name, ceil(threshold))
-    elif threshold < FEATURES_MIN + 1:
-        return "%s = %d" % (name, FEATURES_MIN)
-    return "%s ≤ %d" % (name, floor(threshold))
+    for cls in type(feature).__mro__:
+        try:
+            return RULE_SPLITS_DESCRIBERS[cls](feature, name, splits)
+        except KeyError:
+            continue
+    raise KeyError("no rule splits describer is registered for %s" % type(feature).__name__)
 
 
 def get_change_description(vnode: VirtualNode, feature_extractor: FeatureExtractor) -> str:

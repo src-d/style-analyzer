@@ -127,8 +127,7 @@ class FeatureExtractor:
                     selected_indices = []
                     names = feature_pre_selection.names
                     for index, name in enumerate(names):
-                        if (self.selected_features is None
-                                or total_index in selected_features_set):
+                        if self.selected_features is None or total_index in selected_features_set:
                             selected_indices.append(index)
                             if issubclass(feature_class, MultipleValuesFeature):
                                 last_name_part = "%s.%s" % (feature_pre_selection.id.name, name)
@@ -171,21 +170,21 @@ class FeatureExtractor:
         self._feature_count = sum(self._feature_group_counts.values())
 
     @property
-    def index_to_feature(self) -> Optional[IndexToFeature]:
+    def index_to_feature(self) -> IndexToFeature:
         """Return the mapping from integer indices to the corresponding feature names."""
         if not hasattr(self, "_index_to_feature"):
             raise NotFittedError()
         return self._index_to_feature
 
     @property
-    def feature_to_indices(self) -> Optional[FeatureLayout[Sequence[int]]]:
+    def feature_to_indices(self) -> FeatureLayout[Sequence[int]]:
         """Return the mapping from feature names to the corresponding integer indices."""
         if not hasattr(self, "_feature_to_indices"):
             raise NotFittedError()
         return self._feature_to_indices
 
     @property
-    def features(self) -> Optional[FeatureLayout[Feature]]:
+    def features(self) -> FeatureLayout[Feature]:
         """Return the `Feature`-s used by this feature extractor."""
         if not hasattr(self, "_features"):
             raise NotFittedError()

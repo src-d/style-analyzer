@@ -5,7 +5,7 @@ import functools
 from importlib import import_module
 from itertools import islice
 import logging
-from typing import (Any, Dict, Iterable, List, Mapping, NamedTuple, Optional,
+from typing import (Any, Dict, Iterable, Iterator, List, Mapping, NamedTuple, Optional,
                     Sequence, Set, Tuple, Union)
 
 from bblfsh import role_name
@@ -25,6 +25,7 @@ from tqdm import tqdm
 
 from lookout.style.format.classes import CLASS_INDEX, CLS_DOUBLE_QUOTE, CLS_SINGLE_QUOTE
 from lookout.style.format.feature_extractor import FeatureExtractor
+from lookout.style.format.features import CategoricalFeature, Feature, FeatureGroup, FeatureId
 from lookout.style.format.utils import get_classification_report
 from lookout.style.format.virtual_node import VirtualNode
 
@@ -44,8 +45,38 @@ RuleStats = NamedTuple("RuleStats", (("cls", int), ("conf", float), ("support", 
 """
 
 
-Rule = NamedTuple("RuleType", (("attrs", Tuple[RuleAttribute, ...]), ("stats", RuleStats),
-                               ("artificial", bool)))
+class Rule(NamedTuple("RuleType", (("attrs", Tuple[RuleAttribute, ...]), ("stats", RuleStats),
+                                   ("artificial", bool)))):
+    """
+    Decision rule which consists of a series of attribute comparisons, statistics and the flag \
+    which indicates whether the rule was created outside of the training (notably, \
+    in Rules.harmonize_quotes()). The statistics contain the predicted class index.
+    """
+
+    def group_features(self, feature_extractor: FeatureExtractor) -> Iterator[
+            Tuple[Feature, FeatureId, List[RuleAttribute], int, FeatureGroup]]:
+        """
+        Generate rule splits grouped by feature type.
+
+        Attribute indexes are from the original sequence before feature selection!
+
+        :param feature_extractor: The FeatureExtractor used to create those rules.
+        :return: generator
+        """
+        if feature_extractor.features is None or feature_extractor.index_to_feature is None:
+            raise NotFittedError()
+        grouped = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+        for attr in self.attrs:
+            group, node_index, feature_id, original_feature_index = \
+                feature_extractor.index_to_feature[attr.feature]
+            grouped[group][node_index][feature_id].append(RuleAttribute(
+                original_feature_index, attr.cmp, attr.threshold))
+        for group, nodes in sorted(grouped.items()):
+            for node_index, feature_ids in sorted(nodes.items()):
+                for feature_id, splits in sorted(feature_ids.items()):
+                    feature = feature_extractor.features[group][node_index][feature_id]
+                    yield feature, feature_id, splits, node_index, group
+
 
 QuotedNodeTriple = NamedTuple("QuotedNodeTriple", (("left", VirtualNode), ("target", VirtualNode),
                                                    ("right", VirtualNode)))
@@ -508,6 +539,50 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
                             old_rules_len)
         self._rules = Rules(rules, self._origin_config)
         return self
+
+    def prune_categorical_attributes(self, feature_extractor: FeatureExtractor) -> None:
+        """
+        Remove "not in" categorical assertions which are overridden by strict equalities.
+
+        :param feature_extractor: FeatureExtractor which created the train samples.
+        :return: Nothing
+        """
+        new_rules = []
+        known_rules = set()
+        pruned_count = 0
+        attr_count = 0
+        for rule in self.rules.rules:
+            attr_count += len(rule.attrs)
+            excluded = []
+            if not rule.artificial:
+                for feature, _, splits, _, _ in rule.group_features(feature_extractor):
+                    if isinstance(feature, CategoricalFeature):
+                        if len(splits) <= 1:
+                            continue
+                        has_included = False
+                        for _, cmp, _ in splits:
+                            if cmp:
+                                has_included = True
+                                break
+                        if not has_included:
+                            continue
+                        for attr in splits:
+                            if not attr.cmp:
+                                excluded.append(attr)
+            if excluded:
+                pruned_count += len(excluded)
+                attrs = tuple(a for a in rule.attrs if RuleAttribute(
+                    feature_extractor.index_to_feature[a.feature][3], a.cmp, a.threshold)
+                              not in excluded)
+            else:
+                attrs = rule.attrs
+            if attrs not in known_rules:
+                new_rules.append(Rule(attrs, rule.stats, rule.artificial))
+                known_rules.add(attrs)
+        self._log.debug("pruned %d/%d categorical attributes (%d/%d rules)",
+                        pruned_count, attr_count, len(self.rules) - len(new_rules),
+                        len(self.rules))
+        self._rules = Rules(new_rules, self.rules.origin_config)
 
     @property
     def base_model_name(self) -> str:

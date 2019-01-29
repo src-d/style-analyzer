@@ -233,6 +233,7 @@ class FormatAnalyzer(Analyzer):
                 lang_config["trainable_rules"]["base_model_name"],
                 "\n\t".join("%-55s %.5E" % (fe.feature_names[i], importances[i])
                             for i in numpy.argsort(-importances)[:25] if importances[i] > 1e-5))
+            trainable_rules.prune_categorical_attributes(fe)
             trainable_rules.rules.generate_classification_report(
                 X_train, y_train, "train", fe.composite_class_representations)
             if test_files:
@@ -498,6 +499,6 @@ class FormatAnalyzer(Analyzer):
             return {lang: merge_dicts(global_config, lang_config)
                     for lang, lang_config in config.items()}
         except AttributeError as e:
-            raise ValueError("Config %s can not be merged with default values config: %s" % (
-                config, global_config,
-            ))
+            raise ValueError("Config %s can not be merged with default values config: %s: %s" % (
+                config, global_config, e,
+            )) from None
