@@ -1,4 +1,5 @@
 """Features and rules description utils."""
+import logging
 from math import ceil, floor
 from typing import List, Sequence
 
@@ -196,9 +197,8 @@ def _describe_rule_parts_categorical(feature: CategoricalFeature, name: str,
             excluded.add(feature.names[index])
     description = name
     if included:
-        assert not excluded, "there are redundant attributes"
         description += " = %s" % included
-    if excluded:
+    if excluded and not included:
         description += " not in {%s}" % ", ".join(excluded)
     return description
 

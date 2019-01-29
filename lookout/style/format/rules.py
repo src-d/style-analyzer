@@ -582,7 +582,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         self._log.debug("pruned %d/%d categorical attributes (%d/%d rules)",
                         pruned_count, attr_count, len(self.rules) - len(new_rules),
                         len(self.rules))
-        self.rules._rules = tuple(new_rules)
+        self._rules = Rules(new_rules, self.rules.origin_config)
 
     @property
     def base_model_name(self) -> str:
