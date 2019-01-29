@@ -12,7 +12,7 @@ import logging.handlers
 import os
 import sys
 import tempfile
-from typing import Iterable, NamedTuple, Optional, Sequence, Type, Union
+from typing import Iterable, Iterator, NamedTuple, Optional, Sequence, Type, Union
 
 from dulwich import porcelain
 from lookout.core import slogging
@@ -257,8 +257,7 @@ def _get_json_data(report: str) -> dict:
     return data
 
 
-def handle_input_arg(input_arg: str,
-                     log: Optional[logging.Logger] = None) -> str:
+def handle_input_arg(input_arg: str, log: Optional[logging.Logger] = None) -> Iterator[str]:
     """
     Process input argument and return an iterator over input data.
 
