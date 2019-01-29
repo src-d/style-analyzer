@@ -233,6 +233,7 @@ class FormatAnalyzer(Analyzer):
                 lang_config["trainable_rules"]["base_model_name"],
                 "\n\t".join("%-55s %.5E" % (fe.feature_names[i], importances[i])
                             for i in numpy.argsort(-importances)[:25] if importances[i] > 1e-5))
+            trainable_rules.prune_categorical_attributes(fe)
             trainable_rules.rules.generate_classification_report(
                 X_train, y_train, "train", fe.composite_class_representations)
             if test_files:

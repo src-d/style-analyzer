@@ -207,7 +207,7 @@ def _describe_rule_parts_ordinal(_: OrdinalFeature, name: str, splits: List[Rule
     """
     Describe a part of an ordinal rule in natural language.
 
-    :param feature: The feature used for the splits to describe.
+    :param _: The feature used for the splits to describe.
     :param name: The name to use for the feature used in the split.
     :param splits: List of the tuple representing the splits to describe. The tuples contain the \
                    comparison, the threshold and an ignored value here to be consistent with \
