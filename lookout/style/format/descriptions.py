@@ -168,11 +168,11 @@ def _describe_rule_splits_bag(feature: BagFeature, name: str, splits: List[RuleA
             excluded.add(feature.names[index])
     description = name
     if included:
-        description += " in {%s}" % ", ".join(included)
+        description += " in {%s}" % ", ".join(sorted(included))
         if excluded:
             description += " and"
     if excluded:
-        description += " not in {%s}" % ", ".join(excluded)
+        description += " not in {%s}" % ", ".join(sorted(excluded))
     return description
 
 
@@ -199,7 +199,7 @@ def _describe_rule_splits_categorical(feature: CategoricalFeature, name: str,
     if included:
         description += " = %s" % included
     if excluded and not included:
-        description += " not in {%s}" % ", ".join(excluded)
+        description += " not in {%s}" % ", ".join(sorted(excluded))
     return description
 
 
