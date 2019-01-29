@@ -7,6 +7,7 @@ import os
 from pprint import pformat
 import random
 from typing import Any, Iterable, List, Mapping, NamedTuple, Sequence, Tuple
+import warnings
 
 import bblfsh  # noqa: F401
 from jinja2 import Template
@@ -19,6 +20,7 @@ from lookout.core.lib import files_by_language, filter_files, find_deleted_lines
 from lookout.core.metrics import submit_event
 import numpy
 
+from lookout.style import __version__
 from lookout.style.format.classes import CLASS_INDEX, CLS_NEWLINE
 from lookout.style.format.code_generator import CodeGenerator
 from lookout.style.format.descriptions import describe_rule, get_change_description, hash_rule
@@ -29,6 +31,9 @@ from lookout.style.format.postprocess import filter_uast_breaking_preds
 from lookout.style.format.rules import Rules, TrainableRules
 from lookout.style.format.utils import generate_comment, merge_dicts
 from lookout.style.format.virtual_node import VirtualNode
+
+# silence skopt's rant
+warnings.filterwarnings("ignore", message="The objective has been evaluated at this point before.")
 
 LineFix = NamedTuple("LineFix", (
     ("line_number", int),                     # line number for the comment
@@ -172,7 +177,8 @@ class FormatAnalyzer(Analyzer):
         :return: AnalyzerModel containing the learned rules, per language.
         """
         _log = logging.getLogger(cls.__name__)
-        _log.info("train %s %s %s", ptr.url, ptr.commit, pformat(config, width=4096, compact=True))
+        _log.info("train %s %s %s %s", __version__, ptr.url, ptr.commit,
+                  pformat(config, width=4096, compact=True))
         model = FormatModel().construct(cls, ptr)
         config = cls._load_train_config(config)
         for language, files in files_by_language(data["files"]).items():
@@ -181,6 +187,8 @@ class FormatAnalyzer(Analyzer):
             except KeyError:
                 _log.warning("language %s is not supported, skipped", language)
                 continue
+            _log.info("effective config for %s:\n%s", language,
+                      pformat(lang_config, width=120, compact=True))
             random_state = lang_config["random_state"]
             files = filter_files(
                 files, lang_config["line_length_limit"], lang_config["overall_size_limit"],
@@ -243,7 +251,7 @@ class FormatAnalyzer(Analyzer):
             if trainable_rules.rules.rules:
                 model[language] = trainable_rules.rules
             else:
-                _log.warning("model for %s has 0 rules. Skipping.", language)
+                _log.warning("model for %s has 0 rules. Skipped.", language)
         _log.info("trained %s", model)
         return model
 
