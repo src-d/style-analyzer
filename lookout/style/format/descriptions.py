@@ -1,5 +1,4 @@
 """Features and rules description utils."""
-import logging
 from math import ceil, floor
 from typing import List, Sequence
 
@@ -176,8 +175,8 @@ def _describe_rule_splits_bag(feature: BagFeature, name: str, splits: List[RuleA
     return description
 
 
-def _describe_rule_parts_categorical(feature: CategoricalFeature, name: str,
-                                     splits: List[RuleAttribute]) -> str:
+def _describe_rule_splits_categorical(feature: CategoricalFeature, name: str,
+                                      splits: List[RuleAttribute]) -> str:
     """
     Describe parts of a categorical rule in natural language.
 
@@ -203,7 +202,7 @@ def _describe_rule_parts_categorical(feature: CategoricalFeature, name: str,
     return description
 
 
-def _describe_rule_parts_ordinal(_: OrdinalFeature, name: str, splits: List[RuleAttribute]) -> str:
+def _describe_rule_splits_ordinal(_, name: str, splits: List[RuleAttribute]) -> str:
     """
     Describe a part of an ordinal rule in natural language.
 
@@ -226,8 +225,8 @@ def _describe_rule_parts_ordinal(_: OrdinalFeature, name: str, splits: List[Rule
 
 RULE_SPLITS_DESCRIBERS = {
     BagFeature: _describe_rule_splits_bag,
-    CategoricalFeature: _describe_rule_parts_categorical,
-    OrdinalFeature: _describe_rule_parts_ordinal,
+    CategoricalFeature: _describe_rule_splits_categorical,
+    OrdinalFeature: _describe_rule_splits_ordinal,
 }
 
 
