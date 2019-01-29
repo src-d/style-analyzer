@@ -33,24 +33,11 @@ is based on the language-agnostic [Babelfish](https://doc.bblf.sh/) parser. Ever
 
 ## How To Use
 
-The following steps are required to try the "format" analyzer.
+There are several ways to run style-analyzer:
 
-1. Download [`lookout-sdk`](https://github.com/src-d/lookout/releases) binary.
-2. Start a [babelfish server](https://doc.bblf.sh/using-babelfish/getting-started.html) with the v1.2.0 javascript driver installed (`docker exec -it bblfshd bblfshctl driver install --update javascript bblfsh/javascript-driver:v1.2.0`)
-3. Install the deps `pip3 install -e .`
-4. Write the configuration file, e.g. `config.yml`:
-
-```yaml
-server: 0.0.0.0:9930
-db: sqlite:////tmp/lookout.sqlite
-fs: /tmp
-```
-
-5. Run the analyzer `python3 -m lookout run lookout.style.format -c config.yml`
-6. File a fake pull request `./lookout-sdk review`
-
-Your git repository should contain a sufficient number of JavaScript files so that it is possible
-to infer sane, statistically significant rules.
+* [Developer's setup](doc/how-to/developer.md)
+* [Demonstration setup](doc/how-to/demo.md)
+* [Reports](doc/how-to/reports.md)
 
 ## Science
 
@@ -68,14 +55,14 @@ The training algorithm is summarized below.
 3. Extract features from the nodes surrounding the Y nodes. We take a fixed-size window and record the internal types, roles, positions and unique identifiers (for tokens which are not present in the UAST) for the left and right siblings and the parent hierarchy (2-3 levels). The features for the left and for the right siblings are different so that we avoid the information "leakage". For example, the difference in offsets between the left and the right neighbor defines the exact length of the predicted token in between.
 4. We train the random forest model on the collected (X, Y) dataset. We fine-tune it with bayesian optimization.
 5. We extract the rules - the branches of the trees. We prune them in several steps: first we exclude the rules which do not improve the accuracy, second we remove the rule parts which are redundant.
-6. We put 95% rule confidence threshold - that is, precision on the validation - and discard the rest. This is the part which we expect to change in the future with the development of artificial random noise evaluation datasets.
+6. We put 93% rule confidence threshold - that is, precision on the training set - and discard the rest. This gives ~95% joint precision.
 7. The rules which are left is our model - the training result.
 
 The application algorithm is much simpler - we take the rules and apply them. However, there are several quirks:
 1. In case several rules are triggered, the rule with the highest confidence wins.
 2. There are paired tokens which we predict such as quotes. It is possible that there are two rules which contradict each other - the left and the right quotes are predicted to be different. We pick the most confident prediction and change the second quote accordingly.
 3. We check that the prediction does not break the code. For example, it can insert a newline in the middle of the expression which can change the AST. We run Babelfish on each changed line to see if the AST remains the same.
-4. There is a huge chunk of code to represent the triggered rule in a human-readable format.
+4. There is a huge chunk of code to represent the triggered rule in a human-readable format and generate the code for fixes.
 
 #### typos
 
