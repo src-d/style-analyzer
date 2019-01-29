@@ -1,16 +1,21 @@
 """Commonly used utils."""
 from copy import deepcopy
 from typing import Any, Dict, Iterable, Mapping, Sequence
+import warnings
 
 from bblfsh import BblfshClient
 from bblfsh.client import NonUTF8ContentException
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2 import File
 import numpy
+from sklearn.exceptions import UndefinedMetricWarning
 import sklearn.metrics
 from tqdm import tqdm
 
 from lookout.style.format.files_filtering import filter_filepaths
+
+
+warnings.filterwarnings("ignore", category=UndefinedMetricWarning)
 
 
 class FakeDataStub:
