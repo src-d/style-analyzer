@@ -95,7 +95,7 @@ class FormatAnalyzer(Analyzer):
                 "n_estimators": 10,
             },
             "optimizer": {
-                "n_iter": 100,
+                "n_iter": 50,
                 "cv": 3,
                 "n_jobs": -1,
                 "base_model_name_categories": ["sklearn.ensemble.RandomForestClassifier",
