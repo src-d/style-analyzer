@@ -44,8 +44,31 @@ RuleStats = NamedTuple("RuleStats", (("cls", int), ("conf", float), ("support", 
 """
 
 
-Rule = NamedTuple("RuleType", (("attrs", Tuple[RuleAttribute, ...]), ("stats", RuleStats),
-                               ("artificial", bool)))
+class Rule(NamedTuple("RuleType", (("attrs", Tuple[RuleAttribute, ...]), ("stats", RuleStats),
+                                   ("artificial", bool)))):
+    def group_features(self, feature_extractor: FeatureExtractor) -> Iterator[
+            Tuple[Feature, FeatureId, List[RuleAttribute], int, FeatureGroup]]:
+        """
+        Generator which yields rule splits grouped by feature type.
+
+        :param rule: The rule to iterate.
+        :param feature_extractor: The FeatureExtractor used to create those rules.
+        :return: generator
+        """
+        if feature_extractor.features is None or feature_extractor.index_to_feature is None:
+            raise NotFittedError()
+        grouped = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+        for attr in self.attrs:
+            group, node_index, feature_id, original_feature_index = \
+                feature_extractor.index_to_feature[attr.feature]
+            grouped[group][node_index][feature_id].append(RuleAttribute(
+                original_feature_index, attr.cmp, attr.threshold))
+        for group, nodes in sorted(grouped.items()):
+            for node_index, feature_ids in sorted(nodes.items()):
+                for feature_id, splits in sorted(feature_ids.items()):
+                    feature = feature_extractor.features[group][node_index][feature_id]
+                    yield feature, feature_id, splits, node_index, group
+
 
 QuotedNodeTriple = NamedTuple("QuotedNodeTriple", (("left", VirtualNode), ("target", VirtualNode),
                                                    ("right", VirtualNode)))

@@ -154,7 +154,7 @@ def generate_comment(filename: str, confidence: int, line: int, text: str) -> Co
 
 
 def get_classification_report(y_pred: numpy.ndarray, y_true: numpy.ndarray,
-                              target_names: Sequence[str]) -> Mapping[str, Any]:
+                              target_names: Sequence[str]) -> Dict[str, Any]:
     """
     Colllect the main information that is needed for quality report generation.
 
