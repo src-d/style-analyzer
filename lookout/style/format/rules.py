@@ -812,23 +812,23 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
                 continue
             c = stats.cls
             not_c = not_cs.setdefault(c, Y != c)
-            triggered = []
+            errs = []
             for feature, cmp, thr in rule:
                 if cmp:
-                    triggered.append(numpy.nonzero((x_array[:, feature] > thr) & not_c)[0])
+                    errs.append(frozenset(numpy.nonzero((x_array[:, feature] > thr) & not_c)[0]))
                 else:
-                    triggered.append(numpy.nonzero((x_array[:, feature] <= thr) & not_c)[0])
+                    errs.append(frozenset(numpy.nonzero((x_array[:, feature] <= thr) & not_c)[0]))
             graph = Graph()
             graph.add_vertices(len(rule))
-            for x, tx in enumerate(triggered):
-                for y, ty in enumerate(triggered[x + 1:]):
+            for x, tx in enumerate(errs):
+                for y, ty in enumerate(errs[x + 1:]):
                     y += x + 1
-                    sim = len(set(tx).intersection(set(ty))) / len(set(tx).union(set(ty)))
+                    sim = len(tx.intersection(ty)) / len(tx.union(ty))
                     if sim > sim_threshold:
                         graph.add_edge(x, y)
             erased = set()
             retained = set()
-            cliques = sorted(graph.cliques(2), key=lambda c: -len(c))
+            cliques = sorted(graph.cliques(2), key=len, reverse=True)
             for clique in cliques:
                 retained.add(min(clique))
             for clique in cliques:
