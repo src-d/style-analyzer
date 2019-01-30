@@ -50,6 +50,7 @@ matrix:
     - python: 3.6
       # We test python 3.6 inside docker.
       script:
+        - set -e
         - make docker-check
         - travis_retry make bblfsh-start
         - make docker-build VERSION=test
