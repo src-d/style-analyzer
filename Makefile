@@ -48,6 +48,7 @@ SMOKE_REPORT_DIR ?= $(REPORT_DIR)/js_smoke
 NOISY_REPORT_DIR ?= $(REPORT_DIR)/noisy
 QUALITY_REPORT_DIR ?= $(REPORT_DIR)/quality
 SMOKE_INIT ?= ./lookout/style/format/benchmarks/data/js_smoke_init.tar.xz
+QUALITY_REPORT_REPOS ?= ./lookout/style/format/benchmarks/data/quality_report_repos.csv
 
 $(SMOKE_REPORT_DIR) $(NOISY_REPORT_DIR) $(QUALITY_REPORT_DIR):
 	mkdir -p $@
@@ -61,7 +62,7 @@ report-noisy: $(NOISY_REPORT_DIR)
 		2>&1 | tee $(NOISY_REPORT_DIR)/logs.txt
 report-quality: $(QUALITY_REPORT_DIR)
 	python3 -m lookout.style.format.benchmarks.top_repos_quality -o $(QUALITY_REPORT_DIR) \
-		2>&1 | tee $(QUALITY_REPORT_DIR)/logs.txt
+		-i $(QUALITY_REPORT_REPOS) 2>&1 | tee $(QUALITY_REPORT_DIR)/logs.txt
 report-release: report-smoke report-noisy report-quality
 
 .PHONY: check docker-test bblfsh-start report-smoke report-noisy report-quality report-release
