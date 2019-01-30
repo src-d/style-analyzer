@@ -148,8 +148,8 @@ def measure_quality(repository: str, from_commit: str, to_commit: str, port: int
     Generate `QualityReport` for a repository. If it fails it returns empty reports.
 
     :param repository: URL of repository.
-    :param from_commit: Hash of commit.
-    :param to_commit: Hash of commit.
+    :param from_commit: Hash of the base commit.
+    :param to_commit: Hash of the head commit.
     :param port: Port for QualityReportAnalyzer.
     :param review_config: config for review.
     :param train_config: config for train.

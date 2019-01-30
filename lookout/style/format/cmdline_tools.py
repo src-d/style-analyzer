@@ -83,6 +83,8 @@ def create_parser() -> ArgumentParser:
     from lookout.style.format.benchmarks.generate_smoke import generate_smoke_entry
     from lookout.style.format.benchmarks.general_report import print_reports
     from lookout.style.format.benchmarks.quality_report_noisy import quality_report_noisy
+    from lookout.style.format.benchmarks.expected_vnodes_number import \
+        calc_expected_vnodes_number_entry
 
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatterNoNone)
 
@@ -175,6 +177,25 @@ def create_parser() -> ArgumentParser:
     rule_parser.set_defaults(handler=dump_rule_entry)
     rule_parser.add_argument("model", help="Path to the model file.")
     rule_parser.add_argument("hash", help="Hash of the rule (8 chars).")
+
+    # FIXME(zurk): remove when https://github.com/src-d/style-analyzer/issues/557 is resolved
+    calc_expected_vnodes = add_parser("calc-expected-vnodes-number",
+                                      "Write the CSV file with expected numbers of virtual nodes "
+                                      "extracted from repositories. Required for quality report "
+                                      "generation. It is a workaround for "
+                                      "https://github.com/src-d/style-analyzer/issues/557. "
+                                      "Docker service is required to be running.")
+    calc_expected_vnodes.set_defaults(handler=calc_expected_vnodes_number_entry)
+    calc_expected_vnodes.add_argument(
+        "-i", "--input", required=True,
+        help="CSV file with repositories for quality report."
+             "Should contain url, to and from columns.")
+    calc_expected_vnodes.add_argument(
+        "-o", "--output", required=True, help="Path to a output csv file.")
+    calc_expected_vnodes.add_argument(
+        "-r", "--runs", default=3, help="Number of repeats to ensure the result correctness.")
+    calc_expected_vnodes.add_argument(
+        "--log-level", default="DEBUG", help="Logging level")
 
     return parser
 
