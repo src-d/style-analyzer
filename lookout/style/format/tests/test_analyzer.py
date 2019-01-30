@@ -41,6 +41,7 @@ def get_train_config():
                 "n_iter": 6,
             },
             "random_state": 42,
+            "lines_ratio_train_trigger": 0.8,
         },
     }
 
@@ -51,6 +52,24 @@ def get_analyze_config():
         "support_threshold": 10,
         "uast_break_check": False,
     }
+
+
+class FakeUAST:
+    def __init__(self):
+        self.children = []
+
+
+class FakeFile:
+    def __init__(self, path, content, uast, language):
+        self.path = path
+        self.content = content
+        self.uast = uast
+        self.language = language
+
+
+def remove_uast(file):
+    return FakeFile(path=file.path, content=file.content, uast=FakeUAST(),
+                    language="JavaScript")
 
 
 class AnalyzerTests(unittest.TestCase):
@@ -107,6 +126,26 @@ class AnalyzerTests(unittest.TestCase):
             model3 = FormatModel().load(f)
             compare_models(self, model2, model3)
 
+    def test_train_check(self):
+        common = self.base_files.keys() & self.head_files.keys()
+        self.data_service = FakeDataService(
+            self.bblfsh_client,
+            files=self.base_files.values(),
+            changes=[Change(base=self.base_files[k], head=self.head_files[k])
+                     for k in common])
+        model = FormatAnalyzer.train(self.ptr, get_train_config(), self.data_service)
+        required = FormatAnalyzer.check_training_required(
+            model, self.ptr, get_train_config(), self.data_service)
+        self.assertFalse(required)
+        self.data_service = FakeDataService(
+            self.bblfsh_client,
+            files=self.base_files.values(),
+            changes=[Change(base=remove_uast(self.base_files[k]), head=self.head_files[k])
+                     for k in common])
+        required = FormatAnalyzer.check_training_required(
+            model, self.ptr, get_train_config(), self.data_service)
+        self.assertTrue(required)
+
     def test_train_cutoff_labels(self):
         self.data_service = FakeDataService(
             self.bblfsh_client, files=self.base_files.values(), changes=[])
@@ -124,21 +163,6 @@ class AnalyzerTests(unittest.TestCase):
             compare_models(self, model2, model3)
 
     def test_analyze(self):
-        class FakeUAST:
-            def __init__(self):
-                self.children = []
-
-        class FakeFile:
-            def __init__(self, path, content, uast, language):
-                self.path = path
-                self.content = content
-                self.uast = uast
-                self.language = language
-
-        def remove_uast(file):
-            return FakeFile(path=file.path, content=file.content, uast=FakeUAST(),
-                            language="JavaScript")
-
         common = self.base_files.keys() & self.head_files.keys()
         self.data_service = FakeDataService(
             self.bblfsh_client,

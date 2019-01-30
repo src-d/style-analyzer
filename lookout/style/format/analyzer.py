@@ -6,7 +6,7 @@ import logging
 import os
 from pprint import pformat
 import random
-from typing import Any, Iterable, List, Mapping, NamedTuple, Sequence, Tuple
+from typing import Any, Iterator, List, Mapping, NamedTuple, Sequence, Tuple
 import warnings
 
 import bblfsh  # noqa: F401
@@ -14,7 +14,7 @@ from jinja2 import Template
 from lookout.core.analyzer import Analyzer, ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2 import Change, File
-from lookout.core.data_requests import DataService, \
+from lookout.core.data_requests import DataService, request_changes, \
     with_changed_uasts_and_contents, with_uasts_and_contents
 from lookout.core.lib import files_by_language, filter_files, find_deleted_lines, find_new_lines
 from lookout.core.metrics import submit_event
@@ -117,6 +117,7 @@ class FormatAnalyzer(Analyzer):
             "line_length_limit": 500,
             "lower_bound_instances": 500,
             "overall_size_limit": 5 << 20,  # 5 MB
+            "lines_ratio_train_trigger": 0.8,
         },
         # selected settings for each particular language which overwrite "global"
         # empty {} is still required if we do not have any adjustments
@@ -139,7 +140,7 @@ class FormatAnalyzer(Analyzer):
 
     @with_changed_uasts_and_contents
     def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
-                data_service: DataService, **data) -> List[Comment]:
+                data_service: DataService, changes: Iterator[Change], **data) -> List[Comment]:
         """
         Analyze a set of changes from one revision to another.
 
@@ -147,10 +148,11 @@ class FormatAnalyzer(Analyzer):
         :param ptr_to: Git repository state pointer to the head revision.
         :param data_service: Connection to the Lookout data retrieval service.
         :param data: Contains "changes" - the list of changes in the pointed state.
+        :param changes: Iterator of changes from the data service.
         :return: List of comments.
         """
         comments = []
-        for file_fix in self.generate_file_fixes(data_service, list(data["changes"])):
+        for file_fix in self.generate_file_fixes(data_service, list(changes)):
             filename = file_fix.head_file.path
             if file_fix.error:
                 comments.append(generate_comment(text=file_fix.error, line=0, confidence=100,
@@ -164,9 +166,56 @@ class FormatAnalyzer(Analyzer):
         return comments
 
     @classmethod
+    def check_training_required(
+            cls, old_model: FormatModel, ptr: ReferencePointer, config: Mapping[str, Any],
+            data_service: "lookout.core.data_requests.DataService", **data) -> bool:
+        """
+        Return True if the format model needs to be refreshed; otherwise, False.
+
+        We calculate the ratio of the number of changed lines to the overall number of lines.
+        If it is bigger than lines_ratio_train_trigger - we need to train.
+
+        :param old_model: Current FormatModel.
+        :param ptr: Git repository state pointer.
+        :param config: configuration dict.
+        :param data: contains "files" - the list of files in the pointed state.
+        :param data_service: connection to the Lookout data retrieval service.
+        :return: True or False
+        """
+        _log = logging.getLogger(cls.__name__)
+        changes = list(request_changes(
+            data_service.get_data(), old_model.ptr, ptr, contents=True, uast=False))
+        base_files_by_lang = files_by_language(c.base for c in changes)
+        head_files_by_lang = files_by_language(c.head for c in changes)
+        config = cls._load_train_config(config)
+        for language, head_files in head_files_by_lang.items():
+            try:
+                lang_config = config[language]
+            except KeyError:
+                _log.warning("language %s is not supported, skipped", language)
+                continue
+            overall_lines = changed_lines = 0
+            for file in filter_files(head_files, lang_config["line_length_limit"],
+                                     lang_config["overall_size_limit"], log=_log):
+                head_lines = len(file.content.splitlines())
+                overall_lines += head_lines
+                try:
+                    prev_file = base_files_by_lang[language][file.path]
+                except KeyError:
+                    changed_lines += head_lines
+                else:
+                    changed_lines += len(find_new_lines(prev_file, file))
+            ratio = changed_lines / (overall_lines or 1)
+            _log.debug("check %s ratio: %.3f", language, ratio)
+            if ratio > lang_config["lines_ratio_train_trigger"]:
+                _log.info("%s triggers the training (%.3f)", language, ratio)
+                return True
+        return False
+
+    @classmethod
     @with_uasts_and_contents
     def train(cls, ptr: ReferencePointer, config: Mapping[str, Any], data_service: DataService,
-              **data) -> FormatModel:
+              files: Iterator[File], **data) -> FormatModel:
         """
         Train a model given the files available.
 
@@ -174,6 +223,7 @@ class FormatAnalyzer(Analyzer):
         :param config: configuration dict.
         :param data: contains "files" - the list of files in the pointed state.
         :param data_service: connection to the Lookout data retrieval service.
+        :param files: iterator of File records from the data service.
         :return: AnalyzerModel containing the learned rules, per language.
         """
         _log = logging.getLogger(cls.__name__)
@@ -181,7 +231,7 @@ class FormatAnalyzer(Analyzer):
                   pformat(config, width=4096, compact=True))
         model = FormatModel().construct(cls, ptr)
         config = cls._load_train_config(config)
-        for language, files in files_by_language(data["files"]).items():
+        for language, files in files_by_language(files).items():
             try:
                 lang_config = config[language]
             except KeyError:
@@ -256,7 +306,7 @@ class FormatAnalyzer(Analyzer):
         return model
 
     def generate_file_fixes(self, data_service: DataService, changes: Sequence[Change],
-                            ) -> Iterable[FileFix]:
+                            ) -> Iterator[FileFix]:
         """
         Generate all data required for any type of further processing.
 
