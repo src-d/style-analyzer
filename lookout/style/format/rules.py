@@ -5,11 +5,13 @@ import functools
 from importlib import import_module
 from itertools import islice
 import logging
+import sys
 from typing import (Any, Dict, Iterable, Iterator, List, Mapping, NamedTuple, Optional,
                     Sequence, Set, Tuple, Union)
 
 from bblfsh import role_name
 from igraph import Graph
+from lookout.core import slogging
 from lookout.core.ports import Type
 import numpy
 from numpy import count_nonzero
@@ -877,11 +879,17 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         """
         new_rules_set = set()
         new_rules = []
-        if cls._log.isEnabledFor(logging.INFO):
-            rules = tqdm(rules)
+        pseudo_progress = False
+        if cls._log.isEnabledFor(logging.INFO) and not slogging.logs_are_structured:
+            if sys.stderr.isatty():
+                rules = tqdm(rules)
+            else:
+                pseudo_progress = True
         x_array = X.toarray()
         not_cs = {}
-        for rule, stats, artificial in rules:
+        for i, (rule, stats, artificial) in enumerate(rules):
+            if pseudo_progress and ((i + 1) % 100) == 0:
+                cls._log.info("%d/%d", i + 1, len(rules))
             if artificial:
                 new_rules.append(rule)
                 continue
