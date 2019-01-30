@@ -3,10 +3,14 @@ Command line utilities to check the quality of a model on a given dataset, visua
 """
 from argparse import ArgumentParser
 import json
+import logging
 from typing import Any
 
 from lookout.core.cmdline import ArgumentDefaultsHelpFormatterNoNone
 from lookout.core.slogging import setup as setup_slogging
+
+from lookout.style.format.descriptions import dump_rule
+from lookout.style.format.model import FormatModel
 
 
 def add_input_pattern_arg(my_parser: ArgumentParser):
@@ -59,6 +63,13 @@ def add_rules_thresholds(my_parser: ArgumentParser):
                            help="Confidence threshold to filter relevant rules.")
     my_parser.add_argument("--support-threshold", type=int, default=80,
                            help="Support threshold to filter relevant rules.")
+
+
+def dump_rule_entry(model, hash):
+    """Command-line entry for "tool rule"."""
+    setup_slogging(logging.INFO, False)
+    model = FormatModel().load(model)
+    dump_rule(model, hash)
 
 
 def create_parser() -> ArgumentParser:
@@ -156,6 +167,11 @@ def create_parser() -> ArgumentParser:
         "--database", type=str, default=None,
         help="Path to the sqlite3 database with trained models metadata. "
              "Enables reusing previously trained models.")
+
+    rule_parser = add_parser("rule", "Print rule description by its hash.")
+    rule_parser.set_defaults(handler=dump_rule_entry)
+    rule_parser.add_argument("model", help="Path to the model file.")
+    rule_parser.add_argument("hash", help="Hash of the rule (8 chars).")
 
     return parser
 
