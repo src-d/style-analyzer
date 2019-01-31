@@ -216,7 +216,7 @@ class Rules:
         :return: Filtered rules.
         """
         rules = [rule for rule in self._rules if rule.stats.conf > confidence_threshold]
-        self._log.debug("Filtered rules by confidence >= %f: %d -> %d",
+        self._log.debug("Filtered rules by confidence >= %.3f: %d -> %d",
                         confidence_threshold, len(self._rules), len(rules))
         return Rules(rules, self._origin_config)
 
@@ -416,7 +416,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
                  prune_branches_algorithms=("reduced-error", "top-down-greedy"),
                  top_down_greedy_budget: Tuple[bool, Union[float, int]] = (False, 1.0),
                  prune_attributes=True, confidence_threshold=0.8,
-                 attribute_similarity_threshold=0.93, prune_dataset_ratio=.2, n_estimators=10,
+                 attribute_similarity_threshold=0.98, prune_dataset_ratio=.2, n_estimators=10,
                  max_depth=None, max_features=None, min_samples_leaf=1, min_samples_split=2,
                  random_state=42, origin_config=None):
         """
@@ -889,7 +889,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         not_cs = {}
         for i, (rule, stats, artificial) in enumerate(rules):
             if pseudo_progress and ((i + 1) % 100) == 0:
-                cls._log.info("%d/%d", i + 1, len(rules))
+                cls._log.info("attributes pruning status: %d/%d", i + 1, len(rules))
             if artificial:
                 new_rules.append(rule)
                 continue
@@ -909,18 +909,18 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
                     sim = len(tx.intersection(ty)) / len(tx.union(ty))
                     if sim > sim_threshold:
                         graph.add_edge(x, y)
-            erased = set()
-            retained = set()
-            cliques = sorted(graph.cliques(2), key=len, reverse=True)
-            for clique in cliques:
-                retained.add(min(clique))
-            for clique in cliques:
-                erased.update(set(sorted(clique)[1:]) - retained)
-            if len(erased) == 0:
+            communities = graph.community_multilevel()
+            saved = set()
+            clusters = {}
+            for i, m in enumerate(communities.membership):
+                if not clusters.get(m, False):
+                    saved.add(i)
+                    clusters[m] = True
+            if len(saved) == len(rule):
                 new_rule = Rule(rule, stats, artificial)
             else:
                 new_rule = Rule(
-                    tuple(r for i, r in enumerate(rule) if i not in erased), stats, artificial)
+                    tuple(r for i, r in enumerate(rule) if i in saved), stats, artificial)
             if new_rule.attrs not in new_rules_set:
                 new_rules.append(new_rule)
                 new_rules_set.add(new_rule.attrs)
