@@ -117,7 +117,7 @@ class FormatAnalyzer(Analyzer):
             "line_length_limit": 500,
             "lower_bound_instances": 500,
             "overall_size_limit": 5 << 20,  # 5 MB
-            "lines_ratio_train_trigger": 0.8,
+            "lines_ratio_train_trigger": 0.2,
         },
         # selected settings for each particular language which overwrite "global"
         # empty {} is still required if we do not have any adjustments
@@ -205,10 +205,11 @@ class FormatAnalyzer(Analyzer):
                     changed_lines += head_lines
                 else:
                     changed_lines += len(find_new_lines(prev_file, file))
+                    changed_lines += len(find_deleted_lines(prev_file, file))
             ratio = changed_lines / (overall_lines or 1)
             _log.debug("check %s ratio: %.3f", language, ratio)
             if ratio > lang_config["lines_ratio_train_trigger"]:
-                _log.info("%s triggers the training (%.3f)", language, ratio)
+                _log.info("%s triggers the training with changes ratio %.3f", language, ratio)
                 return True
         return False
 
