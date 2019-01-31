@@ -94,7 +94,7 @@ class FormatAnalyzer(Analyzer):
                 "prune_branches_algorithms": ["reduced-error"],
                 "top_down_greedy_budget": [False, .5],
                 "prune_attributes": True,
-                "attribute_similarity_threshold": 0.93,
+                "attribute_similarity_threshold": 0.98,
                 "confidence_threshold": 0.8,
                 "prune_dataset_ratio": .2,
                 "n_estimators": 10,
