@@ -125,6 +125,9 @@ def create_parser() -> ArgumentParser:
         "-o", "--dir-output", required=True, type=str,
         help="Path to the output directory where to store the quality report and the "
              "precision-recall curve.")
+    quality_report_noisy_parser.add_argument(
+        "--retrain", action="store_true", default=False,
+        help="Force model retraining")
 
     # Generate dataset of different styles in code for smoke testing.
     gen_smoke_parser = add_parser("gen-smoke-dataset",
