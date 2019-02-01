@@ -73,8 +73,12 @@ def get_vnodes_number(repository: str, from_commit: str, to_commit: str, port: i
         FeatureExtractor._convert_files_to_xy = _convert_files_to_xy
         with tempfile.TemporaryDirectory(prefix="top-repos-quality-repos-") as tmpdirname:
             git_dir = ensure_repo(repository, tmpdirname)
-            server.run("push", fr=from_commit, to=to_commit, port=port, git_dir=git_dir,
-                       log_level="warning", bblfsh=bblfsh)
+            try:
+                server.run("push", fr=from_commit, to=to_commit, port=port, git_dir=git_dir,
+                           log_level="warning", bblfsh=bblfsh)
+            except subprocess.CalledProcessError as e:
+                # Force stop expected
+                pass
     finally:
         FeatureExtractor._convert_files_to_xy = _convert_files_to_xy_backup
     return expected_vnodes_number

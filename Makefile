@@ -63,7 +63,7 @@ report-noisy: $(NOISY_REPORT_DIR)
 		2>&1 | tee $(NOISY_REPORT_DIR)/logs.txt
 report-quality: $(QUALITY_REPORT_DIR)
 	python3 -m lookout.style.format.benchmarks.top_repos_quality -o $(QUALITY_REPORT_DIR) \
-		-i $(QUALITY_REPORT_REPOS) 2>&1 | tee $(QUALITY_REPORT_DIR)/logs.txt
+		-i $(QUALITY_REPORT_REPOS_WITH_VNODE) 2>&1 | tee $(QUALITY_REPORT_DIR)/logs.txt
 report-release: report-smoke report-noisy report-quality
 
 expected-vnodes-number:
