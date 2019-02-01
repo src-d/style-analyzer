@@ -169,11 +169,11 @@ class AnalyzerTests(unittest.TestCase):
             files=self.base_files.values(),
             changes=[Change(base=remove_uast(self.base_files[k]), head=self.head_files[k])
                      for k in common])
-        config = get_train_config()
+        config = get_analyze_config()
         # Make uast_break_check only here
         config["uast_break_check"] = True
         model = FormatAnalyzer.train(self.ptr, get_train_config(), self.data_service)
-        analyzer = FormatAnalyzer(model, self.ptr.url, get_analyze_config())
+        analyzer = FormatAnalyzer(model, self.ptr.url, config)
         comments = analyzer.analyze(self.ptr, self.ptr, self.data_service)
         self.assertGreater(len(comments), 0)
 

@@ -6,7 +6,7 @@ from numpy import flatnonzero, ndarray
 from sklearn.exceptions import NotFittedError
 import xxhash
 
-from lookout.style.format.classes import CLASS_INDEX, CLS_NOOP
+from lookout.style.format.classes import CLASS_INDEX, CLS_NEWLINE, CLS_NOOP
 from lookout.style.format.feature_extractor import FeatureExtractor, FEATURES_MAX, FEATURES_MIN
 from lookout.style.format.features import BagFeature, CategoricalFeature, Feature, OrdinalFeature
 from lookout.style.format.model import FormatModel
@@ -266,9 +266,14 @@ def get_change_description(vnode: VirtualNode, feature_extractor: FeatureExtract
     old_label = class_representations[feature_extractor.class_sequences_to_labels[vnode.y_old]]
     new_label = class_representations[feature_extractor.class_sequences_to_labels[vnode.y]]
     if vnode.y[0] == CLASS_INDEX[CLS_NOOP]:
-        return "%s at column %d should be removed." % (old_label, column)
+        if CLASS_INDEX[CLS_NEWLINE] in vnode.y_old:
+            return "Redundant line break. Please concatenate with previous line."
+        else:
+            return "%s at column %d should be removed." % (old_label, column)
     if vnode.y_old[0] == CLASS_INDEX[CLS_NOOP]:
         return "%s should be inserted at column %d." % (new_label, column)
+    if CLASS_INDEX[CLS_NEWLINE] in vnode.y_old:
+        return "Replace %s with %s in the beginning of the line" % (old_label, new_label)
     return "Replace %s with %s at column %d." % (old_label, new_label, column)
 
 
