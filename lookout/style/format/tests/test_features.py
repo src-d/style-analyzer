@@ -70,7 +70,19 @@ class FeaturesTests(unittest.TestCase):
             if n.node is not None:
                 self.assertIsNotNone(parents.get(id(n.node)), n)
             offset, line, col = n.end
+        self.assertEqual(len(self.contents), offset)
+        # New line ends on the next line
+        self.assertEqual(len(self.contents.splitlines()) + 1, line)
         self.assertEqual("".join(text), self.contents)
+
+    def test_parse_file_with_trailing_space(self):
+        contents = self.contents + " "
+        nodes, parents = self.extractor._parse_file(contents, self.uast, "test_file")
+        offset, line, col = nodes[-1].end
+        self.assertEqual(len(contents), offset)
+        # Space token always ends on the same line
+        self.assertEqual(len(contents.splitlines()), line)
+        self.assertEqual("".join(n.value for n in nodes), contents)
 
     def test_classify_vnodes(self):
         nodes, _ = self.extractor._parse_file(self.contents, self.uast, "test_file")
@@ -87,7 +99,36 @@ class FeaturesTests(unittest.TestCase):
             if n.y is not None:
                 cls_counts.update(map(CLASSES.__getitem__, n.y))
             offset, line, col = n.end
+        self.assertEqual(len(self.contents), offset)
+        # New line ends on the next line
+        self.assertEqual(len(self.contents.splitlines()) + 1, line)
         self.assertEqual(cls_counts[CLS_SPACE_INC], cls_counts[CLS_SPACE_DEC])
+        self.assertGreater(cls_counts[CLS_SPACE_INC], 0)
+        self.assertGreater(cls_counts[CLS_SPACE], 0)
+        self.assertGreater(cls_counts[CLS_NEWLINE], 0)
+        self.assertGreater(cls_counts[CLS_SINGLE_QUOTE], 0)
+        self.assertTrue(cls_counts[CLS_SINGLE_QUOTE] % 2 == 0)
+
+    def test_classify_vnodes_with_trailing_space(self):
+        contents = self.contents + " "
+        nodes, _ = self.extractor._parse_file(contents, self.uast, "test_file")
+        nodes = list(self.extractor._classify_vnodes(nodes, "test_file"))
+        text = "".join(n.value for n in nodes)
+        self.assertEqual(text, contents)
+        cls_counts = Counter()
+        offset = line = col = 0
+        for n in nodes:
+            if line == n.start.line - 1:
+                line += 1
+                col = 1
+            self.assertEqual((offset, line, col), n.start, n.value)
+            if n.y is not None:
+                cls_counts.update(map(CLASSES.__getitem__, n.y))
+            offset, line, col = n.end
+        self.assertEqual(len(contents), offset)
+        # Space token always ends on the same line
+        self.assertEqual(len(contents.splitlines()), line)
+        self.assertEqual(cls_counts[CLS_SPACE_INC], cls_counts[CLS_SPACE_DEC] + 1)
         self.assertGreater(cls_counts[CLS_SPACE_INC], 0)
         self.assertGreater(cls_counts[CLS_SPACE], 0)
         self.assertGreater(cls_counts[CLS_NEWLINE], 0)

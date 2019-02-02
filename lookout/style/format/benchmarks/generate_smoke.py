@@ -103,7 +103,6 @@ def generate_smoke_entry(inputpath: str, outputpath: str, force: bool = False) -
         writer = csv.DictWriter(index_file, fieldnames=["repo", "style", "from", "to"])
         writer.writeheader()
         for style_name, (pattern, repl) in js_format_rules.items():
-            # TODO(zurk): handle custom modification functions as well as regexp.
             pattern = re.compile(pattern)
             for repopath in repopaths:
                 repo = Repo(str(repopath))

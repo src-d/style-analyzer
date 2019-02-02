@@ -5,24 +5,30 @@ import functools
 from importlib import import_module
 from itertools import islice
 import logging
-from typing import (Any, Dict, Iterable, List, Mapping, NamedTuple, Optional,
+import sys
+from typing import (Any, Dict, Iterable, Iterator, List, Mapping, NamedTuple, Optional,
                     Sequence, Set, Tuple, Union)
 
 from bblfsh import role_name
+from igraph import Graph
+from lookout.core import slogging
 from lookout.core.ports import Type
 import numpy
 from numpy import count_nonzero
 from scipy.sparse import csr_matrix
-from scipy.stats import fisher_exact
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.exceptions import NotFittedError
-from sklearn.metrics import accuracy_score, confusion_matrix, precision_recall_fscore_support
+from sklearn.metrics import accuracy_score, confusion_matrix, \
+    precision_recall_fscore_support
 from sklearn.model_selection import train_test_split
 from sklearn.tree import _tree as Tree, DecisionTreeClassifier
+from tqdm import tqdm
 
 from lookout.style.format.classes import CLASS_INDEX, CLS_DOUBLE_QUOTE, CLS_SINGLE_QUOTE
 from lookout.style.format.feature_extractor import FeatureExtractor
+from lookout.style.format.features import CategoricalFeature, Feature, FeatureGroup, FeatureId
+from lookout.style.format.utils import get_classification_report
 from lookout.style.format.virtual_node import VirtualNode
 
 RuleAttribute = NamedTuple(
@@ -41,8 +47,38 @@ RuleStats = NamedTuple("RuleStats", (("cls", int), ("conf", float), ("support", 
 """
 
 
-Rule = NamedTuple("RuleType", (("attrs", Tuple[RuleAttribute, ...]), ("stats", RuleStats),
-                               ("artificial", bool)))
+class Rule(NamedTuple("RuleType", (("attrs", Tuple[RuleAttribute, ...]), ("stats", RuleStats),
+                                   ("artificial", bool)))):
+    """
+    Decision rule which consists of a series of attribute comparisons, statistics and the flag \
+    which indicates whether the rule was created outside of the training (notably, \
+    in Rules.harmonize_quotes()). The statistics contain the predicted class index.
+    """
+
+    def group_features(self, feature_extractor: FeatureExtractor) -> Iterator[
+            Tuple[Feature, FeatureId, List[RuleAttribute], int, FeatureGroup]]:
+        """
+        Generate rule splits grouped by feature type.
+
+        Attribute indexes are from the original sequence before feature selection!
+
+        :param feature_extractor: The FeatureExtractor used to create those rules.
+        :return: generator
+        """
+        if feature_extractor.features is None or feature_extractor.index_to_feature is None:
+            raise NotFittedError()
+        grouped = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+        for attr in self.attrs:
+            group, node_index, feature_id, original_feature_index = \
+                feature_extractor.index_to_feature[attr.feature]
+            grouped[group][node_index][feature_id].append(RuleAttribute(
+                original_feature_index, attr.cmp, attr.threshold))
+        for group, nodes in sorted(grouped.items()):
+            for node_index, feature_ids in sorted(nodes.items()):
+                for feature_id, splits in sorted(feature_ids.items()):
+                    feature = feature_extractor.features[group][node_index][feature_id]
+                    yield feature, feature_id, splits, node_index, group
+
 
 QuotedNodeTriple = NamedTuple("QuotedNodeTriple", (("left", VirtualNode), ("target", VirtualNode),
                                                    ("right", VirtualNode)))
@@ -77,12 +113,24 @@ class Rules:
         self._rules = tuple(rules)  # Rule list is constant
         self._compiled = self._compile(rules)
         self._origin_config = origin_config
+        self._classification_report = {"test": {}, "train": {}}  # type: Dict[str, Dict[str, Any]]
 
     def __str__(self):
         return "%d rules, avg.len. %.1f" % (len(self._rules), self.avg_rule_len)
 
     def __len__(self):
         return len(self._rules)
+
+    @property
+    def classification_report(self) -> Dict[str, Dict]:
+        """
+        Property for classification report with quality metrics.
+
+        Return empty dict if unset.
+        Can be set for a dataset with generate_classification_report() method.
+        :return: Classification report.
+        """
+        return self._classification_report
 
     def apply(self, X_csr: csr_matrix, return_winner_indices=False,
               ) -> Union[numpy.ndarray, Tuple[numpy.ndarray, numpy.ndarray]]:
@@ -168,7 +216,7 @@ class Rules:
         :return: Filtered rules.
         """
         rules = [rule for rule in self._rules if rule.stats.conf > confidence_threshold]
-        self._log.debug("Filtered rules by confidence >= %f: %d -> %d",
+        self._log.debug("Filtered rules by confidence >= %.3f: %d -> %d",
                         confidence_threshold, len(self._rules), len(rules))
         return Rules(rules, self._origin_config)
 
@@ -183,6 +231,24 @@ class Rules:
         self._log.debug("Filtered rules by support >= %d: %d -> %d",
                         support_threshold, len(self._rules), len(rules))
         return Rules(rules, self._origin_config)
+
+    def generate_classification_report(self, X: csr_matrix, y: numpy.ndarray, dataset_type: str,
+                                       target_names: Sequence[str]) -> None:
+        """
+        Calculate and store classification report with quality metrics for given dataset.
+
+        :param X: Features matrix.
+        :param y: target vector.
+        :param dataset_type: Can be set to "test" or "train" only. Marks passing data as train or \
+                             test.
+        :param target_names: Classes names in y.
+        """
+        # TODO(zurk): multi-language support.
+        assert dataset_type in {"test", "train"}, "Unknown dataset_type='%s'. Known are 'test' " \
+                                                  "and 'train'" % dataset_type
+        y_pred = self.apply(X)
+        self._classification_report[dataset_type] = get_classification_report(
+            y_pred, y, target_names)
 
     @staticmethod
     def _get_composite(feature_extractor: FeatureExtractor, labels: Tuple[int, ...]) -> int:
@@ -350,7 +416,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
                  prune_branches_algorithms=("reduced-error", "top-down-greedy"),
                  top_down_greedy_budget: Tuple[bool, Union[float, int]] = (False, 1.0),
                  prune_attributes=True, confidence_threshold=0.8,
-                 uncertain_attributes=True, prune_dataset_ratio=.2, n_estimators=10,
+                 attribute_similarity_threshold=0.98, prune_dataset_ratio=.2, n_estimators=10,
                  max_depth=None, max_features=None, min_samples_leaf=1, min_samples_split=2,
                  random_state=42, origin_config=None):
         """
@@ -360,7 +426,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
                                 Must be either "sklearn.tree.DecisionTreeClassifier" or \
                                 "sklearn.ensemble.RandomForestClassifier".
         :param prune_branches_algorithms: branch pruning algorithms to use.
-        :param top_down_greedy_budget: Tuple describing the budget of the top down algorithm: \
+        :param top_down_greedy_budget: tuple describing the budget of the top down algorithm: \
                                        boolean to indicate if it's absolute (True) or not \
                                        (False). If the first value is True (absolute budget), the \
                                        second  should be an integer describing the maximum number \
@@ -368,10 +434,9 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
                                        should be a float between 0 and 1 to specify the \
                                        proportion of rules to keep.
         :param prune_attributes: indicates whether to remove useless parts of rules.
-        :param confidence_threshold: Confidence threshold to filter the rules.
-        :param uncertain_attributes: indicates whether to **retain** parts of rules with low \
-                                     certainty (see "Generating Production Rules From Decision \
-                                     Trees" by J.R. Quinlan).
+        :param confidence_threshold: confidence threshold to filter the rules.
+        :param attribute_similarity_threshold: remove attribute comparisons which trigger on \
+                                               similar samples.
         :param prune_dataset_ratio: Ratio of the dataset to use for pruning during training.
         :param n_estimators: n_estimators parameter of the base model.
         :param max_depth: max_depth parameter of the base model.
@@ -388,7 +453,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         self.top_down_greedy_budget = top_down_greedy_budget
         self.prune_attributes = prune_attributes
         self.confidence_threshold = confidence_threshold
-        self.uncertain_attributes = uncertain_attributes
+        self.attribute_similarity_threshold = attribute_similarity_threshold
         self.prune_dataset_ratio = prune_dataset_ratio
         # Parameters for base_model must be named the same as in the base_model class
         self.n_estimators = n_estimators
@@ -467,11 +532,59 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
                 base_model, rules, X_prune, y_prune, leaf2rule, self.top_down_greedy_budget)
             self._log.debug("pruned %d/%d rules w/ greedy pruning", old - len(rules), old)
         if self.prune_attributes:
-            old = count_attrs()
-            rules = self._prune_attributes(rules, X_prune, y_prune, not self.uncertain_attributes)
-            self._log.debug("pruned %d/%d attributes", old - count_attrs(), old)
+            old_attrs = count_attrs()
+            old_rules_len = len(rules)
+            rules = self._prune_attributes(
+                rules, X_prune, y_prune, self.attribute_similarity_threshold)
+            self._log.debug("pruned %d/%d attributes (%d/%d rules)",
+                            old_attrs - count_attrs(), old_attrs, old_rules_len - len(rules),
+                            old_rules_len)
         self._rules = Rules(rules, self._origin_config)
         return self
+
+    def prune_categorical_attributes(self, feature_extractor: FeatureExtractor) -> None:
+        """
+        Remove "not in" categorical assertions which are overridden by strict equalities.
+
+        :param feature_extractor: FeatureExtractor which created the train samples.
+        :return: Nothing
+        """
+        new_rules = []
+        known_rules = set()
+        pruned_count = 0
+        attr_count = 0
+        for rule in self.rules.rules:
+            attr_count += len(rule.attrs)
+            excluded = []
+            if not rule.artificial:
+                for feature, _, splits, _, _ in rule.group_features(feature_extractor):
+                    if isinstance(feature, CategoricalFeature):
+                        if len(splits) <= 1:
+                            continue
+                        has_included = False
+                        for _, cmp, _ in splits:
+                            if cmp:
+                                has_included = True
+                                break
+                        if not has_included:
+                            continue
+                        for attr in splits:
+                            if not attr.cmp:
+                                excluded.append(attr)
+            if excluded:
+                pruned_count += len(excluded)
+                attrs = tuple(a for a in rule.attrs if RuleAttribute(
+                    feature_extractor.index_to_feature[a.feature][3], a.cmp, a.threshold)
+                              not in excluded)
+            else:
+                attrs = rule.attrs
+            if attrs not in known_rules:
+                new_rules.append(Rule(attrs, rule.stats, rule.artificial))
+                known_rules.add(attrs)
+        self._log.debug("pruned %d/%d categorical attributes (%d/%d rules)",
+                        pruned_count, attr_count, len(self.rules) - len(new_rules),
+                        len(self.rules))
+        self._rules = Rules(new_rules, self.rules.origin_config)
 
     @property
     def base_model_name(self) -> str:
@@ -750,66 +863,67 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
     @classmethod
     def _prune_attributes(cls, rules: Iterable[Rule],
                           X: csr_matrix, Y: numpy.ndarray,
-                          prune_uncertain: bool) -> List[Rule]:
+                          sim_threshold: float) -> List[Rule]:
         """
         Remove the attribute comparisons which do not influence the rule decision.
 
-        Based on:
-
-        "Generating Production Rules From Decision Trees" by J. R. Quinlan.
-        https://www.ijcai.org/Proceedings/87-1/Papers/063.pdf
-
-        "Simplifying Decision Trees" by J. R. Quinlan.
-        https://dspace.mit.edu/bitstream/handle/1721.1/6453/AIM-930.pdf
+        We treat two attribute comparisons as similar if the samples on which they trigger and \
+        mistake are similar by Jaccard metric.
 
         :param rules: List of rules to simplify.
         :param X: Input features, used to exclude the irrelevant attributes.
         :param Y: Input labels.
-        :param prune_uncertain: Whether to apply an extra pruning condition.
+        :param sim_threshold: how many attributes to prune. Must be between 0 and 1. \
+                              The closer to 0, the fewer attributes are left.
         :return: New list of simplified rules.
         """
-        def confidence(v, not_v):
-            return (v - 0.5) / (v + not_v)
-
+        new_rules_set = set()
         new_rules = []
-        intervals = {}
-        attrs = defaultdict(set)
-        for branch, _, _ in rules:
-            for rule_attr in branch:
-                attrs[rule_attr.feature].add(rule_attr.threshold)
-        for key, vals in attrs.items():
-            attrs[key] = numpy.array(sorted(vals))
-            intervals[key] = [defaultdict(int) for _ in range(len(vals) + 1)]
-        searchsorted = numpy.searchsorted
-        for x, y in zip(X.toarray(), Y):
-            for attr, val in enumerate(x):
-                interval = intervals.get(attr)
-                if interval is not None:
-                    interval[searchsorted(attrs[attr], val)][y] += 1
-        for key, vals in attrs.items():
-            attrs[key] = {v: i for i, v in enumerate(vals)}
-        for vals in intervals.values():
-            for vec in vals:
-                vec[-1] = sum(vec.values())
-        for rule, stats, artificial in rules:
+        pseudo_progress = False
+        if cls._log.isEnabledFor(logging.INFO) and not slogging.logs_are_structured:
+            if sys.stderr.isatty():
+                rules = tqdm(rules)
+            else:
+                pseudo_progress = True
+        x_array = X.toarray()
+        not_cs = {}
+        for i, (rule, stats, artificial) in enumerate(rules):
+            if pseudo_progress and ((i + 1) % 100) == 0:
+                cls._log.info("attributes pruning status: %d/%d", i + 1, len(rules))
+            if artificial:
+                new_rules.append(rule)
+                continue
             c = stats.cls
-            new_verbs = []
+            not_c = not_cs.setdefault(c, Y != c)
+            errs = []
             for feature, cmp, thr in rule:
-                table = numpy.zeros((2, 2), dtype=numpy.int32)
-                for i, interval in enumerate(intervals[feature]):
-                    row = int((i <= attrs[feature][thr]) == cmp)
-                    num_same_cls = interval[c]
-                    table[row, 0] += num_same_cls
-                    table[row, 1] += interval[-1] - num_same_cls
-                if prune_uncertain:
-                    if confidence(table[0, 0] + table[1, 0], table[0, 1] + table[1, 1]) \
-                            >= confidence(table[0, 0], table[0, 1]):
-                        continue
-                _, p = fisher_exact(table)
-                if p < 0.01:
-                    new_verbs.append(RuleAttribute(feature, cmp, thr))
-            if new_verbs:
-                new_rules.append(Rule(attrs=tuple(new_verbs), stats=stats, artificial=artificial))
+                if cmp:
+                    errs.append(frozenset(numpy.nonzero((x_array[:, feature] > thr) & not_c)[0]))
+                else:
+                    errs.append(frozenset(numpy.nonzero((x_array[:, feature] <= thr) & not_c)[0]))
+            graph = Graph()
+            graph.add_vertices(len(rule))
+            for x, tx in enumerate(errs):
+                for y, ty in enumerate(errs[x + 1:]):
+                    y += x + 1
+                    sim = len(tx.intersection(ty)) / len(tx.union(ty))
+                    if sim > sim_threshold:
+                        graph.add_edge(x, y)
+            communities = graph.community_multilevel()
+            saved = set()
+            clusters = {}
+            for i, m in enumerate(communities.membership):
+                if not clusters.get(m, False):
+                    saved.add(i)
+                    clusters[m] = True
+            if len(saved) == len(rule):
+                new_rule = Rule(rule, stats, artificial)
+            else:
+                new_rule = Rule(
+                    tuple(r for i, r in enumerate(rule) if i in saved), stats, artificial)
+            if new_rule.attrs not in new_rules_set:
+                new_rules.append(new_rule)
+                new_rules_set.add(new_rule.attrs)
         return new_rules
 
     @staticmethod

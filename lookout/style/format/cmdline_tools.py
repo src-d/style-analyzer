@@ -3,10 +3,14 @@ Command line utilities to check the quality of a model on a given dataset, visua
 """
 from argparse import ArgumentParser
 import json
+import logging
 from typing import Any
 
 from lookout.core.cmdline import ArgumentDefaultsHelpFormatterNoNone
 from lookout.core.slogging import setup as setup_slogging
+
+from lookout.style.format.descriptions import dump_rule
+from lookout.style.format.model import FormatModel
 
 
 def add_input_pattern_arg(my_parser: ArgumentParser):
@@ -61,6 +65,13 @@ def add_rules_thresholds(my_parser: ArgumentParser):
                            help="Support threshold to filter relevant rules.")
 
 
+def dump_rule_entry(model, hash):
+    """Command-line entry for "tool rule"."""
+    setup_slogging(logging.INFO, False)
+    model = FormatModel().load(model)
+    dump_rule(model, hash)
+
+
 def create_parser() -> ArgumentParser:
     """
     Create a parser for the lookout.style.format utility.
@@ -72,7 +83,6 @@ def create_parser() -> ArgumentParser:
     from lookout.style.format.benchmarks.generate_smoke import generate_smoke_entry
     from lookout.style.format.benchmarks.general_report import print_reports
     from lookout.style.format.benchmarks.quality_report_noisy import quality_report_noisy
-    from lookout.style.format.rule_stat import print_rules_report
 
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatterNoNone)
 
@@ -94,13 +104,6 @@ def create_parser() -> ArgumentParser:
     eval_parser.add_argument("-n", "--n-files", default=0, type=int,
                              help="How many files with most mispredictions to show. "
                                   "If n <= 0 show all.")
-
-    # Rules statistics
-    rule_parser = add_parser("rule", "Statistics about rules.")
-    rule_parser.set_defaults(handler=print_rules_report)
-    add_input_pattern_arg(rule_parser)
-    add_bblfsh_arg(rule_parser)
-    add_model_args(rule_parser)
 
     # Generate the quality report based on the artificial noisy dataset
     quality_report_noisy_parser = add_parser("quality-report-noisy", "Quality report on the "
@@ -141,27 +144,34 @@ def create_parser() -> ArgumentParser:
     )
 
     # Evaluate on different styles dataset
-    eval_gen_styles_parser = add_parser("eval-smoke-dataset",
-                                        "Evaluate on the dataset with different styles.")
-    eval_gen_styles_parser.set_defaults(handler=evaluate_smoke_entry)
-    eval_gen_styles_parser.add_argument(
+    eval_smoke_parser = add_parser("eval-smoke-dataset",
+                                   "Evaluate on the dataset with different styles.")
+    eval_smoke_parser.set_defaults(handler=evaluate_smoke_entry)
+    eval_smoke_parser.add_argument(
         "inputpath", type=str,
         help="Path to the directory where the generated dataset is stored. "
              "To generate a dataset run gen-smoke-dataset command.")
-    eval_gen_styles_parser.add_argument(
+    eval_smoke_parser.add_argument(
         "reportdir", type=str,
         help="Path for report performance output directory.")
-    add_bblfsh_arg(eval_gen_styles_parser)
-    eval_gen_styles_parser.add_argument(
+    eval_smoke_parser.add_argument(
+        "--bblfsh",
+        help="Babelfish server's address.")
+    eval_smoke_parser.add_argument(
         "--train-config", type=json.loads, default="{}",
         help="Json config for train step.")
-    eval_gen_styles_parser.add_argument(
+    eval_smoke_parser.add_argument(
         "--analyze-config", type=json.loads, default="{}",
         help=" Json config for analyze step.")
-    eval_gen_styles_parser.add_argument(
+    eval_smoke_parser.add_argument(
         "--database", type=str, default=None,
         help="Path to the sqlite3 database with trained models metadata. "
              "Enables reusing previously trained models.")
+
+    rule_parser = add_parser("rule", "Print rule description by its hash.")
+    rule_parser.set_defaults(handler=dump_rule_entry)
+    rule_parser.add_argument("model", help="Path to the model file.")
+    rule_parser.add_argument("hash", help="Hash of the rule (8 chars).")
 
     return parser
 

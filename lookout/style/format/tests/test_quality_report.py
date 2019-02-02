@@ -13,7 +13,7 @@ from numpy.testing import assert_almost_equal
 
 from lookout.style.format.benchmarks.general_report import print_reports, QualityReportAnalyzer
 from lookout.style.format.benchmarks.top_repos_quality import _get_json_data, _get_metrics, \
-    _get_model_summary, Metrics
+    _get_model_summary
 from lookout.style.format.tests import long_test
 from lookout.style.format.tests.test_analyzer import get_analyze_config, get_train_config
 from lookout.style.format.tests.test_analyzer_integration import (
@@ -75,7 +75,7 @@ class Capturing(list):
 
 class QualityReportTests(PretrainedModelTests):
     def test_eval_empty_input(self):
-        """Test on empty folder - expect only model report."""
+        """Test on empty folder - expect only model and test report."""
         with tempfile.TemporaryDirectory() as folder:
             input_pattern = os.path.join(folder, "**", "*")
             with Capturing() as output:
@@ -84,77 +84,74 @@ class QualityReportTests(PretrainedModelTests):
                               config={"uast_break_check": False})
             self.assertEqual(
                 output[:3], [
-                    "# Model report for https://github.com/jquery/jquery refs/heads/master "
-                    "c2026b117d1ca5b2e42a52c7e2a8ae8988cf0d4b",
+                    "# Model report for file:///var/folders/kw/93jybvs16_954hytgsq6ld7r0000gn/T/"
+                    "top-repos-quality-repos-jigt1n8g/jquery HEAD "
+                    "dae5f3ce3d2df27873d01f0d9682f6a91ad66b87",
                     "",
                     "### Dump",
                 ])
-            self.assertNotIn("# Quality report", output)
             self.assertGreater(len(output), 100)
             output = "\n".join(output)
-            data = _get_json_data(output)["javascript"]
-            self.assertEqual(data["num_rules"], 1269)
-            self.assertEqual(data["avg_rule_len"], 19.10401891252955)
-            self.assertEqual(data["max_conf"], 0.9999756217002869)
-            self.assertEqual(data["min_conf"], 0.19736842811107635)
-            self.assertEqual(data["max_support"], 20528)
-            self.assertEqual(data["min_support"], 16)
-            lines = """|Min support|16|
-|Max support|20528|
-|Min confidence|0.19736842811107635|
-|Max confidence|0.9999756217002869|""".splitlines()
+            self.assertNotIn("# Train report", output)
+            test_report_start = output.find("Test report")
+            self.assertNotEqual(test_report_start, -1)
+            output = output[:test_report_start]
+            model_data = _get_json_data(output)["javascript"]
+            self.assertEqual(model_data, {
+                "avg_rule_len": 12.719585849870578,
+                "max_conf": 0.9999598264694214,
+                "max_support": 21880,
+                "min_conf": 0.8006756901741028,
+                "min_support": 16,
+                "num_rules": 1159})
+            lines = ["|Min support|16|",
+                     "|Max support|21880|",
+                     "|Min confidence|0.8006756901741028|",
+                     "|Max confidence|0.9999598264694214|"]
             for line in lines:
                 self.assertIn(line, output)
             num_rules, avg_len = _get_model_summary(output)
-            self.assertEqual(num_rules, 1269)
-            self.assertEqual(avg_len, 19.10401891252955)
+            self.assertEqual(num_rules, 1159)
+            self.assertEqual(avg_len, 12.719585849870578)
 
     def test_eval(self):
         """Test on normal input."""
+        q_report_header = "# Train report for javascript"
         input_pattern = os.path.join(self.jquery_dir, "**", "*")
         with Capturing() as output:
             print_reports(input_pattern=input_pattern, bblfsh=self.bblfsh,
                           language=self.language, model_path=self.model_path,
                           config={"uast_break_check": False})
-        self.assertEqual([
-            "# Quality report for javascript / https://github.com/jquery/jquery refs/heads/master"
-            " c2026b117d1ca5b2e42a52c7e2a8ae8988cf0d4b",
-            "",
-            "### Classification report"],
-            output[:3])
-        qcount = output.count(
-            "# Quality report for javascript / https://github.com/jquery/jquery refs/heads/master"
-            " c2026b117d1ca5b2e42a52c7e2a8ae8988cf0d4b")
-        self.assertEqual(qcount, 14)
+        self.assertIn(q_report_header, output[0])
         self.assertIn("### Summary", output)
-        self.assertIn("# Model report for https://github.com/jquery/jquery refs/heads/master"
-                      " c2026b117d1ca5b2e42a52c7e2a8ae8988cf0d4b",
-                      output)
+        self.assertIn("### Classification report", output)
         self.assertGreater(len(output), 100)
-        self.assertIn("javascript", _get_json_data("\n".join(output)))
+        output = "\n".join(output)
+        test_report_start = output.find("Test report")
+        self.assertNotEqual(test_report_start, -1)
+        output = output[:test_report_start]
+        self.assertIn("javascript", _get_json_data(output))
+        self.assertIn("# Model report", output)
+        qcount = output.count(q_report_header)
+        self.assertEqual(qcount, 14)
 
     def test_eval_aggregate(self):
         """Test on normal input, quality reports are aggregated."""
+        q_report_header = "# Train report for javascript"
         input_pattern = os.path.join(self.jquery_dir, "**", "*")
         with Capturing() as output:
             print_reports(input_pattern=input_pattern, bblfsh=self.bblfsh,
                           language=self.language, model_path=self.model_path,
                           config={"uast_break_check": False, "aggregate": True})
-        qcount = output.count(
-            "# Quality report for javascript / https://github.com/jquery/jquery refs/heads/master"
-            " c2026b117d1ca5b2e42a52c7e2a8ae8988cf0d4b")
-        self.assertEqual(qcount, 1)
         output = "\n".join(output)
-        output = output[:output.find("# Model report for https://github.com/jquery/jquery")]
+        qcount = output.count(q_report_header)
+        self.assertEqual(qcount, 1)
+        output = output[:output.find("# Model report for")]
         metrics = _get_metrics(output)
-        expected_metrics = Metrics(
-            precision=0.9830682401231401,
-            recall=0.9830682401231401,
-            full_recall=0.649932157394844,
-            f1=0.9830682401231401,
-            ppcr=0.6611261872455902,
-            support=1949,
-            full_support=2948)
+        expected_metrics = (0.9756371814092953, 0.9756371814092953,
+                            0.8856753997958490, 0.9756371814092953,
+                            0.9284822543249510, 0.9077917659067710,
+                            2668, 2939)
         assert_almost_equal(metrics, expected_metrics, decimal=15)
 
     def test_no_model(self):

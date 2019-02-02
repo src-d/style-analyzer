@@ -59,10 +59,78 @@ class FormatModelTests(unittest.TestCase):
         fm = FormatModel()
         self.assertEqual(fm.dump(), "<unknown name>/[1, 0, 0] <unknown url> <unknown commit>")
 
-        DUMP = """style.format.analyzer.FormatAnalyzer/[3] https://github.com/jquery/jquery c2026b117d1ca5b2e42a52c7e2a8ae8988cf0d4b
+        DUMP = """style.format.analyzer.FormatAnalyzer/[1] file:///var/folders/kw/93jybvs16_954hytgsq6ld7r0000gn/T/top-repos-quality-repos-jigt1n8g/jquery dae5f3ce3d2df27873d01f0d9682f6a91ad66b87
 
 # javascript
-1269 rules, avg.len. 19.1"""  # noqa
+1159 rules, avg.len. 12.7
+## train
+PPCR: 0.993413
+### report
+macro
+{'f1-score': 0.7270769669476458,
+ 'precision': 0.8106858458605273,
+ 'recall': 0.7061608014058862,
+ 'support': 163931}
+micro
+{'f1-score': 0.9704570825530253,
+ 'precision': 0.9704570825530253,
+ 'recall': 0.9704570825530253,
+ 'support': 163931}
+weighted
+{'f1-score': 0.9682573644719648,
+ 'precision': 0.9688067324990776,
+ 'recall': 0.9704570825530253,
+ 'support': 163931}
+### report_full
+macro
+{'f1-score': 0.7207757082876136,
+ 'precision': 0.8106858458605273,
+ 'recall': 0.6958571203075536,
+ 'support': 165018}
+micro
+{'f1-score': 0.9672502424387974,
+ 'precision': 0.9704570825530253,
+ 'recall': 0.9640645262941012,
+ 'support': 165018}
+weighted
+{'f1-score': 0.964254372281313,
+ 'precision': 0.967999533892513,
+ 'recall': 0.9640645262941012,
+ 'support': 165018}
+## test
+PPCR: 0.992673
+### report
+macro
+{'f1-score': 0.670106403195044,
+ 'precision': 0.7675483060510728,
+ 'recall': 0.667193540547618,
+ 'support': 39563}
+micro
+{'f1-score': 0.9646134014104087,
+ 'precision': 0.9646134014104087,
+ 'recall': 0.9646134014104087,
+ 'support': 39563}
+weighted
+{'f1-score': 0.9623528642977015,
+ 'precision': 0.964064574202937,
+ 'recall': 0.9646134014104087,
+ 'support': 39563}
+### report_full
+macro
+{'f1-score': 0.6645299678762785,
+ 'precision': 0.7675483060510728,
+ 'recall': 0.6569592424077594,
+ 'support': 39855}
+micro
+{'f1-score': 0.961066760683976,
+ 'precision': 0.9646134014104087,
+ 'recall': 0.9575461046292811,
+ 'support': 39855}
+weighted
+{'f1-score': 0.9579239894541836,
+ 'precision': 0.9627543953777487,
+ 'recall': 0.9575461046292811,
+ 'support': 39855}"""  # noqa
         self.assertEqual(self.fm.dump(), DUMP)
 
     def test_len(self):

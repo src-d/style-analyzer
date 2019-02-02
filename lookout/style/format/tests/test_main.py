@@ -13,7 +13,7 @@ class MainTests(unittest.TestCase):
         from lookout.style.format.benchmarks.generate_smoke import generate_smoke_entry
         from lookout.style.format.benchmarks.general_report import print_reports
         from lookout.style.format.benchmarks.quality_report_noisy import quality_report_noisy
-        from lookout.style.format.rule_stat import print_rules_report
+        from lookout.style.format.cmdline_tools import dump_rule_entry
         """
         imports = {}
         for line in raw_imports.splitlines():
@@ -23,10 +23,10 @@ class MainTests(unittest.TestCase):
                 imports[parts[-1]] = parts[1]
         action2handler = {
             "eval": "print_reports",
-            "rule": "print_rules_report",
             "quality-report-noisy": "quality_report_noisy",
             "gen-smoke-dataset": "generate_smoke_entry",
             "eval-smoke-dataset": "evaluate_smoke_entry",
+            "rule": "dump_rule_entry",
         }
         parser = main.create_parser()
         subcommands = set([x.dest for x in parser._subparsers._actions[2]._choices_actions])

@@ -5,7 +5,7 @@ from setuptools import find_packages, setup
 
 lookout_style = SourceFileLoader("lookout", "./lookout/style/__init__.py").load_module()
 
-with open(os.path.join(os.path.dirname(__file__), "README.md")) as f:
+with open(os.path.join(os.path.dirname(__file__), "README.md"), encoding="utf-8") as f:
     long_description = f.read()
 
 tests_require = ["docker>=3.4.0,<4.0"]
@@ -15,6 +15,8 @@ plot_requires = ["matplotlib>=2.0,<3.0"]
 web_requires = ["Flask>=1.0.0,<2.0", "Flask-Cors>=3.0.0,<4.0"]
 all_cpu_requires = tests_require + tf_requires + plot_requires + web_requires
 all_gpu_requires = tests_require + tf_gpu_requires + plot_requires + web_requires
+exclude_packages = ("lookout.style.format.tests", "lookout.style.typos.tests") \
+    if not os.getenv("LOOKOUT_STYLE_ANALYZER_SETUP_INCLUDE_TESTS", False) else ()
 
 setup(
     name="lookout-style",
@@ -27,12 +29,12 @@ setup(
     author_email="machine-learning@sourced.tech",
     url="https://github.com/src-d/style-analyzer",
     download_url="https://github.com/src-d/style-analyzer",
-    packages=find_packages(exclude=("lookout.style.format.tests",)),
+    packages=find_packages(exclude=exclude_packages),
     namespace_packages=["lookout"],
     keywords=["machine learning on source code", "babelfish", "lookout"],
     install_requires=[
         "sourced-ml>=0.7.2,<0.8",
-        "lookout-sdk-ml>=0.5.0,<0.6",
+        "lookout-sdk-ml>=0.8.1,<0.9",
         "scikit-learn>=0.20,<2.0",
         "scikit-optimize>=0.5,<2.0",
         "pandas>=0.22,<2.0",
@@ -40,6 +42,7 @@ setup(
         "google-compute-engine>=2.8.3,<3.0",  # for gensim
         "xgboost>=0.72,<2.0",
         "tabulate>=0.8.0,<2.0",
+        "python-igraph>=0.7.0,<2.0",
     ],
     extras_require={
         "tf": tf_requires,
@@ -51,7 +54,19 @@ setup(
         "all_cpu": all_cpu_requires,
     },
     tests_require=tests_require,
-    package_data={"": ["LICENSE.md", "README.md"]},
+    package_data={"": ["../LICENSE.md", "../README.md", "../requirements.txt", "README.md"],
+                  "lookout.style.format": ["templates/*.jinja2"],
+                  "lookout.style.format.benchmarks": ["data/js_smoke_init.tar.xz"],
+                  "lookout.style.format.langs": ["*.jinja2"],
+                  "lookout.style.format.tests": ["*.asdf", "*.xz"],
+                  "lookout.style.format.tests.bugs.001_analyze_skips_lines":
+                      ["find_chrome_base.js", "find_chrome_head.js",
+                       "style.format.analyzer.FormatAnalyzer_1.asdf"],
+                  "lookout.style.format.tests.bugs.002_bad_line_positions":
+                      ["browser-policy-content.js"],
+                  "lookout.style.format.tests.bugs.003_classify_vnodes_negative_col":
+                      ["jquery.layout.js"],
+                  "lookout.style.typos.tests": ["*.asdf", "*.xz", "*.pkl", "id_vecs_10.bin"]},
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Environment :: Console",

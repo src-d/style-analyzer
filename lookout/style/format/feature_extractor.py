@@ -127,8 +127,7 @@ class FeatureExtractor:
                     selected_indices = []
                     names = feature_pre_selection.names
                     for index, name in enumerate(names):
-                        if (self.selected_features is None
-                                or total_index in selected_features_set):
+                        if self.selected_features is None or total_index in selected_features_set:
                             selected_indices.append(index)
                             if issubclass(feature_class, MultipleValuesFeature):
                                 last_name_part = "%s.%s" % (feature_pre_selection.id.name, name)
@@ -171,21 +170,21 @@ class FeatureExtractor:
         self._feature_count = sum(self._feature_group_counts.values())
 
     @property
-    def index_to_feature(self) -> Optional[IndexToFeature]:
+    def index_to_feature(self) -> IndexToFeature:
         """Return the mapping from integer indices to the corresponding feature names."""
         if not hasattr(self, "_index_to_feature"):
             raise NotFittedError()
         return self._index_to_feature
 
     @property
-    def feature_to_indices(self) -> Optional[FeatureLayout[Sequence[int]]]:
+    def feature_to_indices(self) -> FeatureLayout[Sequence[int]]:
         """Return the mapping from feature names to the corresponding integer indices."""
         if not hasattr(self, "_feature_to_indices"):
             raise NotFittedError()
         return self._feature_to_indices
 
     @property
-    def features(self) -> Optional[FeatureLayout[Feature]]:
+    def features(self) -> FeatureLayout[Feature]:
         """Return the `Feature`-s used by this feature extractor."""
         if not hasattr(self, "_features"):
             raise NotFittedError()
@@ -461,12 +460,10 @@ class FeatureExtractor:
                     node.y = (CLASS_INDEX[CLS_DOUBLE_QUOTE],)
                 yield node
                 continue
-            lines = node.value.split("\r\n")
-            if len(lines) > 1:
-                sep = "\r\n"
-            else:
-                lines = node.value.split("\n")
-                sep = "\n"
+            lines = node.value.splitlines(keepends=True)
+            if lines[-1].splitlines()[0] != lines[-1]:
+                # We add last line as empty one to mimic .split("\n") behaviour
+                lines.append("")
             if len(lines) == 1:
                 # only tabs and spaces are possible
                 for i, char in enumerate(node.value):
@@ -484,17 +481,16 @@ class FeatureExtractor:
             line_offset = 0
             for i, line in enumerate(lines[:-1]):
                 # `line` contains trailing whitespaces, we add it to the newline node
-                newline = line + sep
                 start_offset = node.start.offset + line_offset
                 start_col = node.start.col if i == 0 else 1
                 lineno = node.start.line + i
                 yield VirtualNode(
-                    newline,
+                    line,
                     Position(start_offset, lineno, start_col),
-                    Position(start_offset + len(newline), lineno, start_col + len(newline)),
+                    Position(start_offset + len(line), lineno + 1, 1),
                     y=(CLASS_INDEX[CLS_NEWLINE],), path=path)
-                line_offset += len(line) + len(sep)
-            line = lines[-1]
+                line_offset += len(line)
+            line = lines[-1].splitlines()[0] if lines[-1] else ""
             my_indent = list(line)
             offset, lineno, col = node.end
             offset -= len(line)
@@ -668,13 +664,21 @@ class FeatureExtractor:
         :return: list of `VirtualNode`-s and the parents.
         """
         # build the line mapping
-        lines = contents.split("\n")
+        lines = contents.splitlines(keepends=True)
+        # Check if there is a newline in the end of file. Yes, you can just check
+        # lines[-1][-1] == "\n" but if someone decide to use weird '\u2028' unicode character for
+        # new line this condition gives wrong result.
+        eof_new_line = lines[-1].splitlines()[0] != lines[-1]
+        if eof_new_line:
+            # We add last line as empty one because it actually exists, but .splitlines() does not
+            # return it.
+            lines.append("")
         line_offsets = numpy.zeros(len(lines) + 1, dtype=numpy.int32)
         pos = 0
         for i, line in enumerate(lines):
             line_offsets[i] = pos
-            pos += len(line) + 1
-        line_offsets[-1] = pos
+            pos += len(line)
+        line_offsets[-1] = pos + 1
 
         # walk the tree: collect nodes with assigned tokens and build the parents map
         node_tokens = []

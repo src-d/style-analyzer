@@ -49,6 +49,10 @@ class FeatureGroup(Enum):
             return "^%d." % (value + 1)  # ↑ is displayed like shit in Ubuntu
         return "%s.%s." % (self.name, value)
 
+    def __lt__(self, other: "FeatureGroup") -> bool:
+        """Compare two groups: am I less than the other."""
+        return self.value < other.value
+
 
 FEATURE_GROUP_TYPES = {
     FeatureGroup.node: VirtualNode,
@@ -75,6 +79,14 @@ class FeatureId(Enum):
     length = 10
     start_col = 11
     start_line = 12
+
+    def __lt__(self, other: "FeatureId") -> bool:
+        """
+        Compare two identifiers: am I less than the other.
+
+        This does not make much apart from ordering enums.
+        """
+        return self.value < other.value
 
 
 TV = TypeVar("TV")

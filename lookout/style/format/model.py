@@ -2,6 +2,7 @@
 from copy import deepcopy
 import io
 from itertools import islice
+from pprint import pprint
 from typing import Dict, Iterable, List, Mapping, Tuple  # noqa: F401
 
 from lookout.core.analyzer import AnalyzerModel
@@ -41,8 +42,20 @@ class FormatModel(AnalyzerModel):
         result = io.StringIO()
         result.write(super().dump())
         for lang, rules in sorted(self._rules_by_lang.items()):
-            result.write("\n\n# %s\n%s" % (lang, rules))
-        return result.getvalue()
+            result.write("\n\n# %s\n%s\n" % (lang, rules))
+            try:
+                for ds in ("train", "test"):
+                    print("## %s" % ds, file=result)
+                    print("PPCR: %f" % self[lang].classification_report[ds]["ppcr"], file=result)
+                    for r in ("report", "report_full"):
+                        print("### %s" % r, file=result)
+                        for avg in ("macro", "micro", "weighted"):
+                            print(avg, file=result)
+                            pprint(self[lang].classification_report[ds][r]["%s avg" % avg],
+                                   stream=result)
+            except KeyError:
+                print("<classification report was not computed>", file=result)
+        return result.getvalue().strip()
 
     def _generate_tree(self) -> dict:
         tree = super()._generate_tree()
@@ -51,14 +64,18 @@ class FormatModel(AnalyzerModel):
             languages=languages,
             origin_configs=[self[lang].origin_config for lang in languages],
             ruless=[self._disassemble_rules(self[lang].rules) for lang in languages],
+            classification_reports=[self._disassemble_classification_report(
+                self[lang].classification_report) for lang in languages],
         )
         return tree
 
     def _load_tree(self, tree: dict) -> None:
         super()._load_tree(tree)
-        for lang, origin_config, rules in zip(
-                tree["languages"], tree["origin_configs"], tree["ruless"]):
+        for lang, origin_config, rules, report in zip(
+                tree["languages"], tree["origin_configs"], tree["ruless"],
+                tree["classification_reports"]):
             self[lang] = Rules(self._assemble_rules(rules), deepcopy(origin_config))
+            self[lang]._classification_report = self._assemble_classification_report(report)
 
     def __len__(self) -> int:
         return len(self._rules_by_lang)
@@ -83,6 +100,21 @@ class FormatModel(AnalyzerModel):
 
     def __contains__(self, lang: str) -> bool:
         return lang in self._rules_by_lang
+
+    @staticmethod
+    def _assemble_classification_report(report: dict) -> dict:
+        for key in report:
+            if report[key]:
+                report[key]["confusion_matrix"] = numpy.array(report[key]["confusion_matrix"])
+        return report
+
+    @staticmethod
+    def _disassemble_classification_report(report: dict) -> dict:
+        report = deepcopy(report)
+        for key in report:
+            if report[key]:
+                report[key]["confusion_matrix"] = report[key]["confusion_matrix"].tolist()
+        return report
 
     @staticmethod
     def _assemble_rules(rules_tree: dict) -> List[Rule]:

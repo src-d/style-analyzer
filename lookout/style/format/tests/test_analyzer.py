@@ -37,11 +37,13 @@ def get_train_config():
                 "prune_branches_algorithms": ["reduced-error"],
                 "top_down_greedy_budget": [False, .5],
                 "prune_attributes": False,
-                "uncertain_attributes": False,
                 "n_estimators": 3,
-                "random_state": 42,
             },
-            "n_iter": 1,
+            "optimizer": {
+                "n_iter": 6,
+            },
+            "random_state": 42,
+            "lines_ratio_train_trigger": 0.8,
         },
     }
 
@@ -52,6 +54,24 @@ def get_analyze_config():
         "support_threshold": 10,
         "uast_break_check": False,
     }
+
+
+class FakeUAST:
+    def __init__(self):
+        self.children = []
+
+
+class FakeFile:
+    def __init__(self, path, content, uast, language):
+        self.path = path
+        self.content = content
+        self.uast = uast
+        self.language = language
+
+
+def remove_uast(file):
+    return FakeFile(path=file.path, content=file.content, uast=FakeUAST(),
+                    language="JavaScript")
 
 
 class AnalyzerTests(unittest.TestCase):
@@ -93,13 +113,33 @@ class AnalyzerTests(unittest.TestCase):
         self.assertIn("javascript", model1, str(model1))
         model2 = FormatAnalyzer.train(self.ptr, get_train_config(), self.data_service)
         self.assertEqual(model1["javascript"].rules, model2["javascript"].rules)
-        self.assertGreater(len(model1["javascript"]), 10)
+        self.assertGreater(len(model1["javascript"]), 5)
         # Check that model can be saved without problems and then load back
         with TemporaryFile(prefix="analyzer_model-", suffix=".asdf") as f:
             model2.save(f)
             f.seek(0)
             model3 = FormatModel().load(f)
             compare_models(self, model2, model3)
+
+    def test_train_check(self):
+        common = self.base_files.keys() & self.head_files.keys()
+        self.data_service = FakeDataService(
+            self.bblfsh_client,
+            files=self.base_files.values(),
+            changes=[Change(base=self.base_files[k], head=self.head_files[k])
+                     for k in common])
+        model = FormatAnalyzer.train(self.ptr, get_train_config(), self.data_service)
+        required = FormatAnalyzer.check_training_required(
+            model, self.ptr, get_train_config(), self.data_service)
+        self.assertFalse(required)
+        self.data_service = FakeDataService(
+            self.bblfsh_client,
+            files=self.base_files.values(),
+            changes=[Change(base=remove_uast(self.base_files[k]), head=self.head_files[k])
+                     for k in common])
+        required = FormatAnalyzer.check_training_required(
+            model, self.ptr, get_train_config(), self.data_service)
+        self.assertTrue(required)
 
     def test_train_cutoff_labels(self):
         self.data_service = FakeDataService(bblfsh_client=self.bblfsh_client,
@@ -110,7 +150,7 @@ class AnalyzerTests(unittest.TestCase):
         self.assertIn("javascript", model1, str(model1))
         model2 = FormatAnalyzer.train(self.ptr, get_train_config(), self.data_service)
         self.assertEqual(model1["javascript"].rules, model2["javascript"].rules)
-        self.assertGreater(len(model1["javascript"]), 10)
+        self.assertGreater(len(model1["javascript"]), 5)
         # Check that model can be saved without problems and then load back
         with TemporaryFile(prefix="analyzer_model-", suffix=".asdf") as f:
             model2.save(f)
@@ -120,9 +160,13 @@ class AnalyzerTests(unittest.TestCase):
 
     def test_analyze(self):
         self.data_service = FakeDataService(
+            #bblfsh_client=self.bblfsh_client,
+            #files=self.base_files,
+            #changes=[Change(base=b, head=h) for b, h in zip(self.base_files, self.head_files)])
             bblfsh_client=self.bblfsh_client,
-            files=self.base_files,
-            changes=[Change(base=b, head=h) for b, h in zip(self.base_files, self.head_files)])
+            files=self.base_files.values(),
+            changes=[Change(base=remove_uast(self.base_files[k]), head=self.head_files[k])
+                     for k in common])
         config = get_train_config()
         # Make uast_break_check only here
         config["uast_break_check"] = True

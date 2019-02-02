@@ -1,5 +1,5 @@
 sourced-ml==0.7.2
-lookout-sdk-ml==0.5.0
+lookout-sdk-ml==0.8.1
 scikit-learn==0.20.1
 scikit-optimize==0.5.2
 pandas==0.22.0
@@ -8,3 +8,4 @@ gensim==3.6.0
 google-compute-engine==2.8.3
 xgboost==0.72.1
 tabulate==0.8.2
+python-igraph==0.7.1.post6
