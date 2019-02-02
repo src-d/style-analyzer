@@ -37,7 +37,8 @@ class RobustnessTests(unittest.TestCase):
                                      support_threshold=20,
                                      precision_threshold=0.95,
                                      dir_output=tempfile.tempdir,
-                                     repos=self.jquery_dir)
+                                     repos=self.jquery_dir + ",HEAD,<commit>",
+                                     retrain=False)
             except SystemExit:
                 self.skipTest("Matplotlib is required to run this test")
         pattern = re.compile(r"((?:recall x)|(?:precision y)): \[(\d+.\d+(, \d+.\d+)+)\]")

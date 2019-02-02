@@ -26,6 +26,7 @@ class AnalyzeSkipsLines(unittest.TestCase):
         base_files = list(filter_files(
             filenames=[os.path.join(basedir, "find_chrome_base.js")],
             line_length_limit=500,
+            overall_size_limit=5 << 20,
             client=bblfsh_client,
             language="javascript"))
         base_files[0].path = os.path.join(basedir, "find_chrome_head.js")

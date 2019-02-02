@@ -57,6 +57,41 @@ class CodeGenerator:
         self.url = url
         self.commit = commit
 
+    def generate_new_line(self, line_vnodes: List[VirtualNode]) -> str:
+        """
+        Generate new code line for giving vnodes.
+
+        :param line_vnodes: corresponding virtual nodes sequence. It should be started from token \
+                            with indentation change or newline token from the prevoius line if \
+                            exists. The final line break of the line should not be included.
+        :return: Code line.
+        """
+        if not line_vnodes:
+            return ""
+
+        # Quotes are a huge problem here because you can have "⏎␣⁺␣⁺ and it can be changed to
+        # '⏎⏎␣⁺␣⁺␣⁺␣⁺. So you should handle them carefully.
+        # I take care only about a second part: newlines and indentation.
+        # TODO (zurk): handle quotes in the end of the line.
+        newline_index = CLASS_INDEX[CLS_NEWLINE]
+        first_y = line_vnodes[0].y
+
+        generated = self.generate(line_vnodes, "local")
+        if newline_index not in first_y:
+            return generated
+
+        # First line is always removed because it is an end line from the previous line.
+        generated_lines = generated.splitlines(keepends=True)[1:]
+        for i, line in enumerate(generated_lines):  # noqa B007
+            if line.splitlines()[0]:
+                # Line is not empty
+                break
+        lines_num = 0
+        if line_vnodes and hasattr(line_vnodes[0], "y_old") and newline_index in first_y:
+            lines_num = line_vnodes[0].y.count(newline_index) - \
+                        line_vnodes[0].y_old.count(newline_index)
+        return "".join(generated_lines[i - max(0, lines_num):])
+
     def apply_predicted_y(self, vnodes: Sequence[VirtualNode],
                           vnodes_y: Sequence[VirtualNode],
                           rule_winners: Sequence[int],

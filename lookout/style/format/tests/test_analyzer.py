@@ -159,19 +159,20 @@ class AnalyzerTests(unittest.TestCase):
             compare_models(self, model2, model3)
 
     def test_analyze(self):
+        common = self.base_files.keys() & self.head_files.keys()
         self.data_service = FakeDataService(
-            #bblfsh_client=self.bblfsh_client,
-            #files=self.base_files,
-            #changes=[Change(base=b, head=h) for b, h in zip(self.base_files, self.head_files)])
+            # bblfsh_client=self.bblfsh_client,
+            # files=self.base_files,
+            # changes=[Change(base=b, head=h) for b, h in zip(self.base_files, self.head_files)])
             bblfsh_client=self.bblfsh_client,
             files=self.base_files.values(),
             changes=[Change(base=remove_uast(self.base_files[k]), head=self.head_files[k])
                      for k in common])
-        config = get_train_config()
+        config = get_analyze_config()
         # Make uast_break_check only here
         config["uast_break_check"] = True
         model = FormatAnalyzer.train(self.ptr, get_train_config(), self.data_service)
-        analyzer = FormatAnalyzer(model, self.ptr.url, get_analyze_config())
+        analyzer = FormatAnalyzer(model, self.ptr.url, config)
         comments = analyzer.analyze(self.ptr, self.ptr, self.data_service)
         self.assertGreater(len(comments), 0)
 

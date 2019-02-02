@@ -12,22 +12,63 @@ from typing import Iterable, List, Mapping, NamedTuple, Optional, Set, Tuple
 
 from bblfsh import BblfshClient
 import jinja2
-from lookout.core.lib import filter_filepaths, filter_files
+from lookout.core.analyzer import ReferencePointer
+from lookout.core.lib import filter_filepaths, parse_files
 import numpy
+from yaml import safe_load
 
+from lookout.style.format.analyzer import FormatAnalyzer
+from lookout.style.format.benchmarks.general_report import FakeDataService
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.model import FormatModel
 from lookout.style.format.postprocess import filter_uast_breaking_preds
 from lookout.style.format.rules import Rules
 from lookout.style.format.virtual_node import VirtualNode
 
+# format: url,clean_commit,noisy_commit
 REPOSITORIES = """
-https://github.com/warenlg/axios
-https://github.com/warenlg/jquery
+https://github.com/warenlg/axios,75c8b3f146aaa8a71f7dca0263686fb1799f8f31,b5d60bb7aaa1b3ba0f286a5dad3028968831fd1d
+https://github.com/warenlg/jquery,dfa92ccead70d7dd5735a36c6d0dd1af680271cd,6f0f8a9bb739c5fe6d979736ef5d1e4a0be83446
 """.strip()
 
 Misprediction = NamedTuple("Misprediction", [("y", numpy.ndarray), ("pred", numpy.ndarray),
                                              ("node", List[VirtualNode]), ("rule", numpy.ndarray)])
+
+
+def train(training_dir: str, ref: ReferencePointer, output_path: str, language: str, bblfsh: str,
+          config: Optional[str]) -> FormatModel:
+    """
+    Train a FormatModel for debugging purposes.
+
+    :param training_dir: Path to the directory containing the files to train from.
+    :param ref: Reference pointer to repository for training
+    :param output_path: Path to the model to write.
+    :param language: Language to filter on.
+    :param bblfsh: Address of the babelfish server.
+    :param config: Path to a YAML config to use during the training.
+
+    :return: Trained FormatNodel.
+    """
+    bblfsh_client = BblfshClient(bblfsh)
+    if config is not None:
+        with open(config) as fh:
+            config = safe_load(fh)
+    else:
+        config = {}
+    filenames = glob.glob(os.path.join(training_dir, "**", "*"), recursive=True)
+    model = FormatAnalyzer.train(
+        ref,
+        config,
+        FakeDataService(
+            bblfsh_client=bblfsh_client,
+            files=parse_files(filenames=filenames,
+                              line_length_limit=config["line_length_limit"],
+                              overall_size_limit=config["overall_size_limit"],
+                              client=bblfsh_client,
+                              langauge=language),
+            changes=None))
+    model.save(output_path)
+    return model
 
 
 def get_content_from_repo(folder: str) -> Mapping[str, str]:
@@ -84,9 +125,10 @@ def files2vnodes(filenames: Iterable[str], feature_extractor: FeatureExtractor, 
     :param client: Babelfish client. Babelfish server should be started accordingly.
     :return: List of `VirtualNode`-s extracted from a given list of files.
     """
-    files = filter_files(filenames=filenames,
-                         line_length_limit=rules.origin_config["line_length_limit"],
-                         client=client, language=feature_extractor.language)
+    files = parse_files(filenames=filenames,
+                        line_length_limit=rules.origin_config["line_length_limit"],
+                        overall_size_limit=rules.origin_config["overall_size_limit"],
+                        client=client, language=feature_extractor.language)
     _, _, (vnodes_y, _, _, _) = feature_extractor.extract_features(files)
     return vnodes_y
 
@@ -103,9 +145,10 @@ def files2mispreds(filenames: Iterable[str], feature_extractor: FeatureExtractor
     :param log: Logger.
     :return: List of `Misprediction`-s extracted from a given list of files.
     """
-    files = filter_files(filenames=filenames,
-                         line_length_limit=rules.origin_config["line_length_limit"],
-                         client=client, language=feature_extractor.language)
+    files = parse_files(filenames=filenames,
+                        line_length_limit=rules.origin_config["line_length_limit"],
+                        overall_size_limit=rules.origin_config["overall_size_limit"],
+                        client=client, language=feature_extractor.language)
     X, y, (vnodes_y, vnodes, vnode_parents, node_parents) = feature_extractor \
         .extract_features(files)
     y_pred, rule_winners, _, grouped_quote_predictions = rules.predict(
@@ -262,7 +305,8 @@ def plot_curve(repositories: Iterable[str], recalls: Mapping[str, numpy.ndarray]
 
 def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float,
                          support_threshold: int, precision_threshold: float,
-                         dir_output: str, repos: Optional[str] = None) -> None:
+                         dir_output: str, retrain: bool, repos: Optional[str] = None,
+                         ) -> None:
     """
     Generate a quality report on the artificial noisy dataset including a precision-recall curve.
 
@@ -276,6 +320,7 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
            and the precision-recall curve in png format.
     :param repos: Input list of urls or paths to the repositories to analyze. \
            Should be strings separated by newlines.
+    :param retrain: Set True if you want to force model retraining.
     """
     log = logging.getLogger("quality_report_noisy")
     repo_names = []
@@ -289,7 +334,8 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
         client = BblfshClient(bblfsh)
         log.info("Repositories: %s", repos)
         with tempfile.TemporaryDirectory() as tmpdirname:
-            for repo_path in repos.splitlines():
+            for raw in repos.splitlines():
+                repo_path, clean_commit, noisy_commit = raw.split(",")
                 repo = repo_path.split("/")[-1]
                 if repo_path.startswith("https://github.com"):
                     log.info("Fetching %s", repo_path)
@@ -320,9 +366,12 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
                 log.info("Number of files modified by adding style noise: %d / %d",
                          len(true_files), len(true_content))
                 del true_content, noisy_content
-
-                analyzer = FormatModel().load(model_path)
-                rules = analyzer[language]
+                if retrain:
+                    ref = ReferencePointer(repo_path, "HEAD", clean_commit)
+                    format_model = train(git_dir, ref, model_path, language, bblfsh, None)
+                else:
+                    format_model = FormatModel().load(model_path)
+                rules = format_model[language]
                 feature_extractor = FeatureExtractor(language=language,
                                                      **rules.origin_config["feature_extractor"])
                 vnodes_y_true = files2vnodes(true_files, feature_extractor, rules, client)

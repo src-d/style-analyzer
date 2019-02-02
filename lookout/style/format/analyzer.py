@@ -16,7 +16,7 @@ from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2 import Change, File
 from lookout.core.data_requests import DataService, request_changes, \
     with_changed_uasts_and_contents, with_uasts_and_contents
-from lookout.core.lib import files_by_language, find_deleted_lines, find_new_lines
+from lookout.core.lib import files_by_language, find_deleted_lines, find_new_lines, parse_files
 from lookout.core.metrics import submit_event
 import numpy
 
@@ -335,7 +335,6 @@ class FormatAnalyzer(Analyzer):
             rules = self.model[lang]
             rules = rules.filter_by_confidence(self.config["confidence_threshold"]) \
                 .filter_by_support(self.config["support_threshold"])
-            #for file in head_files.values():
             for file in parse_files(filenames=head_files.keys(),
                                     line_length_limit=rules.origin_config["line_length_limit"],
                                     overalll_size_limit=rules.origin_config["overall_size_limit"],
@@ -427,11 +426,20 @@ class FormatAnalyzer(Analyzer):
         code_generator = CodeGenerator(fe, skip_errors=True)
         new_vnodes = code_generator.apply_predicted_y(vnodes, vnodes_y, rule_winners, new_rules)
         token_fixes = []
+        newline_index = CLASS_INDEX[CLS_NEWLINE]
         for line_number, line in self._group_line_nodes(
                 y, y_pred, vnodes_y, new_vnodes, rule_winners):
             line_ys, line_ys_pred, line_vnodes_y, new_line_vnodes, line_winners = line
-            new_code_line = code_generator.generate(
-                new_line_vnodes, "local").lstrip("\n").splitlines()[0]
+            new_code_line = code_generator.generate_new_line(new_line_vnodes)
+            if (new_line_vnodes and hasattr(new_line_vnodes[0], "y_old") and newline_index in
+                    new_line_vnodes[0].y_old):
+                lines_num_diff = new_line_vnodes[0].y.count(newline_index) - \
+                                 new_line_vnodes[0].y_old.count(newline_index)
+                if lines_num_diff < 0:
+                    # Some lines were removed. This means that several original lines should be
+                    # modified. GitHub Suggested Change feature cannot handle such cases right now.
+                    # To not confuse the user we do not provide any code suggestion.
+                    new_code_line = None
             confidence = self._get_comment_confidence(line_ys, line_ys_pred, line_winners,
                                                       new_rules)
             fixed_vnodes = [vnode for vnode in new_line_vnodes if
@@ -512,17 +520,17 @@ class FormatAnalyzer(Analyzer):
         :param rule_winners: List of rule winners.
         :return: 1-based line number and sublists of corresponding items from all input sequences.
         """
-        line_no = None
-        line_items = None
+        line_no = -1
+        line_items = []
         result = []
         for (yi, y_predi, vnode_y, winner) in zip(y, y_pred, vnodes_y, rule_winners):
             if winner < 0:
                 continue
-            if vnode_y.start.line != line_no:
+            if vnode_y.end.line != line_no:
                 if line_items:
                     result.append((line_no, zip(*line_items)))
                 line_items = []
-                line_no = vnode_y.start.line
+                line_no = vnode_y.end.line
             if yi != y_predi:
                 line_items.append((yi, y_predi, vnode_y, winner))
         if line_items:
@@ -531,16 +539,11 @@ class FormatAnalyzer(Analyzer):
         for line_no, (line_y, line_y_pred, line_vnodes_y, line_rule_winners) in result:
             line_vnodes = []
             for vnode in new_vnodes:
-                if vnode.start.line > line_no:
-                    if (line_vnodes and line_vnodes[-1].y is not None and
-                            CLASS_INDEX[CLS_NEWLINE] in line_vnodes[-1].y):
-                        break
-                    else:
-                        line_vnodes.append(vnode)
-                        continue
-                elif vnode.end.line >= line_no:
+                if vnode.end.line > line_no:
+                    break
+                elif vnode.end.line == line_no:
                     line_vnodes.append(vnode)
-            yield (int(line_vnodes_y[0].start.line),
+            yield (int(line_vnodes_y[0].end.line),
                    (line_y, line_y_pred, line_vnodes_y, line_vnodes, line_rule_winners))
 
     @classmethod

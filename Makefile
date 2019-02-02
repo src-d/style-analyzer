@@ -37,7 +37,7 @@ docker-test:
 bblfsh-start:
 	! docker ps | grep bblfshd # bblfsh server has been run already.
 	docker run -d --rm --name style_analyzer_bblfshd --privileged -p 9432\:9432 \
-		bblfsh/bblfshd\:v2.10.0
+		bblfsh/bblfshd\:v2.11.0
 	docker exec style_analyzer_bblfshd bblfshctl driver install \
 		javascript docker://bblfsh/javascript-driver\:v1.2.0
 
@@ -58,7 +58,7 @@ report-smoke: $(SMOKE_REPORT_DIR)
 	python3 -m lookout.style.format eval-smoke-dataset $(SMOKE_REPORT_DIR)/dataset \
 		$(SMOKE_REPORT_DIR)/report 2>&1 | tee $(SMOKE_REPORT_DIR)/report_logs.txt
 report-noisy: $(NOISY_REPORT_DIR)
-	python3 -m lookout.style.format quality-report-noisy -o $(NOISY_REPORT_DIR) \
+	python3 -m lookout.style.format quality-report-noisy --retrain -o $(NOISY_REPORT_DIR) \
 		2>&1 | tee $(NOISY_REPORT_DIR)/logs.txt
 report-quality: $(QUALITY_REPORT_DIR)
 	python3 -m lookout.style.format.benchmarks.top_repos_quality -o $(QUALITY_REPORT_DIR) \

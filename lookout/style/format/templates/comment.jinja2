@@ -6,7 +6,7 @@ format: style mismatch:
 {% endfor %}
 ```
 {% endif %}
-{% if new_code_line != code_lines[line_number - 1] %}
+{% if new_code_line != None and new_code_line != code_lines[line_number - 1] %}
 ```suggestion
 {{ new_code_line }}
 ```

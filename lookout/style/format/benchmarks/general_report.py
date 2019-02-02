@@ -16,7 +16,7 @@ from lookout.core.analyzer import ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2 import Change, File
 from lookout.core.data_requests import DataService, request_files
-from lookout.core.lib import filter_files
+from lookout.core.lib import parse_files
 import numpy
 from sklearn.exceptions import NotFittedError
 
@@ -144,9 +144,10 @@ def analyze_files(analyzer_type: Type[FormatAnalyzer], config: dict, model_path:
         raise NotFittedError()
     rules = model[language]
     client = BblfshClient(bblfsh)
-    files = filter_files(filenames=glob.glob(input_pattern, recursive=True),
-                         line_length_limit=rules.origin_config["line_length_limit"],
-                         client=client, language=language, log=log)
+    files = parse_files(filenames=glob.glob(input_pattern, recursive=True),
+                        line_length_limit=rules.origin_config["line_length_limit"],
+                        overall_size_limit=rules.origin_config["overall_size_limit"],
+                        client=client, language=language, log=log)
     log.info("Model parameters: %s" % rules.origin_config)
     log.info("Rules stats: %s" % rules)
     log.info("Number of files: %s" % (len(files)))
