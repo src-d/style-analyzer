@@ -144,7 +144,7 @@ def analyze_files(analyzer_type: Type[FormatAnalyzer], config: dict, model_path:
         raise NotFittedError()
     rules = model[language]
     client = BblfshClient(bblfsh)
-    files = parse_files(filenames=glob.glob(input_pattern, recursive=True),
+    files = parse_files(filepaths=glob.glob(input_pattern, recursive=True),
                         line_length_limit=rules.origin_config["line_length_limit"],
                         overall_size_limit=rules.origin_config["overall_size_limit"],
                         client=client, language=language, log=log)

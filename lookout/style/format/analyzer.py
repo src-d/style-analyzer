@@ -195,10 +195,10 @@ class FormatAnalyzer(Analyzer):
                 _log.warning("language %s is not supported, skipped", language)
                 continue
             overall_lines = changed_lines = 0
-            for file in parse_files(filenames=head_files.keys(),
+            for file in parse_files(filepaths=head_files.keys(),
                                     line_length_limit=lang_config["line_length_limit"],
                                     overalll_size_limit=lang_config["overall_size_limit"],
-                                    client=data_service.get_bblfsh(),
+                                    client=data_service.bblfsh_client,
                                     language=language, log=_log):
                 head_lines = len(file.content.splitlines())
                 overall_lines += head_lines
@@ -244,11 +244,6 @@ class FormatAnalyzer(Analyzer):
             _log.info("effective config for %s:\n%s", language,
                       pformat(lang_config, width=120, compact=True))
             random_state = lang_config["random_state"]
-            files = parse_files(filenames=files.keys(),
-                                line_length_limit=lang_config["line_length_limit"],
-                                overall_size_limit=lang_config["overall_size_limit"],
-                                client=data_service.get_bblfsh(), language=language,
-                                random_state=random_state, log=_log)
             submit_event("%s.train.%s.files" % (cls.name, language), len(files))
             if len(files) == 0:
                 _log.info("zero files after filtering, language %s is skipped.", language)
@@ -261,7 +256,7 @@ class FormatAnalyzer(Analyzer):
             else:
                 _log.info("training on %d %s files", len(files), language)
             train_files, test_files = FormatAnalyzer.get_train_test_split(
-                files, lang_config["test_dataset_ratio"], random_state=random_state)
+                files.values(), lang_config["test_dataset_ratio"], random_state=random_state)
             # ensure that the features are reproducible
             train_files = sorted(train_files, key=lambda x: x.path)
             test_files = sorted(test_files, key=lambda x: x.path)
@@ -335,10 +330,10 @@ class FormatAnalyzer(Analyzer):
             rules = self.model[lang]
             rules = rules.filter_by_confidence(self.config["confidence_threshold"]) \
                 .filter_by_support(self.config["support_threshold"])
-            for file in parse_files(filenames=head_files.keys(),
+            for file in parse_files(filepaths=head_files.keys(),
                                     line_length_limit=rules.origin_config["line_length_limit"],
                                     overalll_size_limit=rules.origin_config["overall_size_limit"],
-                                    client=data_service.get_bblfsh(),
+                                    client=data_service.bblfsh_client,
                                     language=lang, log=log):
                 processed_files_counter[lang] += 1
                 try:

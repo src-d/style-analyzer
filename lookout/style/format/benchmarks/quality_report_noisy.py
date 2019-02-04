@@ -36,7 +36,7 @@ Misprediction = NamedTuple("Misprediction", [("y", numpy.ndarray), ("pred", nump
 
 
 def train(training_dir: str, ref: ReferencePointer, output_path: str, language: str, bblfsh: str,
-          config: Optional[str]) -> FormatModel:
+          config: Optional[str], log: Optional[logging.Logger] = None) -> FormatModel:
     """
     Train a FormatModel for debugging purposes.
 
@@ -46,7 +46,7 @@ def train(training_dir: str, ref: ReferencePointer, output_path: str, language: 
     :param language: Language to filter on.
     :param bblfsh: Address of the babelfish server.
     :param config: Path to a YAML config to use during the training.
-
+    :param log: logger used to report during training.
     :return: Trained FormatNodel.
     """
     bblfsh_client = BblfshClient(bblfsh)
@@ -54,19 +54,17 @@ def train(training_dir: str, ref: ReferencePointer, output_path: str, language: 
         with open(config) as fh:
             config = safe_load(fh)
     else:
-        config = {}
-    filenames = glob.glob(os.path.join(training_dir, "**", "*"), recursive=True)
-    model = FormatAnalyzer.train(
-        ref,
-        config,
-        FakeDataService(
-            bblfsh_client=bblfsh_client,
-            files=parse_files(filenames=filenames,
-                              line_length_limit=config["line_length_limit"],
-                              overall_size_limit=config["overall_size_limit"],
-                              client=bblfsh_client,
-                              langauge=language),
-            changes=None))
+        config = FormatAnalyzer.defaults_for_train
+    filepaths = glob.glob(os.path.join(training_dir, "**", "*"), recursive=True)
+    model = FormatAnalyzer.train(ref, config, FakeDataService(
+        bblfsh_client=bblfsh_client,
+        files=parse_files(filepaths=filepaths,
+                          line_length_limit=config["global"]["line_length_limit"],
+                          overall_size_limit=config["global"]["overall_size_limit"],
+                          client=bblfsh_client,
+                          language=language,
+                          log=log),
+        changes=None))
     model.save(output_path)
     return model
 
@@ -114,18 +112,18 @@ def get_difflib_changes(true_content: Mapping[str, str], noisy_content: Mapping[
     return sorted(true_files), sorted(noisy_files), start_changes
 
 
-def files2vnodes(filenames: Iterable[str], feature_extractor: FeatureExtractor, rules: Rules,
+def files2vnodes(filepaths: Iterable[str], feature_extractor: FeatureExtractor, rules: Rules,
                  client: BblfshClient) -> Iterable[VirtualNode]:
     """
     Return the `VirtualNode`-s extracted from a list of files.
 
-    :param filenames: List of files to get `Misprediction`-s and `VirtualNode`-s from.
+    :param filepaths: List of files to get `Misprediction`-s and `VirtualNode`-s from.
     :param feature_extractor: FeatureExtractor to use.
     :param rules: Rules to use for prediction.
     :param client: Babelfish client. Babelfish server should be started accordingly.
     :return: List of `VirtualNode`-s extracted from a given list of files.
     """
-    files = parse_files(filenames=filenames,
+    files = parse_files(filepaths=filepaths,
                         line_length_limit=rules.origin_config["line_length_limit"],
                         overall_size_limit=rules.origin_config["overall_size_limit"],
                         client=client, language=feature_extractor.language)
@@ -133,19 +131,19 @@ def files2vnodes(filenames: Iterable[str], feature_extractor: FeatureExtractor, 
     return vnodes_y
 
 
-def files2mispreds(filenames: Iterable[str], feature_extractor: FeatureExtractor, rules: Rules,
+def files2mispreds(filepaths: Iterable[str], feature_extractor: FeatureExtractor, rules: Rules,
                    client: BblfshClient, log: logging.Logger) -> Iterable[Misprediction]:
     """
     Return the model's `Misprediction`-s on a list of files.
 
-    :param filenames: List of files to get `Misprediction`-s from.
+    :param filepaths: List of files to get `Misprediction`-s from.
     :param feature_extractor: FeatureExtractor to use.
     :param rules: Rules to use for prediction.
     :param client: Babelfish client. Babelfish server should be started accordingly.
     :param log: Logger.
     :return: List of `Misprediction`-s extracted from a given list of files.
     """
-    files = parse_files(filenames=filenames,
+    files = parse_files(filepaths=filepaths,
                         line_length_limit=rules.origin_config["line_length_limit"],
                         overall_size_limit=rules.origin_config["overall_size_limit"],
                         client=client, language=feature_extractor.language)
@@ -368,7 +366,8 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
                 del true_content, noisy_content
                 if retrain:
                     ref = ReferencePointer(repo_path, "HEAD", clean_commit)
-                    format_model = train(git_dir, ref, model_path, language, bblfsh, None)
+                    format_model = train(training_dir=git_dir, ref=ref, output_path=model_path,
+                                         language=language, bblfsh=bblfsh, config=None, log=log)
                 else:
                     format_model = FormatModel().load(model_path)
                 rules = format_model[language]
