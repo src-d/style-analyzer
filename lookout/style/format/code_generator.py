@@ -29,8 +29,15 @@ class CodeGenerator:
 
     log = logging.getLogger("FormatAnalyzer")
     QUOTES = {CLASS_INDEX[x] for x in [CLS_SINGLE_QUOTE, CLS_DOUBLE_QUOTE]}
-    INDENTATIONS = {CLASS_INDEX[x] for x in
-                    [CLS_SPACE_INC, CLS_TAB_INC, CLS_SPACE_DEC, CLS_TAB_DEC]}
+    INDENTATIONS_DEC = {CLASS_INDEX[x] for x in [CLS_SPACE_DEC, CLS_TAB_DEC]}
+    INDENTATIONS_INC = {CLASS_INDEX[x] for x in [CLS_SPACE_INC, CLS_TAB_INC]}
+    DEC_TO_INC = {
+        CLS_SPACE_DEC: CLS_SPACE_INC,
+        CLS_TAB_DEC: CLS_TAB_INC,
+    }
+    INDENTATIONS = INDENTATIONS_DEC | INDENTATIONS_INC
+    NEWLINE_RELATED = {CLASS_INDEX[x] for x in
+                       [CLS_SPACE_INC, CLS_TAB_INC, CLS_SPACE_DEC, CLS_TAB_DEC, CLS_NEWLINE]}
     NEWLINE_INDEX = CLASS_INDEX[CLS_NEWLINE]
 
     def __init__(self,
@@ -128,79 +135,65 @@ class CodeGenerator:
                        Should be ordered by position.
         :return: New source code file content.
         """
+        def split_by_set(to_split: tuple, s: set) -> Tuple[tuple, tuple]:
+            index = next((i for i, ch in enumerate(to_split) if ch in s), len(to_split))
+            return to_split[:index], to_split[index:]
+
         tokens = [""]
-        state = _State()
+        last_indentation = ""
         for vnode in vnodes:
             y_new = vnode.y
             y_old = getattr(vnode, "y_old", y_new)
-            y_changed = y_new != y_old
-            if not self._can_set_label(y_new, y_old, repr(vnode)):
+            if y_new == y_old:
+                # Nothing should be changed
+                tokens.append(vnode.value)
+                if y_new and self.NEWLINE_INDEX in y_new:
+                    last_indentation = vnode.value.splitlines()[-1]
+            elif not self._can_set_label(y_new, y_old, repr(vnode)):
                 # Check unexpected situations.
                 # If skip_errors is False `self.check()` raises an exception.
                 tokens.append(vnode.value)
-            elif state.line_removed and vnode.is_accumulated_indentation:
-                # Skip accumulated indentation for the line that was removed
-                pass
-            elif state.line_added:
-                assert y_new is None
-                # Add last accumulated indentation with respect to indent_delta value
-                if state.indent_delta < 0:
-                    tokens.append(state.accumulated_indentation[:state.indent_delta])
-                else:
-                    tokens.append(state.accumulated_indentation)
-                    tokens.extend(state.indent_increase_tokens)
-                tokens.append(vnode.value)
-            elif not (y_changed or vnode.is_accumulated_indentation or state.line_beginning):
-                # Nothing should be changed
-                tokens.append(vnode.value)
-            elif state.line_beginning and y_new is None:
-                # line beginning should be handled super carefully
-                if state.indent_delta == 0:
-                    # Nothing should be changed, just save accumulated_indentation
-                    if vnode.is_accumulated_indentation:
-                        state.accumulated_indentation = vnode.value
-                    tokens.append(vnode.value)
-                else:
-                    if vnode.is_accumulated_indentation:
-                        # We should modify existing indentation
-                        if state.indent_delta < 0:
-                            if len(vnode.value) < -state.indent_delta:
-                                self._handle_error("Indentation decrease excess.")
-                                state.reset_indentation()
-                            else:
-                                state.accumulated_indentation = vnode.value[:state.indent_delta]
-                                tokens.append(state.accumulated_indentation)
-                        else:
-                            state.accumulated_indentation = \
-                                vnode.value + "".join(state.indent_increase_tokens)
-                            tokens.append(state.accumulated_indentation)
-                    else:
-                        state.accumulated_indentation = ""
-                        if state.indent_delta > 0:
-                            # We should insert new indentation.
-                            # It happens if you increase indentation
-                            # for a line with zero indentation
-                            state.accumulated_indentation = "".join(state.indent_increase_tokens)
-                        # For indent_delta < 0
-                        # we already decrease an indentation on the previous step
-                        tokens.append(state.accumulated_indentation)
-                        tokens.append(vnode.value)
+                if y_new and self.NEWLINE_INDEX in y_new:
+                    last_indentation = vnode.value.splitlines()[-1]
             else:
-                # Indentation changes handling
-                assert not (y_old is None or y_new is None)
-                if y_changed and (self.INDENTATIONS & set(y_old) or
-                                  self.INDENTATIONS & set(y_new)):
-                    state.handle_indentation_changes(y_old, y_new)
-                    if self.NEWLINE_INDEX in y_new:
-                        tokens.append("\n" + " " * (y_old.count(CLASS_INDEX[CLS_SPACE_INC]) -
-                                                    y_new.count(CLASS_INDEX[CLS_SPACE_INC])))
-                        state.update(y_old, y_new)
-                        continue
-
-                # If we are here we need just to replace old value with a new one.
-                assert y_new is not None
-                tokens.append("".join(CLS_TO_STR[CLASSES[yi]] for yi in y_new))
-            state.update(y_old, y_new)
+                # Something was changed
+                assert not (y_old is None and y_new is None)
+                if self.NEWLINE_INDEX not in set(y_new):
+                    tokens.append("".join(CLS_TO_STR[CLASSES[yi]] for yi in y_new))
+                else:
+                    # assume that all indentation changes always in the end of vnode label
+                    y_new_no_indentation, new_indentation_change = \
+                        split_by_set(y_new, self.INDENTATIONS)
+                    _, old_indentation_change = split_by_set(y_old, self.INDENTATIONS)
+                    tokens.append("".join(CLS_TO_STR[CLASSES[yi]] for yi in y_new_no_indentation))
+                    if self.NEWLINE_INDEX not in set(y_old):
+                        cur_indentation = last_indentation
+                    else:
+                        cur_indentation = vnode.value.splitlines()[-1]
+                        # Revert indentation changes
+                        for y_old_i in old_indentation_change:
+                            if y_old_i in self.INDENTATIONS_DEC:
+                                cur_indentation += CLS_TO_STR[self.DEC_TO_INC[CLASSES[y_old_i]]]
+                            elif y_old_i in self.INDENTATIONS_INC:
+                                assert cur_indentation[-1] == CLS_TO_STR[CLASSES[y_old_i]]
+                                cur_indentation = cur_indentation[:-1]
+                            else:
+                                raise ValueError("Unexpected character in y_old: %s" %
+                                                 CLASS_REPRESENTATIONS[y_old_i])
+                    for y_new_i in new_indentation_change:
+                        if y_new_i in self.INDENTATIONS_DEC:
+                            assert cur_indentation[-1] == \
+                                    CLS_TO_STR[self.DEC_TO_INC[CLASSES[y_new_i]]], \
+                                    "Unexpected character in cur_indentation: `%s` != `%s`" % (
+                                        cur_indentation[-1], CLS_TO_STR[CLASSES[y_new_i]])
+                            cur_indentation = cur_indentation[:-1]
+                        elif y_new_i in self.INDENTATIONS_INC:
+                            cur_indentation += CLS_TO_STR[CLASSES[y_new_i]]
+                        else:
+                            raise ValueError("Unexpected character in y_new: %s" %
+                                             CLASS_REPRESENTATIONS[y_new_i])
+                    last_indentation = cur_indentation
+                    tokens.append(cur_indentation)
 
         return "".join(tokens)
 
@@ -259,54 +252,3 @@ class CodeGenerator:
         if not self.skip_errors:
             raise CodeGenerationError(msg)
         return False
-
-
-class _State:
-    def __init__(self) -> None:
-        self.indent_delta = 0
-        self.indent_increase_tokens = []
-        self.line_beginning = True
-        self.line_removed = False
-        self.line_added = False
-        self.accumulated_indentation = ""
-
-    def update(self, y_old: Sequence[int], y_new: Optional[Sequence[int]]) -> None:
-        self.line_beginning = (y_new is not None and
-                               CodeGenerator.NEWLINE_INDEX in y_new)
-        self.line_added = (y_new is not None and
-                           CodeGenerator.NEWLINE_INDEX in y_new and
-                           CodeGenerator.NEWLINE_INDEX not in y_old)
-        self.line_removed = (y_new is not None and
-                             CodeGenerator.NEWLINE_INDEX not in y_new and
-                             CodeGenerator.NEWLINE_INDEX in y_old)
-        if not self.line_beginning:
-            self.indent_delta = 0
-
-    def reset_indentation(self) -> None:
-        self.indent_delta = 0
-        self.accumulated_indentation = ""
-
-    def handle_indentation_changes(self, y_old: Sequence[int], y_new: Sequence[int]) -> None:
-        n_y_space_inc = y_old.count(CLASS_INDEX[CLS_SPACE_INC])
-        n_y_space_dec = y_old.count(CLASS_INDEX[CLS_SPACE_DEC])
-        n_y_new_space_inc = y_new.count(CLASS_INDEX[CLS_SPACE_INC])
-        n_y_new_space_dec = y_new.count(CLASS_INDEX[CLS_SPACE_DEC])
-        indent_delta_space_change = n_y_new_space_inc - n_y_space_inc
-        indent_delta_space_change -= n_y_new_space_dec - n_y_space_dec
-
-        n_y_tab_inc = y_old.count(CLASS_INDEX[CLS_TAB_INC])
-        n_y_tab_dec = y_old.count(CLASS_INDEX[CLS_TAB_DEC])
-        n_y_new_tab_inc = y_new.count(CLASS_INDEX[CLS_TAB_INC])
-        n_y_new_tab_dec = y_new.count(CLASS_INDEX[CLS_TAB_DEC])
-        indent_delta_tab_change = n_y_new_tab_inc - n_y_tab_inc
-        indent_delta_tab_change -= n_y_new_tab_dec - n_y_tab_dec
-
-        indent_delta_change = indent_delta_space_change + indent_delta_tab_change
-
-        self.indent_delta += indent_delta_change
-        if indent_delta_change > 0:
-            self.indent_increase_tokens += (
-                [CLS_TO_STR[CLS_SPACE_INC]] * indent_delta_space_change +
-                [CLS_TO_STR[CLS_TAB_INC]] * indent_delta_tab_change)
-        else:
-            self.indent_increase_tokens = self.indent_increase_tokens[:self.indent_delta]

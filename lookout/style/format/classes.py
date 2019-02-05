@@ -19,7 +19,7 @@ EMPTY_CLS = frozenset([CLASS_INDEX[CLS_TAB_DEC], CLASS_INDEX[CLS_SPACE_DEC],
                        CLASS_INDEX[CLS_NOOP]])
 CLS_TO_STR = {
     CLS_DOUBLE_QUOTE: '"',
-    CLS_NEWLINE: "\n",
+    CLS_NEWLINE: "\n",  # FIXME(zurk) Not usable for \r\n endings
     CLS_NOOP: "",
     CLS_SINGLE_QUOTE: "'",
     CLS_SPACE: " ",
