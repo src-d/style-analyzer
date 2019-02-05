@@ -20,7 +20,7 @@ from lookout.style.format.analyzer import FormatAnalyzer
 from lookout.style.format.code_generator import CodeGenerator
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.tests.test_analyzer_integration import TestAnalyzer
-from lookout.style.format.utils import flatten_dict, merge_dicts
+from lookout.style.format.utils import merge_dicts
 from lookout.style.format.virtual_node import VirtualNode
 
 EMPTY = "␣"
@@ -218,28 +218,25 @@ def calc_metrics(bad_style_code: str, correct_style_code: str, fe: Optional[Feat
     :param url: Repository url if applicable. Useful for more informative warning messages.
     :param commit: Commit hash if applicable. Useful for more informative warning messages.
 
-    :return: A dictionary with losses and predicted code for "global" and "local" indentation \
-             strategies.
+    :return: A dictionary with losses and predicted code.
     """
     # TODO (zurk): make optional arguments non-optional.
     if (vnodes is None) ^ (fe is None):
         raise ValueError("vnodes and fe should be both None or not None.")
-    losses = {}
-    for indentation in ("global", "local"):
-        if fe is not None:
-            predicted_code = CodeGenerator(fe, skip_errors=True, url=url, commit=commit).generate(
-                vnodes, indentation)
-        else:
-            predicted_code = bad_style_code
-        misdetection, undetected, detected_wrong_fix, detected_correct_fix = \
-            calc_aligned_metrics(*align3(bad_style_code, correct_style_code, predicted_code))
-        losses[indentation] = {
-            "misdetection": misdetection,
-            "undetected": undetected,
-            "detected_wrong_fix": detected_wrong_fix,
-            "detected_correct_fix": detected_correct_fix,
-            "predicted_file": predicted_code,
-        }
+    if fe is not None:
+        predicted_code = CodeGenerator(fe, skip_errors=True, url=url, commit=commit).generate(
+            vnodes)
+    else:
+        predicted_code = bad_style_code
+    misdetection, undetected, detected_wrong_fix, detected_correct_fix = \
+        calc_aligned_metrics(*align3(bad_style_code, correct_style_code, predicted_code))
+    losses = {
+        "misdetection": misdetection,
+        "undetected": undetected,
+        "detected_wrong_fix": detected_wrong_fix,
+        "detected_correct_fix": detected_correct_fix,
+        "predicted_file": predicted_code,
+    }
     return losses
 
 
@@ -249,10 +246,9 @@ class SmokeEvalFormatAnalyzer(FormatAnalyzer):
     """
 
     REPORT_COLNAMES = [
-        "repo", "filepath", "style", "global_misdetection", "global_undetected",
-        "global_detected_wrong_fix", "global_detected_correct_fix", "local_misdetection",
-        "local_undetected", "local_detected_wrong_fix", "local_detected_correct_fix",
-        "bad_style_file", "correct_style_file", "local_predicted_file", "global_predicted_file",
+        "repo", "filepath", "style", "misdetection",
+        "undetected", "detected_wrong_fix", "detected_correct_fix",
+        "bad_style_file", "correct_style_file", "predicted_file",
     ]
 
     def _dump_report(self, report: List[dict], outputpath: Path):
@@ -261,9 +257,7 @@ class SmokeEvalFormatAnalyzer(FormatAnalyzer):
         with open(str(outputpath / "report.csv"), "a") as f:
             writer = csv.DictWriter(f, fieldnames=self.REPORT_COLNAMES)
             for report_line in report:
-                report_line = flatten_dict(report_line)
-                for code_file in ["bad_style_file", "correct_style_file",
-                                  "global_predicted_file", "local_predicted_file"]:
+                for code_file in ["bad_style_file", "correct_style_file", "predicted_file"]:
                     code = report_line[code_file]
                     report_line[code_file] = "_".join((
                         report_line["repo"], report_line["style"], code_file,
