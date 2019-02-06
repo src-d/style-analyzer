@@ -3,7 +3,7 @@
 Install style-analyzer with `pip`:
 
 ```
-pip3 install style-analyzer
+pip3 install lookout-style
 ```
 
 Create a fork of the GitHub repository you wish to run analysis against.
