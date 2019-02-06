@@ -1,51 +1,54 @@
+import pandas
 import random
 
+from lookout.style.typos.utils import COLUMNS
 
-def rand_bool(true_prob):
+
+def rand_bool(true_prob: float):
     """
     Returns True with probability true_prob
     """
     return random.uniform(0, 1) < true_prob
 
 
-def detection_score(typos, suggestions):
+def detection_score(data: pandas.DataFrame, suggestions: dict) -> dict:
     """
     Calculates score of solution for typo detection problem.
 
-    typos: DataFrame which indexed by "id" and has columns "typo", "corrupted".
+    data: DataFrame which indexed by "id" and has columns "typo", "corrupted".
 
     suggestions: {id : [(candidate, correct_prob)]}, candidates are sorted
                  by correct_prob in a descending order .
     """
     scores = {"tp": 0, "fp": 0, "tn": 0, "fn": 0}
-    for i in typos.index:
-        if typos.loc[i, "corrupted"]:
-            if suggestions[i][0][0] != typos.loc[i, "typo"]:
+    for i in data.index:
+        if data.loc[i, COLUMNS["TOKEN"]] != data.loc[i, COLUMNS["CORRECT_TOKEN"]]:
+            if suggestions[i][0][0] != data.loc[i, COLUMNS["TOKEN"]]:
                 scores["tp"] += 1
             else:
                 scores["fn"] += 1
         else:
-            if suggestions[i][0][0] == typos.loc[i, "typo"]:
+            if suggestions[i][0][0] == data.loc[i, COLUMNS["TOKEN"]]:
                 scores["tn"] += 1
             else:
                 scores["fp"] += 1
     return scores
 
 
-def first_k_set(corrections, k):
+def first_k_set(corrections: list, k: int) -> set:
     first_k = set()
     for correction, prob in corrections[:k]:
         first_k.add(correction)
     return first_k
 
 
-def score_at_k(typos, suggestions, k):
+def score_at_k(data, suggestions, k):
     """
     Calculates score of solution for typo correction problem.
     The suggestions for typo correction are considered correct
     if there is a right one among the first k.
 
-    typos: DataFrame which is indexed by "id" and
+    data: DataFrame which is indexed by "id" and
            has columns "typo", "corrupted".
 
     suggestions: {id : [(candidate, correct_prob)]},
@@ -53,34 +56,14 @@ def score_at_k(typos, suggestions, k):
                  sorted by correct_prob in a descending order.
     """
     scores = {"tp": 0, "fp": 0, "tn": 0, "fn": 0}
-    for id in typos.index:
-        if typos.loc[id, "corrupted"]:
-            if typos.loc[id, "identifier"] in first_k_set(suggestions[id], k):
+    for i in data.index:
+        if data.loc[i, COLUMNS["TOKEN"]] != data.loc[i, COLUMNS["CORRECT_TOKEN"]]:
+            if data.loc[i, COLUMNS["CORRECT_TOKEN"]] in first_k_set(suggestions[i], k):
                 scores["tp"] += 1
             else:
                 scores["fn"] += 1
         else:
-            if typos.loc[id, "identifier"] in first_k_set(suggestions[id], k):
-                scores["tn"] += 1
-            else:
-                scores["fp"] += 1
-    return scores
-
-
-def correction_score(typos, corrections):
-    """
-    Equal to score_at_k(typos, corrections, 1).
-    """
-    assert typos.shape[0] == corrections.shape[0]
-    scores = {"tp": 0, "fp": 0, "tn": 0, "fn": 0}
-    for id in typos.index:
-        if typos.loc[id, "corrupted"]:
-            if corrections[id] == typos.loc[id, "identifier"]:
-                scores["tp"] += 1
-            else:
-                scores["fn"] += 1
-        else:
-            if corrections[id] == typos.loc[id, "identifier"]:
+            if data.loc[i, COLUMNS["CORRECT_TOKEN"]] in first_k_set(suggestions[i], k):
                 scores["tn"] += 1
             else:
                 scores["fp"] += 1
@@ -111,12 +94,12 @@ def print_score_metrics(score, file=None):
     print("F1:", f1(score), file=file)
 
 
-def print_suggestion_results(typos, suggestions, file=None):
+def print_suggestion_results(data, suggestions, file=None):
     print("DETECTION SCORE\n", file=file)
-    print_score_metrics(detection_score(typos, suggestions), file=file)
+    print_score_metrics(detection_score(data, suggestions), file=file)
     print("\nFIRST SUGGESTION SCORE\n", file=file)
-    print_score_metrics(score_at_k(typos, suggestions, 1), file=file)
+    print_score_metrics(score_at_k(data, suggestions, 1), file=file)
     print("\nFIRST TWO SUGGESTIONS SCORE\n", file=file)
-    print_score_metrics(score_at_k(typos, suggestions, 2), file=file)
+    print_score_metrics(score_at_k(data, suggestions, 2), file=file)
     print("\nFIRST THREE SUGGESTIONS SCORE\n", file=file)
-    print_score_metrics(score_at_k(typos, suggestions, 3), file=file)
+    print_score_metrics(score_at_k(data, suggestions, 3), file=file)

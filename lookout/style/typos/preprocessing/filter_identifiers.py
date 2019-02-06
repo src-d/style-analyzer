@@ -1,8 +1,12 @@
+from typing import Set
+
 import numpy
 import pandas
 
+from lookout.style.typos.utils import COLUMNS
 
-def check_split(split, tokens_set):
+
+def check_split(split: str, tokens_set: Set[str]):
     if type(split) != str:
         return False
 
@@ -12,11 +16,11 @@ def check_split(split, tokens_set):
     return True
 
 
-def filter_splitted_identifiers(data, tokens_set):
+def filter_splitted_identifiers(data: pandas.DataFrame, tokens_set: Set[str]) -> pandas.DataFrame:
     """
-    Leave rows in a dataframe whose identifiers' tokens are all in tokens_set
+    Leave rows in a dataframe whose identifiers' tokens are all in tokens_set.
     """
-    token_split = list(data.token_split)
+    token_split = list(data[COLUMNS["SPLIT"]])
     filter_array = list(map(lambda x: check_split(x, tokens_set), token_split))
     return data[filter_array]
 

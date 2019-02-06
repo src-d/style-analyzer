@@ -8,16 +8,19 @@ from gensim.models.fasttext import FastText
 import numpy
 import pandas
 
-AFTER_COLUMN = "after"
-BEFORE_COLUMN = "before"
-CANDIDATE_COLUMN = "candidate"
-FEATURES_COLUMN = "features"
-CORRECT_TOKEN_COLUMN = "identifier"
-ID_COLUMN = "id"
-PROBABILITY_COLUMN = "proba"
-SPLIT_COLUMN = "token_split"
-SUGGESTIONS_COLUMN = "suggestions"
-TYPO_COLUMN = "typo"
+COLUMNS = {
+    "TOKEN": "token",
+    "CORRECT_TOKEN": "correct_token",
+    "SPLIT": "token_split",
+    "CORRECT_SPLIT": "correct_token_split",
+    "AFTER": "after",
+    "BEFORE": "before",
+    "ID": "id",
+    "CANDIDATE": "candidate",
+    "FEATURES": "features",
+    "PROBABILITY": "proba",
+    "SUGGESTIONS": "suggestions"
+  }
 
 
 def extract_embeddings_from_fasttext(fasttext: FastText, tokens: Iterable[str]) -> numpy.ndarray:

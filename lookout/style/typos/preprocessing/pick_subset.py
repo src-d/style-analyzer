@@ -1,7 +1,7 @@
 import numpy
 import pandas
 
-from lookout.style.typos.research.dev_utils import rand_bool
+from lookout.style.typos.preprocessing.dev_utils import rand_bool
 
 
 def pick_subset_of_df(data: pandas.DataFrame, portion: float, weight_column: str) -> pandas.DataFrame:

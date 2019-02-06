@@ -7,7 +7,7 @@ import numpy
 import pandas
 import xgboost as xgb
 
-from lookout.style.typos.utils import CANDIDATE_COLUMN, ID_COLUMN, rank_candidates
+from lookout.style.typos.utils import COLUMNS, rank_candidates
 
 
 class CandidatesRanker(Model):
@@ -117,7 +117,7 @@ class CandidatesRanker(Model):
     def _create_labels(identifiers: pandas.Series, candidates: pandas.DataFrame) -> numpy.ndarray:
         labels = []
         for _, row in candidates.iterrows():
-            labels.append(int(row[CANDIDATE_COLUMN] == identifiers[row[ID_COLUMN]]))
+            labels.append(int(row[COLUMNS["CANDIDATE"]] == identifiers[row[COLUMNS["ID"]]]))
         return numpy.array(labels)
 
     def _generate_tree(self) -> dict:
