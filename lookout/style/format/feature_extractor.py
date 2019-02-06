@@ -16,7 +16,7 @@ from sklearn.feature_selection import SelectKBest, VarianceThreshold
 from lookout.style.format.classes import (
     CLASS_INDEX, CLASS_PRINTABLES, CLASS_REPRESENTATIONS, CLS_DOUBLE_QUOTE, CLS_NEWLINE, CLS_NOOP,
     CLS_SINGLE_QUOTE, CLS_SPACE, CLS_SPACE_DEC, CLS_SPACE_INC, CLS_TAB, CLS_TAB_DEC, CLS_TAB_INC,
-    INDEX_CLS_TO_STR)
+    INDEX_CLS_TO_STR, QUOTES_INDEX)
 from lookout.style.format.features import (  # noqa: F401
     Feature, FEATURE_CLASSES, FeatureGroup, FeatureId, FeatureLayout, Layout,
     MultipleValuesFeature, MutableFeatureLayout, MutableLayout)
@@ -570,7 +570,9 @@ class FeatureExtractor:
         """
         start, end, value, current_class_seq = None, None, "", []
         for vnode in vnodes:
-            if vnode.y is None and not vnode.is_accumulated_indentation:
+            if vnode.y is None and not vnode.is_accumulated_indentation or (
+                vnode.y is not None and vnode.y[0] in QUOTES_INDEX
+            ):
                 if current_class_seq:
                     yield VirtualNode(value=value, start=start, end=end,
                                       y=tuple(current_class_seq), path=path)

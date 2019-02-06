@@ -10,7 +10,7 @@ import numpy
 
 from lookout.style.format.analyzer import FormatAnalyzer
 from lookout.style.format.classes import (
-    CLASS_INDEX, CLS_DOUBLE_QUOTE, CLS_NOOP, CLS_SINGLE_QUOTE, CLS_SPACE)
+    CLASS_INDEX, CLS_DOUBLE_QUOTE, CLS_NOOP, CLS_SINGLE_QUOTE)
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.postprocess import filter_uast_breaking_preds
 from lookout.style.format.tests.test_analyzer import FakeDataService
@@ -81,12 +81,12 @@ class PostprocessingTests(unittest.TestCase):
 
     def test_bad_and_good_quotes(self):
         self.edit_and_test("""var a = '"0"'; var c = "0";""",
-                           {3: (CLS_SPACE, CLS_DOUBLE_QUOTE), 4: (CLS_DOUBLE_QUOTE,),
-                            8: (CLS_SPACE, CLS_SINGLE_QUOTE), 9: (CLS_SINGLE_QUOTE,)},
-                           quote_indices=(3, 8), bad_indices=frozenset((3, 4)))
+                           {4: (CLS_DOUBLE_QUOTE), 5: (CLS_DOUBLE_QUOTE,),
+                            10: (CLS_SINGLE_QUOTE), 11: (CLS_SINGLE_QUOTE,)},
+                           quote_indices=(4, 10), bad_indices=frozenset((4, 5)))
 
     def test_lonely_quote(self):
-        self.edit_and_test("var a = 0; var b = 'c';", {2: (CLS_SINGLE_QUOTE)}, quote_indices=(8,))
+        self.edit_and_test("var a = 0; var b = 'c';", {2: (CLS_SINGLE_QUOTE)}, quote_indices=(9,))
 
 
 if __name__ == "__main__":

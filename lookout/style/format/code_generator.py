@@ -5,8 +5,8 @@ from typing import Iterable, List, Optional, Sequence, Tuple
 from numpy import ndarray
 
 from lookout.style.format.classes import (
-    CLASS_INDEX, CLASS_REPRESENTATIONS, CLASSES, CLS_DOUBLE_QUOTE, CLS_NEWLINE, CLS_NOOP,
-    CLS_SINGLE_QUOTE, CLS_SPACE_DEC, CLS_SPACE_INC, CLS_TAB_DEC, CLS_TAB_INC, CLS_TO_STR)
+    CLASS_INDEX, CLASS_REPRESENTATIONS, CLASSES, CLS_NEWLINE, CLS_NOOP, CLS_SPACE_DEC,
+    CLS_SPACE_INC, CLS_TAB_DEC, CLS_TAB_INC, CLS_TO_STR, QUOTES_INDEX)
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.rules import Rule, Rules
 from lookout.style.format.virtual_node import VirtualNode
@@ -28,7 +28,6 @@ class CodeGenerator:
     """
 
     log = logging.getLogger("FormatAnalyzer")
-    QUOTES = {CLASS_INDEX[x] for x in [CLS_SINGLE_QUOTE, CLS_DOUBLE_QUOTE]}
     INDENTATIONS_DEC = {CLASS_INDEX[x] for x in [CLS_SPACE_DEC, CLS_TAB_DEC]}
     INDENTATIONS_INC = {CLASS_INDEX[x] for x in [CLS_SPACE_INC, CLS_TAB_INC]}
     DEC_TO_INC = {
@@ -76,10 +75,6 @@ class CodeGenerator:
         if not line_vnodes:
             return ""
 
-        # Quotes are a huge problem here because you can have "⏎␣⁺␣⁺ and it can be changed to
-        # '⏎⏎␣⁺␣⁺␣⁺␣⁺. So you should handle them carefully.
-        # I take care only about a second part: newlines and indentation.
-        # TODO (zurk): handle quotes in the end of the line.
         newline_index = CLASS_INDEX[CLS_NEWLINE]
         first_y = line_vnodes[0].y
 
@@ -161,7 +156,7 @@ class CodeGenerator:
                 if self.NEWLINE_INDEX not in set(y_new):
                     tokens.append("".join(CLS_TO_STR[CLASSES[yi]] for yi in y_new))
                 else:
-                    # assume that all indentation changes always in the end of vnode label
+                    # assume that all indentation changes are at the end of a vnode label
                     y_new_no_indentation, new_indentation_change = \
                         split_by_set(y_new, self.INDENTATIONS)
                     _, old_indentation_change = split_by_set(y_old, self.INDENTATIONS)
@@ -182,10 +177,15 @@ class CodeGenerator:
                                                  CLASS_REPRESENTATIONS[y_old_i])
                     for y_new_i in new_indentation_change:
                         if y_new_i in self.INDENTATIONS_DEC:
+                            if len(cur_indentation) == 0:
+                                self.log.warning(
+                                    "There is no indentations chanarters left to decrease for "
+                                    "vnode %s and y_old %s", repr(vnode), str(y_old))
+                                continue
                             assert cur_indentation[-1] == \
-                                    CLS_TO_STR[self.DEC_TO_INC[CLASSES[y_new_i]]], \
-                                    "Unexpected character in cur_indentation: `%s` != `%s`" % (
-                                        cur_indentation[-1], CLS_TO_STR[CLASSES[y_new_i]])
+                                CLS_TO_STR[self.DEC_TO_INC[CLASSES[y_new_i]]], \
+                                "Unexpected character in cur_indentation: `%s` != `%s`" % (
+                                    cur_indentation[-1], CLS_TO_STR[CLASSES[y_new_i]])
                             cur_indentation = cur_indentation[:-1]
                         elif y_new_i in self.INDENTATIONS_INC:
                             cur_indentation += CLS_TO_STR[CLASSES[y_new_i]]
@@ -210,11 +210,11 @@ class CodeGenerator:
                 y_new[0] == CLASS_INDEX[CLS_NOOP] or
                 y_old[0] == CLASS_INDEX[CLS_NOOP]):
             return True
-        if len(set(y_old) & self.QUOTES) > 0 and len(set(y_new) & self.QUOTES) == 0:
+        if len(set(y_old) & QUOTES_INDEX) > 0 and len(set(y_new) & QUOTES_INDEX) == 0:
             y_new_repr = "".join([CLASS_REPRESENTATIONS[y] for y in y_new])
             return self._handle_error("Quotes cannot be changed to non-quote tokens.\n"
                                       "vnode: %s, y_new: %s" % (node_repr, y_new_repr))
-        if len(set(y_old) & self.QUOTES) == 0 and len(set(y_new) & self.QUOTES) > 0:
+        if len(set(y_old) & QUOTES_INDEX) == 0 and len(set(y_new) & QUOTES_INDEX) > 0:
             y_new_repr = "".join([CLASS_REPRESENTATIONS[y] for y in y_new])
             return self._handle_error("Non-Quote tokens cannot be changed to quote tokens.\n"
                                       "vnode: %s, y_new: %s" % (node_repr, y_new_repr))
