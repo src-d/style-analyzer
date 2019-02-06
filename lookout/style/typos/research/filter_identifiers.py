@@ -12,19 +12,17 @@ def check_split(split, tokens_set):
     return True
 
 
-def filter_splitted_identifiers(id_info, tokens_set, out_file):
+def filter_splitted_identifiers(data, tokens_set):
     """
     Leave rows in a dataframe whose identifiers' tokens are all in tokens_set
     """
-    token_split = list(id_info.token_split)
+    token_split = list(data.token_split)
     filter_array = list(map(lambda x: check_split(x, tokens_set), token_split))
-
-    data = id_info.copy()
-    data = data[filter_array]
-    data.to_pickle(out_file)
+    return data[filter_array]
 
 
 def filter_identifiers(args):
-    id_info = pandas.read_pickle(args.id_file)
+    data = pandas.read_pickle(args.id_file)
     tokens_set = set(numpy.load(args.vocabulary_file))
-    filter_splitted_identifiers(id_info, tokens_set, args.out_file)
+    filtered_data = filter_splitted_identifiers(data, tokens_set)
+    filtered_data.to_csv(args.out_file)
