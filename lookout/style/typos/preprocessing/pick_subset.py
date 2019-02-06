@@ -4,7 +4,7 @@ import pandas
 from lookout.style.typos.preprocessing.dev_utils import rand_bool
 
 
-def pick_subset_of_df(data: pandas.DataFrame, portion: float, weight_column: str) -> pandas.DataFrame:
+def pick_subset_of_df(data: pandas.DataFrame, portion: float, weight_column: str = None) -> pandas.DataFrame:
     pick_indices = [rand_bool(portion) for _ in range(len(data))]
     if weight_column in data.columns:
         weights = numpy.array(weight_column)
