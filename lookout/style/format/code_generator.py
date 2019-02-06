@@ -76,7 +76,7 @@ class CodeGenerator:
         newline_index = CLASS_INDEX[CLS_NEWLINE]
         first_y = line_vnodes[0].y
 
-        generated = self.generate(line_vnodes, "local")
+        generated = self.generate(line_vnodes)
         if newline_index not in first_y:
             return generated
 
@@ -120,19 +120,16 @@ class CodeGenerator:
             result.append(vnode)
         return result
 
-    def generate(self, vnodes: Sequence[VirtualNode], indentation: str) -> str:
+    def generate(self, vnodes: Sequence[VirtualNode]) -> str:
         """
         Generate new source code from format model suggestions.
 
         :param vnodes: Sequence of all the `VirtualNode`-s corresponding to the input code file. \
                        Should be ordered by position.
-        :param indentation: Can be either "local" or "global"; in "local" mode \
-                            indentation changes do not propagate to the following lines.
         :return: New source code file content.
         """
-        assert indentation in ("local", "global")
         tokens = [""]
-        state = _State(change_locally=indentation == "local")
+        state = _State()
         for vnode in vnodes:
             y_new = vnode.y
             y_old = getattr(vnode, "y_old", y_new)
@@ -265,8 +262,7 @@ class CodeGenerator:
 
 
 class _State:
-    def __init__(self, change_locally: bool) -> None:
-        self.change_locally = change_locally
+    def __init__(self) -> None:
         self.indent_delta = 0
         self.indent_increase_tokens = []
         self.line_beginning = True
@@ -283,7 +279,7 @@ class _State:
         self.line_removed = (y_new is not None and
                              CodeGenerator.NEWLINE_INDEX not in y_new and
                              CodeGenerator.NEWLINE_INDEX in y_old)
-        if self.change_locally and not self.line_beginning:
+        if not self.line_beginning:
             self.indent_delta = 0
 
     def reset_indentation(self) -> None:

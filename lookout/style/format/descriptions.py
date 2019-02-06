@@ -267,7 +267,7 @@ def get_change_description(vnode: VirtualNode, feature_extractor: FeatureExtract
     new_label = class_representations[feature_extractor.class_sequences_to_labels[vnode.y]]
     if vnode.y[0] == CLASS_INDEX[CLS_NOOP]:
         if CLASS_INDEX[CLS_NEWLINE] in vnode.y_old:
-            return "Redundant line break. Please concatenate with previous line."
+            return "Redundant line break. Please concatenate with the previous line."
         else:
             return "%s at column %d should be removed." % (old_label, column)
     if vnode.y_old[0] == CLASS_INDEX[CLS_NOOP]:
