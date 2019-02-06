@@ -227,23 +227,15 @@ def compute_metrics(changes_count: int, predictions_count: int, true_positive: i
     :param changes_count: Overall number of cases.
     :param predictions_count: Total number of predictions made by the model.
     :param true_positive: Number of positive cases predicted as positive.
-    :return: Precision, recall and F1-score metrics.
+    :return: Prediction rate and precision metrics.
     """
     false_positive = predictions_count - true_positive
-    false_negative = changes_count - predictions_count
+    predr = predictions_count / changes_count
     try:
         precision = true_positive / (true_positive + false_positive)
     except ZeroDivisionError:
         precision = 1.
-    try:
-        recall = true_positive / (true_positive + false_negative)
-    except ZeroDivisionError:
-        recall = 0.
-    try:
-        f1_score = 2 * precision * recall / (precision + recall)
-    except ZeroDivisionError:
-        f1_score = 0.
-    return precision, recall, f1_score
+    return predr, precision
 
 
 def plot_curve(repositories: Iterable[str], recalls: Mapping[str, numpy.ndarray],
@@ -312,7 +304,7 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
     log = logging.getLogger("quality_report_noisy")
     repo_names = []
     last_accepted_rule = {}
-    precisions, recalls, accepted_rules = (defaultdict(list) for _ in range(3))
+    predrs, precisions, accepted_rules = (defaultdict(list) for _ in range(3))
     n_mistakes, prec_max_rec, confidence_threshold_exp, max_rec, \
         n_rules, n_rules_filtered = ({} for _ in range(6))
     if repos is None:
@@ -375,26 +367,25 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
                                          if any(r[0] == m.rule for r in rules_id[:i + 1])}
                     style_fixes = get_style_fixes(filtered_mispreds, vnodes_y_true,
                                                   true_files, noisy_files, feature_extractor)
-                    precision, recall, f1_score = compute_metrics(
-                        changes_count=changes_count,
-                        predictions_count=len(filtered_mispreds),
-                        true_positive=len(style_fixes))
+                    predr, precision = compute_metrics(changes_count=changes_count,
+                                                       predictions_count=len(filtered_mispreds),
+                                                       true_positive=len(style_fixes))
+                    predrs[repo].append(round(predr, 3))
                     precisions[repo].append(round(precision, 3))
-                    recalls[repo].append(round(recall, 3))
                 log.info([m.node.path for m in style_fixes])
-                print("recall x:", recalls[repo])
+                print("prediction rate x:", predrs[repo])
                 print("precision y:", precisions[repo])
 
                 # compute some stats and quality metrics for the model's evaluation
                 repo_names.append(repo)
                 n_mistakes[repo] = len(true_files)
-                prec_max_rec[repo] = precisions[repo][-1]
-                max_rec[repo] = max(recalls[repo])
+                prec_max_predr[repo] = precisions[repo][-1]
+                max_predr[repo] = max(predrs[repo])
                 n_rules_filtered[repo] = len(rules_id)
-                # compute the confidence and recall limit for the given precision threshold
-                for i, (prec, rec) in enumerate(zip(precisions[repo], recalls[repo])):
+                # compute the confidence and prediction rate limit for the given precision threshold
+                for i, (predr, prec) in enumerate(zip(predrs[repo], precisions[repo])):
                     if prec >= precision_threshold:
-                        accepted_rules[repo].append((i, rules_id[i][1], rec))
+                        accepted_rules[repo].append((i, rules_id[i][1], predr))
                 last_accepted_rule[repo] = min(accepted_rules[repo], key=itemgetter(1))
                 confidence_threshold_exp[repo] = (last_accepted_rule[repo][0],
                                                   last_accepted_rule[repo][1])
@@ -410,9 +401,9 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
                 break
             limit_conf_id[repo] = rule[0]
 
-    # compile the precision-recall curves
+    # compile the curves showing the evolutions of the prediction rate and precision
     path_to_figure = os.path.join(dir_output, "pr_curves.png")
-    plot_curve(repo_names, recalls, precisions, precision_threshold, limit_conf_id, path_to_figure)
+    plot_curve(repo_names, predrs, precisions, precision_threshold, limit_conf_id, path_to_figure)
 
     # compile the markdown template for the report through jinja2
     loader = jinja2.FileSystemLoader((os.path.join(os.path.dirname(__file__), "..", "templates"),),
@@ -425,9 +416,9 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
     env.globals.update(range=range)
     template = loader.load(env, "noisy_quality_report.md.jinja2")
     report = template.render(repos=repo_names, n_mistakes=n_mistakes,
-                             prec_max_rec=prec_max_rec,
+                             prec_max_predr=prec_max_predr,
                              confidence_threshold_exp=round(max_confidence_threshold_exp[1], 2),
-                             max_rec=max_rec, confidence_threshold=confidence_threshold,
+                             max_predr=max_predr, confidence_threshold=confidence_threshold,
                              support_threshold=support_threshold,
                              n_rules=n_rules, n_rules_filtered=n_rules_filtered,
                              path_to_figure=path_to_figure)
