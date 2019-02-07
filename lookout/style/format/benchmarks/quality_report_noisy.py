@@ -238,15 +238,14 @@ def compute_metrics(changes_count: int, predictions_count: int, true_positive: i
     return predr, precision
 
 
-def plot_curve(repositories: Iterable[str], recalls: Mapping[str, numpy.ndarray],
+def plot_curve(repositories: Iterable[str], predrs: Mapping[str, numpy.ndarray],
                precisions: Mapping[str, numpy.ndarray], precision_threshold: float,
-               limit_conf_id: Mapping[str, int],
-               path_to_figure: str) -> None:
+               limit_conf_id: Mapping[str, int], path_to_figure: str) -> None:
     """
     Plot y versus x as lines and markers using matplotlib.
 
     :param repositories: List of the repository names we plot the precision-recall curve.
-    :param recalls: Dict of 1-D numpy array containing the x coordinates.
+    :param predrs: Dict of 1-D numpy array containing the x coordinates.
     :param precisions: Dict of 1-D numpy array containing the y coordinates.
     :param precision_threshold: Precision threshold tolerated by the model. \
            Limit drawn as a red horizontal line on the figure.
@@ -260,26 +259,27 @@ def plot_curve(repositories: Iterable[str], recalls: Mapping[str, numpy.ndarray]
         import matplotlib.pyplot as plt
     except ImportError:
         sys.exit("Matplotlib is required to plot the Precision/Recall curve")
-    plt.figure(figsize=(15, 10))
-    ax = plt.subplot(111)
+    f, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 12), sharex=True, tight_layout=True)
+    f.add_subplot(111, frameon=False)
+    plt.tick_params(labelcolor='none', top=False, bottom=False, left=False, right=False)
+    plt.xlabel("Normalized number of rules")
+    plt.set_title("Prediction rate and precision's evolutions on the artificial noisy dataset",
+                  fontsize=17)
     for repo in repositories:
         x0 = limit_conf_id[repo]
-        ax.plot(numpy.asarray(recalls[repo][x0:]),
-                numpy.asarray(precisions[repo][x0:]),
-                marker="x", linestyle="--", color="lightgrey")
-        ax.plot(numpy.asarray(recalls[repo][:x0 + 1]),
-                numpy.asarray(precisions[repo][:x0 + 1]),
-                marker="x", linestyle="--", label=repo)
-    plt.axhline(precision_threshold, color="r",
-                label="input precision threshold: %.2f" % (precision_threshold))
-    handles, labels = ax.get_legend_handles_labels()
-    ax.legend(handles, labels, loc="best", fontsize=17)
-    ax.set_title("Precision-recall curves on the artificial noisy dataset", fontsize=17)
-    ax.set_ylabel("Precision", fontsize=17, labelpad=15)
-    ax.set_xlabel("Recall", fontsize=17, labelpad=15)
-    ax.spines["right"].set_visible(False)
-    ax.spines["top"].set_visible(False)
-    plt.savefig(path_to_figure)
+        ax1.plot(numpy.asarray(rules[repo]), numpy.asarray(predrs[repo]))
+        ax1.set_ylabel("PredR")
+        ax1.spines["right"].set_visible(False)
+        ax1.spines["top"].set_visible(False)
+        ax2.plot(numpy.asarray(rules[repo]), numpy.asarray(predictions[repo]))
+        ax2.set_ylabel("precision")
+        ax2.spines["right"].set_visible(False)
+        ax2.spines["top"].set_visible(False)
+    f.add_subplot(212, frameon=False)
+    plt.tick_params(labelcolor='none', top='off', bottom='off', left='off', right='off')
+    handles, labels = plt.get_legend_handles_labels()
+    plt.legend(handles, labels, loc="best", fontsize=17)
+    plt.savefig(path_to_figure, pad_inches=0, bbox_inches="tight")
 
 
 def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float,
@@ -305,7 +305,7 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
     repo_names = []
     last_accepted_rule = {}
     predrs, precisions, accepted_rules = (defaultdict(list) for _ in range(3))
-    n_mistakes, prec_max_rec, confidence_threshold_exp, max_rec, \
+    n_mistakes, prec_max_predr, confidence_threshold_exp, max_predr, \
         n_rules, n_rules_filtered = ({} for _ in range(6))
     if repos is None:
         repos = REPOSITORIES
@@ -382,7 +382,7 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
                 prec_max_predr[repo] = precisions[repo][-1]
                 max_predr[repo] = max(predrs[repo])
                 n_rules_filtered[repo] = len(rules_id)
-                # compute the confidence and prediction rate limit for the given precision threshold
+                # compute the confidence and prediction rate limit for a given precision threshold
                 for i, (predr, prec) in enumerate(zip(predrs[repo], precisions[repo])):
                     if prec >= precision_threshold:
                         accepted_rules[repo].append((i, rules_id[i][1], predr))
