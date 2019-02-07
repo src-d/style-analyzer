@@ -261,33 +261,32 @@ def plot_curve(repositories: Iterable[str], predrs: Mapping[str, numpy.ndarray],
         sys.exit("Matplotlib is required to plot the Precision/Recall curve")
     f, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 12), sharex=True, tight_layout=True)
     f.add_subplot(111, frameon=False)
-    plt.tick_params(labelcolor='none', top=False, bottom=False, left=False, right=False)
+    plt.tick_params(labelcolor="none", top=False, bottom=False, left=False, right=False)
     plt.xlabel("Normalized number of rules")
-    plt.set_title("Prediction rate and precision's evolutions on the artificial noisy dataset",
-                  fontsize=17)
     for repo in repositories:
-        x0 = limit_conf_id[repo]
-        ax1.plot(numpy.asarray(rules[repo]), numpy.asarray(predrs[repo]))
+        predrs_array = numpy.asarray(predrs[repo])
+        precisions_array = numpy.asarray(precisions[repo])
+        rules = numpy.asarray([i / predrs_array.shape[0] for i in range(predrs_array.shape[0])])
+        ax1.plot(rules, predrs_array)
         ax1.set_ylabel("PredR")
         ax1.spines["right"].set_visible(False)
         ax1.spines["top"].set_visible(False)
-        ax2.plot(numpy.asarray(rules[repo]), numpy.asarray(predictions[repo]))
+        ax2.plot(rules, precisions_array)
         ax2.set_ylabel("precision")
         ax2.spines["right"].set_visible(False)
         ax2.spines["top"].set_visible(False)
     f.add_subplot(212, frameon=False)
-    plt.tick_params(labelcolor='none', top='off', bottom='off', left='off', right='off')
+    plt.tick_params(labelcolor="none", top="off", bottom="off", left="off", right="off")
     handles, labels = plt.get_legend_handles_labels()
     plt.legend(handles, labels, loc="best", fontsize=17)
     plt.savefig(path_to_figure, pad_inches=0, bbox_inches="tight")
 
 
 def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float,
-                         support_threshold: int, precision_threshold: float,
-                         dir_output: str, retrain: bool, repos: Optional[str] = None,
-                         ) -> None:
+                         support_threshold: int, precision_threshold: float, dir_output: str,
+                         repos: Optional[str] = None) -> None:
     """
-    Generate a quality report on the artificial noisy dataset including a precision-recall curve.
+    Generate a quality report on the artificial noisy dataset including evaluation curves.
 
     :param bblfsh: Babelfish client. Babelfish server should be started accordingly.
     :param language: Language to consider, others will be discarded.
@@ -297,11 +296,13 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
            Limit drawn as a red horizontal line on the figure.
     :param dir_output: Path to the output directory where to store the quality report in Markdown \
            and the precision-recall curve in png format.
-    :param repos: Input list of urls or paths to the repositories to analyze. \
-           Should be strings separated by newlines.
-    :param retrain: Set True if you want to force model retraining.
+    :param repos: Input list of urls to the repositories to analyze. \
+           Should be strings separated by newlines. If if is None, \
+           we use the string defined at the beginning of the file.
     """
     log = logging.getLogger("quality_report_noisy")
+
+    # initialization
     repo_names = []
     last_accepted_rule = {}
     predrs, precisions, accepted_rules = (defaultdict(list) for _ in range(3))
@@ -310,32 +311,35 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
     if repos is None:
         repos = REPOSITORIES
     try:
+        # fetch the the original and noisy repositories
         client = BblfshClient(bblfsh)
         log.info("Repositories: %s", repos)
         with tempfile.TemporaryDirectory() as tmpdirname:
             for raw in repos.splitlines():
                 repo_path, clean_commit, noisy_commit = raw.split(",")
                 repo = repo_path.split("/")[-1]
-                if repo_path.startswith("https://github.com"):
-                    log.info("Fetching %s", repo_path)
-                    git_dir = os.path.join(tmpdirname, repo)
-                    git_dir_noisy = os.path.join(tmpdirname, repo + "_noisy")
-                    cmd1 = "git clone --single-branch --branch master %s %s" % (repo_path, git_dir)
-                    cmd2 = "git clone --single-branch --branch style-noise-1-per-file %s %s" \
-                        % (repo_path, git_dir_noisy)
-                    try:
-                        for cmd in (cmd1, cmd2):
-                            log.debug("Running: %s", cmd)
-                            subprocess.check_call(cmd.split())
-                    except subprocess.CalledProcessError as e:
-                        raise ConnectionError("Unable to fetch repository %s" % repo_path) from e
-                    input_pattern = os.path.join(git_dir, "**", "*.js")
-                    input_pattern_noisy = os.path.join(git_dir_noisy, "**", "*.js")
-                    model_path = os.path.join(git_dir_noisy, "style-analyzer-model", "model.asdf")
-                else:
-                    input_pattern = os.path.join(repo_path, "**", "*.js")
-                    input_pattern_noisy = os.path.join(repo_path + "_noisy", "**", "*.js")
-                    model_path = os.path.join(repo_path, "model.asdf")
+                log.info("Fetching %s", repo_path)
+                git_dir = os.path.join(tmpdirname, repo)
+                git_dir_noisy = os.path.join(tmpdirname, repo + "_noisy")
+                cmd1 = "git clone --single-branch --branch master %s %s" % (repo_path, git_dir)
+                cmd2 = "git clone --single-branch --branch style-noise-1-per-file %s %s" \
+                    % (repo_path, git_dir_noisy)
+                try:
+                    for cmd in (cmd1, cmd2):
+                        log.debug("Running: %s", cmd)
+                        subprocess.check_call(cmd.split())
+                except subprocess.CalledProcessError as e:
+                    raise ConnectionError("Unable to fetch repository %s" % repo_path) from e
+
+                # train the model on the original repository
+                ref = ReferencePointer(repo_path, "HEAD", clean_commit)
+                model_path = os.path.join(git_dir, "model.asdf")
+                format_model = train(git_dir, ref, model_path, language, bblfsh, None)
+                rules = format_model[language]
+
+                # extract the raw data and the diff from the repositories
+                input_pattern = os.path.join(git_dir, "**", "*.js")
+                input_pattern_noisy = os.path.join(git_dir_noisy, "**", "*.js")
                 true_content = get_content_from_repo(input_pattern)
                 noisy_content = get_content_from_repo(input_pattern_noisy)
                 true_files, noisy_files, start_changes = get_difflib_changes(true_content,
@@ -345,16 +349,14 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
                 log.info("Number of files modified by adding style noise: %d / %d",
                          len(true_files), len(true_content))
                 del true_content, noisy_content
-                if retrain:
-                    ref = ReferencePointer(repo_path, "HEAD", clean_commit)
-                    format_model = train(git_dir, ref, model_path, language, bblfsh, None)
-                else:
-                    format_model = FormatModel().load(model_path)
-                rules = format_model[language]
+
+                # extract the features
                 feature_extractor = FeatureExtractor(language=language,
                                                      **rules.origin_config["feature_extractor"])
                 vnodes_y_true = files2vnodes(true_files, feature_extractor, client)
                 mispreds_noise = files2mispreds(noisy_files, feature_extractor, rules, client, log)
+
+                # compute the prediction rate and precision score on the artificial noisy dataset
                 diff_mispreds = get_diff_mispreds(mispreds_noise, start_changes)
                 changes_count = len(start_changes)
                 n_rules[repo] = len(rules.rules)
@@ -372,16 +374,16 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
                                                        true_positive=len(style_fixes))
                     predrs[repo].append(round(predr, 3))
                     precisions[repo].append(round(precision, 3))
-                log.info([m.node.path for m in style_fixes])
                 print("prediction rate x:", predrs[repo])
                 print("precision y:", precisions[repo])
 
-                # compute some stats and quality metrics for the model's evaluation
+                # compute other statistics and quality metrics for the model's evaluation
                 repo_names.append(repo)
                 n_mistakes[repo] = len(true_files)
                 prec_max_predr[repo] = precisions[repo][-1]
                 max_predr[repo] = max(predrs[repo])
                 n_rules_filtered[repo] = len(rules_id)
+
                 # compute the confidence and prediction rate limit for a given precision threshold
                 for i, (predr, prec) in enumerate(zip(predrs[repo], precisions[repo])):
                     if prec >= precision_threshold:
@@ -401,18 +403,14 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
                 break
             limit_conf_id[repo] = rule[0]
 
-    # compile the curves showing the evolutions of the prediction rate and precision
+    # compile the curves showing the evolutions of the prediction rate and precision score
     path_to_figure = os.path.join(dir_output, "pr_curves.png")
     plot_curve(repo_names, predrs, precisions, precision_threshold, limit_conf_id, path_to_figure)
 
     # compile the markdown template for the report through jinja2
     loader = jinja2.FileSystemLoader((os.path.join(os.path.dirname(__file__), "..", "templates"),),
                                      followlinks=True)
-    env = jinja2.Environment(
-        trim_blocks=True,
-        lstrip_blocks=True,
-        keep_trailing_newline=True,
-    )
+    env = jinja2.Environment(trim_blocks=True, lstrip_blocks=True, keep_trailing_newline=True)
     env.globals.update(range=range)
     template = loader.load(env, "noisy_quality_report.md.jinja2")
     report = template.render(repos=repo_names, n_mistakes=n_mistakes,
