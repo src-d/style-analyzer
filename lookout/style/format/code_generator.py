@@ -75,11 +75,15 @@ class CodeGenerator:
         if not line_vnodes:
             return ""
 
-        newline_index = CLASS_INDEX[CLS_NEWLINE]
         first_y = line_vnodes[0].y
 
         generated = self.generate(line_vnodes)
-        if newline_index not in first_y:
+        if line_vnodes[0].y is None:
+            # we add " " because we want to count probably empty last line
+            lines_no = len((line_vnodes[0].value + " ").splitlines())
+            return "".join(generated.splitlines()[lines_no:])
+
+        if first_y is not None and self.NEWLINE_INDEX not in first_y:
             return generated
 
         # First line is always removed because it is an end line from the previous line.
@@ -89,9 +93,9 @@ class CodeGenerator:
                 # Line is not empty
                 break
         lines_num = 0
-        if line_vnodes and hasattr(line_vnodes[0], "y_old") and newline_index in first_y:
-            lines_num = line_vnodes[0].y.count(newline_index) - \
-                        line_vnodes[0].y_old.count(newline_index)
+        if line_vnodes and hasattr(line_vnodes[0], "y_old") and self.NEWLINE_INDEX in first_y:
+            lines_num = line_vnodes[0].y.count(self.NEWLINE_INDEX) - \
+                        line_vnodes[0].y_old.count(self.NEWLINE_INDEX)
         return "".join(generated_lines[i - max(0, lines_num):])
 
     def apply_predicted_y(self, vnodes: Sequence[VirtualNode],
