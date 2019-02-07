@@ -9,6 +9,7 @@ import lookout.style.format.cmdline_tools as main
 class MainTests(unittest.TestCase):
     def test_handlers(self):
         raw_imports = """
+        from lookout.style.format.benchmarks.compare_quality_reports import compare_quality_reports_entry
         from lookout.style.format.benchmarks.evaluate_smoke import evaluate_smoke_entry
         from lookout.style.format.benchmarks.generate_smoke import generate_smoke_entry
         from lookout.style.format.benchmarks.general_report import print_reports
@@ -29,6 +30,7 @@ class MainTests(unittest.TestCase):
             "eval-smoke-dataset": "evaluate_smoke_entry",
             "rule": "dump_rule_entry",
             "calc-expected-vnodes-number": "calc_expected_vnodes_number_entry",
+            "compare-quality": "compare_quality_reports_entry",
         }
         parser = main.create_parser()
         subcommands = set([x.dest for x in parser._subparsers._actions[2]._choices_actions])
