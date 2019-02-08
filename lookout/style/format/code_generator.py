@@ -12,11 +12,24 @@ from lookout.style.format.rules import Rule, Rules
 from lookout.style.format.virtual_node import VirtualNode
 
 
-class CodeGenerationError(Exception):
+class CodeGenerationBaseError(Exception):
+    """
+    Base class for CodeGenerator exceptions.
+    """
+
+
+class CodeGenerationError(CodeGenerationBaseError):
     """
     CodeGenerator.generate() can raise this exception if it fails to generate new file.
 
     To avoid this you can use `skip_errors=True` while creating CodeGenerator instance.
+    """
+
+
+class InapplicableIndentation(CodeGenerationBaseError):
+    """
+    InapplicableIndentation raises if you try to decrease tab indentation and have space \
+    indentation. And vice versa.
     """
 
 
@@ -88,6 +101,9 @@ class CodeGenerator:
 
         # First line is always removed because it is an end line from the previous line.
         generated_lines = generated.splitlines(keepends=True)[1:]
+        if not generated_lines:
+            # Usually it means that you replace several newlines with only one.
+            return ""
         for i, line in enumerate(generated_lines):  # noqa B007
             if line.splitlines()[0]:
                 # Line is not empty
@@ -134,10 +150,6 @@ class CodeGenerator:
                        Should be ordered by position.
         :return: New source code file content.
         """
-        def split_by_set(to_split: tuple, s: set) -> Tuple[tuple, tuple]:
-            index = next((i for i, ch in enumerate(to_split) if ch in s), len(to_split))
-            return to_split[:index], to_split[index:]
-
         tokens = [""]
         last_indentation = ""
         for vnode in vnodes:
@@ -148,7 +160,7 @@ class CodeGenerator:
                 tokens.append(vnode.value)
                 if y_new and self.NEWLINE_INDEX in y_new:
                     last_indentation = vnode.value.splitlines()[-1]
-            elif not self._can_set_label(y_new, y_old, repr(vnode)):
+            elif not self._can_set_label(vnode, last_indentation):
                 # Check unexpected situations.
                 # If skip_errors is False `self.check()` raises an exception.
                 tokens.append(vnode.value)
@@ -161,67 +173,42 @@ class CodeGenerator:
                     tokens.append("".join(CLS_TO_STR[CLASSES[yi]] for yi in y_new))
                 else:
                     # assume that all indentation changes are at the end of a vnode label
-                    y_new_no_indentation, new_indentation_change = \
-                        split_by_set(y_new, self.INDENTATIONS)
-                    _, old_indentation_change = split_by_set(y_old, self.INDENTATIONS)
-                    tokens.append("".join(CLS_TO_STR[CLASSES[yi]] for yi in y_new_no_indentation))
-                    if self.NEWLINE_INDEX not in set(y_old):
-                        cur_indentation = last_indentation
-                    else:
-                        cur_indentation = vnode.value.splitlines()[-1]
-                        # Revert indentation changes
-                        for y_old_i in old_indentation_change:
-                            if y_old_i in self.INDENTATIONS_DEC:
-                                cur_indentation += CLS_TO_STR[self.DEC_TO_INC[CLASSES[y_old_i]]]
-                            elif y_old_i in self.INDENTATIONS_INC:
-                                assert cur_indentation[-1] == CLS_TO_STR[CLASSES[y_old_i]]
-                                cur_indentation = cur_indentation[:-1]
-                            else:
-                                raise ValueError("Unexpected character in y_old: %s" %
-                                                 CLASS_REPRESENTATIONS[y_old_i])
-                    for y_new_i in new_indentation_change:
-                        if y_new_i in self.INDENTATIONS_DEC:
-                            if len(cur_indentation) == 0:
-                                self.log.warning(
-                                    "There is no indentations chanarters left to decrease for "
-                                    "vnode %s and y_old %s", repr(vnode), str(y_old))
-                                continue
-                            assert cur_indentation[-1] == \
-                                CLS_TO_STR[self.DEC_TO_INC[CLASSES[y_new_i]]], \
-                                "Unexpected character in cur_indentation: `%s` != `%s`" % (
-                                    cur_indentation[-1], CLS_TO_STR[CLASSES[y_new_i]])
-                            cur_indentation = cur_indentation[:-1]
-                        elif y_new_i in self.INDENTATIONS_INC:
-                            cur_indentation += CLS_TO_STR[CLASSES[y_new_i]]
-                        else:
-                            raise ValueError("Unexpected character in y_new: %s" %
-                                             CLASS_REPRESENTATIONS[y_new_i])
-                    last_indentation = cur_indentation
-                    tokens.append(cur_indentation)
-
+                    y_new_no_indentation, new_indentation = \
+                        self.apply_new_indentation(vnode, last_indentation)
+                    tokens.append(y_new_no_indentation)
+                    tokens.append(new_indentation)
+                    last_indentation = new_indentation
         return "".join(tokens)
 
-    def _can_set_label(self, y_new: Optional[Sequence[int]], y_old: Sequence[int],
-                       node_repr: str = "") -> bool:
+    def _can_set_label(self, vnode: VirtualNode, last_indentation: str) -> bool:
         """
         Check if a new label is applicable to a VirtualNode.
 
         Return False or raises FileGenerationError if it is not applicable.
         True means nothing because applicability depends also on the context.
         """
+        y_new = vnode.y
+        y_old = getattr(vnode, "y_old", y_new)
         if (y_new is None or
                 y_new == y_old or
                 y_new[0] == CLASS_INDEX[CLS_NOOP] or
                 y_old[0] == CLASS_INDEX[CLS_NOOP]):
             return True
-        if len(set(y_old) & QUOTES_INDEX) > 0 and len(set(y_new) & QUOTES_INDEX) == 0:
+        set_y_old = set(y_old)
+        set_y_new = set(y_new)
+        if len(set_y_old & QUOTES_INDEX) > 0 and len(set_y_new & QUOTES_INDEX) == 0:
             y_new_repr = "".join([CLASS_REPRESENTATIONS[y] for y in y_new])
             return self._handle_error("Quotes cannot be changed to non-quote tokens.\n"
-                                      "vnode: %s, y_new: %s" % (node_repr, y_new_repr))
-        if len(set(y_old) & QUOTES_INDEX) == 0 and len(set(y_new) & QUOTES_INDEX) > 0:
+                                      "vnode: %s, y_new: %s" % (repr(vnode), y_new_repr))
+        if len(set_y_old & QUOTES_INDEX) == 0 and len(set_y_new & QUOTES_INDEX) > 0:
             y_new_repr = "".join([CLASS_REPRESENTATIONS[y] for y in y_new])
             return self._handle_error("Non-Quote tokens cannot be changed to quote tokens.\n"
-                                      "vnode: %s, y_new: %s" % (node_repr, y_new_repr))
+                                      "vnode: %s, y_new: %s" % (repr(vnode), y_new_repr))
+        if len(set_y_new & self.INDENTATIONS_DEC):
+            try:
+                self.apply_new_indentation(vnode, last_indentation)
+            except InapplicableIndentation as e:
+                return self._handle_error(e.args[0])
         return True
 
     def _iterate_vnodes(self, vnodes: Sequence[VirtualNode], vnodes_y: Sequence[VirtualNode],
@@ -256,3 +243,82 @@ class CodeGenerator:
         if not self.skip_errors:
             raise CodeGenerationError(msg)
         return False
+
+    @staticmethod
+    def apply_new_indentation(vnode: VirtualNode, last_indentation: str) -> Tuple[str, str]:
+        """
+        Apply new indentation token `vnode.y` to the `vnode.value`.
+
+        Old value for `vnode.y` must be saved in `vnode.y_old`. If it is not possible to apply new
+        indentation InapplicableIndentation() is raised.
+
+        :param vnode: VirtualNode with new indentation label `y` and old label `y_old`.
+        :param last_indentation: Last indentation in code. Usually indentation from the previous \
+                                 line. If you do not expect additional line breaks in comparision \
+                                 with `vnode.y_old` you can set to empty line.
+        :return: string with values before indentation and string with a new indentation.
+        """
+        y_new = vnode.y
+        y_old = getattr(vnode, "y_old", y_new)
+        if y_new == y_old:
+            return vnode.value
+        indentation = (last_indentation if CodeGenerator.NEWLINE_INDEX not in set(y_old) else
+                       CodeGenerator.revert_indentation_change(vnode).splitlines()[-1])
+
+        # assume that all indentation changes are at the end of a vnode label
+        no_indentation, indentation_change = \
+            CodeGenerator._split_by_set(y_new, CodeGenerator.INDENTATIONS)
+        for yi in indentation_change:
+            if yi in CodeGenerator.INDENTATIONS_DEC:
+                if len(indentation) == 0:
+                    CodeGenerator.log.warning(
+                        "There is no indentation characters left to decrease for "
+                        "vnode %s and y_old %s", repr(vnode), str(y_old))
+                elif indentation[-1] != CLS_TO_STR[CodeGenerator.DEC_TO_INC[CLASSES[yi]]]:
+                    raise InapplicableIndentation(
+                        "Indentation change is not applicable for %s" % repr(vnode))
+                else:
+                    indentation = indentation[:-1]
+            elif yi in CodeGenerator.INDENTATIONS_INC:
+                indentation += CLS_TO_STR[CLASSES[yi]]
+            else:
+                raise ValueError("Unexpected character in y_new: %s. %s" % (
+                    CLASS_REPRESENTATIONS[yi], repr(vnode)))
+        return "".join(CLS_TO_STR[CLASSES[yi]] for yi in no_indentation), indentation
+
+    @staticmethod
+    def revert_indentation_change(vnode: VirtualNode) -> str:
+        """
+        Reverts original change for provided VirtualNode.
+
+        Example:
+        for vnode
+        ```
+        VirtualNode(value='⏎␣␣␣␣', y=⏎␣⁺␣⁺, start=(852, 26, 20), end=(857, 27, 5), node=None,
+                    path="lib/find-chrome.js")
+        ```
+        revert_indentation_change() removes two spaces that were added. The result is `⏎␣␣`.
+
+        :param vnode: VirtualNode with indentation label `y`.
+        :return: new value for VirtualNode.value.
+        """
+        y = getattr(vnode, "y_old", vnode.y)
+        value = vnode.value
+        for y_i in y[::-1]:
+            if y_i in CodeGenerator.INDENTATIONS_DEC:
+                value += CLS_TO_STR[CodeGenerator.DEC_TO_INC[CLASSES[y_i]]]
+            elif y_i in CodeGenerator.INDENTATIONS_INC:
+                if value[-1] != CLS_TO_STR[CLASSES[y_i]]:
+                    raise InapplicableIndentation("%s has inconsistent value and y" % repr(vnode))
+                value = value[:-1]
+            elif y_i == CodeGenerator.NEWLINE_INDEX:
+                break
+            else:
+                raise ValueError("%s has unexpected character in y: %s" % (
+                    repr(vnode), CLASS_REPRESENTATIONS[y_i]))
+        return value
+
+    @staticmethod
+    def _split_by_set(to_split: tuple, s: set) -> Tuple[tuple, tuple]:
+        index = next((i for i, ch in enumerate(to_split) if ch in s), len(to_split))
+        return to_split[:index], to_split[index:]

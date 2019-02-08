@@ -7,11 +7,13 @@ import bblfsh
 from lookout.core.api.service_data_pb2 import File
 
 from lookout.style.format.analyzer import FormatAnalyzer
-from lookout.style.format.code_generator import CodeGenerator
+import lookout.style.format.classes as cls
+from lookout.style.format.code_generator import CodeGenerator, InapplicableIndentation
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.rules import Rule, RuleStats
 from lookout.style.format.tests.code_generator_data import cases, label_composites
 from lookout.style.format.tests.test_analyzer import get_train_config
+from lookout.style.format.virtual_node import Position, VirtualNode
 
 
 class FakeSeq:
@@ -132,6 +134,96 @@ class CodeGeneratorTests(unittest.TestCase, metaclass=GeneratorTestsMeta):
             if expected_res[case] is not None:
                 # None means that we delete some lines. We are not handle this properly now.
                 self.assertEqual(res, expected_res[case], case)
+
+    def test_revert_indentation_change(self):
+        cases = [
+            ("\n    ", (cls.CLS_NEWLINE, cls.CLS_SPACE_INC, cls.CLS_SPACE_INC), "\n  "),
+            ("\n    ", (cls.CLS_NEWLINE, cls.CLS_SPACE_DEC, cls.CLS_SPACE_DEC), "\n      "),
+            ("\n\t ", (cls.CLS_NEWLINE, cls.CLS_TAB_INC, cls.CLS_SPACE_INC), "\n"),
+            ("\n    ", (cls.CLS_NEWLINE, cls.CLS_TAB_INC, cls.CLS_TAB_INC),
+             InapplicableIndentation),
+            ("   ", (cls.CLS_SPACE, cls.CLS_SPACE_INC, cls.CLS_SPACE_INC), ValueError),
+        ]
+        for value, y, result in cases:
+            vnode = VirtualNode(value, Position(0, 1, 1), Position(len(value), 1, len(value)+1),
+                                y=tuple(cls.CLASS_INDEX[i] for i in y))
+            if isinstance(result, str):
+                self.assertEqual(CodeGenerator.revert_indentation_change(vnode), result)
+            else:
+                with self.assertRaises(result):
+                    CodeGenerator.revert_indentation_change(vnode)
+
+    def test_apply_new_indentation(self):
+        cases = [
+            ("\n    ", ("\n", "  "),
+             (cls.CLS_NEWLINE, cls.CLS_SPACE_INC, cls.CLS_SPACE_INC),
+             (cls.CLS_NEWLINE, ),
+             ""),
+            ("\n    ", ("\n", "      "),
+             (cls.CLS_NEWLINE, cls.CLS_SPACE_DEC, cls.CLS_SPACE_DEC),
+             (cls.CLS_NEWLINE, ),
+             ""),
+            ("\n\t ", ("\n", ""),
+             (cls.CLS_NEWLINE, cls.CLS_TAB_INC, cls.CLS_SPACE_INC),
+             (cls.CLS_NEWLINE, ),
+             ""),
+            ("\n    ", InapplicableIndentation,
+             (cls.CLS_NEWLINE, cls.CLS_TAB_INC, cls.CLS_TAB_INC),
+             (cls.CLS_NEWLINE, ),
+             ""),
+            ("\n   ", ValueError,
+             (cls.CLS_NEWLINE, cls.CLS_SPACE, cls.CLS_SPACE_INC, cls.CLS_SPACE_INC),
+             (cls.CLS_NEWLINE, ),
+             ""),
+            ("\n\t  ", InapplicableIndentation,
+             (cls.CLS_NEWLINE, cls.CLS_SPACE_INC, cls.CLS_SPACE_INC),
+             (cls.CLS_NEWLINE, cls.CLS_SPACE_DEC),
+             ""),
+            ("\n\t   ", ValueError,
+             (cls.CLS_NEWLINE, cls.CLS_SPACE_DEC),
+             (cls.CLS_NEWLINE, cls.CLS_SPACE_DEC, cls.CLS_SPACE, cls.CLS_SPACE_DEC),
+             ""),
+            ("\n\n    ", ("\n", "  "),
+             (cls.CLS_NEWLINE, cls.CLS_NEWLINE, cls.CLS_SPACE_DEC),
+             (cls.CLS_NEWLINE, cls.CLS_SPACE_DEC, cls.CLS_SPACE_DEC, cls.CLS_SPACE_DEC),
+             ""),
+            ("", ("\n", "  "),
+             (cls.CLS_NOOP, ),
+             (cls.CLS_NEWLINE, ),
+             "  "),
+            ("", ("\n\n", ""),
+             (cls.CLS_NOOP,),
+             (cls.CLS_NEWLINE, cls.CLS_NEWLINE),
+             ""),
+        ]
+        for value, result, y_old, y, last_ident in cases:
+            vnode = VirtualNode(value, Position(0, 1, 1), Position(len(y), 1, len(y) + 1),
+                                y=tuple(cls.CLASS_INDEX[i] for i in y))
+            vnode.y_old = tuple(cls.CLASS_INDEX[i] for i in y_old)
+            if isinstance(result, tuple):
+                self.assertEqual(CodeGenerator.apply_new_indentation(vnode, last_ident), result)
+            else:
+                with self.assertRaises(result):
+                    CodeGenerator.apply_new_indentation(vnode, last_ident)
+
+        msg = None
+
+        def _warning(*args):
+            nonlocal msg
+            msg = args[0]
+        try:
+            backup_warning = CodeGenerator.log.warning
+            CodeGenerator.log.warning = _warning
+            vnode = VirtualNode(
+                "\n ", Position(0, 1, 1), Position(3, 1, 4),
+                y=tuple(cls.CLASS_INDEX[i] for i in (
+                    cls.CLS_NEWLINE, cls.CLS_SPACE_DEC, cls.CLS_SPACE_DEC, cls.CLS_SPACE_DEC)))
+            vnode.y_old = tuple(cls.CLASS_INDEX[i] for i in (cls.CLS_NEWLINE, cls.CLS_SPACE_DEC))
+            CodeGenerator.apply_new_indentation(vnode, "")
+            expected_msg = "There is no indentation characters left to decrease for vnode"
+            self.assertEqual(msg[:len(expected_msg)], expected_msg)
+        finally:
+            CodeGenerator.log.warning = backup_warning
 
 
 if __name__ == "__main__":
