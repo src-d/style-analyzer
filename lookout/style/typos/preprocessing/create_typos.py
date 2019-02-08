@@ -6,10 +6,17 @@ from typing import Tuple
 import pandas
 from tqdm import tqdm
 
-from lookout.style.typos.preprocessing.dev_utils import rand_bool
 from lookout.style.typos.utils import COLUMNS
 
 letters = list(string.ascii_lowercase)
+
+
+
+def rand_bool(true_prob: float):
+    """
+    Returns True with probability true_prob
+    """
+    return random.uniform(0, 1) < true_prob
 
 
 def rand_insert(token: str):
@@ -72,36 +79,34 @@ def corrupt_tokens_in_df(data: pandas.DataFrame, typo_probability: float,
     consequent typos in the same word happen with ADD_TYPO_PROBABILITY each.
     Operations happens inplace.
     """
-    tokens = list(data[COLUMNS["TOKEN"]])
+    typoed_tokens = list(data[COLUMNS["TOKEN"]])
     if COLUMNS["SPLIT"] in data.columns:
-        token_split = list(data[COLUMNS["SPLIT"]])
+        typoed_token_split = list(data[COLUMNS["SPLIT"]])
 
-    corrupted = []
     for row_number in tqdm(range(len(data))):
-        if tokens[row_number] is not None:
-            item = tokens[row_number]
+        if typoed_tokens[row_number] is not None:
+            item = typoed_tokens[row_number]
             if len(item) > 1 and rand_bool(typo_probability):
                 item = ''
                 while len(item) < 2:
-                    item = tokens[row_number]
+                    item = typoed_tokens[row_number]
                     item = rand_typo(str(item))
                     while rand_bool(add_typo_probability):
                         item = rand_typo(item)
-                corrupted.append(True)
-            else:
-                corrupted.append(False)
 
             if COLUMNS["SPLIT"] in data.columns:
-                split = str(token_split[row_number]).split()
-                index = split.index(tokens[row_number])
+                split = str(typoed_token_split[row_number]).split()
+                index = split.index(typoed_tokens[row_number])
                 split[index] = item
-                token_split[row_number] = " ".join(split)
-            tokens[row_number] = item
+                typoed_token_split[row_number] = " ".join(split)
 
-    data[COLUMNS["TOKEN"]] = tokens
+            typoed_tokens[row_number] = item
+
+    data.loc[:, COLUMNS["CORRECT_TOKEN"]] = data[COLUMNS["TOKEN"]]
+    data.loc[:, COLUMNS["TOKEN"]] = typoed_tokens
     if COLUMNS["SPLIT"] in data.columns:
-        data[COLUMNS["CORRECT_SPLIT"]] = data[COLUMNS["SPLIT"]]
-        data[COLUMNS["SPLIT"]] = token_split
+        data.loc[:, COLUMNS["CORRECT_SPLIT"]] = data[COLUMNS["SPLIT"]]
+        data.loc[:, COLUMNS["SPLIT"]] = typoed_token_split
     return data
 
 
@@ -131,9 +136,9 @@ def train_test_split(data: pandas.DataFrame, test_portion: float
     Randomly split data on train and test
     """
     test = set(random.sample(range(len(data)), int(data.shape[0] * test_portion)))
-    test_indices = [i in test for i in range(len(data))]
-    train_indices = [i not in test for i in range(len(data))]
-    return data[train_indices], data[test_indices]
+    test_mask = [i in test for i in range(len(data))]
+    train_mask = [i not in test for i in range(len(data))]
+    return data[train_mask], data[test_mask]
 
 
 def create_typos(args):

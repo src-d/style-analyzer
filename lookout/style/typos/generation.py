@@ -103,9 +103,9 @@ class CandidatesGenerator(Model):
                  and features for their ranking for each typo.
         """
         data = add_context_info(data)
-        typos = [TypoInfo(index, data.loc[index][COLUMNS["TOKEN"]],
-                          data.loc[index][COLUMNS["BEFORE"]],
-                          data.loc[index][COLUMNS["AFTER"]])
+        typos = [TypoInfo(index, data.loc[index, COLUMNS["TOKEN"]],
+                          data.loc[index, COLUMNS["BEFORE"]],
+                          data.loc[index, COLUMNS["AFTER"]])
                  for i, index in enumerate(data.index)]
         if len(typos) > start_pool_size and threads_number > 1:
             with Pool(min(threads_number, len(typos))) as pool:
@@ -118,7 +118,7 @@ class CandidatesGenerator(Model):
         candidates = pandas.DataFrame(list(chain.from_iterable(candidates)))
         candidates.columns = [COLUMNS["ID"], COLUMNS["TOKEN"], COLUMNS["CANDIDATE"],
                               COLUMNS["FEATURES"]]
-        candidates[COLUMNS["ID"]] = candidates[COLUMNS["ID"]].astype(data.index.dtype)
+        candidates.loc[:, COLUMNS["ID"]] = candidates[COLUMNS["ID"]].astype(data.index.dtype)
         if save_candidates_file is not None:
             candidates.to_pickle(save_candidates_file)
         return candidates
@@ -189,6 +189,8 @@ class CandidatesGenerator(Model):
         candidate_tokens = []
         last_dist = -1
         edit_candidates_count = 0
+        if type(typo_info.typo) != str:
+            print(typo_info.typo)
         if self.edit_candidates_number > 0:
             for suggestion in self.checker.lookup(typo_info.typo, 2, self.max_distance):
                 if suggestion.distance != last_dist:
@@ -337,6 +339,7 @@ class CandidatesGenerator(Model):
             "bucket": self.wv.bucket,
             "num_ngram_vectors": self.wv.num_ngram_vectors,
             "vectors_ngrams": self.wv.vectors_ngrams,
+            "compatible_hash": self.wv.compatible_hash,
             "hash2index": hash2index,
         }
         return tree
@@ -361,8 +364,9 @@ class CandidatesGenerator(Model):
         self.checker._deletes = deletes
         self.checker._words = {w: self.checker._words[i] for i, w in enumerate(words)}
         vectors = self.wv["vectors"]
-        wv = FastTextKeyedVectors(vectors.shape[1], self.wv["min_n"], self.wv["max_n"])
-        wv.vectors = vectors
+        wv = FastTextKeyedVectors(vectors.shape[1], self.wv["min_n"], self.wv["max_n"],
+                                  self.wv["bucket"], self.wv["compatible_hash"])
+        wv.vectors = numpy.array(vectors)
         vocab = split_strings(self.wv["vocab"]["strings"])
         wv.vocab = {
             s: Vocab(index=i, count=self.wv["vocab"]["counts"][i])
@@ -370,7 +374,7 @@ class CandidatesGenerator(Model):
         wv.bucket = self.wv["bucket"]
         wv.index2word = wv.index2entity = vocab
         wv.num_ngram_vectors = self.wv["num_ngram_vectors"]
-        wv.vectors_ngrams = self.wv["vectors_ngrams"]
+        wv.vectors_ngrams = numpy.array(self.wv["vectors_ngrams"])
         wv.hash2index = {k: v for v, k in enumerate(self.wv["hash2index"])}
         self.wv = wv
 

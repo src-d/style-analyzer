@@ -1,3 +1,4 @@
+import lzma
 from typing import Set
 
 import numpy
@@ -14,8 +15,8 @@ def print_frequencies(tokens_set: Set[str], id_stats: pandas.DataFrame, file: st
     frequencies = {}
     for token, row in id_stats.iterrows():
         if token in tokens_set:
-            frequencies[token] = row.num_occ
-    with open(file, "w") as f:
+            frequencies[token] = row["num_occ"]
+    with lzma.open(file, "wt") as f:
         for token in list(tokens_set):
             print(token, frequencies[token], file=f)
 

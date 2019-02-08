@@ -133,8 +133,8 @@ def add_context_info(data: pandas.DataFrame) -> pandas.DataFrame:
         before = [[] for _ in range(len(data))]
         after = [[] for _ in range(len(data))]
 
-    data[COLUMNS["BEFORE"]] = before
-    data[COLUMNS["AFTER"]] = after
+    data.loc[:, COLUMNS["BEFORE"]] = before
+    data.loc[:, COLUMNS["AFTER"]] = after
 
     return data.infer_objects()
 
