@@ -14,10 +14,7 @@ def pick_subset_of_df(data: pandas.DataFrame, size: int = None, portion: float =
     else:
         probs = None
 
-    result = data.loc[numpy.random.choice(data.index, size, p=probs)]
-    result["id"] = result.index
-    result.index = range(len(result))
-    return result
+    return data.loc[numpy.random.choice(data.index, size, p=probs)]
 
 
 def pick_subset(args):
