@@ -332,7 +332,7 @@ class FormatAnalyzer(Analyzer):
                 .filter_by_support(self.config["support_threshold"])
             for file in parse_files(filepaths=head_files.keys(),
                                     line_length_limit=rules.origin_config["line_length_limit"],
-                                    overalll_size_limit=rules.origin_config["overall_size_limit"],
+                                    overall_size_limit=rules.origin_config["overall_size_limit"],
                                     client=data_service.bblfsh_client,
                                     language=lang, log=log):
                 processed_files_counter[lang] += 1

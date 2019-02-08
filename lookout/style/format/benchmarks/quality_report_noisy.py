@@ -13,7 +13,7 @@ from typing import Iterable, List, Mapping, NamedTuple, Optional, Set, Tuple
 from bblfsh import BblfshClient
 import jinja2
 from lookout.core.analyzer import ReferencePointer
-from lookout.core.lib import filter_filepaths, parse_files
+from lookout.core.lib import filter_files_by_path, parse_files
 import numpy
 from yaml import safe_load
 
@@ -78,7 +78,7 @@ def get_content_from_repo(folder: str) -> Mapping[str, str]:
     """
     content = {}
     filenames = glob.glob(folder, recursive=True)
-    for file in filter_filepaths(filenames):
+    for file in filter_files_by_path(filenames):
         with open(file) as g:
             content[file] = g.read()
     return content

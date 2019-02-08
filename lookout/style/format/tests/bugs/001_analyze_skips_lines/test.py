@@ -8,7 +8,7 @@ from lookout.core import slogging
 from lookout.core.analyzer import ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.data_requests import DataService
-from lookout.core.lib import filter_files
+from lookout.core.lib import parse_files
 
 from lookout.style.format.analyzer import FileFix, LineFix  # noqa: F401
 from lookout.style.format.benchmarks.general_report import analyze_files, FormatAnalyzerSpy
@@ -23,12 +23,12 @@ class AnalyzeSkipsLines(unittest.TestCase):
         fixes = []  # type: FileFix
         bblfsh_client = BblfshClient(self.bblfsh_endpoint)
         basedir = os.path.dirname(__file__)
-        base_files = list(filter_files(
-            filenames=[os.path.join(basedir, "find_chrome_base.js")],
+        base_files = parse_files(
+            filepaths=[os.path.join(basedir, "find_chrome_base.js")],
             line_length_limit=500,
             overall_size_limit=5 << 20,
             client=bblfsh_client,
-            language="javascript"))
+            language="javascript")
         base_files[0].path = os.path.join(basedir, "find_chrome_head.js")
 
         class Runner(FormatAnalyzerSpy):

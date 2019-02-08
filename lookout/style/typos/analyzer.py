@@ -8,7 +8,7 @@ from lookout.core.analyzer import Analyzer, AnalyzerModel, DummyAnalyzerModel, R
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.data_requests import DataService, \
     with_changed_uasts_and_contents, with_uasts_and_contents
-from lookout.core.lib import extract_changed_nodes, files_by_language, filter_files, find_new_lines
+from lookout.core.lib import extract_changed_nodes, files_by_language, find_new_lines, parse_files
 import pandas
 from sourced.ml.algorithms import TokenParser, uast2sequence
 
@@ -28,6 +28,7 @@ class IdTyposAnalyzer(Analyzer):
     corrector_manager = TyposCorrectorManager()
 
     DEFAULT_LINE_LENGTH_LIMIT = 500
+    DEFAULT_OVERALL_SIZE_LIMIT = 5 << 20
     DEFAULT_N_CANDIDATES = 3
     DEFAULT_CONFIDENCE_THRESHOLD = 0.1
     INDEX_COLUMN = "index"
@@ -69,8 +70,13 @@ class IdTyposAnalyzer(Analyzer):
         base_files_by_lang = files_by_language(c.base for c in changes)
         head_files_by_lang = files_by_language(c.head for c in changes)
         line_length = self.config.get("line_length_limit", self.DEFAULT_LINE_LENGTH_LIMIT)
+        overall_size = self.config.get("overall_size_limit", self.DEFAULT_OVERALL_SIZE_LIMIT)
         for lang, head_files in head_files_by_lang.items():
-            for file in filter_files(head_files, line_length, log):
+            for file in parse_files(filepaths=head_files.keys(),
+                                    line_length_limit=line_length,
+                                    overall_size_limit=overall_size,
+                                    client=data_service.bblfsh_client,
+                                    language=lang, log=log):
                 try:
                     prev_file = base_files_by_lang[lang][file.path]
                 except KeyError:

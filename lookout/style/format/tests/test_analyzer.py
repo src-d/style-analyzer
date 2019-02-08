@@ -2,7 +2,6 @@ import glob
 import logging
 import os
 from pathlib import Path
-import shutil
 import tarfile
 from tempfile import TemporaryFile
 from typing import NamedTuple
@@ -11,7 +10,7 @@ import unittest
 import bblfsh
 from lookout.core.analyzer import ReferencePointer
 from lookout.core.api.service_data_pb2 import File
-from lookout.core.lib import filter_files
+from lookout.core.lib import parse_files
 
 from lookout.style.format.analyzer import FormatAnalyzer
 from lookout.style.format.benchmarks.general_report import FakeDataService
@@ -88,21 +87,22 @@ class AnalyzerTests(unittest.TestCase):
         cls.jquery_dir = str(Path(parent_loc) / "jquery_noisy")
         base_jquery_pattern = os.path.join(cls.jquery_dir, "jquery", "*.js")
         head_jquery_pattern = os.path.join(cls.jquery_dir, "jquery_noisy", "*.js")
-        cls.base_filenames = glob.glob(base_jquery_pattern, recursive=True)
-        cls.head_filenames = glob.glob(head_jquery_pattern, recursive=True)
-        cls.base_files = filter_files(filenames=cls.base_filenames,
-                                      line_length_limit=500,
-                                      client=cls.bblfsh_client,
-                                      language="javascript")
-        cls.head_files = filter_files(filenames=cls.head_filenames,
-                                      line_length_limit=500,
-                                      client=cls.bblfsh_client,
-                                      language="javascript")
+        cls.base_filepaths = glob.glob(base_jquery_pattern, recursive=True)
+        cls.head_filepaths = glob.glob(head_jquery_pattern, recursive=True)
+        cls.base_files = parse_files(filepaths=cls.base_filepaths,
+                                     line_length_limit=500,
+                                     overall_size_limit=5 << 20,
+                                     client=cls.bblfsh_client,
+                                     language="javascript")
+        cls.head_files = parse_files(filepaths=cls.head_filepaths,
+                                     line_length_limit=500,
+                                     overall_size_limit=5 << 20,
+                                     client=cls.bblfsh_client,
+                                     language="javascript")
 
     @classmethod
     def tearDownClass(cls):
         cls.bblfsh_client._channel.close()
-        shutil.rmtree(cls.jquery_dir)
 
     def test_train(self):
         self.data_service = FakeDataService(bblfsh_client=self.bblfsh_client,
@@ -122,21 +122,20 @@ class AnalyzerTests(unittest.TestCase):
             compare_models(self, model2, model3)
 
     def test_train_check(self):
-        common = self.base_files.keys() & self.head_files.keys()
         self.data_service = FakeDataService(
-            self.bblfsh_client,
-            files=self.base_files.values(),
-            changes=[Change(base=self.base_files[k], head=self.head_files[k])
-                     for k in common])
+            bblfsh_client=self.bblfsh_client,
+            files=self.base_files,
+            changes=[Change(base=remove_uast(b), head=h)
+                     for b, h in zip(self.base_files, self.head_files)])
         model = FormatAnalyzer.train(self.ptr, get_train_config(), self.data_service)
         required = FormatAnalyzer.check_training_required(
             model, self.ptr, get_train_config(), self.data_service)
         self.assertFalse(required)
         self.data_service = FakeDataService(
-            self.bblfsh_client,
-            files=self.base_files.values(),
-            changes=[Change(base=remove_uast(self.base_files[k]), head=self.head_files[k])
-                     for k in common])
+            bblfsh_client=self.bblfsh_client,
+            files=self.base_files,
+            changes=[Change(base=remove_uast(b), head=h)
+                     for b, h in zip(self.base_files, self.head_files)])
         required = FormatAnalyzer.check_training_required(
             model, self.ptr, get_train_config(), self.data_service)
         self.assertTrue(required)
@@ -159,15 +158,11 @@ class AnalyzerTests(unittest.TestCase):
             compare_models(self, model2, model3)
 
     def test_analyze(self):
-        common = self.base_files.keys() & self.head_files.keys()
         self.data_service = FakeDataService(
-            # bblfsh_client=self.bblfsh_client,
-            # files=self.base_files,
-            # changes=[Change(base=b, head=h) for b, h in zip(self.base_files, self.head_files)])
             bblfsh_client=self.bblfsh_client,
-            files=self.base_files.values(),
-            changes=[Change(base=remove_uast(self.base_files[k]), head=self.head_files[k])
-                     for k in common])
+            files=self.base_files,
+            changes=[Change(base=remove_uast(b), head=h)
+                     for b, h in zip(self.base_files, self.head_files)])
         config = get_analyze_config()
         # Make uast_break_check only here
         config["uast_break_check"] = True
@@ -179,8 +174,9 @@ class AnalyzerTests(unittest.TestCase):
     def test_file_filtering(self):
         self.data_service = FakeDataService(
             bblfsh_client=self.bblfsh_client,
-            files=filter_files(filenames=self.base_filenames, line_length_limit=0,
-                               client=self.bblfsh_client, language="javascript"),
+            files=parse_files(filepaths=self.base_filepaths, line_length_limit=0,
+                              overall_size_limit=5 << 20, client=self.bblfsh_client,
+                              language="javascript"),
             changes=[])
         config = get_train_config()
         model_trained = FormatAnalyzer.train(self.ptr, config, self.data_service)
