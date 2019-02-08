@@ -122,7 +122,7 @@ class EvaluateSmokeTests(unittest.TestCase):
                 index_content = index.read().splitlines()
             self.assertEqual(len(index_content), 5)
             self.assertEqual(set(os.listdir(outputpath)),
-                             {"index.csv", "nodejs", "jsquery", "freeCodeCamp", "react"})
+                             {"index.csv", "nodejs", "jquery", "freeCodeCamp", "react"})
             with open(os.path.join(outputpath, "index.csv"), "w") as index:
                 index.write("\n".join(index_content[::3]))
             report_dir = os.path.join(outputpath, "report")

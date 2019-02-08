@@ -34,7 +34,7 @@ setup(
     keywords=["machine learning on source code", "babelfish", "lookout"],
     install_requires=[
         "sourced-ml>=0.7.2,<0.8",
-        "lookout-sdk-ml>=0.8.1,<0.9",
+        "lookout-sdk-ml>=0.11.0,<0.12",
         "scikit-learn>=0.20,<2.0",
         "scikit-optimize>=0.5,<2.0",
         "pandas>=0.22,<2.0",

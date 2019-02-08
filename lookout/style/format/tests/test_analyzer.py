@@ -2,8 +2,9 @@ import glob
 import logging
 import os
 from pathlib import Path
+import shutil
 import tarfile
-from tempfile import TemporaryFile
+import tempfile
 from typing import NamedTuple
 import unittest
 
@@ -83,7 +84,7 @@ class AnalyzerTests(unittest.TestCase):
         cls.bblfsh_client = bblfsh.BblfshClient("0.0.0.0:9432")
         parent_loc = Path(__file__).parent.resolve()
         with tarfile.open(str(parent_loc / "jquery_noisy.tar.xz")) as tar:
-            tar.extractall()
+            tar.extractall(path=parent_loc)
         cls.jquery_dir = str(Path(parent_loc) / "jquery_noisy")
         base_jquery_pattern = os.path.join(cls.jquery_dir, "jquery", "*.js")
         head_jquery_pattern = os.path.join(cls.jquery_dir, "jquery_noisy", "*.js")
@@ -103,6 +104,7 @@ class AnalyzerTests(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cls.bblfsh_client._channel.close()
+        shutil.rmtree(cls.jquery_dir)
 
     def test_train(self):
         self.data_service = FakeDataService(bblfsh_client=self.bblfsh_client,
@@ -115,7 +117,7 @@ class AnalyzerTests(unittest.TestCase):
         self.assertEqual(model1["javascript"].rules, model2["javascript"].rules)
         self.assertGreater(len(model1["javascript"]), 5)
         # Check that model can be saved without problems and then load back
-        with TemporaryFile(prefix="analyzer_model-", suffix=".asdf") as f:
+        with tempfile.TemporaryFile(prefix="analyzer_model-", suffix=".asdf") as f:
             model2.save(f)
             f.seek(0)
             model3 = FormatModel().load(f)
@@ -151,7 +153,7 @@ class AnalyzerTests(unittest.TestCase):
         self.assertEqual(model1["javascript"].rules, model2["javascript"].rules)
         self.assertGreater(len(model1["javascript"]), 5)
         # Check that model can be saved without problems and then load back
-        with TemporaryFile(prefix="analyzer_model-", suffix=".asdf") as f:
+        with tempfile.TemporaryFile(prefix="analyzer_model-", suffix=".asdf") as f:
             model2.save(f)
             f.seek(0)
             model3 = FormatModel().load(f)
@@ -181,9 +183,10 @@ class AnalyzerTests(unittest.TestCase):
         config = get_train_config()
         model_trained = FormatAnalyzer.train(self.ptr, config, self.data_service)
         self.assertEqual(len(model_trained._rules_by_lang), 0)
-        self.data_service = FakeDataService(bblfsh_client=self.bblfsh_client,
-                                            files=self.base_files,
-                                            changes=[])
+        self.data_service = FakeDataService(
+            bblfsh_client=self.bblfsh_client,
+            files=self.base_files,
+            changes=[])
         model_trained = FormatAnalyzer.train(self.ptr, config, self.data_service)
         self.assertGreater(len(model_trained._rules_by_lang), 0)
 
