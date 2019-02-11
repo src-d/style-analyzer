@@ -14,7 +14,8 @@ class MainTests(unittest.TestCase):
         from lookout.style.format.benchmarks.general_report import print_reports
         from lookout.style.format.benchmarks.quality_report_noisy import quality_report_noisy
         from lookout.style.format.cmdline_tools import dump_rule_entry
-        """
+        from lookout.style.format.benchmarks.expected_vnodes_number import calc_expected_vnodes_number_entry
+        """  # noqa E501
         imports = {}
         for line in raw_imports.splitlines():
             line = line.strip()
@@ -27,6 +28,7 @@ class MainTests(unittest.TestCase):
             "gen-smoke-dataset": "generate_smoke_entry",
             "eval-smoke-dataset": "evaluate_smoke_entry",
             "rule": "dump_rule_entry",
+            "calc-expected-vnodes-number": "calc_expected_vnodes_number_entry",
         }
         parser = main.create_parser()
         subcommands = set([x.dest for x in parser._subparsers._actions[2]._choices_actions])

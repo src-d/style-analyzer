@@ -1,6 +1,6 @@
 import unittest
 
-from lookout.style.format.utils import flatten_dict, merge_dicts
+from lookout.style.format.utils import merge_dicts
 
 
 class RulesMergeDicts(unittest.TestCase):
@@ -32,17 +32,6 @@ class RulesMergeDicts(unittest.TestCase):
         d3 = dict(b={"c": 3}, d=4)
         res = dict(a=1, b={"c": 3}, d=4)
         self.assertEqual(merge_dicts(d1, d2, d3), res)
-
-    def test_flatten_dict(self):
-        cases = [
-            ({"1": 1, "2": 2}, {"1": 1, "2": 2}),
-            ({"1": 1, "2": {"3": 3, "4": 4}}, {"1": 1, "2_3": 3, "2_4": 4}),
-            ({"1": 1, "2": {"3": 3, "4": {"5": 5, "6": 6}}},
-             {"1": 1, "2_3": 3, "2_4_5": 5, "2_4_6": 6}),
-        ]
-
-        for d, res in cases:
-            self.assertEqual(flatten_dict(d), res)
 
 
 if __name__ == "__main__":

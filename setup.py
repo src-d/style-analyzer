@@ -56,7 +56,8 @@ setup(
     tests_require=tests_require,
     package_data={"": ["../LICENSE.md", "../README.md", "../requirements.txt", "README.md"],
                   "lookout.style.format": ["templates/*.jinja2"],
-                  "lookout.style.format.benchmarks": ["data/js_smoke_init.tar.xz"],
+                  "lookout.style.format.benchmarks": ["data/js_smoke_init.tar.xz",
+                                                      "data/quality_report_repos.csv"],
                   "lookout.style.format.langs": ["*.jinja2"],
                   "lookout.style.format.tests": ["*.asdf", "*.xz"],
                   "lookout.style.format.tests.bugs.001_analyze_skips_lines":

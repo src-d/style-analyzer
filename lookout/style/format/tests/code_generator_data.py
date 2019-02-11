@@ -48,7 +48,7 @@ export default function flashToToast(flash) {
 }
 """
 
-# Virtual node index, new target (y) value, result, result for change_locally=True
+# Virtual node index, new target (y) value, result
 # if results are equal last can be omitted
 cases = OrderedDict([
     ("nothing changed", (
@@ -57,24 +57,8 @@ cases = OrderedDict([
         original_code,
     )),
     ("remove new line in the end of 4th line", (
-        (22,),
+        (23,),
         (labels_to_composite[(CLS_NOOP, )],),
-        """import { makeToast } from '../../common/app/Toasts/redux';
-
-export default function flashToToast(flash) {
-  return Object.keys(flash).map(key => {
-    const messages = flash[key];
-    return messages.map(message => ({
-      message: message.msg,
-      type: key,
-      timeout: 5000
-    }));
-  })
-  .reduce((toasts, messages) => toasts.concat(messages), [])
-  .map(makeToast)
-  .map(({ payload }) => payload);
-}
-""",
         """import { makeToast } from '../../common/app/Toasts/redux';
 
 export default function flashToToast(flash) {
@@ -96,23 +80,6 @@ export default function flashToToast(flash) {
         (labels_to_composite[(CLS_SPACE_INC, )],),
         """ import { makeToast } from '../../common/app/Toasts/redux';
 
- export default function flashToToast(flash) {
-   return Object.keys(flash)
-     .map(key => {
-       const messages = flash[key];
-       return messages.map(message => ({
-         message: message.msg,
-         type: key,
-         timeout: 5000
-       }));
-     })
-     .reduce((toasts, messages) => toasts.concat(messages), [])
-     .map(makeToast)
-     .map(({ payload }) => payload);
- }
-""",
-        """ import { makeToast } from '../../common/app/Toasts/redux';
-
 export default function flashToToast(flash) {
   return Object.keys(flash)
     .map(key => {
@@ -129,26 +96,9 @@ export default function flashToToast(flash) {
 }
 """)),
     ("remove indentation in the 4th line till the end", (
-        (15, 103),
+        (16, 104),
         (labels_to_composite[(CLS_NEWLINE, CLS_SPACE_INC)],
          labels_to_composite[(CLS_NEWLINE, CLS_SPACE_DEC, CLS_SPACE_DEC, CLS_SPACE_DEC)]),
-        """import { makeToast } from '../../common/app/Toasts/redux';
-
-export default function flashToToast(flash) {
- return Object.keys(flash)
-   .map(key => {
-     const messages = flash[key];
-     return messages.map(message => ({
-       message: message.msg,
-       type: key,
-       timeout: 5000
-     }));
-   })
-   .reduce((toasts, messages) => toasts.concat(messages), [])
-   .map(makeToast)
-   .map(({ payload }) => payload);
-}
-""",
         """import { makeToast } from '../../common/app/Toasts/redux';
 
 export default function flashToToast(flash) {
@@ -167,7 +117,7 @@ export default function flashToToast(flash) {
  }
 """)),
     ("new line between 6th and 7th regular code lines", (
-        (37,),
+        (38,),
         (labels_to_composite[(CLS_NEWLINE, CLS_NEWLINE)], ),
         """import { makeToast } from '../../common/app/Toasts/redux';
 
@@ -188,28 +138,10 @@ export default function flashToToast(flash) {
 }
 """)),
     ("new line in the middle of the 7th code line with indentation increase", (
-        (39, 64),
+        (40, 65),
         (labels_to_composite[(CLS_NEWLINE, CLS_SPACE_INC, CLS_SPACE_INC)],
          labels_to_composite[(CLS_NEWLINE, CLS_SPACE_DEC, CLS_SPACE_DEC,
                               CLS_SPACE_DEC, CLS_SPACE_DEC)]),
-        """import { makeToast } from '../../common/app/Toasts/redux';
-
-export default function flashToToast(flash) {
-  return Object.keys(flash)
-    .map(key => {
-      const messages = flash[key];
-      return messages
-        .map(message => ({
-          message: message.msg,
-          type: key,
-          timeout: 5000
-        }));
-    })
-    .reduce((toasts, messages) => toasts.concat(messages), [])
-    .map(makeToast)
-    .map(({ payload }) => payload);
-}
-""",
         """import { makeToast } from '../../common/app/Toasts/redux';
 
 export default function flashToToast(flash) {
@@ -229,27 +161,9 @@ export default function flashToToast(flash) {
 }
 """)),
     ("new line in the middle of the 7th code line with indentation decrease", (
-        (39, 64),
+        (40, 65),
         (labels_to_composite[(CLS_NEWLINE, CLS_SPACE_DEC, CLS_SPACE_DEC)],
          labels_to_composite[(CLS_NEWLINE, )]),
-        """import { makeToast } from '../../common/app/Toasts/redux';
-
-export default function flashToToast(flash) {
-  return Object.keys(flash)
-    .map(key => {
-      const messages = flash[key];
-      return messages
-    .map(message => ({
-      message: message.msg,
-      type: key,
-      timeout: 5000
-    }));
-    })
-    .reduce((toasts, messages) => toasts.concat(messages), [])
-    .map(makeToast)
-    .map(({ payload }) => payload);
-}
-""",
         """import { makeToast } from '../../common/app/Toasts/redux';
 
 export default function flashToToast(flash) {
@@ -269,26 +183,8 @@ export default function flashToToast(flash) {
 }
 """)),
     ("new line in the middle of the 7th code line without indentation increase", (
-        (39,),
+        (40,),
         (labels_to_composite[(CLS_NEWLINE,)], ),
-        """import { makeToast } from '../../common/app/Toasts/redux';
-
-export default function flashToToast(flash) {
-  return Object.keys(flash)
-    .map(key => {
-      const messages = flash[key];
-      return messages
-      .map(message => ({
-        message: message.msg,
-        type: key,
-        timeout: 5000
-      }));
-    })
-    .reduce((toasts, messages) => toasts.concat(messages), [])
-    .map(makeToast)
-    .map(({ payload }) => payload);
-}
-""",
         """import { makeToast } from '../../common/app/Toasts/redux';
 
 export default function flashToToast(flash) {
@@ -308,8 +204,8 @@ export default function flashToToast(flash) {
 }
 """)),
     ("change quotes", (
-        (5, 6),
-        (labels_to_composite[(CLS_SPACE, CLS_DOUBLE_QUOTE)],
+        (6, 7),
+        (labels_to_composite[(CLS_DOUBLE_QUOTE,)],
          labels_to_composite[(CLS_DOUBLE_QUOTE,)]),
         """import { makeToast } from "../../common/app/Toasts/redux";
 
@@ -329,25 +225,8 @@ export default function flashToToast(flash) {
 }
 """)),
     ("remove indentation decrease 11th line", (
-        (60,),
+        (61,),
         (labels_to_composite[(CLS_NEWLINE,)],),
-        """import { makeToast } from '../../common/app/Toasts/redux';
-
-export default function flashToToast(flash) {
-  return Object.keys(flash)
-    .map(key => {
-      const messages = flash[key];
-      return messages.map(message => ({
-        message: message.msg,
-        type: key,
-        timeout: 5000
-        }));
-      })
-      .reduce((toasts, messages) => toasts.concat(messages), [])
-      .map(makeToast)
-      .map(({ payload }) => payload);
-  }
-""",
         """import { makeToast } from '../../common/app/Toasts/redux';
 
 export default function flashToToast(flash) {
@@ -367,25 +246,8 @@ export default function flashToToast(flash) {
 """,
     )),
     ("change indentation decrease to indentation increase 11th line", (
-        (60,),
+        (61,),
         (labels_to_composite[(CLS_NEWLINE, CLS_SPACE_INC, CLS_SPACE_INC)],),
-        """import { makeToast } from '../../common/app/Toasts/redux';
-
-export default function flashToToast(flash) {
-  return Object.keys(flash)
-    .map(key => {
-      const messages = flash[key];
-      return messages.map(message => ({
-        message: message.msg,
-        type: key,
-        timeout: 5000
-          }));
-        })
-        .reduce((toasts, messages) => toasts.concat(messages), [])
-        .map(makeToast)
-        .map(({ payload }) => payload);
-    }
-""",
         """import { makeToast } from '../../common/app/Toasts/redux';
 
 export default function flashToToast(flash) {
@@ -405,27 +267,10 @@ export default function flashToToast(flash) {
 """,
     )),
     ("change indentation decrease to indentation increase 11th line but keep the rest", (
-        (60, 64),
+        (61, 65),
         (labels_to_composite[(CLS_NEWLINE, CLS_SPACE_INC, CLS_SPACE_INC)],
          labels_to_composite[(CLS_NEWLINE, CLS_SPACE_DEC, CLS_SPACE_DEC, CLS_SPACE_DEC,
                               CLS_SPACE_DEC, CLS_SPACE_DEC, CLS_SPACE_DEC)]),
-        """import { makeToast } from '../../common/app/Toasts/redux';
-
-export default function flashToToast(flash) {
-  return Object.keys(flash)
-    .map(key => {
-      const messages = flash[key];
-      return messages.map(message => ({
-        message: message.msg,
-        type: key,
-        timeout: 5000
-          }));
-    })
-    .reduce((toasts, messages) => toasts.concat(messages), [])
-    .map(makeToast)
-    .map(({ payload }) => payload);
-}
-""",
         """import { makeToast } from '../../common/app/Toasts/redux';
 
 export default function flashToToast(flash) {

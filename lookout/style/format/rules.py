@@ -687,7 +687,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
                     (tree_.children_right[node], path + (RuleAttribute(name, True, threshold),)))
             else:
                 freqs = tree_.value[node][0]
-                # why -0.5? See the papers mentioned in _prune_attributes()
+                # why -0.5? Read R. Quinlan's paper about production rules.
                 support = freqs.sum()
                 conf = (freqs.max() - 0.5) / support
                 leaf2rule[node] = len(rules) + offset
@@ -880,7 +880,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         new_rules_set = set()
         new_rules = []
         pseudo_progress = False
-        if cls._log.isEnabledFor(logging.INFO) and not slogging.logs_are_structured:
+        if cls._log.isEnabledFor(logging.DEBUG) and not slogging.logs_are_structured:
             if sys.stderr.isatty():
                 rules = tqdm(rules)
             else:
@@ -889,7 +889,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
         not_cs = {}
         for i, (rule, stats, artificial) in enumerate(rules):
             if pseudo_progress and ((i + 1) % 100) == 0:
-                cls._log.info("attributes pruning status: %d/%d", i + 1, len(rules))
+                cls._log.debug("attributes pruning status: %d/%d", i + 1, len(rules))
             if artificial:
                 new_rules.append(rule)
                 continue

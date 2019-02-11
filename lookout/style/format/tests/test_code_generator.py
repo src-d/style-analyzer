@@ -7,11 +7,13 @@ import bblfsh
 from lookout.core.api.service_data_pb2 import File
 
 from lookout.style.format.analyzer import FormatAnalyzer
-from lookout.style.format.code_generator import CodeGenerator
+import lookout.style.format.classes as cls
+from lookout.style.format.code_generator import CodeGenerator, InapplicableIndentation
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.rules import Rule, RuleStats
 from lookout.style.format.tests.code_generator_data import cases, label_composites
 from lookout.style.format.tests.test_analyzer import get_train_config
+from lookout.style.format.virtual_node import Position, VirtualNode
 
 
 class FakeSeq:
@@ -31,16 +33,13 @@ class GeneratorTestsMeta(type):
     def __new__(mcs, name, bases, attrs):
         for case in cases:
             name = case.replace(" ", "_")
-            attrs["test_global_%s" % name] = mcs.generate_global_test(case)
-        for case in cases:
-            name = case.replace(" ", "_")
             attrs["test_local_%s" % name] = mcs.generate_local_test(case)
 
         return super(GeneratorTestsMeta, mcs).__new__(mcs, name, bases, attrs)
 
     @classmethod
-    def generate_global_test(cls, case_name):
-        y_indexes, y_pred, result, *_ = cases[case_name]
+    def generate_local_test(mcs, case_name):
+        y_indexes, y_pred, result = cases[case_name]
 
         def _test(self):
             y_cur = deepcopy(self.y)
@@ -49,24 +48,8 @@ class GeneratorTestsMeta(type):
             code_generator = CodeGenerator(self.feature_extractor)
             pred_vnodes = code_generator.apply_predicted_y(
                 self.vnodes, self.vnodes_y, list(range(len(self.vnodes_y))), FakeRules(y_cur))
-            generated_file = code_generator.generate(pred_vnodes, "global")
+            generated_file = code_generator.generate(pred_vnodes)
             self.assertEqual(generated_file, result)
-        return _test
-
-    @classmethod
-    def generate_local_test(cls, case_name):
-        y_indexes, y_pred, *result = cases[case_name]
-        result_local = result[-1]
-
-        def _test(self):
-            y_cur = deepcopy(self.y)
-            for i, yi in zip(y_indexes, y_pred):
-                y_cur[i] = yi
-            code_generator = CodeGenerator(self.feature_extractor)
-            pred_vnodes = code_generator.apply_predicted_y(
-                self.vnodes, self.vnodes_y, list(range(len(self.vnodes_y))), FakeRules(y_cur))
-            generated_file = code_generator.generate(pred_vnodes, "local")
-            self.assertEqual(generated_file, result_local)
 
         return _test
 
@@ -91,13 +74,11 @@ class CodeGeneratorTests(unittest.TestCase, metaclass=GeneratorTestsMeta):
             cls.feature_extractor.extract_features([cls.file])
 
     def test_reproduction(self):
-        for indent in ("local", "global"):
-            code_generator = CodeGenerator(self.feature_extractor)
-            generated_file = code_generator.generate(self.vnodes, indent)
-            self.assertEqual(generated_file, self.file.content.decode("utf-8"))
+        code_generator = CodeGenerator(self.feature_extractor)
+        generated_file = code_generator.generate(self.vnodes)
+        self.assertEqual(generated_file, self.file.content.decode("utf-8"))
 
     def test_generate_new_line(self):
-        from lookout.style.format.tests.code_generator_data import cases, label_composites
         self.maxDiff = None
         expected_res = {
             "nothing changed": [],
@@ -120,24 +101,24 @@ class CodeGeneratorTests(unittest.TestCase, metaclass=GeneratorTestsMeta):
             "change indentation decrease to indentation increase 11th line but keep the rest": [
                 "          }));", "})"],
         }
-        for case in list(cases.keys()):
-            base = Path(__file__).parent
-            # str() is needed for Python 3.5
-            with lzma.open(str(base / "benchmark_small.js.xz"), mode="rt") as fin:
-                contents = fin.read()
-            with lzma.open(str(base / "benchmark_small.js.uast.xz")) as fin:
-                uast = bblfsh.Node.FromString(fin.read())
-            config = FormatAnalyzer._load_train_config(get_train_config())
-            fe_config = config["javascript"]
+
+        base = Path(__file__).parent
+        # str() is needed for Python 3.5
+        with lzma.open(str(base / "benchmark_small.js.xz"), mode="rt") as fin:
+            contents = fin.read()
+        with lzma.open(str(base / "benchmark_small.js.uast.xz")) as fin:
+            uast = bblfsh.Node.FromString(fin.read())
+        config = FormatAnalyzer._load_train_config(get_train_config())
+        fe_config = config["javascript"]
+
+        for case in cases:
+            y_indexes, y_pred, _ = cases[case]
             feature_extractor = FeatureExtractor(language="javascript",
                                                  label_composites=label_composites,
                                                  **fe_config["feature_extractor"])
             file = File(content=bytes(contents, "utf-8"), uast=uast)
             X, y, (vnodes_y, vnodes, vnode_parents, node_parents) = \
                 feature_extractor.extract_features([file])
-
-            y_indexes, y_pred, *_ = cases[case]
-
             y_cur = deepcopy(y)
             for i, yi in zip(y_indexes, y_pred):
                 y_cur[i] = yi
@@ -153,6 +134,96 @@ class CodeGeneratorTests(unittest.TestCase, metaclass=GeneratorTestsMeta):
             if expected_res[case] is not None:
                 # None means that we delete some lines. We are not handle this properly now.
                 self.assertEqual(res, expected_res[case], case)
+
+    def test_revert_indentation_change(self):
+        cases = [
+            ("\n    ", (cls.CLS_NEWLINE, cls.CLS_SPACE_INC, cls.CLS_SPACE_INC), "\n  "),
+            ("\n    ", (cls.CLS_NEWLINE, cls.CLS_SPACE_DEC, cls.CLS_SPACE_DEC), "\n      "),
+            ("\n\t ", (cls.CLS_NEWLINE, cls.CLS_TAB_INC, cls.CLS_SPACE_INC), "\n"),
+            ("\n    ", (cls.CLS_NEWLINE, cls.CLS_TAB_INC, cls.CLS_TAB_INC),
+             InapplicableIndentation),
+            ("   ", (cls.CLS_SPACE, cls.CLS_SPACE_INC, cls.CLS_SPACE_INC), ValueError),
+        ]
+        for value, y, result in cases:
+            vnode = VirtualNode(value, Position(0, 1, 1), Position(len(value), 1, len(value)+1),
+                                y=tuple(cls.CLASS_INDEX[i] for i in y))
+            if isinstance(result, str):
+                self.assertEqual(CodeGenerator.revert_indentation_change(vnode), result)
+            else:
+                with self.assertRaises(result):
+                    CodeGenerator.revert_indentation_change(vnode)
+
+    def test_apply_new_indentation(self):
+        cases = [
+            ("\n    ", ("\n", "  "),
+             (cls.CLS_NEWLINE, cls.CLS_SPACE_INC, cls.CLS_SPACE_INC),
+             (cls.CLS_NEWLINE, ),
+             ""),
+            ("\n    ", ("\n", "      "),
+             (cls.CLS_NEWLINE, cls.CLS_SPACE_DEC, cls.CLS_SPACE_DEC),
+             (cls.CLS_NEWLINE, ),
+             ""),
+            ("\n\t ", ("\n", ""),
+             (cls.CLS_NEWLINE, cls.CLS_TAB_INC, cls.CLS_SPACE_INC),
+             (cls.CLS_NEWLINE, ),
+             ""),
+            ("\n    ", InapplicableIndentation,
+             (cls.CLS_NEWLINE, cls.CLS_TAB_INC, cls.CLS_TAB_INC),
+             (cls.CLS_NEWLINE, ),
+             ""),
+            ("\n   ", ValueError,
+             (cls.CLS_NEWLINE, cls.CLS_SPACE, cls.CLS_SPACE_INC, cls.CLS_SPACE_INC),
+             (cls.CLS_NEWLINE, ),
+             ""),
+            ("\n\t  ", InapplicableIndentation,
+             (cls.CLS_NEWLINE, cls.CLS_SPACE_INC, cls.CLS_SPACE_INC),
+             (cls.CLS_NEWLINE, cls.CLS_SPACE_DEC),
+             ""),
+            ("\n\t   ", ValueError,
+             (cls.CLS_NEWLINE, cls.CLS_SPACE_DEC),
+             (cls.CLS_NEWLINE, cls.CLS_SPACE_DEC, cls.CLS_SPACE, cls.CLS_SPACE_DEC),
+             ""),
+            ("\n\n    ", ("\n", "  "),
+             (cls.CLS_NEWLINE, cls.CLS_NEWLINE, cls.CLS_SPACE_DEC),
+             (cls.CLS_NEWLINE, cls.CLS_SPACE_DEC, cls.CLS_SPACE_DEC, cls.CLS_SPACE_DEC),
+             ""),
+            ("", ("\n", "  "),
+             (cls.CLS_NOOP, ),
+             (cls.CLS_NEWLINE, ),
+             "  "),
+            ("", ("\n\n", ""),
+             (cls.CLS_NOOP,),
+             (cls.CLS_NEWLINE, cls.CLS_NEWLINE),
+             ""),
+        ]
+        for value, result, y_old, y, last_ident in cases:
+            vnode = VirtualNode(value, Position(0, 1, 1), Position(len(y), 1, len(y) + 1),
+                                y=tuple(cls.CLASS_INDEX[i] for i in y))
+            vnode.y_old = tuple(cls.CLASS_INDEX[i] for i in y_old)
+            if isinstance(result, tuple):
+                self.assertEqual(CodeGenerator.apply_new_indentation(vnode, last_ident), result)
+            else:
+                with self.assertRaises(result):
+                    CodeGenerator.apply_new_indentation(vnode, last_ident)
+
+        msg = None
+
+        def _warning(*args):
+            nonlocal msg
+            msg = args[0]
+        try:
+            backup_warning = CodeGenerator.log.warning
+            CodeGenerator.log.warning = _warning
+            vnode = VirtualNode(
+                "\n ", Position(0, 1, 1), Position(3, 1, 4),
+                y=tuple(cls.CLASS_INDEX[i] for i in (
+                    cls.CLS_NEWLINE, cls.CLS_SPACE_DEC, cls.CLS_SPACE_DEC, cls.CLS_SPACE_DEC)))
+            vnode.y_old = tuple(cls.CLASS_INDEX[i] for i in (cls.CLS_NEWLINE, cls.CLS_SPACE_DEC))
+            CodeGenerator.apply_new_indentation(vnode, "")
+            expected_msg = "There is no indentation characters left to decrease for vnode"
+            self.assertEqual(msg[:len(expected_msg)], expected_msg)
+        finally:
+            CodeGenerator.log.warning = backup_warning
 
 
 if __name__ == "__main__":

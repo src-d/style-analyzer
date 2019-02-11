@@ -17,9 +17,10 @@ CLASSES = (CLS_SPACE, CLS_TAB, CLS_NEWLINE, CLS_SPACE_INC, CLS_SPACE_DEC,
 CLASS_INDEX = {cls: i for i, cls in enumerate(CLASSES)}
 EMPTY_CLS = frozenset([CLASS_INDEX[CLS_TAB_DEC], CLASS_INDEX[CLS_SPACE_DEC],
                        CLASS_INDEX[CLS_NOOP]])
+QUOTES_INDEX = {CLASS_INDEX[x] for x in [CLS_SINGLE_QUOTE, CLS_DOUBLE_QUOTE]}
 CLS_TO_STR = {
     CLS_DOUBLE_QUOTE: '"',
-    CLS_NEWLINE: "\n",
+    CLS_NEWLINE: "\n",  # FIXME(zurk) Not usable for \r\n endings
     CLS_NOOP: "",
     CLS_SINGLE_QUOTE: "'",
     CLS_SPACE: " ",

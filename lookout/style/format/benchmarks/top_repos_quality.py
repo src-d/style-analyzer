@@ -10,6 +10,7 @@ import json
 import logging
 import logging.handlers
 import os
+import subprocess
 import sys
 import tempfile
 from typing import Iterable, Iterator, NamedTuple, Optional, Sequence, Type, Union
@@ -26,6 +27,7 @@ import numpy
 from tabulate import tabulate
 
 from lookout.style.format.benchmarks.general_report import QualityReportAnalyzer
+from lookout.style.format.feature_extractor import FeatureExtractor
 
 
 # TODO: add to ./benchmarks/data/quality_report_repos.csv after bblfsh python client v3 is released and we use it  # noqa: E501
@@ -141,22 +143,51 @@ class QualityReport:
         self.test_report = test_report
 
 
+class RestartReport(ValueError):
+    """Exception raises if report collection should be restarted."""
+
+
 def measure_quality(repository: str, from_commit: str, to_commit: str, port: int,
                     review_config: dict, train_config: dict, bblfsh: Optional[str],
-                    ) -> QualityReport:
+                    vnodes_expected_number: Optional[int], restarts: int=3) -> QualityReport:
     """
     Generate `QualityReport` for a repository. If it fails it returns empty reports.
 
     :param repository: URL of repository.
-    :param from_commit: Hash of commit.
-    :param to_commit: Hash of commit.
+    :param from_commit: Hash of the base commit.
+    :param to_commit: Hash of the head commit.
     :param port: Port for QualityReportAnalyzer.
     :param review_config: config for review.
     :param train_config: config for train.
     :param bblfsh: Babelfish server address to use. Specify None to use the default value.
+    :param vnodes_expected_number: Specify number for expected number of vnodes if known. \
+                                   report collection will be restarted if number of extracted \
+                                   vnodes does not match.
+    :param restarts: Number of restarts if number of extracted vnodes does not match.
     :return: Reports.
     """
     report = QualityReport()
+    log = logging.getLogger("QualityAnalyzer")
+
+    # This dirty hack should be removed as soon as
+    # https://github.com/src-d/style-analyzer/issues/557 resolved.
+    sum_vnodes_number = 0
+    call_numbers = 0
+
+    _convert_files_to_xy_backup = FeatureExtractor._convert_files_to_xy
+
+    def _convert_files_to_xy(self, parsed_files):
+        nonlocal sum_vnodes_number, call_numbers
+        call_numbers += 1
+        sum_vnodes_number += sum(len(vn) for vn, _, _ in parsed_files)
+        # sum_vnodes_number + 1 because of whatever reason if you extract test and train
+        # separately you have -1 vnode
+        # TODO (zurk): investigate ^
+        if call_numbers == 2 and sum_vnodes_number + 1 != vnodes_expected_number:
+            raise RestartReport("VNodes number does not match to expected: %d != %d:" % (
+                sum_vnodes_number, vnodes_expected_number))
+        log.info("VNodes number match to expected %d. ", vnodes_expected_number)
+        return _convert_files_to_xy_backup(self, parsed_files)
 
     def capture_report(func, name):
         @functools.wraps(func)
@@ -177,11 +208,24 @@ def measure_quality(repository: str, from_commit: str, to_commit: str, port: int
         for name in reports:
             setattr(QualityReportAnalyzer, reports[name],
                     capture_report(getattr(QualityReportAnalyzer, reports[name]), name))
+        if vnodes_expected_number:
+            log.info("Vnodes expected number is equal to %d", vnodes_expected_number)
+            FeatureExtractor._convert_files_to_xy = _convert_files_to_xy
         with tempfile.TemporaryDirectory(prefix="top-repos-quality-repos-") as tmpdirname:
             git_dir = ensure_repo(repository, tmpdirname)
-            server.run("push", fr=from_commit, to=to_commit, port=port, git_dir=git_dir,
-                       log_level="warning", bblfsh=bblfsh,
-                       config_json=json.dumps(train_config))
+            for attempt_number in range(restarts):
+                sum_vnodes_number = -1
+                try:
+                    server.run(
+                       "push", fr=from_commit, to=to_commit, port=port, git_dir=git_dir,
+                       log_level="warning", bblfsh=bblfsh, config_json=json.dumps(train_config))
+                    break
+                except subprocess.CalledProcessError:
+                    # Assume that we failed because VNodes number does not match to expected one
+                    log.warning("%d/%d try to train the model failed.", attempt_number, restarts)
+            else:
+                raise RuntimeError("Run out of %d attempts. Failed to train proper model for %s." %
+                                   (restarts, repository))
             server.run("review", fr=from_commit, to=to_commit, port=port, git_dir=git_dir,
                        log_level="warning", bblfsh=bblfsh,
                        config_json=json.dumps(review_config))
@@ -189,6 +233,8 @@ def measure_quality(repository: str, from_commit: str, to_commit: str, port: int
         for name in reports:
             setattr(QualityReportAnalyzer, reports[name],
                     getattr(QualityReportAnalyzer, reports[name]).original)
+        if vnodes_expected_number:
+            FeatureExtractor._convert_files_to_xy = _convert_files_to_xy_backup
     return report
 
 
@@ -330,10 +376,13 @@ def main(args):
                     if args.force or not os.path.exists(train_rep_loc) or \
                             not os.path.exists(model_rep_loc):
                         # Skip this step if report was already generated
+                        vnodes_expected_number = int(row["vnodes_number"]) \
+                            if "vnodes_number" in row else None
                         report = measure_quality(
                             row["url"], to_commit=row["to"], from_commit=row["from"], port=port,
                             review_config=review_config, train_config=train_config,
-                            bblfsh=args.bblfsh)
+                            bblfsh=args.bblfsh,
+                            vnodes_expected_number=vnodes_expected_number)
                         if report.train_report is not None:
                             with open(train_rep_loc, "w", encoding="utf-8") as f:
                                 f.write(report.train_report)

@@ -275,12 +275,16 @@ class FormatAnalyzer(Analyzer):
                 _log.warning("skipped %d %s files: too few samples (%d/%d)",
                              len(files), language, X_train.shape[0], lower_bound_instances)
                 continue
-            _log.debug("training the rules model")
+            _log.info("extracted %d samples to train, searching for the best hyperparameters",
+                      X_train.shape[0])
             optimizer = Optimizer(**lang_config["optimizer"], random_state=random_state)
             best_score, best_params = optimizer.optimize(X_train, y_train)
-            _log.debug("score of the best estimator found: %.6f", best_score)
-            _log.debug("params of the best estimator found: %s", str(best_params))
-            _log.debug("training the model with complete data")
+            if _log.isEnabledFor(logging.DEBUG):
+                _log.debug("score of the best estimator found: %.6f", best_score)
+                _log.debug("params of the best estimator found: %s", str(best_params))
+                _log.debug("training the model with complete data")
+            else:
+                _log.info("finished hyperopt at %.6f, training the full model", -best_score)
             lang_config["trainable_rules"].update(best_params)
             trainable_rules = TrainableRules(**lang_config["trainable_rules"],
                                              random_state=random_state,
@@ -293,6 +297,8 @@ class FormatAnalyzer(Analyzer):
                 "\n\t".join("%-55s %.5E" % (fe.feature_names[i], importances[i])
                             for i in numpy.argsort(-importances)[:25] if importances[i] > 1e-5))
             trainable_rules.prune_categorical_attributes(fe)
+            _log.info("obtained %d rules, generating the classification report",
+                      len(trainable_rules.rules))
             trainable_rules.rules.generate_classification_report(
                 X_train, y_train, "train", fe.composite_class_representations)
             if test_files:
