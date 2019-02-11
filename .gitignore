@@ -1,5 +1,8 @@
-#Mac files
+# Mac files
 *.DS_Store
+
+# Temporary reports
+lookout/style/format/benchmarks/reports/untagged/
 
 .idea
 # Byte-compiled / optimized / DLL files

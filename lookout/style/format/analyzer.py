@@ -256,7 +256,7 @@ class FormatAnalyzer(Analyzer):
                 continue
             else:
                 _log.info("training on %d %s files", len(files), language)
-            train_files, test_files = FormatAnalyzer.get_train_test_split(
+            train_files, test_files = FormatAnalyzer.split_train_test(
                 files.values(), lang_config["test_dataset_ratio"], random_state=random_state)
             # ensure that the features are reproducible
             train_files = sorted(train_files, key=lambda x: x.path)
@@ -455,8 +455,8 @@ class FormatAnalyzer(Analyzer):
         return token_fixes, new_vnodes, y_pred_pure, y
 
     @staticmethod
-    def get_train_test_split(files: Sequence[File], test_dataset_ratio: float,
-                             random_state: int) -> Tuple[Sequence[File], Sequence[File]]:
+    def split_train_test(files: Sequence[File], test_dataset_ratio: float,
+                         random_state: int) -> Tuple[Sequence[File], Sequence[File]]:
         """
         Create train test split for the files collection.
 

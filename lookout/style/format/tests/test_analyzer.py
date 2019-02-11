@@ -83,11 +83,11 @@ class AnalyzerTests(unittest.TestCase):
         FeatureExtractor._log.level = logging.DEBUG
         cls.bblfsh_client = bblfsh.BblfshClient("0.0.0.0:9432")
         parent_loc = Path(__file__).parent.resolve()
-        with tarfile.open(str(parent_loc / "jquery_noisy.tar.xz")) as tar:
+        with tarfile.open(str(parent_loc / "freecodecamp.tar.xz")) as tar:
             tar.extractall(path=parent_loc)
-        cls.jquery_dir = str(Path(parent_loc) / "jquery_noisy")
-        base_jquery_pattern = os.path.join(cls.jquery_dir, "jquery", "*.js")
-        head_jquery_pattern = os.path.join(cls.jquery_dir, "jquery_noisy", "*.js")
+        cls.jquery_dir = str(Path(parent_loc) / "freecodecamp")
+        base_jquery_pattern = os.path.join(cls.jquery_dir, "freecodecamp-base", "*.js")
+        head_jquery_pattern = os.path.join(cls.jquery_dir, "freecodecamp-head", "*.js")
         cls.base_filepaths = glob.glob(base_jquery_pattern, recursive=True)
         cls.head_filepaths = glob.glob(head_jquery_pattern, recursive=True)
         cls.base_files = parse_files(filepaths=cls.base_filepaths,
@@ -100,6 +100,13 @@ class AnalyzerTests(unittest.TestCase):
                                      overall_size_limit=5 << 20,
                                      client=cls.bblfsh_client,
                                      language="javascript")
+        # the paths to the base and head revisions need to be the same for further testing
+        cls.head_files[0].path = cls.head_files[0].path.replace("head", "base")
+        cls.head_file = cls.head_files[0]
+        for base_file in cls.base_files:
+            if cls.head_file.path == base_file.path:
+                cls.base_file = base_file
+                break
 
     @classmethod
     def tearDownClass(cls):
@@ -127,8 +134,7 @@ class AnalyzerTests(unittest.TestCase):
         self.data_service = FakeDataService(
             bblfsh_client=self.bblfsh_client,
             files=self.base_files,
-            changes=[Change(base=remove_uast(b), head=h)
-                     for b, h in zip(self.base_files, self.head_files)])
+            changes=[Change(base=self.base_file, head=self.head_file)])
         model = FormatAnalyzer.train(self.ptr, get_train_config(), self.data_service)
         required = FormatAnalyzer.check_training_required(
             model, self.ptr, get_train_config(), self.data_service)
@@ -136,8 +142,7 @@ class AnalyzerTests(unittest.TestCase):
         self.data_service = FakeDataService(
             bblfsh_client=self.bblfsh_client,
             files=self.base_files,
-            changes=[Change(base=remove_uast(b), head=h)
-                     for b, h in zip(self.base_files, self.head_files)])
+            changes=[Change(base=remove_uast(self.base_file), head=self.head_file)])
         required = FormatAnalyzer.check_training_required(
             model, self.ptr, get_train_config(), self.data_service)
         self.assertTrue(required)
@@ -163,8 +168,7 @@ class AnalyzerTests(unittest.TestCase):
         self.data_service = FakeDataService(
             bblfsh_client=self.bblfsh_client,
             files=self.base_files,
-            changes=[Change(base=remove_uast(b), head=h)
-                     for b, h in zip(self.base_files, self.head_files)])
+            changes=[Change(base=remove_uast(self.base_file), head=self.head_file)])
         config = get_analyze_config()
         # Make uast_break_check only here
         config["uast_break_check"] = True

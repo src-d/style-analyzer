@@ -79,6 +79,8 @@ def create_parser() -> ArgumentParser:
     :return: an ArgumentParser with an handler defined in the handler attribute.
     """
     # Deferred imports to speed up loading __init__
+    from lookout.style.format.benchmarks.compare_quality_reports import \
+        compare_quality_reports_entry
     from lookout.style.format.benchmarks.evaluate_smoke import evaluate_smoke_entry
     from lookout.style.format.benchmarks.generate_smoke import generate_smoke_entry
     from lookout.style.format.benchmarks.general_report import print_reports
@@ -131,6 +133,22 @@ def create_parser() -> ArgumentParser:
         "--retrain", action="store_true", default=False,
         help="Force model retraining")
 
+    # Compare two quality reports summaries
+    compare_quality_parser = add_parser(
+        "compare-quality",
+        "Creates a file with the differences in quality metrics between two reports.")
+    compare_quality_parser.set_defaults(handler=compare_quality_reports_entry)
+    compare_quality_parser.add_argument(
+        "--base", type=str, required=True,
+        help="Baseline report. Usually the latest report from ./report/ directory.")
+    compare_quality_parser.add_argument(
+        "--new", type=str, required=True,
+        help="New report. Usually It is a report generated for master or any local \
+                       change you did and want to validate.")
+    compare_quality_parser.add_argument(
+        "-o", "--output", type=str, required=True,
+        help="Path to the file to save result or - to print to stdout.")
+
     # Generate dataset of different styles in code for smoke testing.
     gen_smoke_parser = add_parser("gen-smoke-dataset",
                                   "Generate dataset with different styles. "
@@ -145,8 +163,7 @@ def create_parser() -> ArgumentParser:
         help="Path to the directory where the generated dataset should be stored.")
     gen_smoke_parser.add_argument(
         "--force", default=False, action="store_true",
-        help="Override output directory if exists.",
-    )
+        help="Override output directory if exists.")
 
     # Evaluate on different styles dataset
     eval_smoke_parser = add_parser("eval-smoke-dataset",
