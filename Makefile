@@ -41,7 +41,7 @@ bblfsh-start:
 	docker exec style_analyzer_bblfshd bblfshctl driver install \
 		javascript docker://bblfsh/javascript-driver\:v1.2.0
 
-REPORTS_DIR ?= reports
+REPORTS_DIR ?= $(current_dir)/lookout/style/format/benchmarks/reports
 REPORT_VERSION ?= untagged
 REPORT_DIR ?= $(REPORTS_DIR)/$(REPORT_VERSION)
 SMOKE_REPORT_DIR ?= $(REPORT_DIR)/js_smoke
@@ -50,6 +50,7 @@ QUALITY_REPORT_DIR ?= $(REPORT_DIR)/quality
 SMOKE_INIT ?= ./lookout/style/format/benchmarks/data/js_smoke_init.tar.xz
 QUALITY_REPORT_REPOS ?= ./lookout/style/format/benchmarks/data/quality_report_repos.csv
 QUALITY_REPORT_REPOS_WITH_VNODE ?= ./lookout/style/format/benchmarks/data/quality_report_repos_with_vnodes_number.csv
+BASE_REPORT_VERSION ?= 0.1.0
 
 $(SMOKE_REPORT_DIR) $(NOISY_REPORT_DIR) $(QUALITY_REPORT_DIR):
 	mkdir -p $@
@@ -64,6 +65,14 @@ report-noisy: $(NOISY_REPORT_DIR)
 report-quality: $(QUALITY_REPORT_DIR)
 	python3 -m lookout.style.format.benchmarks.top_repos_quality -o $(QUALITY_REPORT_DIR) \
 		-i $(QUALITY_REPORT_REPOS_WITH_VNODE) 2>&1 | tee $(QUALITY_REPORT_DIR)/logs.txt
+report-compare:
+	python3 -m lookout.style.format compare-quality \
+		--base $(REPORTS_DIR)/$(BASE_REPORT_VERSION)/quality/summary-train_report.md \
+		--new $(QUALITY_REPORT_DIR)/summary-train_report.md -o -
+	python3 -m lookout.style.format compare-quality \
+		--base $(REPORTS_DIR)/$(BASE_REPORT_VERSION)/quality/summary-test_report.md \
+		--new $(QUALITY_REPORT_DIR)/summary-test_report.md -o -
+
 report-release: report-smoke report-noisy report-quality
 
 expected-vnodes-number:
