@@ -61,6 +61,7 @@ class FormatAnalyzer(Analyzer):
 
     model_type = FormatModel
     name = "style.format.analyzer.FormatAnalyzer"
+    vendor = "source{d}"
     version = 1
     description = "Source code formatting: whitespace, new lines, quotes, braces."
     defaults_for_analyze = {
@@ -197,7 +198,7 @@ class FormatAnalyzer(Analyzer):
             overall_lines = changed_lines = 0
             for file in parse_files(filepaths=head_files.keys(),
                                     line_length_limit=lang_config["line_length_limit"],
-                                    overalll_size_limit=lang_config["overall_size_limit"],
+                                    overall_size_limit=lang_config["overall_size_limit"],
                                     client=data_service.bblfsh_client,
                                     language=language, log=_log):
                 head_lines = len(file.content.splitlines())
@@ -233,7 +234,7 @@ class FormatAnalyzer(Analyzer):
         _log = logging.getLogger(cls.__name__)
         _log.info("train %s %s %s %s", __version__, ptr.url, ptr.commit,
                   pformat(config, width=4096, compact=True))
-        model = FormatModel().construct(cls, ptr)
+        model = FormatModel().generate(cls, ptr)
         config = cls._load_train_config(config)
         for language, files in files_by_language(files).items():
             try:
