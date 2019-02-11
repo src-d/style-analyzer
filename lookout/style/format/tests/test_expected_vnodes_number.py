@@ -29,7 +29,7 @@ class ExpectedVnodesTest(unittest.TestCase):
 
         self.assertEqual(result.strip(),
                          """url,to,from,vnodes_number
-https://github.com/laravel/telescope,534030114f47696fe3f3b08ea7ca49467428f2af,6f0a10ec586cfa1a22218b6778bf9c1572b97912,3163
+https://github.com/laravel/telescope,534030114f47696fe3f3b08ea7ca49467428f2af,6f0a10ec586cfa1a22218b6778bf9c1572b97912,3045
 """.strip())
 
 
