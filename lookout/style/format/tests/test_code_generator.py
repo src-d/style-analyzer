@@ -31,19 +31,35 @@ class FakeRules:
 
 class GeneratorTestsMeta(type):
     def __new__(mcs, name, bases, attrs):
+        base = Path(__file__).parent
+        # str() is needed for Python 3.5
+        with lzma.open(str(base / "benchmark_small.js.xz"), mode="rt") as fin:
+            contents = fin.read()
+        with lzma.open(str(base / "benchmark_small.js.uast.xz")) as fin:
+            uast = bblfsh.Node.FromString(fin.read())
         for case in cases:
             name = case.replace(" ", "_")
-            attrs["test_local_%s" % name] = mcs.generate_local_test(case)
+            attrs["test_local_%s" % name] = mcs.generate_local_test(case, uast, contents)
 
         return super(GeneratorTestsMeta, mcs).__new__(mcs, name, bases, attrs)
 
     @classmethod
-    def generate_local_test(mcs, case_name):
-        y_indexes, y_pred, result = cases[case_name]
+    def generate_local_test(mcs, case_name, uast, contents):
+        fe_config = FormatAnalyzer._load_train_config(get_train_config())["javascript"]
+        feature_extractor = FeatureExtractor(language="javascript",
+                                             label_composites=label_composites,
+                                             **fe_config["feature_extractor"])
+        file = File(content=bytes(contents, "utf-8"), uast=uast)
+        _, _, (vnodes_y, _, _, _) = feature_extractor.extract_features([file])
+        offsets, y_pred, result = cases[case_name]
 
         def _test(self):
             y_cur = deepcopy(self.y)
-            for i, yi in zip(y_indexes, y_pred):
+            for offset, yi in zip(offsets, y_pred):
+                i = None
+                for i, vnode in enumerate(vnodes_y):  # noqa: B007
+                    if offset == vnode.start.offset:
+                        break
                 y_cur[i] = yi
             code_generator = CodeGenerator(self.feature_extractor)
             pred_vnodes = code_generator.apply_predicted_y(
@@ -111,8 +127,8 @@ class CodeGeneratorTests(unittest.TestCase, metaclass=GeneratorTestsMeta):
         config = FormatAnalyzer._load_train_config(get_train_config())
         fe_config = config["javascript"]
 
-        for case in cases:
-            y_indexes, y_pred, _ = cases[case]
+        for case in expected_res:
+            offsets, y_pred, _ = cases[case]
             feature_extractor = FeatureExtractor(language="javascript",
                                                  label_composites=label_composites,
                                                  **fe_config["feature_extractor"])
@@ -120,7 +136,11 @@ class CodeGeneratorTests(unittest.TestCase, metaclass=GeneratorTestsMeta):
             X, y, (vnodes_y, vnodes, vnode_parents, node_parents) = \
                 feature_extractor.extract_features([file])
             y_cur = deepcopy(y)
-            for i, yi in zip(y_indexes, y_pred):
+            for offset, yi in zip(offsets, y_pred):
+                i = None
+                for i, vnode in enumerate(vnodes_y):  # noqa: B007
+                    if offset == vnode.start.offset:
+                        break
                 y_cur[i] = yi
             code_generator = CodeGenerator(feature_extractor)
             pred_vnodes = code_generator.apply_predicted_y(

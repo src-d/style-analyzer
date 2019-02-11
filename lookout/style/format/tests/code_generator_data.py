@@ -57,7 +57,7 @@ cases = OrderedDict([
         original_code,
     )),
     ("remove new line in the end of 4th line", (
-        (23,),
+        (133,),
         (labels_to_composite[(CLS_NOOP, )],),
         """import { makeToast } from '../../common/app/Toasts/redux';
 
@@ -96,7 +96,7 @@ export default function flashToToast(flash) {
 }
 """)),
     ("remove indentation in the 4th line till the end", (
-        (16, 104),
+        (105, 434),
         (labels_to_composite[(CLS_NEWLINE, CLS_SPACE_INC)],
          labels_to_composite[(CLS_NEWLINE, CLS_SPACE_DEC, CLS_SPACE_DEC, CLS_SPACE_DEC)]),
         """import { makeToast } from '../../common/app/Toasts/redux';
@@ -117,7 +117,7 @@ export default function flashToToast(flash) {
  }
 """)),
     ("new line between 6th and 7th regular code lines", (
-        (38,),
+        (186,),
         (labels_to_composite[(CLS_NEWLINE, CLS_NEWLINE)], ),
         """import { makeToast } from '../../common/app/Toasts/redux';
 
@@ -138,7 +138,7 @@ export default function flashToToast(flash) {
 }
 """)),
     ("new line in the middle of the 7th code line with indentation increase", (
-        (40, 65),
+        (208, 308),
         (labels_to_composite[(CLS_NEWLINE, CLS_SPACE_INC, CLS_SPACE_INC)],
          labels_to_composite[(CLS_NEWLINE, CLS_SPACE_DEC, CLS_SPACE_DEC,
                               CLS_SPACE_DEC, CLS_SPACE_DEC)]),
@@ -161,7 +161,7 @@ export default function flashToToast(flash) {
 }
 """)),
     ("new line in the middle of the 7th code line with indentation decrease", (
-        (40, 65),
+        (208, 308),
         (labels_to_composite[(CLS_NEWLINE, CLS_SPACE_DEC, CLS_SPACE_DEC)],
          labels_to_composite[(CLS_NEWLINE, )]),
         """import { makeToast } from '../../common/app/Toasts/redux';
@@ -183,7 +183,7 @@ export default function flashToToast(flash) {
 }
 """)),
     ("new line in the middle of the 7th code line without indentation increase", (
-        (40,),
+        (208,),
         (labels_to_composite[(CLS_NEWLINE,)], ),
         """import { makeToast } from '../../common/app/Toasts/redux';
 
@@ -204,7 +204,7 @@ export default function flashToToast(flash) {
 }
 """)),
     ("change quotes", (
-        (6, 7),
+        (26, 56),
         (labels_to_composite[(CLS_DOUBLE_QUOTE,)],
          labels_to_composite[(CLS_DOUBLE_QUOTE,)]),
         """import { makeToast } from "../../common/app/Toasts/redux";
@@ -225,7 +225,7 @@ export default function flashToToast(flash) {
 }
 """)),
     ("remove indentation decrease 11th line", (
-        (61,),
+        (297,),
         (labels_to_composite[(CLS_NEWLINE,)],),
         """import { makeToast } from '../../common/app/Toasts/redux';
 
@@ -246,7 +246,7 @@ export default function flashToToast(flash) {
 """,
     )),
     ("change indentation decrease to indentation increase 11th line", (
-        (61,),
+        (297,),
         (labels_to_composite[(CLS_NEWLINE, CLS_SPACE_INC, CLS_SPACE_INC)],),
         """import { makeToast } from '../../common/app/Toasts/redux';
 
@@ -267,7 +267,7 @@ export default function flashToToast(flash) {
 """,
     )),
     ("change indentation decrease to indentation increase 11th line but keep the rest", (
-        (61, 65),
+        (297, 308),
         (labels_to_composite[(CLS_NEWLINE, CLS_SPACE_INC, CLS_SPACE_INC)],
          labels_to_composite[(CLS_NEWLINE, CLS_SPACE_DEC, CLS_SPACE_DEC, CLS_SPACE_DEC,
                               CLS_SPACE_DEC, CLS_SPACE_DEC, CLS_SPACE_DEC)]),
