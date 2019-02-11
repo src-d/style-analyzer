@@ -7,7 +7,8 @@ import pandas
 from lookout.style.typos.utils import COLUMNS
 
 
-def print_frequencies(tokens_set: Set[str], id_stats: pandas.DataFrame, file: str) -> None:
+def print_frequencies(tokens_set: Set[str], frequency_column: str, id_stats: pandas.DataFrame,
+                      path: str) -> None:
     """
     Dump frequencies of tokens from tokens_set to a file. Frequencies info is obtained
     from id_stats dataframe.
@@ -15,8 +16,8 @@ def print_frequencies(tokens_set: Set[str], id_stats: pandas.DataFrame, file: st
     frequencies = {}
     for token, row in id_stats.iterrows():
         if token in tokens_set:
-            frequencies[token] = row["num_occ"]
-    with lzma.open(file, "wt") as f:
+            frequencies[token] = row[frequency_column]
+    with lzma.open(path, "wt") as f:
         for token in list(tokens_set):
             print(token, frequencies[token], file=f)
 

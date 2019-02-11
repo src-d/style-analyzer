@@ -59,13 +59,13 @@ def prepare_data(input_path: str, frequency_column: str = None,
 
     # Derive new vocabulary for future use
     vocabulary_size = vocabulary_size or DEFAULT_VOCABULARY_SIZE
-    vocabulary_tokens = set(stats.loc[stats.index[:vocabulary_size]])
+    vocabulary_tokens = set(stats.index[:vocabulary_size])
 
     frequencies_size = frequencies_size or len(stats)
 
     # Saving frequencies info for future use in the corrector model
-    print_frequencies(vocabulary_tokens, stats, vocabulary_path)
-    print_frequencies(set(stats.loc[stats.index[:frequencies_size]]), stats,
+    print_frequencies(vocabulary_tokens, frequency_column, stats, vocabulary_path)
+    print_frequencies(set(stats.index[:frequencies_size]), frequency_column, stats,
                       frequencies_path)
 
     # Leave only splits that contain tokens from vocabulary
@@ -174,8 +174,8 @@ def train_from_scratch(input_path: str = "lookout/style/typos/data/100k_repos2id
                        ) -> TyposCorrector:
     """
     Train TyposCorrector on raw data.
-    1. Prepare data, for more info check :func:`~prepare_data`.
-    2. Construct train and test datasets, for more info check :func:`~get_train_test`.
+    1. Prepare data, for more info check :func:`prepare_data`.
+    2. Construct train and test datasets, for more info check :func:`get_train_test`.
     3. Train TyposCorrector model. Save if needed.
     4. Test corrector and print results, if needed.
     :param input_path: Path to a .csv dump of input dataframe. Should contain column
