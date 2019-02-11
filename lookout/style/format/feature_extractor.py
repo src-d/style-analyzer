@@ -16,7 +16,7 @@ from sklearn.feature_selection import SelectKBest, VarianceThreshold
 from lookout.style.format.classes import (
     CLASS_INDEX, CLASS_PRINTABLES, CLASS_REPRESENTATIONS, CLS_DOUBLE_QUOTE, CLS_NEWLINE, CLS_NOOP,
     CLS_SINGLE_QUOTE, CLS_SPACE, CLS_SPACE_DEC, CLS_SPACE_INC, CLS_TAB, CLS_TAB_DEC, CLS_TAB_INC,
-    INDEX_CLS_TO_STR)
+    INDEX_CLS_TO_STR, QUOTES_INDEX)
 from lookout.style.format.features import (  # noqa: F401
     Feature, FEATURE_CLASSES, FeatureGroup, FeatureId, FeatureLayout, Layout,
     MultipleValuesFeature, MutableFeatureLayout, MutableLayout)
@@ -570,7 +570,9 @@ class FeatureExtractor:
         """
         start, end, value, current_class_seq = None, None, "", []
         for vnode in vnodes:
-            if vnode.y is None:
+            if vnode.y is None and not vnode.is_accumulated_indentation or (
+                vnode.y is not None and vnode.y[0] in QUOTES_INDEX
+            ):
                 if current_class_seq:
                     yield VirtualNode(value=value, start=start, end=end,
                                       y=tuple(current_class_seq), path=path)
@@ -581,7 +583,8 @@ class FeatureExtractor:
                     start = vnode.start
                 end = vnode.end
                 value += vnode.value
-                current_class_seq.extend(vnode.y)
+                if not vnode.is_accumulated_indentation:
+                    current_class_seq.extend(vnode.y)
         if current_class_seq:
             assert value
             yield VirtualNode(value=value, start=start, end=end, y=tuple(current_class_seq),
@@ -606,7 +609,7 @@ class FeatureExtractor:
                                                 end=Position(0, 1, 1), y=noop_label, path=path))
         for vnode, next_vnode in zip(vnodes, islice(vnodes, 1, None)):
             augmented_vnodes.append(vnode)
-            if vnode.y is None and not vnode.is_accumulated_indentation and next_vnode.y is None:
+            if vnode.y is None and next_vnode.y is None:
                 augmented_vnodes.append(VirtualNode(value="", start=vnode.end, end=vnode.end,
                                                     y=noop_label, path=path))
         augmented_vnodes.append(next_vnode)

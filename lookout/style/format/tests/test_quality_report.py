@@ -148,10 +148,10 @@ class QualityReportTests(PretrainedModelTests):
         self.assertEqual(qcount, 1)
         output = output[:output.find("# Model report for")]
         metrics = _get_metrics(output)
-        expected_metrics = (0.9756371814092953, 0.9756371814092953,
-                            0.8856753997958490, 0.9756371814092953,
-                            0.9284822543249510, 0.9077917659067710,
-                            2668, 2939)
+        expected_metrics = (0.9292385057471264, 0.9292385057471264,
+                            0.8507070042749095, 0.9292385057471263,
+                            0.8882403433476395, 0.9154883262084841,
+                            2784, 3041)
         assert_almost_equal(metrics, expected_metrics, decimal=15)
 
     def test_no_model(self):
