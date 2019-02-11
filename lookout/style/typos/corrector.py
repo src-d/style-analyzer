@@ -82,7 +82,7 @@ class TyposCorrector(Model):
         Construct a new CandidatesGenerator.
 
         :param vocabulary_file: The path to the vocabulary.
-        :param frequencies_file: The path ot the frequencies.
+        :param frequencies_file: The path t the frequencies.
         :param embeddings_file: The path to the embeddings.
         :param neighbors_number: Number of neighbors of context and typo embeddings \
                                  to consider as candidates.
@@ -100,8 +100,8 @@ class TyposCorrector(Model):
         """
         Train corrector on the given dataset of typos inside identifiers.
 
-        :param typos: DataFrame containing columns "typo" and "identifier",
-                      column "token_split" is optional, but used when present.
+        :param typos: DataFrame containing columns COLUMNS["TOKEN"] and COLUMNS["CORRECT_TOKEN"],
+                      column COLUMNS["SPLIT"] is optional, but used when present.
         :param candidates: DataFrame with precalculated candidates.
         :param save_candidates_file: Path to file where to save the candidates.
         """
@@ -116,8 +116,8 @@ class TyposCorrector(Model):
         """
         Train corrector on the given dataset of typos inside identifiers.
 
-        :param typos_file: CSV file with columns "typo" and "identifier",
-                           column "token_split" is optional, but used when present.
+        :param typos_file: CSV file with columns COLUMNS["TOKEN"] and COLUMNS["CORRECT_TOKEN"],
+                      column COLUMNS["SPLIT"] is optional, but used when present.
         :param candidates_file: Pickle dump of pandas.DataFrame with precalculated \
                                 candidates and features
         :param save_candidates_file: Path to file where to save the candidates.
@@ -134,8 +134,8 @@ class TyposCorrector(Model):
         """
         Suggest corrections for given typos.
 
-        :param typos: DataFrame containing column "typo", \
-                      column "token_split" is optional, but used when present
+        :param typos: DataFrame containing column COLUMNS["TOKEN"], \
+                      column COLUMNS["SPLIT"] is optional, but used when present
         :param candidates: DataFrame with precalculated candidates
         :param n_candidates: Number of most probable candidates to return
         :param return_all: False to return suggestions only for corrected tokens
@@ -155,8 +155,8 @@ class TyposCorrector(Model):
         """
         Suggest corrections for given typos.
 
-        :param typos_file: csv file containing DataFrame with column "typo", \
-                           column "token_split" is optional, but used when present
+        :param typos_file: csv file containing DataFrame with column COLUMNS["TOKEN"], \
+                      column COLUMNS["SPLIT"] is optional, but used when present
         :param candidates_file: pickle file containing DataFrame with precalculated \
                                 candidates and features
         :param n_candidates: Number of most probable candidates to return
