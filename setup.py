@@ -43,6 +43,7 @@ setup(
         "xgboost>=0.72,<2.0",
         "tabulate>=0.8.0,<2.0",
         "python-igraph>=0.7.0,<2.0",
+        "googledrivedownloader=0.3",
     ],
     extras_require={
         "tf": tf_requires,

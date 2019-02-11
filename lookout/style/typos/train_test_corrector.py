@@ -1,5 +1,6 @@
 from typing import Tuple, Union
 
+from google_drive_downloader import GoogleDriveDownloader as gdd
 import pandas
 
 from lookout.style.typos.corrector import TyposCorrector
@@ -12,6 +13,9 @@ from lookout.style.typos.preprocessing.metrics import print_scores
 DEFAULT_VOCABULARY_SIZE = 10000
 DEFAULT_VOCABULARY_PATH = "lookout/style/typos/data/vocabulary.csv"
 DEFAULT_FREQUENCY_PATH = "lookout/style/typos/data/frequencies.csv"
+
+DRIVE_DATASET_ID = "1muNVWPe68XK8SFvqIv3V728NmkT46aTx"
+DRIVE_FASTTEXT_ID = "1hCOIwKn-QZLVv1S385HxyNMeERgKGIvo"
 
 
 def prepare_data(input_path: str, frequency_column: str = None,
@@ -160,14 +164,13 @@ def test(model: Union[TyposCorrector, str], test_data: Union[pandas.DataFrame, s
     print_scores(test_data, suggestions_test)
 
 
-def train_from_scratch(input_path: str = "lookout/style/typos/data/100k_repos2ids.csv",
+def train_from_scratch(input_path: str = None, embeddings_path: str = None,
                        frequency_column: str = "num_occ",
-                       vocabulary_size: int = DEFAULT_VOCABULARY_SIZE, frequencies_size: int = 200000,
+                       vocabulary_size: int = DEFAULT_VOCABULARY_SIZE, frequencies_size: int = None,
                        vocabulary_path: str = DEFAULT_VOCABULARY_PATH,
                        frequencies_path: str = DEFAULT_FREQUENCY_PATH,
                        save_prepared_path: str = "lookout/style/typos/data/prepared_data.csv",
                        train_size: int = 50000, test_size: int = 10000, threads_number: int = 8,
-                       embeddings_path: str = "lookout/style/typos/data/id_vecs_10.bin",
                        save_train_path: str = "lookout/style/typos/data/train.csv",
                        save_test_path: str = "lookout/style/typos/data/test.csv",
                        save_model_path: str = "lookout/style/typos/data/new_corrector.asdf"
@@ -179,7 +182,10 @@ def train_from_scratch(input_path: str = "lookout/style/typos/data/100k_repos2id
     3. Train TyposCorrector model. Save if needed.
     4. Test corrector and print results, if needed.
     :param input_path: Path to a .csv dump of input dataframe. Should contain column
-                       COLUMNS["SPLIT"].
+                       COLUMNS["SPLIT"]. If not specified, default dataset will be downloaded from
+                       google drive.
+    :param embeddings_path: Path to a FastText model dump. If not specified, default model will
+                            be downloaded from google drive.
     :param frequency_column: Name of column with identifiers frequencies. If not specified,
                              every split is considered to have frequency 1.
     :param vocabulary_size: Number of most frequent tokens to take as a vocabulary.
@@ -194,11 +200,18 @@ def train_from_scratch(input_path: str = "lookout/style/typos/data/100k_repos2id
     :param test_size: Test dataset size.
     :param save_train_path: Path to save train dataset.
     :param save_test_path: Path to save test dataset.
-    :param embeddings_path: Path to a FastText model dump.
     :param threads_number: Number of threads for multiprocessing.
     :param save_model_path: Path to save model to.
     :return: Trained TyposCorrector model.
     """
+    if not input_path:
+        gdd.download_file_from_google_drive(file_id=DRIVE_DATASET_ID,
+                                            dest_path="lookout/style/typos/data/1M_repos2ids.csv")
+
+    if not embeddings_path:
+        gdd.download_file_from_google_drive(file_id=DRIVE_FASTTEXT_ID,
+                                            dest_path="lookout/style/typos/data/id_vecs_10.bin")
+
     # Prepare raw dataset for using by TyposCorrector and derive vocabulary if needed.
     prepared_data = prepare_data(input_path, frequency_column, vocabulary_size, frequencies_size,
                                  vocabulary_path, frequencies_path, save_prepared_path)
