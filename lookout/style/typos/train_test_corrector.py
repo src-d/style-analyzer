@@ -164,7 +164,7 @@ def test(model: Union[TyposCorrector, str], test_data: Union[pandas.DataFrame, s
     print_scores(test_data, suggestions_test)
 
 
-def train_from_scratch(input_path: str = None, embeddings_path: str = None,
+def train_from_scratch(input_path: str = None, fasttext_path: str = None,
                        frequency_column: str = "num_occ",
                        vocabulary_size: int = DEFAULT_VOCABULARY_SIZE, frequencies_size: int = None,
                        vocabulary_path: str = DEFAULT_VOCABULARY_PATH,
@@ -184,7 +184,7 @@ def train_from_scratch(input_path: str = None, embeddings_path: str = None,
     :param input_path: Path to a .csv dump of input dataframe. Should contain column
                        COLUMNS["SPLIT"]. If not specified, default dataset will be downloaded from
                        google drive.
-    :param embeddings_path: Path to a FastText model dump. If not specified, default model will
+    :param fasttext_path: Path to a FastText model dump. If not specified, default model will
                             be downloaded from google drive.
     :param frequency_column: Name of column with identifiers frequencies. If not specified,
                              every split is considered to have frequency 1.
@@ -205,12 +205,14 @@ def train_from_scratch(input_path: str = None, embeddings_path: str = None,
     :return: Trained TyposCorrector model.
     """
     if not input_path:
+        input_path = "lookout/style/typos/data/1M_repos2ids.csv"
         gdd.download_file_from_google_drive(file_id=DRIVE_DATASET_ID,
-                                            dest_path="lookout/style/typos/data/1M_repos2ids.csv")
+                                            dest_path=input_path)
 
-    if not embeddings_path:
+    if not fasttext_path:
+        fasttext_path = "lookout/style/typos/data/id_vecs_10.bin"
         gdd.download_file_from_google_drive(file_id=DRIVE_FASTTEXT_ID,
-                                            dest_path="lookout/style/typos/data/id_vecs_10.bin")
+                                            dest_path=fasttext_path)
 
     # Prepare raw dataset for using by TyposCorrector and derive vocabulary if needed.
     prepared_data = prepare_data(input_path, frequency_column, vocabulary_size, frequencies_size,
@@ -222,7 +224,7 @@ def train_from_scratch(input_path: str = None, embeddings_path: str = None,
 
     # Train TyposCorrector model on obtained data.
     # Save model if save_model_path specified.
-    model = train(train_data, vocabulary_path, frequencies_path, embeddings_path, threads_number,
+    model = train(train_data, vocabulary_path, frequencies_path, fasttext_path, threads_number,
                   save_model_path)
 
     # Print result on test part.
