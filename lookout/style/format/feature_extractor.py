@@ -14,9 +14,9 @@ from sklearn.exceptions import NotFittedError
 from sklearn.feature_selection import SelectKBest, VarianceThreshold
 
 from lookout.style.format.classes import (
-    CLASS_INDEX, CLASS_PRINTABLES, CLASS_REPRESENTATIONS, CLS_DOUBLE_QUOTE, CLS_NEWLINE, CLS_NOOP,
+    CLASS_INDEX, CLASS_PRINTABLES, CLASS_REPRESENTATIONS, CLS_DOUBLE_QUOTE, CLS_NOOP,
     CLS_SINGLE_QUOTE, CLS_SPACE, CLS_SPACE_DEC, CLS_SPACE_INC, CLS_TAB, CLS_TAB_DEC, CLS_TAB_INC,
-    INDEX_CLS_TO_STR, QUOTES_INDEX)
+    INDEX_CLS_TO_STR, NEWLINE_INDEX, QUOTES_INDEX)
 from lookout.style.format.features import (  # noqa: F401
     Feature, FEATURE_CLASSES, FeatureGroup, FeatureId, FeatureLayout, Layout,
     MultipleValuesFeature, MutableFeatureLayout, MutableLayout)
@@ -489,16 +489,30 @@ class FeatureExtractor:
                         y=cls, path=path)
                 continue
             line_offset = 0
+            traling_chars = lines[0].splitlines()[0]
+            if traling_chars:
+                # node contains trailing whitespaces from the previous line
+                assert set(traling_chars) <= {" ", "\t"}
+                y = [CLASS_INDEX[CLS_SPACE if yi == " " else CLS_TAB] for yi in traling_chars]
+                yield VirtualNode(
+                    traling_chars,
+                    node.start,
+                    Position(node.start.offset + len(traling_chars), node.start.line,
+                             node.start.col + len(traling_chars)),
+                    y=tuple(y), path=path)
+                lines[0] = lines[0][len(traling_chars):]
+                line_offset += len(traling_chars)
+
             for i, line in enumerate(lines[:-1]):
-                # `line` contains trailing whitespaces, we add it to the newline node
+                # `line` ends with \r\n, we prepend \r to the newline node
                 start_offset = node.start.offset + line_offset
-                start_col = node.start.col if i == 0 else 1
+                start_col = node.start.col + line_offset if i == 0 else 1
                 lineno = node.start.line + i
                 yield VirtualNode(
                     line,
                     Position(start_offset, lineno, start_col),
                     Position(start_offset + len(line), lineno + 1, 1),
-                    y=(CLASS_INDEX[CLS_NEWLINE],), path=path)
+                    y=(NEWLINE_INDEX,), path=path)
                 line_offset += len(line)
             line = lines[-1].splitlines()[0] if lines[-1] else ""
             my_indent = list(line)
@@ -576,8 +590,18 @@ class FeatureExtractor:
                 vnode.y is not None and vnode.y[0] in QUOTES_INDEX
             ):
                 if current_class_seq:
-                    yield VirtualNode(value=value, start=start, end=end,
-                                      y=tuple(current_class_seq), path=path)
+                    if NEWLINE_INDEX not in current_class_seq or \
+                            current_class_seq[0] == NEWLINE_INDEX:
+                        # if there are no trailing whitespaces or tabs
+                        yield VirtualNode(value=value, start=start, end=end,
+                                          y=tuple(current_class_seq), path=path)
+                    else:
+                        index = current_class_seq.index(NEWLINE_INDEX)
+                        middle = Position(start.offset+index, start.line, start.col+index)
+                        yield VirtualNode(value=value[:index], start=start, end=middle,
+                                          y=tuple(current_class_seq[:index]), path=path)
+                        yield VirtualNode(value=value[index:], start=middle, end=end,
+                                          y=tuple(current_class_seq[index:]), path=path)
                     start, end, value, current_class_seq = None, None, "", []
                 yield vnode
             else:
