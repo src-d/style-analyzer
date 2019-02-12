@@ -210,6 +210,7 @@ def train_from_scratch(input_path: str = None, fasttext_path: str = None,
                                             dest_path=input_path)
 
     if not fasttext_path:
+        fasttext_path = "lookout/style/typos/data/id_vecs_10.bin"
         gdd.download_file_from_google_drive(file_id=DRIVE_FASTTEXT_ID,
                                             dest_path=fasttext_path)
 

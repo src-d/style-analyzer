@@ -339,7 +339,6 @@ class CandidatesGenerator(Model):
             "bucket": self.wv.bucket,
             "num_ngram_vectors": self.wv.num_ngram_vectors,
             "vectors_ngrams": self.wv.vectors_ngrams,
-            "compatible_hash": self.wv.compatible_hash,
             "hash2index": hash2index,
         }
         return tree
@@ -365,7 +364,7 @@ class CandidatesGenerator(Model):
         self.checker._words = {w: self.checker._words[i] for i, w in enumerate(words)}
         vectors = self.wv["vectors"]
         wv = FastTextKeyedVectors(vectors.shape[1], self.wv["min_n"], self.wv["max_n"],
-                                  self.wv["bucket"], self.wv["compatible_hash"])
+                                  self.wv["bucket"], True)
         wv.vectors = numpy.array(vectors)
         vocab = split_strings(self.wv["vocab"]["strings"])
         wv.vocab = {
