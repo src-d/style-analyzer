@@ -242,7 +242,7 @@ def create_parser() -> ArgumentParser:
              "columns 'token' and 'correct_token'.")
 
     # Train TyposCorrector from scratch
-    train_from_scratch_parser = add_parser("train_from_scratch",
+    train_from_scratch_parser = add_parser("train-from-scratch",
                                            "Train TyposCorrector on raw data.")
     train_from_scratch_parser.set_defaults(handler=train_from_scratch)
     add_input_path_arg(train_from_scratch_parser,
