@@ -7,6 +7,10 @@ from typing import Any
 from lookout.core.cmdline import ArgumentDefaultsHelpFormatterNoNone
 from lookout.core.slogging import setup as setup_slogging
 
+from lookout.style.typos.train_test_corrector import (DEFAULT_VOCABULARY_SIZE,
+                                                      DEFAULT_VOCABULARY_PATH,
+                                                      DEFAULT_FREQUENCY_PATH)
+
 
 def add_input_path_arg(my_parser: ArgumentParser, addition: str = ""):
     """
@@ -41,6 +45,7 @@ def add_vocabulary_size_arg(my_parser: ArgumentParser):
     """
     my_parser.add_argument(
         "-vs", "--vocabulary_size", required=False, type=int,
+        default=DEFAULT_VOCABULARY_SIZE,
         help="Number of most frequent tokens to take as a vocabulary.")
 
 
@@ -64,6 +69,7 @@ def add_vocabulary_path_arg(my_parser: ArgumentParser):
     """
     my_parser.add_argument(
         "-vp", "--vocabulary_path", required=False, type=str,
+        default=DEFAULT_VOCABULARY_PATH,
         help="Path to save vocabulary to.")
 
 
@@ -75,6 +81,7 @@ def add_frequencies_path_arg(my_parser: ArgumentParser):
     """
     my_parser.add_argument(
         "-fp", "--frequencies_path", required=False, type=str,
+        default=DEFAULT_FREQUENCY_PATH,
         help="Path to save frequencies to.")
 
 
@@ -97,6 +104,7 @@ def add_train_size_arg(my_parser: ArgumentParser):
     """
     my_parser.add_argument(
         "-trs", "--train_size", required=False, type=int,
+        default=50000,
         help="Train dataset size.")
 
 
@@ -108,6 +116,7 @@ def add_test_size_arg(my_parser: ArgumentParser):
     """
     my_parser.add_argument(
         "-ts", "--test_size", required=False, type=int,
+        default=10000,
         help="Test dataset size.")
 
 
@@ -140,7 +149,7 @@ def add_threads_number_arg(my_parser: ArgumentParser):
     :param my_parser: Parser to add the argument to.
     """
     my_parser.add_argument(
-        "-tn", "--threads_number", required=False, type=int,
+        "-tn", "--threads_number", required=False, type=int, default=8,
         help="Number of threads for multiprocessing.")
 
 
@@ -152,6 +161,7 @@ def add_save_model_path_arg(my_parser: ArgumentParser):
     """
     my_parser.add_argument(
         "-smp", "--save_model_path", required=False, type=str,
+        default="lookout/style/typos/data/new_corrector.asdf",
         help="Path to save model to.")
 
 
