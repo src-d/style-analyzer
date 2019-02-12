@@ -7,9 +7,9 @@ from typing import Any
 from lookout.core.cmdline import ArgumentDefaultsHelpFormatterNoNone
 from lookout.core.slogging import setup as setup_slogging
 
-from lookout.style.typos.train_test_corrector import (DEFAULT_VOCABULARY_SIZE,
+from lookout.style.typos.train_test_corrector import (DEFAULT_FREQUENCY_PATH,
                                                       DEFAULT_VOCABULARY_PATH,
-                                                      DEFAULT_FREQUENCY_PATH)
+                                                      DEFAULT_VOCABULARY_SIZE)
 
 
 def add_input_path_arg(my_parser: ArgumentParser, addition: str = ""):
@@ -214,11 +214,9 @@ def create_parser() -> ArgumentParser:
                                    "Get train and test datasets with artificially"
                                    "created typos from prepared data.")
     train_test_parser.set_defaults(handler=get_train_test)
-    train_test_parser.add_argument(
-        "prepared_data", metavar="data", type=str,
-        help=".csv dump of dataframe correct splitted identifiers"
-             ". Must contain columns 'token_split' and 'token'."
-    )
+    train_test_parser.add_argument("prepared_data", metavar="data", type=str,
+                                   help=".csv dump of dataframe correct splitted identifiers"
+                                        ". Must contain columns 'token_split' and 'token'.")
     add_train_size_arg(train_test_parser)
     add_test_size_arg(train_test_parser)
     add_frequency_column_arg(train_test_parser)

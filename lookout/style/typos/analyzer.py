@@ -13,7 +13,7 @@ import pandas
 from sourced.ml.algorithms import TokenParser, uast2sequence
 
 from lookout.style.typos.corrector_manager import TyposCorrectorManager
-from lookout.style.typos.utils import flatten_data, COLUMNS
+from lookout.style.typos.utils import COLUMNS, flatten_data
 
 
 class IdTyposAnalyzer(Analyzer):

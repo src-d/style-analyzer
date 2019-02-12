@@ -7,6 +7,7 @@ from lookout.style.typos.utils import COLUMNS
 
 
 def check_split(split: str, tokens_set: Set[str]):
+    """Check whether all elements of the split are in tokens_set."""
     if type(split) != str:
         return False
 
@@ -26,6 +27,7 @@ def filter_splitted_identifiers(data: pandas.DataFrame, tokens_set: Set[str]) ->
 
 
 def filter_identifiers(args):
+    """CLI entry for filter_splitted_identifiers."""
     data = pandas.read_pickle(args.id_file)
     tokens_set = set(numpy.load(args.vocabulary_file))
     filtered_data = filter_splitted_identifiers(data, tokens_set)

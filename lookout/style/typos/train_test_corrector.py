@@ -4,10 +4,12 @@ from google_drive_downloader import GoogleDriveDownloader as gdd
 import pandas
 
 from lookout.style.typos.corrector import TyposCorrector
-from lookout.style.typos.utils import COLUMNS, flatten_df_by_column
-from lookout.style.typos.preprocessing import (filter_splitted_identifiers, pick_subset_of_df,
-                                               corrupt_tokens_in_df, print_frequencies, train_test_split)
+from lookout.style.typos.preprocessing.create_typos import corrupt_tokens_in_df, train_test_split
+from lookout.style.typos.preprocessing.filter_identifiers import filter_splitted_identifiers
 from lookout.style.typos.preprocessing.metrics import print_scores
+from lookout.style.typos.preprocessing.pick_subset import pick_subset_of_df
+from lookout.style.typos.preprocessing.print_frequencies import print_frequencies
+from lookout.style.typos.utils import COLUMNS, flatten_df_by_column
 
 
 DEFAULT_VOCABULARY_SIZE = 10000
@@ -24,7 +26,8 @@ def prepare_data(input_path: str, frequency_column: str = None,
                  frequencies_path: str = DEFAULT_FREQUENCY_PATH,
                  save_prepared_path: str = None) -> pandas.DataFrame:
     """
-    Get all necessary data from raw dataset of splitted identifiers with some statistics:
+    Get all necessary data from raw dataset of splitted identifiers with some statistics.
+
     1. Derive vocabulary for typos correction - a set of tokens, which will be considered correctly
        spelled. All typos corrections will belong to the vocabulary.
        It is a set of most frequent tokens (based on given statistics).
@@ -84,7 +87,8 @@ def get_train_test(prepared_data: Union[pandas.DataFrame, str], train_size: int,
                    frequency_column: str = None, save_train_path: str = None,
                    save_test_path: str = None) -> Tuple[pandas.DataFrame, pandas.DataFrame]:
     """
-    Create train and test datasets of typos:
+    Create train and test datasets of typos.
+
     1. Pick specified amount of data from input dataset.
     2. Artificially create typos in picked identifiers and put them to train and test datasets.
     3. Save results, if needed.
@@ -116,10 +120,11 @@ def get_train_test(prepared_data: Union[pandas.DataFrame, str], train_size: int,
 
 
 def train(train_data: Union[pandas.DataFrame, str], vocabulary_path: str, frequencies_path: str,
-          fasttext_path: str, threads_number: int = 8, save_model_path: str = None
+          fasttext_path: str, threads_number: int = 8, save_model_path: str = None,
           ) -> TyposCorrector:
     """
     Create and train TyposCorrector model on given data.
+
     :param train_data: DataFrame, or its .csv dump, containing columns
                        COLUMNS["TOKEN"] and COLUMNS["CORRECT_TOKEN"],
                        column COLUMNS["SPLIT"] is optional, but used when present.
@@ -136,7 +141,7 @@ def train(train_data: Union[pandas.DataFrame, str], vocabulary_path: str, freque
                                frequencies_file=frequencies_path,
                                embeddings_file=fasttext_path)
     model.threads_number = threads_number
-    
+
     if isinstance(train_data, str):
         train_data = pandas.read_csv(train_data, index_col=0)
     model.train(train_data)
@@ -150,6 +155,7 @@ def train(train_data: Union[pandas.DataFrame, str], vocabulary_path: str, freque
 def test(model: Union[TyposCorrector, str], test_data: Union[pandas.DataFrame, str]) -> None:
     """
     Test TyposCorrector model on given dataset and print results to the standard output.
+
     :param model: TyposCorrector model or path to its dump.
     :param test_data: Dataframe or its .csv dump, containing columns
            COLUMNS["TOKEN"] and COLUMNS["CORRECT_TOKEN"].
@@ -166,17 +172,19 @@ def test(model: Union[TyposCorrector, str], test_data: Union[pandas.DataFrame, s
 
 def train_from_scratch(input_path: str = None, fasttext_path: str = None,
                        frequency_column: str = "num_occ",
-                       vocabulary_size: int = DEFAULT_VOCABULARY_SIZE, frequencies_size: int = None,
+                       vocabulary_size: int = DEFAULT_VOCABULARY_SIZE,
+                       frequencies_size: int = None,
                        vocabulary_path: str = DEFAULT_VOCABULARY_PATH,
                        frequencies_path: str = DEFAULT_FREQUENCY_PATH,
                        save_prepared_path: str = "lookout/style/typos/data/prepared_data.csv",
                        train_size: int = 50000, test_size: int = 10000, threads_number: int = 8,
                        save_train_path: str = "lookout/style/typos/data/train.csv",
                        save_test_path: str = "lookout/style/typos/data/test.csv",
-                       save_model_path: str = "lookout/style/typos/data/new_corrector.asdf"
+                       save_model_path: str = "lookout/style/typos/data/new_corrector.asdf",
                        ) -> TyposCorrector:
     """
     Train TyposCorrector on raw data.
+
     1. Prepare data, for more info check :func:`prepare_data`.
     2. Construct train and test datasets, for more info check :func:`get_train_test`.
     3. Train TyposCorrector model. Save if needed.

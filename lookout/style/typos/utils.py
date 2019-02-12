@@ -19,7 +19,7 @@ COLUMNS = {
     "CANDIDATE": "candidate",
     "FEATURES": "features",
     "PROBABILITY": "proba",
-    "SUGGESTIONS": "suggestions"
+    "SUGGESTIONS": "suggestions",
   }
 
 

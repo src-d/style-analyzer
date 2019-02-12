@@ -2,19 +2,17 @@ from functools import partial
 
 import numpy
 import pandas
-import random
 
 from lookout.style.typos.utils import COLUMNS
 
 
 def detection_score(data: pandas.DataFrame, suggestions: dict) -> dict:
     """
-    Calculates score of solution for typo detection problem.
+    Calculate score of solution for typo detection problem.
 
-    data: DataFrame which indexed by "id" and has columns "typo", "corrupted".
-
-    suggestions: {id : [(candidate, correct_prob)]}, candidates are sorted
-                 by correct_prob in a descending order .
+    :param data: DataFrame which indexed by "id" and has columns "typo", "corrupted".
+    :param suggestions: {id : [(candidate, correct_prob)]}, candidates are sorted
+                        by correct_prob in a descending order .
     """
     scores = {"tp": 0, "fp": 0, "tn": 0, "fn": 0}
     for i in data.index:
@@ -32,24 +30,31 @@ def detection_score(data: pandas.DataFrame, suggestions: dict) -> dict:
 
 
 def first_k_set(corrections: list, k: int) -> set:
+    """
+    Get set of k most probable correction tokens.
+
+    :param corrections: List of corrections, sorted by probability.
+    :param k: Number of corrections to take.
+    :return: Set of k most probable correction tokens.
+    """
     first_k = set()
-    for correction, prob in corrections[:k]:
+    for correction, _prob in corrections[:k]:
         first_k.add(correction)
     return first_k
 
 
 def score_at_k(data, suggestions, k):
     """
-    Calculates score of solution for typo correction problem.
+    Calculate score of solution for typo correction problem.
+
     The suggestions for typo correction are considered correct
     if there is a right one among the first k.
+    :param data: DataFrame which is indexed by "id" and
+                 has columns "typo", "corrupted".
 
-    data: DataFrame which is indexed by "id" and
-           has columns "typo", "corrupted".
-
-    suggestions: {id : [(candidate, correct_prob)]},
-                 candidates inside one suggestions list are
-                 sorted by correct_prob in a descending order.
+    :param suggestions: {id : [(candidate, correct_prob)]},
+                        candidates inside one suggestions list are
+                        sorted by correct_prob in a descending order.
     """
     scores = {"tp": 0, "fp": 0, "tn": 0, "fn": 0}
     for i in data.index:
@@ -68,16 +73,16 @@ def score_at_k(data, suggestions, k):
 
 def score_at_k_on_corrections(data, suggestions, k=1):
     """
-    Calculates score of solution for typo correction problem.
+    Calculate score of solution for typo correction problem.
+
     The suggestions for typo correction are considered correct
     if there is a right one among the first k.
+    :param typos: DataFrame which is indexed by "id" and
+                  has columns "typo", "corrupted".
 
-    typos: DataFrame which is indexed by "id" and
-           has columns "typo", "corrupted".
-
-    suggestions: {id : [(candidate, correct_prob)]},
-                 candidates inside one suggestions list are
-                 sorted by correct_prob in a descending order.
+    :param suggestions: {id : [(candidate, correct_prob)]},
+                        candidates inside one suggestions list are
+                        sorted by correct_prob in a descending order.
     """
     scores = {"tp": 0, "fp": 0, "tn": 0, "fn": 0}
     for i in data.index:
@@ -95,24 +100,28 @@ def score_at_k_on_corrections(data, suggestions, k=1):
     return scores
 
 
-
 def accuracy(score):
+    """Calculate accuracy."""
     return (score["tp"] + score["tn"]) / sum(score.values())
 
 
 def precision(score):
+    """Calculate precision."""
     return score["tp"] / (score["tp"] + score["fp"])
 
 
 def recall(score):
+    """Calculate recall."""
     return score["tp"] / (score["tp"] + score["fn"])
 
 
 def f1(score):
+    """Calculate f1 score."""
     return 2 / (1 / precision(score) + 1 / recall(score))
 
 
 def print_score_metrics(score, file=None):
+    """Print score metrics."""
     print(score, file=file)
     print("Accuracy:", accuracy(score), file=file)
     print("Precision:", precision(score), file=file)
@@ -121,6 +130,7 @@ def print_score_metrics(score, file=None):
 
 
 def print_suggestion_results(data, suggestions, file=None):
+    """Print suggestion results."""
     print("DETECTION SCORE\n", file=file)
     print_score_metrics(detection_score(data, suggestions), file=file)
     print("\nFIRST SUGGESTION SCORE\n", file=file)
@@ -129,10 +139,11 @@ def print_suggestion_results(data, suggestions, file=None):
     print_score_metrics(score_at_k(data, suggestions, 2), file=file)
     print("\nFIRST THREE SUGGESTIONS SCORE\n", file=file)
     print_score_metrics(score_at_k(data, suggestions, 3), file=file)
-    
-    
+
+
 def print_scores(typos, suggestions, file=None):
-    print('{:15s}|{:15s}|{:15s}|{:15s}|{:15s}|{:15s}|{:15s}|{:15s}'.format("METRICS",
+    """Print scores for suggestions in an easy readable way."""
+    print("{:15s}|{:15s}|{:15s}|{:15s}|{:15s}|{:15s}|{:15s}|{:15s}".format("METRICS",
                                                                            "DETECTION SCORE",
                                                                            "TOP1 SCORE CORR",
                                                                            "TOP2 SCORE CORR",
@@ -141,7 +152,7 @@ def print_scores(typos, suggestions, file=None):
                                                                            "TOP2 SCORE ALL",
                                                                            "TOP3 SCORE ALL"),
           file=file)
-    print(('-' * 15 + '|') * 7 + '-' * 15, file=file)
+    print(("-" * 15 + "|") * 7 + "-" * 15, file=file)
     scores = []
     for score_func in [detection_score,
                        partial(score_at_k_on_corrections, k=1),
@@ -157,13 +168,13 @@ def print_scores(typos, suggestions, file=None):
                        f1(score)])
     scores = numpy.array(scores).transpose()
     for i, metrics in enumerate(["Accuracy", "Precision", "Recall", "F1"]):
-        print('{:15s}| {:13.3f} | {:13.3f} | {:13.3f} | {:13.3f} | {:13.3f} | {:13.3f} | {:13.3f} '.format(metrics,
-                                                                                                           scores[i, 0],
-                                                                                                           scores[i, 1],
-                                                                                                           scores[i, 2],
-                                                                                                           scores[i, 3],
-                                                                                                           scores[i, 4],
-                                                                                                           scores[i, 5],
-                                                                                                           scores[
-                                                                                                               i, 6]),
+        print("{:15s}| {:13.3f} | {:13.3f} | {:13.3f} | {:13.3f} | {:13.3f} | {:13.3f} | {:13.3f} "
+              "".format(metrics,
+                        scores[i, 0],
+                        scores[i, 1],
+                        scores[i, 2],
+                        scores[i, 3],
+                        scores[i, 4],
+                        scores[i, 5],
+                        scores[i, 6]),
               file=file)

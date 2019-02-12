@@ -5,17 +5,16 @@ from sourced.ml.cmd.args import ArgumentDefaultsHelpFormatterNoNone
 
 from lookout.style.typos.preprocessing.create_typos import create_typos
 from lookout.style.typos.preprocessing.filter_identifiers import filter_identifiers
-from lookout.style.typos.preprocessing.get_frequencies import get_frequencies
 from lookout.style.typos.preprocessing.pick_subset import pick_subset
+from lookout.style.typos.preprocessing.print_frequencies import cli_print_frequencies
 
 
 def get_parser() -> argparse.ArgumentParser:
     """
-    Creates the cmdline argument parser.
+    Create the cmdline argument parser.
     """
-
     parser = argparse.ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatterNoNone,
-                                     description='Typos correction tools')
+                                     description="Typos correction tools")
     subparsers = parser.add_subparsers(help="Commands", dest="command")
 
     def add_parser(name, help_message):
@@ -23,9 +22,10 @@ def get_parser() -> argparse.ArgumentParser:
                                      formatter_class=ArgumentDefaultsHelpFormatterNoNone)
 
     # ------------------------------------------------------------------------
-    create_typos_parser = add_parser("create_typos", "Create random edit typos with given \
-                                     probabilities in a dataset of tokens. May also split \
-                                     resulting dataset in given proportions")
+    create_typos_parser = add_parser("create_typos",
+                                     "Create random edit typos with given"
+                                     "probabilities in a dataset of tokens. May also split"
+                                     "resulting dataset in given proportions")
 
     create_typos_parser.set_defaults(handler=create_typos)
 
@@ -69,7 +69,7 @@ def get_parser() -> argparse.ArgumentParser:
     frequencies_parser = add_parser("get_frequencies", "Get frequencies for tokens \
                                     of specified vocabulary from the stats file")
 
-    frequencies_parser.set_defaults(handler=get_frequencies)
+    frequencies_parser.set_defaults(handler=cli_print_frequencies)
 
     frequencies_parser.add_argument("vocabulary_file", metavar="vocabulary file", type=str,
                                     help="File with pickled vocabulary array")
@@ -107,10 +107,10 @@ def get_parser() -> argparse.ArgumentParser:
 
 def main():
     """
-    Creates all the argparse-rs and invokes the function from set_defaults().
+    Create all the argparse-rs and invokes the function from set_defaults().
+
     :return: The result of the function from set_defaults().
     """
-
     parser = get_parser()
     args = parser.parse_args()
 

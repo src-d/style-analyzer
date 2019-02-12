@@ -52,7 +52,7 @@ class TyposCorrector(Model):
     def threads_number(self):
         """Return the number of threads used to train and to predict."""
         return self.ranker.boost_param["nthread"]
-    
+
     @threads_number.setter
     def threads_number(self, threads_number: int):
         """Return the number of threads used to train and to predict."""

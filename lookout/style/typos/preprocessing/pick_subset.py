@@ -4,6 +4,7 @@ import pandas
 
 def pick_subset_of_df(data: pandas.DataFrame, size: int = None, portion: float = None,
                       weight_column: str = None) -> pandas.DataFrame:
+    """Pick subset of dataframe rows."""
     if size is None:
         if portion is None:
             raise ValueError("Either size or portion should be specified.")
@@ -21,5 +22,6 @@ def pick_subset_of_df(data: pandas.DataFrame, size: int = None, portion: float =
 
 
 def pick_subset(args):
+    """CLI entry point for pick_subset_of_df."""
     data = pandas.read_csv(args.input_file, index_col=0)
     pick_subset_of_df(data, args.picked_portion, args.weight_column).to_csv(args.out_file)

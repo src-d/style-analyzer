@@ -11,17 +11,16 @@ from lookout.style.typos.utils import COLUMNS
 letters = list(string.ascii_lowercase)
 
 
-
 def rand_bool(true_prob: float):
     """
-    Returns True with probability true_prob
+    Return True with probability true_prob.
     """
     return random.uniform(0, 1) < true_prob
 
 
 def rand_insert(token: str):
     """
-    Add random letter inside a token
+    Add random letter inside a token.
     """
     letter = random.choice(letters)
     if len(token) == 0:
@@ -35,7 +34,7 @@ def rand_insert(token: str):
 
 def rand_delete(token: str):
     """
-    Delete random symbol from a token
+    Delete random symbol from a token.
     """
     if len(token) == 0:
         return token
@@ -45,7 +44,7 @@ def rand_delete(token: str):
 
 def rand_substitution(token: str):
     """
-    Substitute random symbol with a letter inside a token
+    Substitute random symbol with a letter inside a token.
     """
     if len(token) == 0:
         return token
@@ -56,7 +55,7 @@ def rand_substitution(token: str):
 
 def rand_swap(token: str):
     """
-    Swap two random consequent symbols
+    Swap two random consequent symbols.
     """
     if len(token) < 2:
         return token
@@ -66,7 +65,7 @@ def rand_swap(token: str):
 
 def rand_typo(token: str):
     """
-    Make random typo in a token
+    Make random typo in a token.
     """
     typo_func = random.choice([rand_insert, rand_delete, rand_substitution, rand_swap])
     return typo_func(token)
@@ -75,6 +74,8 @@ def rand_typo(token: str):
 def corrupt_tokens_in_df(data: pandas.DataFrame, typo_probability: float,
                          add_typo_probability: float) -> pandas.DataFrame:
     """
+    Create artificial typos in tokens from a dataframe.
+
     Augment some of identifiers from dataframe with TYPO_PROBABILITY,
     consequent typos in the same word happen with ADD_TYPO_PROBABILITY each.
     Operations happens inplace.
@@ -87,7 +88,7 @@ def corrupt_tokens_in_df(data: pandas.DataFrame, typo_probability: float,
         if typoed_tokens[row_number] is not None:
             item = typoed_tokens[row_number]
             if len(item) > 1 and rand_bool(typo_probability):
-                item = ''
+                item = ""
                 while len(item) < 2:
                     item = typoed_tokens[row_number]
                     item = rand_typo(str(item))
@@ -112,6 +113,7 @@ def corrupt_tokens_in_df(data: pandas.DataFrame, typo_probability: float,
 
 def corrupt_tokens_in_file(data_file: str, typo_probability: float, add_typo_probability: float,
                            out_file: str, repeats: int = 1) -> None:
+    """Corrupt tokens in text file."""
     with open(data_file, "r") as f:
         with open(out_file, "w") as out:
             for _ in range(repeats):
@@ -120,7 +122,7 @@ def corrupt_tokens_in_file(data_file: str, typo_probability: float, add_typo_pro
                     for token in line.split():
                         item = token
                         if rand_bool(typo_probability):
-                            item = ''
+                            item = ""
                             while len(item) == 0:
                                 item = token
                                 item = rand_typo(str(item))
@@ -130,10 +132,10 @@ def corrupt_tokens_in_file(data_file: str, typo_probability: float, add_typo_pro
                     print(" ".join(tokens), file=out)
 
 
-def train_test_split(data: pandas.DataFrame, test_portion: float
+def train_test_split(data: pandas.DataFrame, test_portion: float,
                      ) -> Tuple[pandas.DataFrame, pandas.DataFrame]:
     """
-    Randomly split data on train and test
+    Randomly split data on train and test.
     """
     test = set(random.sample(range(len(data)), int(data.shape[0] * test_portion)))
     test_mask = [i in test for i in range(len(data))]
@@ -142,9 +144,10 @@ def train_test_split(data: pandas.DataFrame, test_portion: float
 
 
 def create_typos(args):
+    """CLI entry for creating typos inside dataframe."""
     data = pandas.read_pickle(args.input_file)
-    corrupt_tokens_in_df(data, args.typo_probability, args.add_typo_probability
-                         ).to_csv(args.out_file)
+    corrupt_tokens_in_df(data, args.typo_probability,
+                         args.add_typo_probability).to_csv(args.out_file)
     if args.test_portion is not None:
         train, test = train_test_split(data, args.test_portion)
         path_split = path.split(args.out_file)

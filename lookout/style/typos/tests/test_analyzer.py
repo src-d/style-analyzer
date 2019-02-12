@@ -10,7 +10,7 @@ from lookout.core.api.service_data_pb2 import File
 import pandas
 
 from lookout.style.typos.analyzer import IdTyposAnalyzer
-from lookout.style.typos.utils import SPLIT_COLUMN, TYPO_COLUMN
+from lookout.style.typos.utils import COLUMNS
 
 Change = NamedTuple("Change", [("base", File), ("head", File)])
 
@@ -72,7 +72,7 @@ class AnalyzerPayloadTest(unittest.TestCase):
         cls.identifiers = ["get", "gpt_tokeb"]
         cls.test_df = pandas.DataFrame(
             [[0, "get", "get"], [1, "gpt tokeb", "gpt"], [1, "gpt tokeb", "tokeb"]],
-            columns=[IdTyposAnalyzer.INDEX_COLUMN, SPLIT_COLUMN, TYPO_COLUMN])
+            columns=[IdTyposAnalyzer.INDEX_COLUMN, COLUMNS["SPLIT"], COLUMNS["TOKEN"]])
         cls.suggestions = {1: [("get", 0.9),
                                ("gpt", 0.3)],
                            2: [("token", 0.98),
