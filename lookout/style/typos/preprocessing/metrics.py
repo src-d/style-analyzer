@@ -1,4 +1,5 @@
 from functools import partial
+from typing import NamedTuple
 
 import numpy
 import pandas
@@ -6,7 +7,13 @@ import pandas
 from lookout.style.typos.utils import COLUMNS
 
 
-def detection_score(data: pandas.DataFrame, suggestions: dict) -> dict:
+Scores = NamedTuple("Scores", (("tp", int),
+                               ("fp", int),
+                               ("tn", int),
+                               ("fn", int)))
+
+
+def detection_score(data: pandas.DataFrame, suggestions: dict) -> Scores:
     """
     Calculate score of solution for typo detection problem.
 
@@ -14,18 +21,18 @@ def detection_score(data: pandas.DataFrame, suggestions: dict) -> dict:
     :param suggestions: {id : [(candidate, correct_prob)]}, candidates are sorted
                         by correct_prob in a descending order .
     """
-    scores = {"tp": 0, "fp": 0, "tn": 0, "fn": 0}
+    scores = Scores(0, 0, 0, 0)
     for i in data.index:
         if data.loc[i, COLUMNS["TOKEN"]] != data.loc[i, COLUMNS["CORRECT_TOKEN"]]:
             if suggestions[i][0][0] != data.loc[i, COLUMNS["TOKEN"]]:
-                scores["tp"] += 1
+                scores.tp += 1
             else:
-                scores["fn"] += 1
+                scores.fn += 1
         else:
             if suggestions[i][0][0] == data.loc[i, COLUMNS["TOKEN"]]:
-                scores["tn"] += 1
+                scores.tn += 1
             else:
-                scores["fp"] += 1
+                scores.fp += 1
     return scores
 
 
@@ -43,7 +50,7 @@ def first_k_set(corrections: list, k: int) -> set:
     return first_k
 
 
-def score_at_k(data, suggestions, k):
+def score_at_k(data, suggestions, k) -> Scores:
     """
     Calculate score of solution for typo correction problem.
 
@@ -56,22 +63,22 @@ def score_at_k(data, suggestions, k):
                         candidates inside one suggestions list are
                         sorted by correct_prob in a descending order.
     """
-    scores = {"tp": 0, "fp": 0, "tn": 0, "fn": 0}
+    scores = Scores(0, 0, 0, 0)
     for i in data.index:
         if data.loc[i, COLUMNS["TOKEN"]] != data.loc[i, COLUMNS["CORRECT_TOKEN"]]:
             if data.loc[i, COLUMNS["CORRECT_TOKEN"]] in first_k_set(suggestions[i], k):
-                scores["tp"] += 1
+                scores.tp += 1
             else:
-                scores["fn"] += 1
+                scores.fn += 1
         else:
             if data.loc[i, COLUMNS["CORRECT_TOKEN"]] in first_k_set(suggestions[i], k):
-                scores["tn"] += 1
+                scores.tn += 1
             else:
-                scores["fp"] += 1
+                scores.fp += 1
     return scores
 
 
-def score_at_k_on_corrections(data, suggestions, k=1):
+def score_at_k_on_corrections(data, suggestions, k=1) -> Scores:
     """
     Calculate score of solution for typo correction problem.
 
@@ -84,35 +91,35 @@ def score_at_k_on_corrections(data, suggestions, k=1):
                         candidates inside one suggestions list are
                         sorted by correct_prob in a descending order.
     """
-    scores = {"tp": 0, "fp": 0, "tn": 0, "fn": 0}
+    scores = Scores(0, 0, 0, 0)
     for i in data.index:
         if suggestions[i][0][0] != data.loc[i, COLUMNS["TOKEN"]]:
             if data.loc[i, COLUMNS["TOKEN"]] != data.loc[i, COLUMNS["CORRECT_TOKEN"]]:
                 if data.loc[i, COLUMNS["CORRECT_TOKEN"]] in first_k_set(suggestions[i], k):
-                    scores["tp"] += 1
+                    scores.tp += 1
                 else:
-                    scores["fn"] += 1
+                    scores.fn += 1
             else:
                 if data.loc[i, COLUMNS["CORRECT_TOKEN"]] in first_k_set(suggestions[i], k):
-                    scores["tn"] += 1
+                    scores.tn += 1
                 else:
-                    scores["fp"] += 1
+                    scores.fp += 1
     return scores
 
 
 def accuracy(score):
     """Calculate accuracy."""
-    return (score["tp"] + score["tn"]) / sum(score.values())
+    return (score.tp + score.tn) / sum(list(score))
 
 
 def precision(score):
     """Calculate precision."""
-    return score["tp"] / (score["tp"] + score["fp"])
+    return score.tp / (score.tp + score.fp)
 
 
 def recall(score):
     """Calculate recall."""
-    return score["tp"] / (score["tp"] + score["fn"])
+    return score.tp / (score.tp + score.fn)
 
 
 def f1(score):
