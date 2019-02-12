@@ -89,13 +89,13 @@ def get_train_test(prepared_data: Union[pandas.DataFrame, str], train_size: int,
     2. Artificially create typos in picked identifiers and put them to train and test datasets.
     3. Save results, if needed.
     :param prepared_data: Dataframe or its .csv dump of correct splitted identifiers (output
-                          of :func:`~prepare_data`. Must contain columns
+                          of :func:`~prepare_data`). Must contain columns
                           COLUMNS["SPLIT"] and COLUMNS["TOKEN"].
     :param train_size: Train dataset size.
     :param test_size: Test dataset size.
     :param frequency_column: Column to use as weights for picking rows.
-    :param save_train_path: Path to save train dataset.
-    :param save_test_path: Path to save test dataset.
+    :param save_train_path: Path to save train dataset to.
+    :param save_test_path: Path to save test dataset to.
     :return: Train and test datasets.
     """
     if isinstance(prepared_data, str):
@@ -116,7 +116,7 @@ def get_train_test(prepared_data: Union[pandas.DataFrame, str], train_size: int,
 
 
 def train(train_data: Union[pandas.DataFrame, str], vocabulary_path: str, frequencies_path: str,
-          embeddings_path: str, threads_number: int = 8, save_model_path: str = None
+          fasttext_path: str, threads_number: int = 8, save_model_path: str = None
           ) -> TyposCorrector:
     """
     Create and train TyposCorrector model on given data.
@@ -125,7 +125,7 @@ def train(train_data: Union[pandas.DataFrame, str], vocabulary_path: str, freque
                        column COLUMNS["SPLIT"] is optional, but used when present.
     :param vocabulary_path: Path to a file with vocabulary.
     :param frequencies_path: Path to a file with tokens' frequencies.
-    :param embeddings_path: Path to a FastText model dump.
+    :param fasttext_path: Path to a FastText model dump.
     :param threads_number: Number of threads for multiprocessing.
     :param save_model_path: Path to save model to.
     :return: Trained model.
@@ -134,7 +134,7 @@ def train(train_data: Union[pandas.DataFrame, str], vocabulary_path: str, freque
     model.initialize_ranker()
     model.initialize_generator(vocabulary_file=vocabulary_path,
                                frequencies_file=frequencies_path,
-                               embeddings_file=embeddings_path)
+                               embeddings_file=fasttext_path)
     model.threads_number = threads_number
     
     if isinstance(train_data, str):
@@ -198,8 +198,8 @@ def train_from_scratch(input_path: str = None, fasttext_path: str = None,
     :param save_prepared_path: Path to save filtered dataset to.
     :param train_size: Train dataset size.
     :param test_size: Test dataset size.
-    :param save_train_path: Path to save train dataset.
-    :param save_test_path: Path to save test dataset.
+    :param save_train_path: Path to save train dataset to.
+    :param save_test_path: Path to save test dataset to.
     :param threads_number: Number of threads for multiprocessing.
     :param save_model_path: Path to save model to.
     :return: Trained TyposCorrector model.
@@ -210,7 +210,6 @@ def train_from_scratch(input_path: str = None, fasttext_path: str = None,
                                             dest_path=input_path)
 
     if not fasttext_path:
-        fasttext_path = "lookout/style/typos/data/id_vecs_10.bin"
         gdd.download_file_from_google_drive(file_id=DRIVE_FASTTEXT_ID,
                                             dest_path=fasttext_path)
 
