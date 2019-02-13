@@ -30,7 +30,7 @@ from lookout.style.format.optimizer import Optimizer
 from lookout.style.format.postprocess import filter_uast_breaking_preds
 from lookout.style.format.rules import Rules, TrainableRules
 from lookout.style.format.utils import generate_comment, merge_dicts
-from lookout.style.format.virtual_node import VirtualNode
+from lookout.style.format.virtual_node import Position, VirtualNode
 
 # silence skopt's rant
 warnings.filterwarnings("ignore", message="The objective has been evaluated at this point before.")
@@ -496,9 +496,42 @@ class FormatAnalyzer(Analyzer):
         return int(round(confidence * 100 / confidence_count))
 
     @staticmethod
+    def _split_vnodes_by_lines(vnodes: List[VirtualNode]) -> Iterator:
+        """
+        Split VirtualNode to several one-line VirtualNode if it is placed on several lines.
+
+        New line character concatenated to the next line.
+        It is applied to vnodes with y=None only.
+        """
+        stack = vnodes[::-1]
+        while stack:
+            vnode = stack.pop()
+            value_lines = vnode.value.splitlines()
+            if vnode.y is not None or len(value_lines) <= 1:
+                yield vnode
+                continue
+            if value_lines[0] == "":
+                # if there is only end of line characters we concatenate it to the next line
+                next_line = value_lines[1] if len(value_lines) > 1 else ""
+                value1 = vnode.value.splitlines(keepends=True)[0] + next_line
+                middle = Position(offset=vnode.start.offset + len(value1),
+                                  line=vnode.start.line + 1,
+                                  col=1 + len(next_line))
+            else:
+                value1 = value_lines[0]
+                middle = Position(offset=vnode.start.offset + len(value1), line=vnode.start.line,
+                                  col=vnode.start.col + len(value1))
+            value2 = vnode.value[len(value1):]
+            if value2:
+                # value2 can be multi-line so we put it back
+                stack.append(VirtualNode(value=value2, start=middle, end=vnode.end,
+                                         node=vnode.node))
+            yield VirtualNode(value=value1, start=vnode.start, end=middle, node=vnode.node)
+
+    @staticmethod
     def _group_line_nodes(
         y: Sequence[int], y_pred: Sequence[int], vnodes_y: Sequence[VirtualNode],
-        new_vnodes: Sequence[VirtualNode], rule_winners: Sequence[int],
+        new_vnodes: List[VirtualNode], rule_winners: Sequence[int],
         ) -> Tuple[int, Tuple[Sequence[int], Sequence[int], Sequence[VirtualNode],
                               Sequence[VirtualNode], Sequence[int]]]:
         """
@@ -536,7 +569,7 @@ class FormatAnalyzer(Analyzer):
 
         for line_no, (line_y, line_y_pred, line_vnodes_y, line_rule_winners) in result:
             line_vnodes = []
-            for vnode in new_vnodes:
+            for vnode in FormatAnalyzer._split_vnodes_by_lines(new_vnodes):
                 if vnode.end.line > line_no:
                     break
                 elif vnode.end.line == line_no:
