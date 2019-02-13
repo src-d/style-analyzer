@@ -27,7 +27,7 @@ def add_input_path_arg(my_parser: ArgumentParser, extra_help: str = "") -> None:
 
 def add_frequency_column_arg(my_parser: ArgumentParser):
     """
-    Add a frequency column argument to an argparse parser.
+    Add the frequency column argument to an argparse parser.
 
     :param my_parser: Parser to add the argument to.
     """
