@@ -17,9 +17,12 @@ def detection_score(data: pandas.DataFrame, suggestions: dict) -> Scores:
     """
     Calculate score of solution for typo detection problem.
 
+    Typo is detected right: token is corrected then and only then when the token is not typoed.
+    Token is corrected: the first suggestion doesn't match the token.
     :param data: DataFrame which indexed by "id" and has columns "typo", "corrupted".
     :param suggestions: {id : [(candidate, correct_prob)]}, candidates are sorted
                         by correct_prob in a descending order .
+    :return: Scores of suggestions on detection problem.
     """
     scores = Scores(0, 0, 0, 0)
     for i in data.index:
@@ -50,18 +53,19 @@ def first_k_set(corrections: list, k: int) -> set:
     return first_k
 
 
-def score_at_k(data, suggestions, k) -> Scores:
+def score_at_k(data: pandas.DataFrame, suggestions: dict, k: int = 1) -> Scores:
     """
-    Calculate score of solution for typo correction problem.
+    Calculate score@k of solution for typo correction problem.
 
-    The suggestions for typo correction are considered correct
-    if there is a right one among the first k.
+    The suggestions for typo correction are considered right
+    when there is a right one among the first k.
     :param data: DataFrame which is indexed by "id" and
                  has columns "typo", "corrupted".
-
     :param suggestions: {id : [(candidate, correct_prob)]},
                         candidates inside one suggestions list are
                         sorted by correct_prob in a descending order.
+    :param k: Number of the first suggested corrections to check.
+    :return: Scores of suggestions for score@k problem.
     """
     scores = Scores(0, 0, 0, 0)
     for i in data.index:
@@ -78,18 +82,19 @@ def score_at_k(data, suggestions, k) -> Scores:
     return scores
 
 
-def score_at_k_on_corrections(data, suggestions, k=1) -> Scores:
+def score_at_k_on_corrections(data: pandas.DataFrame, suggestions: dict, k: int = 1) -> Scores:
     """
-    Calculate score of solution for typo correction problem.
+    Calculate score@k of solution for typo correction problem only on correcting suggestions.
 
-    The suggestions for typo correction are considered correct
-    if there is a right one among the first k.
-    :param typos: DataFrame which is indexed by "id" and
-                  has columns "typo", "corrupted".
-
+    The suggestions for typo correction are considered right if there is a right one among
+    the first k. Only the tokens, considered to be typoed, are taken into account
+    (correcting suggestions).
+    :param data: DataFrame which is indexed by "id" and has columns "typo", "corrupted".
     :param suggestions: {id : [(candidate, correct_prob)]},
                         candidates inside one suggestions list are
                         sorted by correct_prob in a descending order.
+    :param k: Number of the first suggested corrections to check.
+    :return: Scores of correcting suggestions for score@k problem .
     """
     scores = Scores(0, 0, 0, 0)
     for i in data.index:
@@ -107,27 +112,27 @@ def score_at_k_on_corrections(data, suggestions, k=1) -> Scores:
     return scores
 
 
-def accuracy(score):
+def accuracy(score: Scores) -> float:
     """Calculate accuracy."""
     return (score.tp + score.tn) / sum(list(score))
 
 
-def precision(score):
+def precision(score: Scores) -> float:
     """Calculate precision."""
     return score.tp / (score.tp + score.fp)
 
 
-def recall(score):
+def recall(score: Scores) -> float:
     """Calculate recall."""
     return score.tp / (score.tp + score.fn)
 
 
-def f1(score):
+def f1(score: Scores) -> float:
     """Calculate f1 score."""
     return 2 / (1 / precision(score) + 1 / recall(score))
 
 
-def print_score_metrics(score, file=None):
+def print_score_metrics(score: Scores, file=None):
     """Print score metrics."""
     print(score, file=file)
     print("Accuracy:", accuracy(score), file=file)
@@ -136,8 +141,9 @@ def print_score_metrics(score, file=None):
     print("F1:", f1(score), file=file)
 
 
-def print_suggestion_results(data, suggestions, file=None):
+def print_suggestion_results(data: pandas.DataFrame, suggestions: dict, path: str = None) -> None:
     """Print suggestion results."""
+    file = None if not path else open(path, "w")
     print("DETECTION SCORE\n", file=file)
     print_score_metrics(detection_score(data, suggestions), file=file)
     print("\nFIRST SUGGESTION SCORE\n", file=file)
@@ -148,8 +154,9 @@ def print_suggestion_results(data, suggestions, file=None):
     print_score_metrics(score_at_k(data, suggestions, 3), file=file)
 
 
-def print_scores(typos, suggestions, file=None):
+def print_scores(data: pandas.DataFrame, suggestions: dict, path: str = None) -> None:
     """Print scores for suggestions in an easy readable way."""
+    file = None if not path else open(path, "w")
     print("{:15s}|{:15s}|{:15s}|{:15s}|{:15s}|{:15s}|{:15s}|{:15s}".format("METRICS",
                                                                            "DETECTION SCORE",
                                                                            "TOP1 SCORE CORR",
@@ -168,7 +175,7 @@ def print_scores(typos, suggestions, file=None):
                        partial(score_at_k, k=1),
                        partial(score_at_k, k=2),
                        partial(score_at_k, k=3)]:
-        score = score_func(typos, suggestions)
+        score = score_func(data, suggestions)
         scores.append([accuracy(score),
                        precision(score),
                        recall(score),
