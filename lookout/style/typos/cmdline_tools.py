@@ -12,7 +12,7 @@ from lookout.style.typos.train_test_corrector import (DEFAULT_FREQUENCY_PATH,
                                                       DEFAULT_VOCABULARY_SIZE)
 
 
-def add_input_path_arg(my_parser: ArgumentParser, addition: str = ""):
+def add_input_path_arg(my_parser: ArgumentParser, extra_help: str = "") -> None:
     """
     Add an input path argument to an argparse parser.
 
