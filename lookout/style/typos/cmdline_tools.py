@@ -21,7 +21,7 @@ def add_input_path_arg(my_parser: ArgumentParser, extra_help: str = "") -> None:
     """
     my_parser.add_argument(
         "-i", "--input-path", required=False, type=str,
-        help="Path to a .csv dump of input dataframe. Should contain column 'token_split" +
+        help="Path to a .csv dump of input dataframe. Should contain column 'token_split'" +
              addition)
 
 
