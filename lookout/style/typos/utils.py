@@ -103,25 +103,26 @@ def flatten_data(data: pandas.DataFrame, new_column_name=COLUMNS["TOKEN"]) -> pa
 
 def add_context_info(data: pandas.DataFrame) -> pandas.DataFrame:
     """
-    Split context of identifier on before and after part.
+    Split context of identifier on before and after part and return new dataframe with the info.
 
-    :param data: DataFrame. Column COLUMNS["SPLIT"] will be used for
-                 creating context info if present.
-    :return: Provided data with added columns COLUMNS["BEFORE"] and AFTER_COLUMN, containing lists
-             of corresponding contexts tokens.
+    :param data: DataFrame, containing colummnn COLUMNS["TOKEN"].
+                 Column COLUMNS["SPLIT"] will be used for creating context info if present.
+    :return: New dataframe with added columns COLUMNS["BEFORE"] and COLUMNS["AFTER"],
+             containing lists of corresponding contexts tokens.
     """
-    if COLUMNS["BEFORE"] in data.columns and COLUMNS["AFTER"] in data.columns:
-        return data
+    result_data = data.copy()
+    if COLUMNS["BEFORE"] in result_data.columns and COLUMNS["AFTER"] in result_data.columns:
+        return result_data
 
-    tokens = list(data[COLUMNS["TOKEN"]])
+    tokens = list(result_data[COLUMNS["TOKEN"]])
 
-    if COLUMNS["SPLIT"] in data.columns:
-        token_split = list(data[COLUMNS["SPLIT"]])
+    if COLUMNS["SPLIT"] in result_data.columns:
+        token_split = list(result_data[COLUMNS["SPLIT"]])
         before = []
         after = []
 
-        for row_number in range(len(data)):
-            if COLUMNS["SPLIT"] in data.columns:
+        for row_number in range(len(result_data)):
+            if COLUMNS["SPLIT"] in result_data.columns:
                 split = token_split[row_number]
                 if isinstance(split, str):
                     split = split.split()
@@ -130,13 +131,13 @@ def add_context_info(data: pandas.DataFrame) -> pandas.DataFrame:
                 after.append(split[index + 1:])
 
     else:
-        before = [[] for _ in range(len(data))]
-        after = [[] for _ in range(len(data))]
+        before = [[] for _ in range(len(result_data))]
+        after = [[] for _ in range(len(result_data))]
 
-    data.loc[:, COLUMNS["BEFORE"]] = before
-    data.loc[:, COLUMNS["AFTER"]] = after
+    result_data.loc[:, COLUMNS["BEFORE"]] = before
+    result_data.loc[:, COLUMNS["AFTER"]] = after
 
-    return data.infer_objects()
+    return result_data.infer_objects()
 
 
 def rank_candidates(candidates: pandas.DataFrame, pred_probs: List[float],

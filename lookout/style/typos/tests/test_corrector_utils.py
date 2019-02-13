@@ -16,8 +16,6 @@ TEST_DATA_PATH = str(pathlib.Path(__file__).parent)
 class DataTransformationsTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.data = pandas.read_csv(join(TEST_DATA_PATH, "test_data.csv.xz"),
-                                   index_col=0).infer_objects()
         cls.custom_data = pandas.DataFrame([[["get", "tokens", "num"]],
                                             [["use", "class"]]], columns=[COLUMNS["SPLIT"]])
         cls.flat_custom_data = pandas.DataFrame([[["get", "tokens", "num"], "get"],
@@ -26,11 +24,14 @@ class DataTransformationsTest(unittest.TestCase):
                                                  [["use", "class"], "use"],
                                                  [["use", "class"], "class"]],
                                                 columns=[COLUMNS["SPLIT"], COLUMNS["TOKEN"]])
+        cls.flat_data = pandas.read_csv(join(TEST_DATA_PATH, "test_flatten_data.csv.xz"),
+                                        index_col=0).infer_objects()
 
     def test_flatten_data(self):
-        flat_data = pandas.read_csv(join(TEST_DATA_PATH, "test_flatten_data.csv.xz"),
-                                    index_col=0).infer_objects()
-        assert_frame_equal(flatten_data(self.data, "token"), flat_data)
+        raw_data = pandas.read_csv(join(TEST_DATA_PATH, "raw_test_data.csv.xz"),
+                                   index_col=0).infer_objects()
+
+        assert_frame_equal(flatten_data(raw_data, "token"), self.flat_data)
         assert_frame_equal(flatten_data(self.custom_data, COLUMNS["TOKEN"]), self.flat_custom_data)
 
     def test_add_context_info(self):
@@ -38,7 +39,7 @@ class DataTransformationsTest(unittest.TestCase):
                                         index_col=0).infer_objects()
         context_added[COLUMNS["AFTER"]] = pandas.eval(context_added[COLUMNS["AFTER"]])
         context_added[COLUMNS["BEFORE"]] = pandas.eval(context_added[COLUMNS["BEFORE"]])
-        assert_frame_equal(add_context_info(self.data.copy()), context_added)
+        assert_frame_equal(add_context_info(self.flat_data), context_added)
 
         added_context_custom = pandas.DataFrame(
             [[["get", "tokens", "num"], "get", [], ["tokens", "num"]],
@@ -47,7 +48,7 @@ class DataTransformationsTest(unittest.TestCase):
              [["use", "class"], "use", [], ["class"]],
              [["use", "class"], "class", ["use"], []]],
             columns=[COLUMNS["SPLIT"], COLUMNS["TOKEN"], COLUMNS["BEFORE"], COLUMNS["AFTER"]])
-        assert_frame_equal(add_context_info(self.flat_custom_data.copy()), added_context_custom)
+        assert_frame_equal(add_context_info(self.flat_custom_data), added_context_custom)
 
 
 class RankCandidatesTest(unittest.TestCase):
@@ -87,7 +88,7 @@ class RankCandidatesTest(unittest.TestCase):
         proba = numpy.load(join(TEST_DATA_PATH, "test_data_candidates_proba.pkl"))
         self.assertDictEqual(rank_candidates(candidates, proba, n_candidates=3), self.suggestions)
 
-        proba = numpy.array([1.0, 0.9, 0.05, 0.01, 0.3, 0.98], dtype=float)
+        proba = [1.0, 0.9, 0.05, 0.01, 0.3, 0.98]
         self.assertDictEqual(rank_candidates(self.custom_candidates, proba, n_candidates=3),
                              self.custom_suggestions)
         self.assertDictEqual(rank_candidates(self.custom_candidates, proba, n_candidates=2,
