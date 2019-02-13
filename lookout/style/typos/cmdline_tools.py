@@ -14,7 +14,7 @@ from lookout.style.typos.train_test_corrector import (DEFAULT_FREQUENCY_PATH,
 
 def add_input_path_arg(my_parser: ArgumentParser, extra_help: str = "") -> None:
     """
-    Add an input path argument to an argparse parser.
+    Add the input path argument to an argparse parser.
 
     :param my_parser: Parser to add the argument to.
     :param addition: Addition to the default help message.
