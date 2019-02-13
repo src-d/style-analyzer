@@ -517,6 +517,11 @@ class FeatureExtractor:
                         node.end, path=path)
                     continue
                 # indentation decreases
+                if indentation[:len(line)]:
+                    yield VirtualNode(
+                        "".join(indentation[:len(line)]),
+                        Position(offset, lineno, col),
+                        node.end, is_accumulated_indentation=True, path=path)
                 for char in indentation[len(line):]:
                     if char == "\t":
                         cls = (CLASS_INDEX[CLS_TAB_DEC],)
@@ -524,17 +529,22 @@ class FeatureExtractor:
                         cls = (CLASS_INDEX[CLS_SPACE_DEC],)
                     yield VirtualNode(
                         "",
-                        Position(offset, lineno, col),
-                        Position(offset, lineno, col),
+                        node.end,
+                        node.end,
                         y=cls, path=path)
                 indentation = indentation[:len(line)]
+            else:
+                # indentation is stable or increases
                 if indentation:
                     yield VirtualNode(
                         "".join(indentation),
                         Position(offset, lineno, col),
-                        node.end, is_accumulated_indentation=True, path=path)
-            else:
-                # indentation is stable or increases
+                        Position(offset + len(indentation), lineno, col + len(indentation)),
+                        is_accumulated_indentation=True, path=path)
+                offset += len(indentation)
+                col += len(indentation)
+                for char in my_indent:
+                    indentation.append(char)
                 for i, char in enumerate(my_indent):
                     if char == "\t":
                         cls = (CLASS_INDEX[CLS_TAB_INC],)
@@ -547,14 +557,6 @@ class FeatureExtractor:
                         y=cls, path=path)
                 offset += len(my_indent)
                 col += len(my_indent)
-                if indentation:
-                    yield VirtualNode(
-                        "".join(indentation),
-                        Position(offset, lineno, col),
-                        Position(offset + len(indentation), lineno, col + len(indentation)),
-                        is_accumulated_indentation=True, path=path)
-                for char in my_indent:
-                    indentation.append(char)
 
     def _merge_classes_to_composite_labels(
             self, vnodes: Iterable[VirtualNode], path: str, index_labels: bool = False,

@@ -67,6 +67,8 @@ setup(
                       ["browser-policy-content.js"],
                   "lookout.style.format.tests.bugs.003_classify_vnodes_negative_col":
                       ["jquery.layout.js"],
+                  "lookout.style.format.tests.bugs.004_generate_each_line":
+                      ["jquery.layout.js"],
                   "lookout.style.typos.tests": ["*.asdf", "*.xz", "*.pkl", "id_vecs_10.bin"]},
     classifiers=[
         "Development Status :: 3 - Alpha",
