@@ -69,10 +69,10 @@ def get_score(data: pandas.DataFrame, suggestions: Dict[int, List[Tuple[str, flo
     Token is considered corrected, when the first suggestion doesn't match the token.
     Supports three problems:
     'detection': Typo is detected right: token is corrected when and only when it is not typo-ed.
-    'correction': The suggestions for typo correction are considered correct when there is \
-                  a correct one among the first k.
+    'correction': Correctly spelled tokens should not be corrected. Typo-ed tokens should \
+                  contain the right correction among first k suggestions.
     'on_corrected': Same as `correction`, but only the tokens, corrected by \
-                               the suggestions, are taken into account.
+                    the suggestions, are taken into account.
     :param data: DataFrame which is indexed by Columns.Id and has columns Column.Token and \
                  Column.CorrectToken.
     :param suggestions: `{id : [(candidate, correct_prob)]}`, candidates are sorted \
@@ -84,24 +84,27 @@ def get_score(data: pandas.DataFrame, suggestions: Dict[int, List[Tuple[str, flo
     """
     scores = Scores()
     for i in data.index:
-        if mode == "on_corrected" and suggestions[i][0][0] != data.loc[i, Columns.Token]:
+        if mode == "on_corrected" and suggestions[i][0][0] == data.loc[i, Columns.Token]:
             continue
-        if mode == "correction":
-            corrected_right = (data.loc[i, Columns.CorrectToken] in first_k_set(suggestions[i], k))
-        elif mode == "detection":
+        corrected_right = (data.loc[i, Columns.CorrectToken] in first_k_set(suggestions[i], k))
+        if mode == "detection":
             corrected_right = (suggestions[i][0][0] != data.loc[i, Columns.Token])
-        else:
-            raise ValueError("Mode must be one either `detection`, `correction` or `on_corrected`")
-        token_typoed = data.loc[i, Columns.Token] != data.loc[i, Columns.CorrectToken]
 
-        if token_typoed and corrected_right:
-            scores.tp += 1
-        elif token_typoed and not corrected_right:
-            scores.fn += 1
-        elif not token_typoed and corrected_right:
-            scores.tn += 1
+        if data.loc[i, Columns.Token] != data.loc[i, Columns.CorrectToken]:
+            # Token was typo-ed
+            if corrected_right:
+                # Token was corrected in the right way
+                scores.tp += 1
+            else:
+                scores.fn += 1
         else:
-            scores.fp += 1
+            # Token was spelled correct
+            if suggestions[i][0][0] == data.loc[i, Columns.Token]:
+                # Token was not corrected by the model
+                scores.tn += 1
+            else:
+                # Token was corrected by the model
+                scores.fp += 1
     return scores
 
 
@@ -112,14 +115,14 @@ def print_all_scores(data: pandas.DataFrame, suggestions: Dict[int, List[Tuple[s
     print("%-20s| %-10s| %-10s| %-10s| %-10s" %
           ("Metrics", "Accuracy", "Precision", "Recall", "F1"), file=file)
     print("-" * 20 + "|" + ("-" * 11 + "|") * 3 + "-" * 11, file=file)
-    scores = [get_score(data, suggestions, mode="detection")]
+    scores = [get_score(data, suggestions, mode="detection").get_metrics()]
     for mode in ["on_corrected", "correction"]:
         for k in [1, 2, 3]:
             scores.append(get_score(data, suggestions, mode=mode, k=k).get_metrics())
     for i, score_name in enumerate(["DETECTION SCORE", "TOP1 SCORE ON CORR",
                                     "TOP2 SCORE ON CORR", "TOP3 SCORE ON CORR",
                                     "TOP1 SCORE ALL", "TOP2 SCORE ALL", "TOP3 SCORE ALL"]):
-        print("%-20s| %-10s| %-10s| %-10s| %-10s" % (
+        print("%-20s| %-10.3f| %-10.3f| %-10.3f| %-10.3f" % (
             score_name, scores[i]["accuracy"], scores[i]["precision"], scores[i]["recall"],
             scores[i]["f1"]), file=file)
     if path:

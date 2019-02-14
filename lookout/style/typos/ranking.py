@@ -59,9 +59,9 @@ class CandidatesRanker(Model):
         """
         Train booster on the given data.
 
-        :param identifiers: Series containing column right corrections and indexed in
+        :param identifiers: Series containing column right corrections and indexed in \
                             correspondence with typos from which candidates were generated.
-        :param candidates: DataFrame containing information about candidates for correction.
+        :param candidates: DataFrame containing information about candidates for correction. \
                            Columns are [ID_COLUMN, TYPO_COLUMN, CANDIDATE_COLUMN].
         :param features: Matrix of features for candidates.
         :param val_part: Part of data used for validation.
@@ -84,9 +84,9 @@ class CandidatesRanker(Model):
         :param candidates: DataFrame containing information about candidates for correction.
         :param features: Matrix of features for candidates.
         :param n_candidates: Number of most probably correct candidates to return for each typo.
-        :param return_all: False to return corrections only for typos corrected in the
+        :param return_all: False to return corrections only for typos corrected in the \
                            first candidate.
-        :return: Dictionary {id : [[candidate, correctness_proba]]}, candidates are sorted
+        :return: Dictionary {id : [[candidate, correctness_proba]]}, candidates are sorted \
                  by correctness probability in a descending order.
         """
         dtest = xgb.DMatrix(features)

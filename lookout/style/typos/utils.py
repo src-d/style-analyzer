@@ -21,7 +21,7 @@ def read_frequencies(file: str) -> Dict[str, int]:
     """
     Read token frequencies from the file.
 
-    :param file: Path to the file containing space-separated word-frequency pairs one-per-line.
+    :param file: Path to the file containing space-separated word-frequency pairs one-per-line. \
                  File should be in .csv or compressed .csv.xz format.
     :return: Dictionary of tokens frequencies.
     """
@@ -41,8 +41,8 @@ def read_vocabulary(file: str) -> List[str]:
     """
     Read vocabulary tokens from the text file.
 
-    :param file: Text file used to generate vocabulary of corrections candidates.
-                 First token in every line split-by-space is added to the vocabulary.
+    :param file: Text file used to generate vocabulary of corrections candidates. \
+                 First token in every line split-by-space is added to the vocabulary. \
                  File should be in .csv or compressed .csv.xz format.
     :return: List of tokens of the vocabulary.
     """
@@ -60,11 +60,11 @@ def flatten_df_by_column(data: pandas.DataFrame, column: str, new_column: str,
     """
     Flatten DataFrame by `column` with extracted elements put to `new_column` (out-of-place).
 
-    :param data: DataFrame to flatten
-    :param column: Column to expand
-    :param new_column: Column to populate with elements from flattened column
-    :param apply_function: Function used to expand every element of flattened column
-    :return: Flattened DataFrame
+    :param data: DataFrame to flatten.
+    :param column: Column to expand.
+    :param new_column: Column to populate with elements from flattened column.
+    :param apply_function: Function used to expand every element of flattened column.
+    :return: Flattened DataFrame.
     """
     flat_column = data[column].apply(apply_function).tolist()
     flat_values = numpy.repeat(data.values,
@@ -80,7 +80,7 @@ def flatten_data(data: pandas.DataFrame, new_column_name=Columns.Token) -> panda
     """
     Flatten identifiers data in column `new_column_name` (out-of-place).
 
-    :param data: DataFrame containing column `new_column_name` with splitted identifiers
+    :param data: DataFrame containing column `new_column_name` with splitted identifiers \
                  either as strings or as lists of tokens.
     :param new_column_name: Name of column to put tokens from splits to.
     :return: Flattened DataFrame.
@@ -95,9 +95,9 @@ def add_context_info(data: pandas.DataFrame) -> pandas.DataFrame:
     """
     Split context of identifier on before and after part and return new dataframe with the info.
 
-    :param data: DataFrame, containing colummnn Columns.Token.
+    :param data: DataFrame, containing colummnn Columns.Token. \
                  Column Columns.Split will be used for creating context info if present.
-    :return: New dataframe with added columns Columns.Before and Columns.After,
+    :return: New dataframe with added columns Columns.Before and Columns.After, \
              containing lists of corresponding contexts tokens.
     """
     result_data = data.copy()
@@ -136,13 +136,13 @@ def rank_candidates(candidates: pandas.DataFrame, pred_probs: List[float],
     """
     Rank candidates for tokens' correction based on the correctness probabilities.
 
-    :param candidates: DataFrame with columns Columns.Id, Columns.Token, "candidate"
+    :param candidates: DataFrame with columns Columns.Id, Columns.Token, "candidate" \
                        and indexed by range(len(pred_proba)).
     :param pred_probs: Array of probabilities of correctness of every candidate.
     :param n_candidates: Number of most probably correct candidates to return for each typo.
-    :param return_all: False to return corrections only for tokens corrected in the
+    :param return_all: False to return corrections only for tokens corrected in the \
                        first candidate.
-    :return: Dictionary {id : [[candidate, correct_prob]]}, candidates are sorted
+    :return: Dictionary {id : [[candidate, correct_prob]]}, candidates are sorted \
              by correct_prob in a descending order.
     """
     suggestions = {}
@@ -174,7 +174,7 @@ def filter_suggestions(data: pandas.DataFrame, suggestions: Dict[int, List[Tuple
     :param data: DataFrame, containing column Columns.Token.
     :param suggestions: Dictionary of suggestions, keys correspond with data.index.
     :param n_candidates: Number of most probably correct candidates to return for each typo.
-    :param return_all: False to return corrections only for tokens corrected in the
+    :param return_all: False to return corrections only for tokens corrected in the \
                        first candidate.
     :return: Dictionary of filtered suggestions.
     """
@@ -189,7 +189,7 @@ def suggestions_to_df(data: pandas.DataFrame, suggestions: Dict[int, List[Tuple[
 
     :param data: DataFrame containing column Columns.Token.
     :param suggestions: Dictionary of suggestions, keys correspond with data.index.
-    :return: DataFrame with columns Columns.Token, Columns.Suggestions,
+    :return: DataFrame with columns Columns.Token, Columns.Suggestions, \
              indexed by data.index.
     """
     suggestions_array = [[index, data.loc[index, Columns.Token], corrections]
@@ -206,7 +206,7 @@ def suggestions_to_flat_df(data: pandas.DataFrame,
 
     :param data: DataFrame containing column Columns.Token.
     :param suggestions: Dictionary of suggestions, keys correspond with data.index.
-    :return: DataFrame with columns Columns.Token, Columns.Candidate,
+    :return: DataFrame with columns Columns.Token, Columns.Candidate, \
              Columns.Probability, indexed by data.index.
     """
     flat_df = flatten_df_by_column(suggestions_to_df(data, suggestions),

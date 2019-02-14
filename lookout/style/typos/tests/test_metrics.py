@@ -24,7 +24,7 @@ class MetricsTest(unittest.TestCase):
                                  ["gwt", "get"],
                                  ["tokem", "token"],
                                  ["token", "token"]],
-                                columns=[Columns.Split, Columns.Token])
+                                columns=[Columns.Token, Columns.CorrectToken])
         suggestions = {0: [("get", 1.0)],
                        1: [("got", 0.9), ("get", 0.5), ("gwt", 0.01)],
                        2: [("token", 0.98), ("taken", 0.3), ("tokem", 0.01)],
@@ -34,7 +34,7 @@ class MetricsTest(unittest.TestCase):
         self.assertEqual(get_score(data, suggestions, mode="correction", k=1),
                          Scores(1, 1, 1, 1))
         self.assertEqual(get_score(data, suggestions, mode="on_corrected", k=2),
-                         Scores(3, 0, 0, 0))
+                         Scores(2, 1, 0, 0))
 
 
 if __name__ == "__main__":

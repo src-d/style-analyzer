@@ -101,7 +101,7 @@ class TyposCorrector(Model):
         """
         Train corrector on the given dataset of typoed tokens inside identifiers.
 
-        :param data: DataFrame or its .csv dump, containing columns Columns.Token and
+        :param data: DataFrame or its .csv dump, containing columns Columns.Token and \
                      Columns.CorrectToken, column Columns.Split is optional, but used when present.
         :param candidates: DataFrame or its pickle dump with precalculated candidates.
         :param save_candidates_file: Path to file where to save the candidates (.pkl).
@@ -123,13 +123,13 @@ class TyposCorrector(Model):
         """
         Suggest corrections for given typos.
 
-        :param data: DataFrame or its .csv dump, containing column Columns.Token,
+        :param data: DataFrame or its .csv dump, containing column Columns.Token, \
                      column Columns.Split is optional, but used when present.
         :param candidates: DataFrame or its pickle dump with precalculated candidates.
         :param n_candidates: Number of most probable candidates to return.
         :param return_all: False to return suggestions only for corrected tokens.
         :param save_candidates_file: Path to file to save candidates to (.pkl).
-        :return: Dictionary {id : [[candidate, correctness_proba]]}, candidates are sorted
+        :return: Dictionary {id : [[candidate, correctness_proba]]}, candidates are sorted \
                  by correctness probability in a descending order.
         """
         if isinstance(data, str):
