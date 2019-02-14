@@ -83,7 +83,7 @@ class TyposCorrector(Model):
         Construct a new CandidatesGenerator.
 
         :param vocabulary_file: The path to the vocabulary.
-        :param frequencies_file: The path t the frequencies.
+        :param frequencies_file: The path to the frequencies.
         :param embeddings_file: The path to the embeddings.
         :param neighbors_number: Number of neighbors of context and typo embeddings \
                                  to consider as candidates.

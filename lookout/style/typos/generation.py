@@ -189,8 +189,6 @@ class CandidatesGenerator(Model):
         candidate_tokens = []
         last_dist = -1
         edit_candidates_count = 0
-        if type(typo_info.typo) != str:
-            print(typo_info.typo)
         if self.edit_candidates_number > 0:
             for suggestion in self.checker.lookup(typo_info.typo, 2, self.max_distance):
                 if suggestion.distance != last_dist:
