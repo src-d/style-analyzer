@@ -1,4 +1,4 @@
-from typing import Dict, Set
+from typing import Dict, List, Set, Tuple
 
 import pandas
 
@@ -43,8 +43,11 @@ class Scores:
                 "recall": self.recall(),
                 "f1": self.f1()}
 
+    def __eq__(self, other):
+        return self.__dict__ == other.__dict__
 
-def first_k_set(corrections: list, k: int) -> Set[str]:
+
+def first_k_set(corrections: List[Tuple[str, float]], k: int) -> Set[str]:
     """
     Compose the set of k most probable correction candidates (tokens without probabilities).
 
@@ -58,8 +61,8 @@ def first_k_set(corrections: list, k: int) -> Set[str]:
     return first_k
 
 
-def get_score(data: pandas.DataFrame, suggestions: dict, mode: str = "correction",
-              k: int = 1) -> Scores:
+def get_score(data: pandas.DataFrame, suggestions: Dict[int, List[Tuple[str, float]]],
+              mode: str = "correction", k: int = 1) -> Scores:
     """
     Calculate the score of the solution of the specific typo correction problem.
 
@@ -84,9 +87,9 @@ def get_score(data: pandas.DataFrame, suggestions: dict, mode: str = "correction
         if mode == "on_corrected" and suggestions[i][0][0] != data.loc[i, Columns.Token]:
             continue
         if mode == "correction":
-            corrected_right = data.loc[i, Columns.CorrectToken] in first_k_set(suggestions[i], k)
+            corrected_right = (data.loc[i, Columns.CorrectToken] in first_k_set(suggestions[i], k))
         elif mode == "detection":
-            corrected_right = suggestions[i][0][0] != data.loc[i, Columns.Token]
+            corrected_right = (suggestions[i][0][0] != data.loc[i, Columns.Token])
         else:
             raise ValueError("Mode must be one either `detection`, `correction` or `on_corrected`")
         token_typoed = data.loc[i, Columns.Token] != data.loc[i, Columns.CorrectToken]
@@ -102,7 +105,8 @@ def get_score(data: pandas.DataFrame, suggestions: dict, mode: str = "correction
     return scores
 
 
-def print_all_scores(data: pandas.DataFrame, suggestions: dict, path: str = None) -> None:
+def print_all_scores(data: pandas.DataFrame, suggestions: Dict[int, List[Tuple[str, float]]],
+                     path: str = None) -> None:
     """Print scores for suggestions in an easy readable way."""
     file = None if not path else open(path, "w")
     print("%-20s| %-10s| %-10s| %-10s| %-10s" %
@@ -118,3 +122,5 @@ def print_all_scores(data: pandas.DataFrame, suggestions: dict, path: str = None
         print("%-20s| %-10s| %-10s| %-10s| %-10s" % (
             score_name, scores[i]["accuracy"], scores[i]["precision"], scores[i]["recall"],
             scores[i]["f1"]), file=file)
+    if path:
+        file.close()
