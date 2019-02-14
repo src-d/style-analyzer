@@ -13,10 +13,8 @@ from scipy.spatial.distance import cosine
 from tqdm import tqdm
 
 from lookout.style.typos.symspell import EditDistance, SymSpell
-from lookout.style.typos.utils import (
-    add_context_info, CANDIDATE_COLUMN, FEATURES_COLUMN, ID_COLUMN, read_frequencies,
-    read_vocabulary, TYPO_COLUMN,
-)
+from lookout.style.typos.utils import add_context_info, Columns, read_frequencies, read_vocabulary
+
 
 TypoInfo = NamedTuple("TypoInfo", (("index", int),
                                    ("typo", str),
@@ -105,8 +103,9 @@ class CandidatesGenerator(Model):
                  and features for their ranking for each typo.
         """
         data = add_context_info(data)
-        typos = [TypoInfo(index, data.loc[index].typo, data.loc[index].before,
-                          data.loc[index].after)
+        typos = [TypoInfo(index, data.loc[index, Columns.Token],
+                          data.loc[index, Columns.Before],
+                          data.loc[index, Columns.After])
                  for i, index in enumerate(data.index)]
         if len(typos) > start_pool_size and threads_number > 1:
             with Pool(min(threads_number, len(typos))) as pool:
@@ -117,8 +116,9 @@ class CandidatesGenerator(Model):
         else:
             candidates = [self._lookup_corrections_for_token(t) for t in typos]
         candidates = pandas.DataFrame(list(chain.from_iterable(candidates)))
-        candidates.columns = [ID_COLUMN, TYPO_COLUMN, CANDIDATE_COLUMN, FEATURES_COLUMN]
-        candidates[ID_COLUMN] = candidates[ID_COLUMN].astype(data.index.dtype)
+        candidates.columns = [Columns.Id, Columns.Token, Columns.Candidate,
+                              Columns.Features]
+        candidates.loc[:, Columns.Id] = candidates[Columns.Id].astype(data.index.dtype)
         if save_candidates_file is not None:
             candidates.to_pickle(save_candidates_file)
         return candidates
@@ -189,6 +189,8 @@ class CandidatesGenerator(Model):
         candidate_tokens = []
         last_dist = -1
         edit_candidates_count = 0
+        if type(typo_info.typo) != str:
+            print(typo_info.typo)
         if self.edit_candidates_number > 0:
             for suggestion in self.checker.lookup(typo_info.typo, 2, self.max_distance):
                 if suggestion.distance != last_dist:
@@ -361,8 +363,9 @@ class CandidatesGenerator(Model):
         self.checker._deletes = deletes
         self.checker._words = {w: self.checker._words[i] for i, w in enumerate(words)}
         vectors = self.wv["vectors"]
-        wv = FastTextKeyedVectors(vectors.shape[1], self.wv["min_n"], self.wv["max_n"])
-        wv.vectors = vectors
+        wv = FastTextKeyedVectors(vectors.shape[1], self.wv["min_n"], self.wv["max_n"],
+                                  self.wv["bucket"], True)
+        wv.vectors = numpy.array(vectors)
         vocab = split_strings(self.wv["vocab"]["strings"])
         wv.vocab = {
             s: Vocab(index=i, count=self.wv["vocab"]["counts"][i])
@@ -370,7 +373,7 @@ class CandidatesGenerator(Model):
         wv.bucket = self.wv["bucket"]
         wv.index2word = wv.index2entity = vocab
         wv.num_ngram_vectors = self.wv["num_ngram_vectors"]
-        wv.vectors_ngrams = self.wv["vectors_ngrams"]
+        wv.vectors_ngrams = numpy.array(self.wv["vectors_ngrams"])
         wv.hash2index = {k: v for v, k in enumerate(self.wv["hash2index"])}
         self.wv = wv
 
@@ -379,11 +382,11 @@ def get_candidates_features(candidates: pandas.DataFrame) -> numpy.ndarray:
     """
     Take the feature vectors belonging to the typo correction candidates from the table.
     """
-    return numpy.vstack(candidates[FEATURES_COLUMN].values)
+    return numpy.vstack(candidates[Columns.Features].values)
 
 
 def get_candidates_metadata(candidates: pandas.DataFrame) -> pandas.DataFrame:
     """
     Take the information about the typo correction candidates from the table.
     """
-    return candidates[[ID_COLUMN, TYPO_COLUMN, CANDIDATE_COLUMN]]
+    return candidates[[Columns.Id, Columns.Token, Columns.Candidate]]

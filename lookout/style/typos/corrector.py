@@ -1,7 +1,7 @@
 """Typo correction model."""
 
 from itertools import chain
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Union
 
 from modelforge import Model
 import pandas
@@ -9,8 +9,9 @@ from tqdm import tqdm
 
 from lookout.style.typos.generation import (CandidatesGenerator, get_candidates_features,
                                             get_candidates_metadata)
+from lookout.style.typos.metrics import print_scores, score_at_k
 from lookout.style.typos.ranking import CandidatesRanker
-from lookout.style.typos.utils import CORRECT_TOKEN_COLUMN
+from lookout.style.typos.utils import Columns
 
 
 class TyposCorrector(Model):
@@ -50,8 +51,13 @@ class TyposCorrector(Model):
 
     @property
     def threads_number(self):
-        """Return the number of threads used to train and to predict."""
+        """Return the number of threads for multiprocessing used to train and to predict."""
         return self.ranker.boost_param["nthread"]
+
+    @threads_number.setter
+    def threads_number(self, threads_number: int):
+        """Set the number of threads for multiprocessing used to train and to predict."""
+        self.ranker.boost_param["nthread"] = threads_number
 
     def initialize_ranker(self, train_rounds: int = DEFAULT_TRAIN_ROUNDS,
                           early_stopping: int = DEFAULT_EARLY_STOPPING,
@@ -77,7 +83,7 @@ class TyposCorrector(Model):
         Construct a new CandidatesGenerator.
 
         :param vocabulary_file: The path to the vocabulary.
-        :param frequencies_file: The path ot the frequencies.
+        :param frequencies_file: The path t the frequencies.
         :param embeddings_file: The path to the embeddings.
         :param neighbors_number: Number of neighbors of context and typo embeddings \
                                  to consider as candidates.
@@ -85,95 +91,65 @@ class TyposCorrector(Model):
                                 equal edit distance from the typo to consider as candidates.
         :param max_distance: Maximum edit distance for symspell lookup.
         :param radius: Maximum edit distance from typo allowed for candidates.
-        :return: Nothing
         """
         self.generator.construct(vocabulary_file, frequencies_file, embeddings_file,
                                  neighbors_number, edit_candidates, max_distance, radius)
 
-    def train(self, typos: pandas.DataFrame, candidates: pandas.DataFrame = None,
+    def train(self, data: Union[pandas.DataFrame, str],
+              candidates: Union[pandas.DataFrame, str] = None,
               save_candidates_file: str = None) -> None:
         """
-        Train corrector on the given dataset of typos inside identifiers.
+        Train corrector on the given dataset of typoed tokens inside identifiers.
 
-        :param typos: DataFrame containing columns "typo" and "identifier",
-                      column "token_split" is optional, but used when present.
-        :param candidates: DataFrame with precalculated candidates.
-        :param save_candidates_file: Path to file where to save the candidates.
+        :param data: DataFrame or its .csv dump, containing columns Columns.Token and
+                     Columns.CorrectToken, column Columns.Split is optional, but used when present.
+        :param candidates: DataFrame or its pickle dump with precalculated candidates.
+        :param save_candidates_file: Path to file where to save the candidates (.pkl).
         """
-        if candidates is None:
+        if isinstance(data, str):
+            data = pandas.read_csv(data, index_col=0)
+        if not candidates:
             candidates = self.generator.generate_candidates(
-                typos, self.threads_number, save_candidates_file)
-        self.ranker.fit(typos[CORRECT_TOKEN_COLUMN], get_candidates_metadata(candidates),
+                data, self.threads_number, save_candidates_file)
+        elif isinstance(candidates, str):
+            candidates = pandas.read_pickle(candidates)
+        self.ranker.fit(data[Columns.CorrectToken], get_candidates_metadata(candidates),
                         get_candidates_features(candidates))
 
-    def train_on_file(self, typos_file: str, candidates_file: str = None,
-                      save_candidates_file: str = None) -> None:
-        """
-        Train corrector on the given dataset of typos inside identifiers.
-
-        :param typos_file: CSV file with columns "typo" and "identifier",
-                           column "token_split" is optional, but used when present.
-        :param candidates_file: Pickle dump of pandas.DataFrame with precalculated \
-                                candidates and features
-        :param save_candidates_file: Path to file where to save the candidates.
-        """
-        typos = pandas.read_csv(typos_file, index_col=0)
-        candidates = None
-        if candidates_file is not None:
-            candidates = pandas.read_pickle(candidates_file)
-        self.train(typos, candidates, save_candidates_file)
-
-    def suggest(self, typos: pandas.DataFrame, candidates: pandas.DataFrame = None,
+    def suggest(self, data: Union[pandas.DataFrame, str],
+                candidates: Union[pandas.DataFrame, str] = None,
                 save_candidates_file: str = None, n_candidates: int = 3,
                 return_all: bool = True) -> Dict[int, List[Tuple[str, float]]]:
         """
         Suggest corrections for given typos.
 
-        :param typos: DataFrame containing column "typo", \
-                      column "token_split" is optional, but used when present
-        :param candidates: DataFrame with precalculated candidates
-        :param n_candidates: Number of most probable candidates to return
-        :param return_all: False to return suggestions only for corrected tokens
-        :param save_candidates_file: Path to file to save candidates to
-        :return: Dictionary {id : [[candidate, correctness_proba]]}, candidates are sorted \
+        :param data: DataFrame or its .csv dump, containing column Columns.Token,
+                     column Columns.Split is optional, but used when present.
+        :param candidates: DataFrame or its pickle dump with precalculated candidates.
+        :param n_candidates: Number of most probable candidates to return.
+        :param return_all: False to return suggestions only for corrected tokens.
+        :param save_candidates_file: Path to file to save candidates to (.pkl).
+        :return: Dictionary {id : [[candidate, correctness_proba]]}, candidates are sorted
                  by correctness probability in a descending order.
         """
-        if candidates is None:
-            candidates = self.generator.generate_candidates(typos, self.threads_number,
-                                                            save_candidates_file)
+        if isinstance(data, str):
+            data = pandas.read_csv(data, index_col=0)
+        if not candidates:
+            candidates = self.generator.generate_candidates(
+                data, self.threads_number, save_candidates_file)
+        elif isinstance(candidates, str):
+            candidates = pandas.read_pickle(candidates)
         return self.ranker.rank(get_candidates_metadata(candidates),
                                 get_candidates_features(candidates), n_candidates, return_all)
 
-    def suggest_file(self, typos_file: str, candidates_file: str = None,
-                     save_candidates_file: str = None, n_candidates: int = 3,
-                     return_all: bool = True) -> Dict[int, List[Tuple[str, float]]]:
-        """
-        Suggest corrections for given typos.
-
-        :param typos_file: csv file containing DataFrame with column "typo", \
-                           column "token_split" is optional, but used when present
-        :param candidates_file: pickle file containing DataFrame with precalculated \
-                                candidates and features
-        :param n_candidates: Number of most probable candidates to return
-        :param return_all: False to return suggestions only for corrected tokens
-        :param save_candidates_file: Path to file to save candidates to
-        :return: Dictionary {id : [[candidate, correctness_proba]]}, candidates are sorted \
-                 by correctness probability in a descending order.
-        """
-        typos = pandas.read_csv(typos_file, index_col=0)
-        candidates = None
-        if candidates_file is not None:
-            candidates = pandas.read_pickle(candidates_file)
-        return self.suggest(typos, candidates, save_candidates_file, n_candidates, return_all)
-
-    def suggest_by_batches(self, typos: pandas.DataFrame, n_candidates: int = None,
+    def suggest_by_batches(self, data: Union[pandas.DataFrame, str], n_candidates: int = None,
                            return_all: bool = True, batch_size: int = 2048,
                            ) -> Dict[int, List[Tuple[str, float]]]:
         """
         Correct typos from dataset by batches. Does not support precalculated candidates.
 
         Suggest corrections for given typos
-        :param typos: DataFrame containing column "typo", \
+        :param data: DataFrame containing column "typo", \
                column "token_split" is optional, but used when present
         :param n_candidates: Number of most probable candidates to return
         :param return_all: False to return suggestions only for corrected tokens
@@ -181,15 +157,22 @@ class TyposCorrector(Model):
         :return: Dictionary {id : [[candidate, correctness_proba]]}, candidates are sorted \
                  by correctness probability in a descending order.
         """
+        if isinstance(data, str):
+            data = pandas.read_csv(data, index_col=0)
         all_suggestions = []
-        for i in tqdm(range(0, len(typos), batch_size)):
-            suggestions = self.suggest(typos.loc[typos.index[i]:
-                                                 typos.index[min(len(typos) - 1,
-                                                                 i + batch_size - 1)], :],
-                                       n_candidates=n_candidates, return_all=return_all)
+        for i in tqdm(range(0, len(data), batch_size)):
+            suggestions = self.suggest(
+                data.loc[data.index[i]:data.index[min(len(data) - 1, i + batch_size - 1)], :],
+                n_candidates=n_candidates, return_all=return_all)
             all_suggestions.append(suggestions.items())
-
         return dict(chain.from_iterable(all_suggestions))
+
+    def evaluate(self, test_data: Union[pandas.DataFrame, str]) -> None:
+        if isinstance(test_data, str):
+            test_data = pandas.read_csv(test_data, index_col=0)
+        suggestions = self.suggest(test_data)
+        self._meta["metrics"] = score_at_k(test_data, suggestions, 1).get_metrics()
+        print_scores(test_data, suggestions)
 
     def __eq__(self, other: "TyposCorrector") -> bool:
         return self.generator == other.generator and self.ranker == other.ranker
