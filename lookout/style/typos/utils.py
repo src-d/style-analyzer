@@ -109,8 +109,8 @@ def add_context_info(data: pandas.DataFrame) -> pandas.DataFrame:
                 if isinstance(split, str):
                     split = split.split()
                 index = split.index(tokens[row_number])
-                before.append(split[:index])
-                after.append(split[index + 1:])
+                before.append(" ".join(split[:index]))
+                after.append(" ".join(split[index + 1:]))
 
     else:
         before = [[] for _ in range(len(result_data))]
@@ -128,13 +128,13 @@ def rank_candidates(candidates: pandas.DataFrame, pred_probs: List[float],
     """
     Rank candidates for tokens' correction based on the correctness probabilities.
 
-    :param candidates: DataFrame with columns Columns.Id, Columns.Token, "candidate" \
+    :param candidates: DataFrame with columns Columns.Id, Columns.Token, Columns.Candidate \
                        and indexed by range(len(pred_proba)).
     :param pred_probs: Array of probabilities of correctness of every candidate.
     :param n_candidates: Number of most probably correct candidates to return for each typo.
     :param return_all: False to return corrections only for tokens corrected in the \
                        first candidate.
-    :return: Dictionary {id : [[candidate, correct_prob]]}, candidates are sorted \
+    :return: Dictionary `{id : [[candidate, correct_prob]]}`, candidates are sorted \
              by correct_prob in a descending order.
     """
     suggestions = {}

@@ -18,8 +18,8 @@ from lookout.style.typos.utils import add_context_info, Columns, read_frequencie
 
 TypoInfo = NamedTuple("TypoInfo", (("index", int),
                                    ("typo", str),
-                                   ("before", list),
-                                   ("after", list)))
+                                   ("before", str),
+                                   ("after", str)))
 
 Features = NamedTuple("Features", (("index", int),
                                    ("typo", str),
@@ -204,7 +204,7 @@ class CandidatesGenerator(Model):
             candidate_tokens.extend(typo_neighbors)
 
             if len(typo_info.before + typo_info.after) > 0:
-                context_neighbors = self._closest(self._compound_vec(typo_info.before +
+                context_neighbors = self._closest(self._compound_vec(typo_info.before + " " +
                                                                      typo_info.after),
                                                   self.neighbors_number)
                 candidate_tokens.extend(context_neighbors)
@@ -233,7 +233,7 @@ class CandidatesGenerator(Model):
         """
         before_vec = self._compound_vec(typo_info.before)
         after_vec = self._compound_vec(typo_info.after)
-        context_vec = self._compound_vec(typo_info.before + typo_info.after)
+        context_vec = self._compound_vec(typo_info.before + " " + typo_info.after)
         return Features(typo_info.index, typo_info.typo, candidate, numpy.concatenate((
             (
                 self._freq(typo_info.typo),
@@ -274,7 +274,8 @@ class CandidatesGenerator(Model):
         return -numpy.log((1.0 * self._freq(first_token) + 1e-5) /
                           (1.0 * self._freq(second_token) + 1e-5))
 
-    def _compound_vec(self, split: List[str]) -> numpy.ndarray:
+    def _compound_vec(self, split: str) -> numpy.ndarray:
+        split = split.split()
         compound_vec = numpy.zeros(self.wv["a"].shape)
         if len(split) == 0:
             return compound_vec

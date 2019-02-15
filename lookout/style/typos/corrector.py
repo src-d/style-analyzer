@@ -136,7 +136,8 @@ class TyposCorrector(Model):
         :param save_candidates_file: Path to file to save candidates to (.csv.xz).
         :param n_candidates: Number of most probable candidates to return.
         :param return_all: False to return suggestions only for corrected tokens.
-        :return: Dictionary {id : [[candidate, correctness_proba]]}, candidates are sorted \
+        :param save_candidates_file: Path to file to save candidates to (.pkl).
+        :return: Dictionary `{id : [[candidate, correctness_proba]]}`, candidates are sorted \
                  by correctness probability in a descending order.
         """
         if candidates is None:
@@ -176,7 +177,8 @@ class TyposCorrector(Model):
         :param n_candidates: Number of most probable candidates to return.
         :param return_all: False to return suggestions only for corrected tokens.
         :param batch_size: Batch size.
-        :return: Dictionary {id : [[candidate, correctness_proba]]}, candidates are sorted \
+
+        :return: Dictionary `{id : [[candidate, correctness_proba]]}`, candidates are sorted \
                  by correctness probability in a descending order.
         """
         all_suggestions = []
