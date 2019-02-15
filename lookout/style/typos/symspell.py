@@ -122,7 +122,7 @@ class SymSpell:
         File should contain space-separated word-count pairs one at a line.
 
         Args:
-            corpus (str): Path to corpus file (.csv or .csv.xz).
+            corpus (str): Path to .csv corpus file.
         """
         if os.path.exists(corpus):
             with open(corpus, "r") as f:

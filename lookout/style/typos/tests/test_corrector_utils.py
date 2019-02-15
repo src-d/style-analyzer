@@ -1,8 +1,8 @@
 import lzma
 from os.path import join
 import pathlib
-import tempfile
 import pickle
+import tempfile
 import unittest
 
 import numpy
@@ -10,8 +10,8 @@ import pandas
 from pandas.util.testing import assert_frame_equal
 
 from lookout.style.typos.utils import (
-    add_context_info, Columns, filter_suggestions, flatten_data, flatten_df_by_column,
-    rank_candidates, suggestions_to_df, suggestions_to_flat_df)
+    add_context_info, Columns, filter_suggestions, flatten_data, rank_candidates,
+    read_frequencies, read_vocabulary, suggestions_to_df, suggestions_to_flat_df)
 
 
 TEST_DATA_PATH = str(pathlib.Path(__file__).parent)
@@ -19,15 +19,14 @@ TEST_DATA_PATH = str(pathlib.Path(__file__).parent)
 
 class ReadDataTest(unittest.TestCase):
     def test_read_functions(self):
-        vocabulary_file = tempfile.NamedTemporaryFile()
-        with lzma.open(join(TEST_DATA_PATH, "test_frequencies.csv.xz"), "rt") as compressed:
-            with open(vocabulary_file.name, "w") as f:
-                f.write(compressed.read())
-        vocabulary = read_vocabulary(vocabulary_file.name)
-        frequencies = read_frequencies(vocabulary_file.name)
+        with tempfile.NamedTemporaryFile() as vocabulary_file:
+            with lzma.open(join(TEST_DATA_PATH, "test_frequencies.csv.xz"), "rt") as compressed:
+                with open(vocabulary_file.name, "w") as f:
+                    f.write(compressed.read())
+            vocabulary = read_vocabulary(vocabulary_file.name)
+            frequencies = read_frequencies(vocabulary_file.name)
         self.assertEqual(len(vocabulary), 100)
         self.assertSetEqual(set(vocabulary), set(frequencies.keys()))
-        vocabulary_file.close()
 
 
 class DataTransformationsTest(unittest.TestCase):

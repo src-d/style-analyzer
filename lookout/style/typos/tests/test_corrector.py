@@ -26,14 +26,13 @@ class TyposCorrectorTest(unittest.TestCase):
                                            columns=[Columns.Split, Columns.Token,
                                                     Columns.CorrectToken])
         cls.corrector = TyposCorrector()
-        vocabulary_file = tempfile.NamedTemporaryFile()
-        with lzma.open(VOCABULARY_FILE, "rt") as compressed:
-            with open(vocabulary_file.name, "w") as f:
-                f.write(compressed.read())
-        cls.corrector.initialize_generator(vocabulary_file.name, vocabulary_file.name,
-                                           FASTTEXT_DUMP_FILE)
+        with tempfile.NamedTemporaryFile() as vocabulary_file:
+            with lzma.open(VOCABULARY_FILE, "rt") as compressed:
+                with open(vocabulary_file.name, "w") as f:
+                    f.write(compressed.read())
+            cls.corrector.initialize_generator(vocabulary_file.name, vocabulary_file.name,
+                                               FASTTEXT_DUMP_FILE)
         cls.corrector.train(cls.data)
-        vocabulary_file.close()
 
     def test_threads_number_setter(self):
         # Use unlikely number of threads for test
@@ -57,11 +56,6 @@ class TyposCorrectorTest(unittest.TestCase):
         self.corrector.train_on_file(join(TEST_DATA_PATH, "test_data.csv.xz"))
         suggestions = self.corrector.suggest_on_file(join(TEST_DATA_PATH, "test_data.csv.xz"))
         self.assertSetEqual(set(suggestions.keys()), set(self.data.index))
-
-    def test_evaluation(self):
-        self.corrector.evaluate(self.custom_data)
-        self.assertSetEqual(set(self.corrector._meta["metrics"].keys()),
-                            {"accuracy", "precision", "recall", "f1"})
 
     @unittest.skip("CandidatesGenerator.__eq__ needs refactoring. Test is currently flaky.")
     def test_save_load(self):

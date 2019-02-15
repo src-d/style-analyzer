@@ -45,12 +45,12 @@ class GeneratorTest(unittest.TestCase):
     @unittest.skip("CandidatesGenerator.__eq__ needs refactoring. Test is currently flaky.")
     def test_save_load(self):
         generator = CandidatesGenerator()
-        vocabulary_file = tempfile.NamedTemporaryFile()
-        with lzma.open(VOCABULARY_FILE, "rt") as compressed:
-            with open(vocabulary_file.name, "w") as f:
-                f.write(compressed.read())
-        generator.construct(vocabulary_file.name, vocabulary_file.name, FASTTEXT_DUMP_FILE,
-                            neighbors=3, edit_candidates=3, max_distance=3, radius=3)
+        with tempfile.NamedTemporaryFile() as vocabulary_file:
+            with lzma.open(VOCABULARY_FILE, "rt") as compressed:
+                with open(vocabulary_file.name, "w") as f:
+                    f.write(compressed.read())
+            generator.construct(vocabulary_file.name, vocabulary_file.name, FASTTEXT_DUMP_FILE,
+                                neighbors=3, edit_candidates=3, max_distance=3, radius=3)
         with io.BytesIO() as buffer:
             generator.save(buffer)
             print(buffer.tell())
@@ -58,16 +58,15 @@ class GeneratorTest(unittest.TestCase):
             generator2 = CandidatesGenerator().load(buffer)
 
         self.assertTrue(generator == generator2)
-        vocabulary_file.close()
 
     def test_generate_candidates(self):
         generator = CandidatesGenerator()
-        vocabulary_file = tempfile.NamedTemporaryFile()
-        with lzma.open(VOCABULARY_FILE, "rt") as compressed:
-            with open(vocabulary_file.name, "w") as f:
-                f.write(compressed.read())
-        generator.construct(vocabulary_file.name, vocabulary_file.name, FASTTEXT_DUMP_FILE,
-                            neighbors=3, edit_candidates=3, max_distance=3, radius=3)
+        with tempfile.NamedTemporaryFile() as vocabulary_file:
+            with lzma.open(VOCABULARY_FILE, "rt") as compressed:
+                with open(vocabulary_file.name, "w") as f:
+                    f.write(compressed.read())
+            generator.construct(vocabulary_file.name, vocabulary_file.name, FASTTEXT_DUMP_FILE,
+                                neighbors=3, edit_candidates=3, max_distance=3, radius=3)
 
         data = pandas.read_csv(str(TEST_DATA_PATH / "test_data.csv.xz"),
                                index_col=0).infer_objects()

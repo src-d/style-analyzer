@@ -20,13 +20,12 @@ class EditDistanceTest(unittest.TestCase):
 class SymSpellTest(unittest.TestCase):
     def test_generate_candidates(self):
         symspell = SymSpell(max_dictionary_edit_distance=1)
-        vocabulary_file = tempfile.NamedTemporaryFile()
-        with lzma.open(VOCABULARY_FILE, "rt") as compressed:
-            with open(vocabulary_file.name, "w") as f:
-                f.write(compressed.read())
-        symspell.load_dictionary(vocabulary_file.name)
-        self.assertEqual(symspell.lookup("ofset", 0, 1)[0].term, "offset")
-        vocabulary_file.close()
+        with tempfile.NamedTemporaryFile() as vocabulary_file:
+            with lzma.open(VOCABULARY_FILE, "rt") as compressed:
+                with open(vocabulary_file.name, "w") as f:
+                    f.write(compressed.read())
+            symspell.load_dictionary(vocabulary_file.name)
+            self.assertEqual(symspell.lookup("ofset", 0, 1)[0].term, "offset")
 
 
 if __name__ == "__main__":
