@@ -1,5 +1,7 @@
+import lzma
 from os.path import join
 import pathlib
+import tempfile
 import pickle
 import unittest
 
@@ -13,6 +15,19 @@ from lookout.style.typos.utils import (
 
 
 TEST_DATA_PATH = str(pathlib.Path(__file__).parent)
+
+
+class ReadDataTest(unittest.TestCase):
+    def test_read_functions(self):
+        vocabulary_file = tempfile.NamedTemporaryFile()
+        with lzma.open(join(TEST_DATA_PATH, "test_frequencies.csv.xz"), "rt") as compressed:
+            with open(vocabulary_file.name, "w") as f:
+                f.write(compressed.read())
+        vocabulary = read_vocabulary(vocabulary_file.name)
+        frequencies = read_frequencies(vocabulary_file.name)
+        self.assertEqual(len(vocabulary), 100)
+        self.assertSetEqual(set(vocabulary), set(frequencies.keys()))
+        vocabulary_file.close()
 
 
 class DataTransformationsTest(unittest.TestCase):

@@ -1,4 +1,6 @@
+import lzma
 import pathlib
+import tempfile
 import unittest
 
 from lookout.style.typos.symspell import EditDistance, SymSpell
@@ -18,8 +20,13 @@ class EditDistanceTest(unittest.TestCase):
 class SymSpellTest(unittest.TestCase):
     def test_generate_candidates(self):
         symspell = SymSpell(max_dictionary_edit_distance=1)
-        symspell.load_dictionary(VOCABULARY_FILE)
+        vocabulary_file = tempfile.NamedTemporaryFile()
+        with lzma.open(VOCABULARY_FILE, "rt") as compressed:
+            with open(vocabulary_file.name, "w") as f:
+                f.write(compressed.read())
+        symspell.load_dictionary(vocabulary_file.name)
         self.assertEqual(symspell.lookup("ofset", 0, 1)[0].term, "offset")
+        vocabulary_file.close()
 
 
 if __name__ == "__main__":

@@ -4,7 +4,6 @@ from typing import Dict, List, NamedTuple, Tuple
 
 import numpy
 import pandas
-from smart_open import smart_open
 
 
 Columns = NamedTuple(
@@ -20,12 +19,11 @@ def read_frequencies(file: str) -> Dict[str, int]:
     """
     Read token frequencies from the file.
 
-    :param file: Path to the file containing space-separated word-frequency pairs one-per-line. \
-                 File should be in .csv or compressed .csv.xz format.
+    :param file: Path to the .csv file with space-separated word-frequency pairs one-per-line.
     :return: Dictionary of tokens frequencies.
     """
     frequencies = {}
-    with smart_open(file, "r") as f:
+    with open(file, "r") as f:
         for line in f:
             split = line.split()
             frequencies[split[0]] = int(split[1])
@@ -36,12 +34,11 @@ def read_vocabulary(file: str) -> List[str]:
     """
     Read vocabulary tokens from the text file.
 
-    :param file: Text file used to generate vocabulary of corrections candidates. \
+    :param file: .csv file in which the vocabulary of corrections candidates is stored. \
                  First token in every line split-by-space is added to the vocabulary. \
-                 File should be in .csv or compressed .csv.xz format.
     :return: List of tokens of the vocabulary.
     """
-    with smart_open(file, "r") as f:
+    with open(file, "r") as f:
         tokens = [line.split()[0] for line in f]
     return tokens
 

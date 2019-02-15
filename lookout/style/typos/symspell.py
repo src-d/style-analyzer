@@ -1,4 +1,3 @@
-import lzma
 import os
 import sys
 
@@ -123,21 +122,14 @@ class SymSpell:
         File should contain space-separated word-count pairs one at a line.
 
         Args:
-            corpus (str): Path to corpus file.
+            corpus (str): Path to corpus file (.csv or .csv.xz).
         """
         if os.path.exists(corpus):
-            try:
-                with lzma.open(corpus, "rt") as f:
-                    for line in f:
-                        key, count = line.split()
-                        count = int(count)
-                        self._create_dictionary_entry(key, count)
-            except lzma.LZMAError:
-                with open(corpus, "r") as f:
-                    for line in f:
-                        key, count = line.split()
-                        count = int(count)
-                        self._create_dictionary_entry(key, count)
+            with open(corpus, "r") as f:
+                for line in f:
+                    key, count = line.split()
+                    count = int(count)
+                    self._create_dictionary_entry(key, count)
 
         if self._deletes is None:
             self._deletes = dict()
