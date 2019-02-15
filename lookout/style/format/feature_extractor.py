@@ -584,24 +584,27 @@ class FeatureExtractor:
         :yield: The sequence of `VirtualNode`-s which is identical to the input but \
                 the successive Y-nodes are merged together.
         """
+        def _class_seq_to_vnodes(value, start, end, current_class_seq, path):
+            if NEWLINE_INDEX not in current_class_seq or \
+                    current_class_seq[0] == NEWLINE_INDEX:
+                # if there are no trailing whitespaces or tabs
+                yield VirtualNode(value=value, start=start, end=end,
+                                  y=tuple(current_class_seq), path=path)
+            else:
+                index = current_class_seq.index(NEWLINE_INDEX)
+                middle = Position(start.offset + index, start.line, start.col + index)
+                yield VirtualNode(value=value[:index], start=start, end=middle,
+                                  y=tuple(current_class_seq[:index]), path=path)
+                yield VirtualNode(value=value[index:], start=middle, end=end,
+                                  y=tuple(current_class_seq[index:]), path=path)
+
         start, end, value, current_class_seq = None, None, "", []
         for vnode in vnodes:
             if vnode.y is None and not vnode.is_accumulated_indentation or (
                 vnode.y is not None and vnode.y[0] in QUOTES_INDEX
             ):
                 if current_class_seq:
-                    if NEWLINE_INDEX not in current_class_seq or \
-                            current_class_seq[0] == NEWLINE_INDEX:
-                        # if there are no trailing whitespaces or tabs
-                        yield VirtualNode(value=value, start=start, end=end,
-                                          y=tuple(current_class_seq), path=path)
-                    else:
-                        index = current_class_seq.index(NEWLINE_INDEX)
-                        middle = Position(start.offset+index, start.line, start.col+index)
-                        yield VirtualNode(value=value[:index], start=start, end=middle,
-                                          y=tuple(current_class_seq[:index]), path=path)
-                        yield VirtualNode(value=value[index:], start=middle, end=end,
-                                          y=tuple(current_class_seq[index:]), path=path)
+                    yield from _class_seq_to_vnodes(value, start, end, current_class_seq, path)
                     start, end, value, current_class_seq = None, None, "", []
                 yield vnode
             else:
@@ -613,8 +616,7 @@ class FeatureExtractor:
                     current_class_seq.extend(vnode.y)
         if current_class_seq:
             assert value
-            yield VirtualNode(value=value, start=start, end=end, y=tuple(current_class_seq),
-                              path=path)
+            yield from _class_seq_to_vnodes(value, start, end, current_class_seq, path)
 
     def _add_noops(self, vnodes: Sequence[VirtualNode], path: str, index_labels: bool = False,
                    ) -> List[VirtualNode]:
