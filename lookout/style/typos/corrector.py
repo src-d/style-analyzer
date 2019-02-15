@@ -1,6 +1,6 @@
 """Typo correction model."""
 from itertools import chain
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 from modelforge import Model
 import pandas
@@ -9,6 +9,7 @@ from tqdm import tqdm
 
 from lookout.style.typos.generation import (CandidatesGenerator, get_candidates_features,
                                             get_candidates_metadata)
+from lookout.style.typos.metrics import get_score, print_all_scores
 from lookout.style.typos.ranking import CandidatesRanker
 from lookout.style.typos.utils import Columns
 
@@ -186,6 +187,20 @@ class TyposCorrector(Model):
                                        return_all=return_all)
             all_suggestions.append(suggestions.items())
         return dict(chain.from_iterable(all_suggestions))
+
+    def evaluate(self, test_data: Union[pandas.DataFrame, str]) -> None:
+        """
+        Evaluate the corrector on the given test dataset.
+
+        Save the result metrics to the model metadata and print it to the standard output.
+        :param test_data: DataFrame or its .csv dump, containing column Columns.Token, \
+                          column Columns.Split is optional, but used when present
+        """
+        if isinstance(test_data, str):
+            test_data = pandas.read_csv(test_data, index_col=0)
+        suggestions = self.suggest(test_data)
+        self._meta["metrics"] = get_score(test_data, suggestions).get_metrics()
+        print_all_scores(test_data, suggestions)
 
     def __eq__(self, other: "TyposCorrector") -> bool:
         return self.generator == other.generator and self.ranker == other.ranker
