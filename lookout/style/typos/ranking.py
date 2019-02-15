@@ -7,7 +7,7 @@ import numpy
 import pandas
 import xgboost as xgb
 
-from lookout.style.typos.utils import CANDIDATE_COLUMN, ID_COLUMN, rank_candidates
+from lookout.style.typos.utils import Columns, rank_candidates
 
 
 class CandidatesRanker(Model):
@@ -48,7 +48,6 @@ class CandidatesRanker(Model):
         :param train_rounds: Number of training rounds.
         :param early_stopping: Early stopping parameter.
         :param boost_param: Boosting parameters. The actual default is DEFAULT_BOOST_PARAM.
-        :return: Nothing.
         """
         self.train_rounds = train_rounds
         self.early_stopping = early_stopping
@@ -82,8 +81,7 @@ class CandidatesRanker(Model):
         """
         Assign the correctness probability value for each of the candidates.
 
-        :param candidates: DataFrame containing information about candidates for correction. \
-                           Columns are [ID_COLUMN, TYPO_COLUMN, CANDIDATE_COLUMN].
+        :param candidates: DataFrame containing information about candidates for correction.
         :param features: Matrix of features for candidates.
         :param n_candidates: Number of most probably correct candidates to return for each typo.
         :param return_all: False to return corrections only for typos corrected in the \
@@ -117,7 +115,7 @@ class CandidatesRanker(Model):
     def _create_labels(identifiers: pandas.Series, candidates: pandas.DataFrame) -> numpy.ndarray:
         labels = []
         for _, row in candidates.iterrows():
-            labels.append(int(row[CANDIDATE_COLUMN] == identifiers[row[ID_COLUMN]]))
+            labels.append(int(row[Columns.Candidate] == identifiers[row[Columns.Id]]))
         return numpy.array(labels)
 
     def _generate_tree(self) -> dict:

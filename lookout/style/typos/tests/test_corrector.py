@@ -6,7 +6,7 @@ import unittest
 import pandas
 
 from lookout.style.typos.corrector import TyposCorrector
-from lookout.style.typos.utils import CORRECT_TOKEN_COLUMN, SPLIT_COLUMN, TYPO_COLUMN
+from lookout.style.typos.utils import Columns
 
 TEST_DATA_PATH = str(pathlib.Path(__file__).parent)
 FASTTEXT_DUMP_FILE = str(pathlib.Path(__file__).parent / "id_vecs_10.bin")
@@ -25,14 +25,15 @@ class TyposCorrectorTest(unittest.TestCase):
         custom_data = pandas.DataFrame([[["get", "tokens", "num"], "get", "get"],
                                         [["gwt", "tokens"], "gwt", "get"],
                                         [["get", "tokem"], "tokem", "token"]],
-                                       columns=[SPLIT_COLUMN, TYPO_COLUMN, CORRECT_TOKEN_COLUMN])
+                                       columns=[Columns.Split, Columns.Token,
+                                                Columns.CorrectToken])
         self.corrector.train(self.data)
         suggestions = self.corrector.suggest(custom_data)
         self.assertSetEqual(set(suggestions.keys()), set(custom_data.index))
 
     def test_corrector_on_file(self):
-        self.corrector.train_on_file(join(TEST_DATA_PATH, "test_data.csv.xz"))
-        suggestions = self.corrector.suggest_file(join(TEST_DATA_PATH, "test_data.csv.xz"))
+        self.corrector.train(join(TEST_DATA_PATH, "test_data.csv.xz"))
+        suggestions = self.corrector.suggest(join(TEST_DATA_PATH, "test_data.csv.xz"))
         self.assertSetEqual(set(suggestions.keys()), set(self.data.index))
 
     @unittest.skip("CandidatesGenerator.__eq__ needs refactoring. Test is currently flaky.")
