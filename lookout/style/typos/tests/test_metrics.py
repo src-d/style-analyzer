@@ -3,7 +3,7 @@ import unittest
 
 import pandas
 
-from lookout.style.typos.metrics import Scores, get_score
+from lookout.style.typos.metrics import get_score, Scores
 from lookout.style.typos.utils import Columns
 
 

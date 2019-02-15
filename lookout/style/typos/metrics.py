@@ -6,12 +6,19 @@ from lookout.style.typos.utils import Columns
 
 
 class Scores:
-    """"
-    Class to store scores of solutions of binary classification problems.
-
-    tp: true positive, fp: false positive, tn: true negative, fn: false negative.
     """
-    def __init__(self, tp: int = 0, fp: int = 0, tn: int = 0, fn: int = 0):
+    Class to store scores of solutions of binary classification problems.
+    """
+
+    def __init__(self, tp: int = 0, fp: int = 0, tn: int = 0, fn: int = 0) -> None:
+        """
+        Initialize score counters.
+
+        :param tp: Number of true positive examples.
+        :param fp: Number of false positive examples.
+        :param tn: Number of true negative examples.
+        :param fn: Number of false negative examples.
+        """
         self.tp = tp
         self.fp = fp
         self.tn = tn
@@ -20,9 +27,9 @@ class Scores:
     def total(self) -> int:
         """Get total number of examples."""
         return self.tp + self.fp + self.tn + self.fn
-    
+
     def accuracy(self) -> float:
-        """Calculate accuracy"""
+        """Calculate accuracy."""
         return (self.tp + self.tn) / self.total()
 
     def precision(self) -> float:
@@ -38,6 +45,11 @@ class Scores:
         return 2 / (1 / self.precision() + 1 / self.recall())
 
     def get_metrics(self) -> Dict[str, float]:
+        """
+        Return accuracy, precision, recall and f1 scores.
+
+        :return: Dictionary `{metric_name: score}`.
+        """
         return {"accuracy": self.accuracy(),
                 "precision": self.precision(),
                 "recall": self.recall(),

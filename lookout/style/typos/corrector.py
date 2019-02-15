@@ -50,7 +50,7 @@ class TyposCorrector(Model):
         self.ranker = CandidatesRanker()
 
     @property
-    def threads_number(self):
+    def threads_number(self) -> int:
         """Return the number of threads for multiprocessing used to train and to predict."""
         return self.ranker.boost_param["nthread"]
 
@@ -149,8 +149,8 @@ class TyposCorrector(Model):
         Correct typos from dataset by batches. Does not support precalculated candidates.
 
         Suggest corrections for given typos
-        :param data: DataFrame containing column "typo", \
-               column "token_split" is optional, but used when present
+        :param data: DataFrame or its .csv dump, containing column "typo", \
+                     column "token_split" is optional, but used when present
         :param n_candidates: Number of most probable candidates to return
         :param return_all: False to return suggestions only for corrected tokens
         :param batch_size: Batch size
@@ -168,6 +168,13 @@ class TyposCorrector(Model):
         return dict(chain.from_iterable(all_suggestions))
 
     def evaluate(self, test_data: Union[pandas.DataFrame, str]) -> None:
+        """
+        Evaluate the corrector on the given test dataset.
+
+        Save the result metrics to the model metadata and print it to the standard output.
+        :param test_data: DataFrame or its .csv dump, containing column "typo", \
+                          column "token_split" is optional, but used when present
+        """
         if isinstance(test_data, str):
             test_data = pandas.read_csv(test_data, index_col=0)
         suggestions = self.suggest(test_data)

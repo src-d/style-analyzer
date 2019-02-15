@@ -8,13 +8,13 @@ import numpy
 import pandas
 
 
-Columns = NamedTuple("Columns",
-                     [("Token", str), ("CorrectToken", str), ("Split", str), ("CorrectSplit", str),
-                      ("After", str), ("Before", str), ("Id", str), ("Candidate", str),
-                      ("Features", str), ("Probability", str), ("Suggestions", str)]
-                     )("token", "correct_token", "token_split", "correct_token_split",
-                       "after", "before", "id", "candidate",
-                       "features", "proba", "suggestions")
+Columns = NamedTuple(
+    "Columns",
+    [("Token", str), ("CorrectToken", str), ("Split", str), ("CorrectSplit", str), ("After", str),
+     ("Before", str), ("Id", str), ("Candidate", str), ("Features", str), ("Probability", str),
+     ("Suggestions", str)])(
+    "token", "correct_token", "token_split", "correct_token_split", "after", "before", "id",
+    "candidate", "features", "proba", "suggestions")
 
 
 def read_frequencies(file: str) -> Dict[str, int]:
