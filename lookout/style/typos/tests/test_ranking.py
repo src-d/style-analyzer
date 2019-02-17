@@ -62,7 +62,7 @@ class CandidatesRankerTest(unittest.TestCase):
         ranker.fit(data[CORRECT_TOKEN_COLUMN], get_candidates_metadata(candidates),
                    get_candidates_features(candidates))
         with io.BytesIO() as buffer:
-            ranker.save(buffer)
+            ranker.save(output=buffer, series="typos-analyzer")
             print(buffer.tell())
             buffer.seek(0)
             ranker2 = CandidatesRanker().load(buffer)
