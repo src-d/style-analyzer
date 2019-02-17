@@ -33,8 +33,8 @@ setup(
     namespace_packages=["lookout"],
     keywords=["machine learning on source code", "babelfish", "lookout"],
     install_requires=[
-        "sourced-ml>=0.7.2,<0.8",
         "lookout-sdk-ml>=0.11.0,<0.12",
+        "sourced-ml>=0.8.0,<0.9",
         "scikit-learn>=0.20,<2.0",
         "scikit-optimize>=0.5,<2.0",
         "pandas>=0.22,<2.0",
@@ -66,6 +66,8 @@ setup(
                   "lookout.style.format.tests.bugs.002_bad_line_positions":
                       ["browser-policy-content.js"],
                   "lookout.style.format.tests.bugs.003_classify_vnodes_negative_col":
+                      ["jquery.layout.js"],
+                  "lookout.style.format.tests.bugs.004_generate_each_line":
                       ["jquery.layout.js"],
                   "lookout.style.typos.tests": ["*.asdf", "*.xz", "*.pkl", "id_vecs_10.bin"]},
     classifiers=[
