@@ -5,6 +5,7 @@ from typing import Dict, List, Tuple
 
 from modelforge import Model
 import pandas
+from sourced.ml.models.license import DEFAULT_LICENSE
 from tqdm import tqdm
 
 from lookout.style.typos.generation import (CandidatesGenerator, get_candidates_features,
@@ -20,7 +21,8 @@ class TyposCorrector(Model):
 
     NAME = "typos_correction"
     VENDOR = "source{d}"
-
+    DESCRIPTION = "Model that suggests fixes to correct typos."
+    LICENSE = DEFAULT_LICENSE
     DEFAULT_RADIUS = 3
     DEFAULT_MAX_DISTANCE = 2
     DEFAULT_NEIGHBORS_NUMBER = 0

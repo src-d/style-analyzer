@@ -7,6 +7,7 @@ from typing import Dict, Iterable, List, Mapping, Tuple  # noqa: F401
 
 from lookout.core.analyzer import AnalyzerModel
 import numpy
+from sourced.ml.models.license import DEFAULT_LICENSE
 
 from lookout.style.format.rules import Rule, RuleAttribute, Rules, RuleStats
 
@@ -26,6 +27,8 @@ class FormatModel(AnalyzerModel):
 
     NAME = "code-format"
     VENDOR = "source{d}"
+    DESCRIPTION = "Model that contains Rules to format code style."
+    LICENSE = DEFAULT_LICENSE
 
     def __init__(self, **kwargs):
         """Construct a FormatModel."""

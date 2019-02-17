@@ -10,6 +10,7 @@ from modelforge import merge_strings, Model, split_strings
 import numpy
 import pandas
 from scipy.spatial.distance import cosine
+from sourced.ml.models.license import DEFAULT_LICENSE
 from tqdm import tqdm
 
 from lookout.style.typos.symspell import EditDistance, SymSpell
@@ -37,6 +38,8 @@ class CandidatesGenerator(Model):
 
     NAME = "candidates_generator"
     VENDOR = "source{d}"
+    DESCRIPTION = "Model that generates candidates to fix typos."
+    LICENSE = DEFAULT_LICENSE
     NO_COMPRESSION = ("/wv/vectors/",)
     DEFAULT_RADIUS = 3
     DEFAULT_MAX_DISTANCE = 2

@@ -5,6 +5,7 @@ from typing import Dict, List, Tuple
 from modelforge import Model
 import numpy
 import pandas
+from sourced.ml.models.license import DEFAULT_LICENSE
 import xgboost as xgb
 
 from lookout.style.typos.utils import Columns, rank_candidates
@@ -18,6 +19,8 @@ class CandidatesRanker(Model):
 
     NAME = "candidates_ranks"
     VENDOR = "source{d}"
+    DESCRIPTION = "Model that ranks candidates according to their probability to fix the typo."
+    LICENSE = DEFAULT_LICENSE
     DEFAULT_TRAIN_ROUNDS = 4000
     DEFAULT_EARLY_STOPPING = 200
     DEFAULT_BOOST_PARAM = {"max_depth": 6,
