@@ -232,8 +232,8 @@ class CodeGeneratorTests(unittest.TestCase, metaclass=GeneratorTestsMeta):
             nonlocal msg
             msg = args[0]
         try:
-            backup_warning = CodeGenerator.log.warning
-            CodeGenerator.log.warning = _warning
+            backup_warning = CodeGenerator._log.warning
+            CodeGenerator._log.warning = _warning
             vnode = VirtualNode(
                 "\n ", Position(0, 1, 1), Position(3, 1, 4),
                 y=tuple(cls.CLASS_INDEX[i] for i in (
@@ -243,7 +243,7 @@ class CodeGeneratorTests(unittest.TestCase, metaclass=GeneratorTestsMeta):
             expected_msg = "There is no indentation characters left to decrease for vnode"
             self.assertEqual(msg[:len(expected_msg)], expected_msg)
         finally:
-            CodeGenerator.log.warning = backup_warning
+            CodeGenerator._log.warning = backup_warning
 
 
 if __name__ == "__main__":

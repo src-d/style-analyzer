@@ -40,7 +40,7 @@ class CodeGenerator:
     Use `generate()` function to get a result.
     """
 
-    log = logging.getLogger("FormatAnalyzer")
+    _log = logging.getLogger("CodeGenerator")
     INDENTATIONS_DEC = {CLASS_INDEX[x] for x in [CLS_SPACE_DEC, CLS_TAB_DEC]}
     INDENTATIONS_INC = {CLASS_INDEX[x] for x in [CLS_SPACE_INC, CLS_TAB_INC]}
     DEC_TO_INC = {
@@ -208,9 +208,9 @@ class CodeGenerator:
         for i, vnode in enumerate(vnodes):
             if self.verbose:
                 if vnode.y is None:
-                    self.log.debug("Node #%d: %s", i, repr(vnode))
+                    self._log.debug("Node #%d: %s", i, repr(vnode))
                 else:
-                    self.log.debug("Node #%d, y #%d: %s", i, j, repr(vnode))
+                    self._log.debug("Node #%d, y #%d: %s", i, j, repr(vnode))
                     j += 1
             if y_index >= len(vnodes_y) or id(vnode) != id(vnodes_y[y_index]):
                 yield vnode, vnode.y, None
@@ -225,9 +225,9 @@ class CodeGenerator:
                 y_index += 1
 
     def _handle_error(self, msg: str) -> bool:
-        self.log.debug("%s url: %s, commit: %s. %s.",
-                       msg, self.url, self.commit, "Skipping" if self.skip_errors else
-                       "Set skip_errors=True to skip faulty suggestions")
+        self._log.debug("%s url: %s, commit: %s. %s.",
+                        msg, self.url, self.commit, "Skipping" if self.skip_errors else
+                        "Set skip_errors=True to skip faulty suggestions")
         if not self.skip_errors:
             raise CodeGenerationError(msg)
         return False
@@ -259,7 +259,7 @@ class CodeGenerator:
         for yi in indentation_change:
             if yi in CodeGenerator.INDENTATIONS_DEC:
                 if len(indentation) == 0:
-                    CodeGenerator.log.warning(
+                    CodeGenerator._log.warning(
                         "There is no indentation characters left to decrease for "
                         "vnode %s and y_old %s", repr(vnode), str(y_old))
                 elif indentation[-1] != CLS_TO_STR[CodeGenerator.DEC_TO_INC[CLASSES[yi]]]:
