@@ -5,7 +5,7 @@ from typing import Iterable, List, Optional, Sequence, Tuple
 from numpy import ndarray
 
 from lookout.style.format.classes import (
-    CLASS_INDEX, CLASS_REPRESENTATIONS, CLASSES, CLS_NEWLINE, CLS_NOOP, CLS_SPACE_DEC,
+    CLASS_INDEX, CLASS_REPRESENTATIONS, CLASSES, CLS_NEWLINE, CLS_SPACE_DEC,
     CLS_SPACE_INC, CLS_TAB_DEC, CLS_TAB_INC, CLS_TO_STR, NEWLINE_INDEX, QUOTES_INDEX)
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.rules import Rule, Rules
@@ -130,6 +130,22 @@ class CodeGenerator:
             result.append(vnode)
         return result
 
+    def generate_one_change(self, vnodes: Sequence[VirtualNode], changed_vnode_index: int,
+                            new_label: Tuple[int, ...]) -> str:
+        """
+        Generate new source code for single provided change in vnode Sequence.
+
+        :param vnodes: Sequence of the `VirtualNode`-s for the code snippet.
+        :param changed_vnode_index: index in `vnodes` sequence where new label should be applied.
+        :param new_label: new label for single change in vnodes[changed_vnode_index].
+        :return: New source code.
+        """
+        new_vnode = vnodes[changed_vnode_index].copy()
+        new_vnode.y_old = new_vnode.y
+        new_vnode.y = self.feature_extractor.labels_to_class_sequences[new_label]
+        return self.generate(vnodes[:changed_vnode_index] + [new_vnode] +
+                             vnodes[changed_vnode_index+1:])
+
     def generate(self, vnodes: Sequence[VirtualNode]) -> str:
         """
         Generate new source code from format model suggestions.
@@ -177,10 +193,7 @@ class CodeGenerator:
         """
         y_new = vnode.y
         y_old = getattr(vnode, "y_old", y_new)
-        if (y_new is None or
-                y_new == y_old or
-                y_new[0] == CLASS_INDEX[CLS_NOOP] or
-                y_old[0] == CLASS_INDEX[CLS_NOOP]):
+        if y_new is None or y_new == y_old:
             return True
         set_y_old = set(y_old)
         set_y_new = set(y_new)

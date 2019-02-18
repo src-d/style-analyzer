@@ -27,8 +27,8 @@ from lookout.style.format.descriptions import describe_rule, get_change_descript
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.model import FormatModel
 from lookout.style.format.optimizer import Optimizer
-from lookout.style.format.postprocess import filter_uast_breaking_preds
 from lookout.style.format.rules import Rules, TrainableRules
+from lookout.style.format.uast_stability_checker import UASTStabilityChecker
 from lookout.style.format.utils import generate_comment, merge_dicts
 from lookout.style.format.virtual_node import Position, VirtualNode
 
@@ -413,11 +413,11 @@ class FormatAnalyzer(Analyzer):
             X=X, vnodes_y=vnodes_y, vnodes=vnodes, feature_extractor=fe)
         y_pred = rules.fill_missing_predictions(y_pred_pure, y)
         if self.config["uast_break_check"]:
-            y, y_pred, vnodes_y, rule_winners, safe_preds = filter_uast_breaking_preds(
-                y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, files={file.path: file},
-                feature_extractor=fe, stub=bblfsh_stub, vnode_parents=vnode_parents,
-                node_parents=node_parents, rule_winners=rule_winners,
-                grouped_quote_predictions=grouped_quote_predictions)
+            checker = UASTStabilityChecker(fe)
+            y, y_pred, vnodes_y, rule_winners, safe_preds = checker.check(
+                y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, files=[file],
+                stub=bblfsh_stub, vnode_parents=vnode_parents, node_parents=node_parents,
+                rule_winners=rule_winners, grouped_quote_predictions=grouped_quote_predictions)
             y_pred_pure = y_pred_pure[safe_preds]
         assert len(y) == len(y_pred)
         assert len(y) == len(rule_winners)
