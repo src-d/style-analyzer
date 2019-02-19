@@ -1,5 +1,4 @@
 """Generation of the typo correction candidates. Contains features extraction and serialization."""
-
 from itertools import chain
 from multiprocessing import Pool
 from typing import List, NamedTuple, Set, Union

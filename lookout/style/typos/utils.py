@@ -1,5 +1,4 @@
 """Various glue functions to work with the input dataset and the output from FastText."""
-
 from itertools import chain
 import lzma
 from typing import Dict, List, NamedTuple, Tuple

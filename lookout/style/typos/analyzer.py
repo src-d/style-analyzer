@@ -1,5 +1,4 @@
 """Identifier typos analyzer."""
-
 from collections import defaultdict
 import logging
 from typing import Any, Dict, List, Mapping, Tuple

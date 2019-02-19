@@ -1,5 +1,4 @@
 """Typo correction model."""
-
 from itertools import chain
 from typing import Dict, List, Tuple
 
