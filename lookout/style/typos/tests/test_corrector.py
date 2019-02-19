@@ -32,8 +32,8 @@ class TyposCorrectorTest(unittest.TestCase):
         self.assertSetEqual(set(suggestions.keys()), set(custom_data.index))
 
     def test_corrector_on_file(self):
-        self.corrector.train_on_file(join(TEST_DATA_PATH, "test_data.csv.xz"))
-        suggestions = self.corrector.suggest_file(join(TEST_DATA_PATH, "test_data.csv.xz"))
+        self.corrector.train(join(TEST_DATA_PATH, "test_data.csv.xz"))
+        suggestions = self.corrector.suggest(join(TEST_DATA_PATH, "test_data.csv.xz"))
         self.assertSetEqual(set(suggestions.keys()), set(self.data.index))
 
     @unittest.skip("CandidatesGenerator.__eq__ needs refactoring. Test is currently flaky.")

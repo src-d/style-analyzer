@@ -99,7 +99,7 @@ from lookout.style.typos.corrector import TyposCorrector
 corrector = TyposCorrector()
 corrector.initialize_generator("lookout/style/typos/16k_vocabulary.csv", "lookout/style/typos/research/all_frequencies.csv",
 "lookout/style/typos/research/id_vecs_10.bin")
-corrector.train_on_file("train_data.csv")
+corrector.train("train_data.csv")
 corrector.save("corrector.asdf")
 ```
 
