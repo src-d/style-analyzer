@@ -232,8 +232,8 @@ class CodeGenerator:
             raise CodeGenerationError(msg)
         return False
 
-    @staticmethod
-    def apply_new_indentation(vnode: VirtualNode, last_indentation: str) -> Tuple[str, str]:
+    @classmethod
+    def apply_new_indentation(cls, vnode: VirtualNode, last_indentation: str) -> Tuple[str, str]:
         """
         Apply new indentation token `vnode.y` to the `vnode.value`.
 
@@ -250,32 +250,32 @@ class CodeGenerator:
         y_old = getattr(vnode, "y_old", y_new)
         if y_new == y_old:
             return vnode.value
-        indentation = (last_indentation if CodeGenerator.NEWLINE_INDEX not in set(y_old) else
-                       CodeGenerator.revert_indentation_change(vnode).splitlines()[-1])
+        indentation = (last_indentation if cls.NEWLINE_INDEX not in set(y_old) else
+                       cls.revert_indentation_change(vnode).splitlines()[-1])
 
         # assume that all indentation changes are at the end of a vnode label
         no_indentation, indentation_change = \
-            CodeGenerator._split_by_set(y_new, CodeGenerator.INDENTATIONS)
+            cls._split_by_set(y_new, cls.INDENTATIONS)
         for yi in indentation_change:
-            if yi in CodeGenerator.INDENTATIONS_DEC:
+            if yi in cls.INDENTATIONS_DEC:
                 if len(indentation) == 0:
-                    CodeGenerator._log.warning(
+                    cls._log.warning(
                         "There is no indentation characters left to decrease for "
                         "vnode %s and y_old %s", repr(vnode), str(y_old))
-                elif indentation[-1] != CLS_TO_STR[CodeGenerator.DEC_TO_INC[CLASSES[yi]]]:
+                elif indentation[-1] != CLS_TO_STR[cls.DEC_TO_INC[CLASSES[yi]]]:
                     raise InapplicableIndentation(
                         "Indentation change is not applicable for %s" % repr(vnode))
                 else:
                     indentation = indentation[:-1]
-            elif yi in CodeGenerator.INDENTATIONS_INC:
+            elif yi in cls.INDENTATIONS_INC:
                 indentation += CLS_TO_STR[CLASSES[yi]]
             else:
                 raise ValueError("Unexpected character in y_new: %s. %s" % (
                     CLASS_REPRESENTATIONS[yi], repr(vnode)))
         return "".join(CLS_TO_STR[CLASSES[yi]] for yi in no_indentation), indentation
 
-    @staticmethod
-    def revert_indentation_change(vnode: VirtualNode) -> str:
+    @classmethod
+    def revert_indentation_change(cls, vnode: VirtualNode) -> str:
         """
         Reverts original change for provided VirtualNode.
 
@@ -293,14 +293,14 @@ class CodeGenerator:
         y = getattr(vnode, "y_old", vnode.y)
         value = vnode.value
         for y_i in y[::-1]:
-            if y_i in CodeGenerator.INDENTATIONS_DEC:
-                value += CLS_TO_STR[CodeGenerator.DEC_TO_INC[CLASSES[y_i]]]
-            elif y_i in CodeGenerator.INDENTATIONS_INC:
+            if y_i in cls.INDENTATIONS_DEC:
+                value += CLS_TO_STR[cls.DEC_TO_INC[CLASSES[y_i]]]
+            elif y_i in cls.INDENTATIONS_INC:
                 if value[-1] != CLS_TO_STR[CLASSES[y_i]]:
                     raise InapplicableIndentation("%s has inconsistent value and y. y_old:%s" % (
                         repr(vnode), getattr(vnode, "y_old", "<NA>")))
                 value = value[:-1]
-            elif y_i == CodeGenerator.NEWLINE_INDEX:
+            elif y_i == cls.NEWLINE_INDEX:
                 break
             else:
                 raise ValueError("%s has unexpected character in y: %s" % (
