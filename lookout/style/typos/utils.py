@@ -91,7 +91,8 @@ def flatten_data(data: pandas.DataFrame, new_column_name=Columns.Token) -> panda
     """
     apply_function = (lambda x: x) if isinstance(data[Columns.Split].tolist()[0], list) \
         else (lambda x: str(x).split())
-    return flatten_df_by_column(data, Columns.Split, new_column_name, apply_function=apply_function)
+    return flatten_df_by_column(data, Columns.Split, new_column_name,
+                                apply_function=apply_function)
 
 
 def add_context_info(data: pandas.DataFrame) -> pandas.DataFrame:

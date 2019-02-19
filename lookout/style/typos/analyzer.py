@@ -13,7 +13,7 @@ import pandas
 from sourced.ml.algorithms import TokenParser, uast2sequence
 
 from lookout.style.typos.corrector_manager import TyposCorrectorManager
-from lookout.style.typos.utils import flatten_data, Columns
+from lookout.style.typos.utils import Columns, flatten_data
 
 
 class IdTyposAnalyzer(Analyzer):
@@ -142,7 +142,8 @@ class IdTyposAnalyzer(Analyzer):
         grouped_suggestions = defaultdict(dict)
         for index, row in df.iterrows():
             if index in suggestions.keys():
-                grouped_suggestions[row[self.INDEX_COLUMN]][row[Columns.Token]] = suggestions[index]
+                grouped_suggestions[row[self.INDEX_COLUMN]][row[Columns.Token]] =\
+                    suggestions[index]
         return grouped_suggestions
 
     def filter_suggestions(self, test_df: pandas.DataFrame,

@@ -25,7 +25,8 @@ class TyposCorrectorTest(unittest.TestCase):
         custom_data = pandas.DataFrame([[["get", "tokens", "num"], "get", "get"],
                                         [["gwt", "tokens"], "gwt", "get"],
                                         [["get", "tokem"], "tokem", "token"]],
-                                       columns=[Columns.Split, Columns.Token, Columns.CorrectToken])
+                                       columns=[Columns.Split, Columns.Token,
+                                                Columns.CorrectToken])
         self.corrector.train(self.data)
         suggestions = self.corrector.suggest(custom_data)
         self.assertSetEqual(set(suggestions.keys()), set(custom_data.index))

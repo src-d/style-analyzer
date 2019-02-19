@@ -63,7 +63,8 @@ class GeneratorTest(unittest.TestCase):
         custom_data = pandas.DataFrame([[["get", "tokens", "num"], "tokens", "tokens"],
                                         [["gwt", "tokens"], "gwt", "get"],
                                         [["get", "tokem"], "tokem", "token"]],
-                                       columns=[Columns.Split, Columns.Token, Columns.CorrectToken])
+                                       columns=[Columns.Split, Columns.Token,
+                                                Columns.CorrectToken])
         for test_data in [data, custom_data]:
             candidates = generator.generate_candidates(test_data, threads_number=1,
                                                        start_pool_size=len(test_data) + 1)

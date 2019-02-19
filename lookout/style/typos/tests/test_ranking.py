@@ -18,7 +18,8 @@ class CandidatesRankerTest(unittest.TestCase):
         custom_data = pandas.DataFrame([[["get", "tokens", "num"], "get", "get"],
                                         [["gwt", "tokens"], "gwt", "get"],
                                         [["get", "tokem"], "tokem", "token"]],
-                                       columns=[Columns.Split, Columns.Token, Columns.CorrectToken])
+                                       columns=[Columns.Split, Columns.Token,
+                                                Columns.CorrectToken])
         custom_candidates_tokens = pandas.DataFrame([[0, "get", "get"],
                                                      [1, "gwt", "get"],
                                                      [1, "gwt", "gpt"],
