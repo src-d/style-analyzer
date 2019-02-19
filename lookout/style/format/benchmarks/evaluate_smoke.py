@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 import tempfile
 import time
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Sequence, Tuple, Union
 
 from lookout.core.analyzer import ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
@@ -152,9 +152,8 @@ def calc_aligned_metrics(bad_style_code: str, correct_style_code: str, generated
     return misdetection, undetected, detected_wrong_fix, detected_correct_fix
 
 
-def calc_metrics(bad_style_code: str, correct_style_code: str, fe: Optional[FeatureExtractor],
-                 vnodes: Optional[Sequence[VirtualNode]], url: Optional[str],
-                 commit: Optional[str]) -> Dict[str, Any]:
+def calc_metrics(bad_style_code: str, correct_style_code: str, fe: FeatureExtractor,
+                 vnodes: Sequence[VirtualNode], url: str, commit: str) -> Dict[str, Any]:
     """
     Calculate metrics for model output.
 
@@ -213,21 +212,13 @@ def calc_metrics(bad_style_code: str, correct_style_code: str, fe: Optional[Feat
     :param fe: Feature extraction class that was used to generate corresponding data. Set a value \
             to None if no changes were introduced for `bad_style_code`.
     :param vnodes: Sequence of all the `VirtualNode`-s corresponding to the input code file. \
-                   Should be ordered by position. New y values should be applied. Set a value to \
-                   None if no changes were introduced.
+                   Should be ordered by position. New y values should be applied.
     :param url: Repository url if applicable. Useful for more informative warning messages.
     :param commit: Commit hash if applicable. Useful for more informative warning messages.
 
     :return: A dictionary with losses and predicted code.
     """
-    # TODO (zurk): make optional arguments non-optional.
-    if (vnodes is None) ^ (fe is None):
-        raise ValueError("vnodes and fe should be both None or not None.")
-    if fe is not None:
-        predicted_code = CodeGenerator(fe, skip_errors=True, url=url, commit=commit).generate(
-            vnodes)
-    else:
-        predicted_code = bad_style_code
+    predicted_code = CodeGenerator(fe, skip_errors=True, url=url, commit=commit).generate(vnodes)
     misdetection, undetected, detected_wrong_fix, detected_correct_fix = \
         calc_aligned_metrics(*align3(bad_style_code, correct_style_code, predicted_code))
     losses = {
