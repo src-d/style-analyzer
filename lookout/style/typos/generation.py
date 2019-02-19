@@ -102,8 +102,8 @@ class CandidatesGenerator(Model):
                  and features for their ranking for each typo.
         """
         data = add_context_info(data)
-        typos = [TypoInfo(index, data.loc[index].typo, data.loc[index].before,
-                          data.loc[index].after)
+        typos = [TypoInfo(index, data.loc[index, Columns.Token], data.loc[index, Columns.Before],
+                          data.loc[index, Columns.Before])
                  for i, index in enumerate(data.index)]
         if len(typos) > start_pool_size and threads_number > 1:
             with Pool(min(threads_number, len(typos))) as pool:
