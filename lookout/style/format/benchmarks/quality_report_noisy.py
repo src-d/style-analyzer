@@ -21,8 +21,8 @@ from lookout.style.format.benchmarks.general_report import FakeDataService
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.files_filtering import filter_filepaths
 from lookout.style.format.model import FormatModel
-from lookout.style.format.postprocess import filter_uast_breaking_preds
 from lookout.style.format.rules import Rules
+from lookout.style.format.uast_stability_checker import UASTStabilityChecker
 from lookout.style.format.utils import prepare_files
 from lookout.style.format.virtual_node import VirtualNode
 
@@ -141,9 +141,9 @@ def files2mispreds(files: Iterable[str], feature_extractor: FeatureExtractor, ru
     y_pred, rule_winners, _, grouped_quote_predictions = rules.predict(
         X=X, vnodes_y=vnodes_y, vnodes=vnodes, feature_extractor=feature_extractor)
     y_pred = rules.fill_missing_predictions(y_pred, y)
-    y, y_pred, vnodes_y, rule_winners, safe_preds = filter_uast_breaking_preds(
-        y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes,
-        files={f.path: f for f in files}, feature_extractor=feature_extractor, stub=client._stub,
+    checker = UASTStabilityChecker(feature_extractor=feature_extractor)
+    y, y_pred, vnodes_y, rule_winners, safe_preds = checker.check(
+        y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, files=list(files), stub=client._stub,
         vnode_parents=vnode_parents, node_parents=node_parents, rule_winners=rule_winners,
         grouped_quote_predictions=grouped_quote_predictions)
     mispreds = get_mispreds(y, y_pred, vnodes_y, rule_winners)
