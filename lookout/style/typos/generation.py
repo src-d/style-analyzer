@@ -118,8 +118,7 @@ class CandidatesGenerator(Model):
         else:
             candidates = [self._lookup_corrections_for_token(t) for t in typos]
         candidates = pandas.DataFrame(list(chain.from_iterable(candidates)))
-        candidates.columns = [Columns.Id, Columns.Token, Columns.Candidate,
-                              Columns.Features]
+        candidates.columns = [Columns.Id, Columns.Token, Columns.Candidate, Columns.Features]
         candidates.loc[:, Columns.Id] = candidates[Columns.Id].astype(data.index.dtype)
         if save_candidates_file is not None:
             candidates.to_csv(save_candidates_file, compression="xz")

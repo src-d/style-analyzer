@@ -153,7 +153,7 @@ class IdTyposAnalyzer(Analyzer):
         Filter suggestions based on the repo specifics and confidence threshold.
 
         :param test_df: DataFrame with info about tested tokens.
-        :param suggestions: Dictionary of correction suggestions grouped by
+        :param suggestions: Dictionary of correction suggestions grouped by \
                             typoed token index in test_df.
         :return: Dictionary of filtered suggestions grouped by checked token's index in test_df.
         """

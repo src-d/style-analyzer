@@ -57,7 +57,8 @@ def read_vocabulary(file: str) -> List[str]:
 def flatten_df_by_column(data: pandas.DataFrame, column: str, new_column: str,
                          apply_function=lambda x: x) -> pandas.DataFrame:
     """
-    Flatten DataFrame by `column` with extracted elements put to `new_column` (out-of-place).
+    Flatten DataFrame by `column` with extracted elements put to `new_column`. \
+    Operation happens out-of-place.
 
     :param data: DataFrame to flatten.
     :param column: Column to expand.
@@ -77,7 +78,7 @@ def flatten_df_by_column(data: pandas.DataFrame, column: str, new_column: str,
 
 def flatten_data(data: pandas.DataFrame, new_column_name=Columns.Token) -> pandas.DataFrame:
     """
-    Flatten identifiers data in column `new_column_name` (out-of-place).
+    Flatten identifiers data in column `new_column_name`. Operation happels out-of-place.
 
     :param data: DataFrame containing column `new_column_name` with splitted identifiers \
                  either as strings or as lists of tokens.
@@ -170,7 +171,7 @@ def filter_suggestions(data: pandas.DataFrame, suggestions: Dict[int, List[Tuple
     """
     Filter correction suggestions.
 
-    :param typos: DataFrame which contains column Columns.Token.
+    :param data: DataFrame which contains column Columns.Token.
     :param suggestions: Dictionary of suggestions, keys correspond with typos.index.
     :param n_candidates: Number of most probably correct candidates to return for each typo.
     :param return_all: False to return corrections only for tokens corrected in the \
