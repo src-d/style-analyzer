@@ -1,5 +1,5 @@
 """Measure quality on several top repositories."""
-from argparse import ArgumentParser, Namespace
+from argparse import Namespace
 from collections import OrderedDict
 import csv
 from datetime import datetime
@@ -16,9 +16,8 @@ import tempfile
 from typing import Iterable, Iterator, NamedTuple, Optional, Sequence, Type, Union
 
 from dulwich import porcelain
-from lookout.core import slogging
 from lookout.core.analyzer import Analyzer
-from lookout.core.cmdline import ArgumentDefaultsHelpFormatterNoNone, create_model_repo_from_args
+from lookout.core.cmdline import create_model_repo_from_args
 from lookout.core.data_requests import DataService
 from lookout.core.event_listener import EventListener
 from lookout.core.manager import AnalyzerManager
@@ -322,13 +321,26 @@ def handle_input_arg(input_arg: str, log: Optional[logging.Logger] = None) -> It
                 yield line
 
 
-def main(args):
-    """Entry point for quality report generation."""
-    os.makedirs(args.output, exist_ok=True)
-    assert os.path.isdir(args.output), "Output should be a directory"
-    slogging.setup(args.log_level, False)
+def generate_quality_report(input: str, output: str, force: bool, bblfsh: str, train_config: dict,
+                            database: Optional[str] = None, fs: Optional[str] = None) -> None:
+    """
+    Generate quality report for the given data. Entry point for command line interface.
+
+    :param input: csv file with repositories to make report. Should contain url, to and from \
+                  columns.
+    :param output: Directory where to save results.
+    :param force: force to overwrite results stored in output directory if True. \
+                  Stored results will be used if False.
+    :param bblfsh: bblfsh address to use.
+    :param train_config: config for analyzer train.
+    :param database: sqlite3 database path to store the models. Temporary file is used if not set.
+    :param fs: Model repository file system root. Temporary directory is used if not set.
+    :return:
+    """
+    os.makedirs(output, exist_ok=True)
+    assert os.path.isdir(output), "Output should be a directory"
     log = logging.getLogger("QualityAnalyzer")
-    handler = logging.handlers.RotatingFileHandler(os.path.join(args.output, "errors.txt"))
+    handler = logging.handlers.RotatingFileHandler(os.path.join(output, "errors.txt"))
     handler.setLevel(logging.ERROR)
     log.addHandler(handler)
     if not server.exefile.exists():
@@ -336,12 +348,11 @@ def main(args):
     reports = []
     port = server.find_port()
     review_config = {QualityReportAnalyzer.name: {"aggregate": True}}
-    train_config = json.loads(args.train_config)
-    repositories = list(csv.DictReader(handle_input_arg(args.input)))
+    repositories = list(csv.DictReader(handle_input_arg(input)))
     with tempfile.TemporaryDirectory() as tmpdirname:
-        database = args.database if args.database else os.path.join(tmpdirname, "db.sqlite3")
-        fs = args.fs if args.fs else os.path.join(tmpdirname, "models")
-        os.makedirs(fs, exist_ok=fs)
+        database = database if database else os.path.join(tmpdirname, "db.sqlite3")
+        fs = fs if fs else os.path.join(tmpdirname, "models")
+        os.makedirs(fs, exist_ok=True)
         with AnalyzerContextManager(port=port, db=database, fs=fs,
                                     analyzer="lookout.style.format.benchmarks.general_report",
                                     init=False):
@@ -367,13 +378,13 @@ def main(args):
                          now + left if left is not None else None, " " * 11,
                          "=" * 80,
                          )
-                report_loc = os.path.join(args.output, get_repo_name(row["url"]))
+                report_loc = os.path.join(output, get_repo_name(row["url"]))
                 train_rep_loc = report_loc + ".train_report.md"
                 model_rep_loc = report_loc + ".model_report.md"
                 test_rep_loc = report_loc + ".test_report.md"
                 # generate or read report
                 try:
-                    if args.force or not os.path.exists(train_rep_loc) or \
+                    if force or not os.path.exists(train_rep_loc) or \
                             not os.path.exists(model_rep_loc):
                         # Skip this step if report was already generated
                         vnodes_expected_number = int(row["vnodes_number"]) \
@@ -381,7 +392,7 @@ def main(args):
                         report = measure_quality(
                             row["url"], to_commit=row["to"], from_commit=row["from"], port=port,
                             review_config=review_config, train_config=train_config,
-                            bblfsh=args.bblfsh,
+                            bblfsh=bblfsh,
                             vnodes_expected_number=vnodes_expected_number)
                         if report.train_report is not None:
                             with open(train_rep_loc, "w", encoding="utf-8") as f:
@@ -393,7 +404,7 @@ def main(args):
                             with open(test_rep_loc, "w", encoding="utf-8") as f:
                                 f.write(report.test_report)
                     else:
-                        log.info("Found existing reports for %s in %s", row["url"], args.output)
+                        log.info("Found existing reports for %s in %s", row["url"], output)
                         report = QualityReport()
                         with open(train_rep_loc, encoding="utf-8") as f:
                             report.train_report = f.read()
@@ -459,39 +470,6 @@ def main(args):
                 summary = output.getvalue()
             print(report_name)
             print(summary)
-            summary_loc = os.path.join(args.output, "summary-%s.md" % report_name)
+            summary_loc = os.path.join(output, "summary-%s.md" % report_name)
             with open(summary_loc, "w", encoding="utf-8") as f:
                 f.write(summary)
-
-
-def create_parser() -> ArgumentParser:
-    """Create command line arguments for quality report generation entry point."""
-    parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatterNoNone)
-    parser.add_argument(
-        "-i", "--input", required=True,
-        help="csv file with repositories to make report. Should contain url, to and from columns.")
-    parser.add_argument(
-        "-o", "--output", required=True,
-        help="Directory where to save results.")
-    parser.add_argument(
-        "-f", "--force", action="store_true",
-        help="If this flag is used - force to overwrite results stored in output directory. "
-             "If not - stored results will be used if they exist.")
-    parser.add_argument(
-        "-b", "--bblfsh", help="Bblfsh address to use.")
-    parser.add_argument(
-        "--train-config", default="{}",
-        help="Config for analyzer train in json format.")
-    parser.add_argument(
-        "--database", default=None, help="sqlite3 database path to store the models.")
-    parser.add_argument(
-        "--fs", default=None, help="Model repository file system root.")
-    parser.add_argument(
-        "--log-level", default="DEBUG", help="Logging level")
-    return parser
-
-
-if __name__ == "__main__":
-    parser = create_parser()
-    args = parser.parse_args()
-    main(args)

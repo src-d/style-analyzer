@@ -16,6 +16,7 @@ class MainTests(unittest.TestCase):
         from lookout.style.format.benchmarks.quality_report_noisy import quality_report_noisy
         from lookout.style.format.cmdline_tools import dump_rule_entry
         from lookout.style.format.benchmarks.expected_vnodes_number import calc_expected_vnodes_number_entry
+        from lookout.style.format.benchmarks.quality_report import generate_quality_report
         """  # noqa E501
         imports = {}
         for line in raw_imports.splitlines():
@@ -25,6 +26,7 @@ class MainTests(unittest.TestCase):
                 imports[parts[-1]] = parts[1]
         action2handler = {
             "eval": "print_reports",
+            "quality-report": "generate_quality_report",
             "quality-report-noisy": "quality_report_noisy",
             "gen-smoke-dataset": "generate_smoke_entry",
             "eval-smoke-dataset": "evaluate_smoke_entry",
