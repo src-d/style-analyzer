@@ -83,6 +83,7 @@ def create_parser() -> ArgumentParser:
         compare_quality_reports_entry
     from lookout.style.format.benchmarks.evaluate_smoke import evaluate_smoke_entry
     from lookout.style.format.benchmarks.generate_smoke import generate_smoke_entry
+    from lookout.style.format.benchmarks.quality_report import generate_quality_report
     from lookout.style.format.benchmarks.general_report import print_reports
     from lookout.style.format.benchmarks.quality_report_noisy import quality_report_noisy
     from lookout.style.format.benchmarks.expected_vnodes_number import \
@@ -108,6 +109,32 @@ def create_parser() -> ArgumentParser:
     eval_parser.add_argument("-n", "--n-files", default=0, type=int,
                              help="How many files with most mispredictions to show. "
                                   "If n <= 0 show all.")
+
+    # Generate quality report for the given data
+    quality_report_parser = add_parser("quality-report",
+                                       "Generate quality report on a given data.")
+    quality_report_parser.set_defaults(handler=generate_quality_report)
+    quality_report_parser.add_argument(
+        "-i", "--input", required=True,
+        help="csv file with repositories to make report. Should contain url, to and from columns.")
+    quality_report_parser.add_argument(
+        "-o", "--output", required=True,
+        help="Directory where to save results.")
+    quality_report_parser.add_argument(
+        "-f", "--force", default=False, action="store_true",
+        help="Force to overwrite results stored in output directory if True. \
+                 Stored results will be used if False.")
+    quality_report_parser.add_argument(
+        "-b", "--bblfsh", help="Bblfsh address to use.")
+    quality_report_parser.add_argument(
+        "--train-config", type=json.loads, default="{}",
+        help="Config for analyzer train in json format.")
+    quality_report_parser.add_argument(
+        "--database", default=None, help="sqlite3 database path to store the models."
+                                         "Temporary file is used if not set.")
+    quality_report_parser.add_argument(
+        "--fs", default=None, help="Model repository file system root. "
+                                   "Temporary directory is used if not set.")
 
     # Generate the quality report based on the artificial noisy dataset
     quality_report_noisy_parser = add_parser("quality-report-noisy", "Quality report on the "
@@ -211,8 +238,6 @@ def create_parser() -> ArgumentParser:
         "-o", "--output", required=True, help="Path to a output csv file.")
     calc_expected_vnodes.add_argument(
         "-r", "--runs", default=3, help="Number of repeats to ensure the result correctness.")
-    calc_expected_vnodes.add_argument(
-        "--log-level", default="DEBUG", help="Logging level")
 
     return parser
 

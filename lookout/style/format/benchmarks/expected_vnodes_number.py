@@ -13,7 +13,7 @@ from lookout.core.test_helpers import server
 from tqdm import tqdm
 
 from lookout.style.format.analyzer import FormatAnalyzer
-from lookout.style.format.benchmarks.top_repos_quality import AnalyzerContextManager, \
+from lookout.style.format.benchmarks.quality_report import AnalyzerContextManager, \
     ensure_repo, handle_input_arg
 from lookout.style.format.feature_extractor import FeatureExtractor
 

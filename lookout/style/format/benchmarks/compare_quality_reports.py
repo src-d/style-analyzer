@@ -4,7 +4,7 @@ from typing import TextIO, Union
 import pandas
 from tabulate import tabulate
 
-from lookout.style.format.benchmarks.top_repos_quality import FLOAT_PRECISION
+from lookout.style.format.benchmarks.quality_report import FLOAT_PRECISION
 
 
 _column_formats = {
