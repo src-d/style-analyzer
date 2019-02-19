@@ -13,10 +13,7 @@ from scipy.spatial.distance import cosine
 from tqdm import tqdm
 
 from lookout.style.typos.symspell import EditDistance, SymSpell
-from lookout.style.typos.utils import (
-    add_context_info, CANDIDATE_COLUMN, FEATURES_COLUMN, ID_COLUMN, read_frequencies,
-    read_vocabulary, TYPO_COLUMN,
-)
+from lookout.style.typos.utils import add_context_info, Columns, read_frequencies, read_vocabulary
 
 TypoInfo = NamedTuple("TypoInfo", (("index", int),
                                    ("typo", str),
@@ -97,7 +94,7 @@ class CandidatesGenerator(Model):
         """
         Generate candidates for typos inside data.
 
-        :param data: DataFrame, containing column TYPO_COLUMN.
+        :param data: DataFrame, containing column Columns.Token.
         :param threads_number: Number of threads for multiprocessing.
         :param save_candidates_file: File to save candidates to.
         :param start_pool_size: Length of data, starting from which multiprocessing is desired.
@@ -105,8 +102,8 @@ class CandidatesGenerator(Model):
                  and features for their ranking for each typo.
         """
         data = add_context_info(data)
-        typos = [TypoInfo(index, data.loc[index].typo, data.loc[index].before,
-                          data.loc[index].after)
+        typos = [TypoInfo(index, data.loc[index, Columns.Token], data.loc[index, Columns.Before],
+                          data.loc[index, Columns.Before])
                  for i, index in enumerate(data.index)]
         if len(typos) > start_pool_size and threads_number > 1:
             with Pool(min(threads_number, len(typos))) as pool:
@@ -117,8 +114,8 @@ class CandidatesGenerator(Model):
         else:
             candidates = [self._lookup_corrections_for_token(t) for t in typos]
         candidates = pandas.DataFrame(list(chain.from_iterable(candidates)))
-        candidates.columns = [ID_COLUMN, TYPO_COLUMN, CANDIDATE_COLUMN, FEATURES_COLUMN]
-        candidates[ID_COLUMN] = candidates[ID_COLUMN].astype(data.index.dtype)
+        candidates.columns = [Columns.Id, Columns.Token, Columns.Candidate, Columns.Features]
+        candidates[Columns.Id] = candidates[Columns.Id].astype(data.index.dtype)
         if save_candidates_file is not None:
             candidates.to_pickle(save_candidates_file)
         return candidates
@@ -379,11 +376,11 @@ def get_candidates_features(candidates: pandas.DataFrame) -> numpy.ndarray:
     """
     Take the feature vectors belonging to the typo correction candidates from the table.
     """
-    return numpy.vstack(candidates[FEATURES_COLUMN].values)
+    return numpy.vstack(candidates[Columns.Features].values)
 
 
 def get_candidates_metadata(candidates: pandas.DataFrame) -> pandas.DataFrame:
     """
     Take the information about the typo correction candidates from the table.
     """
-    return candidates[[ID_COLUMN, TYPO_COLUMN, CANDIDATE_COLUMN]]
+    return candidates[[Columns.Id, Columns.Token, Columns.Candidate]]

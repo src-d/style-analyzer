@@ -10,7 +10,7 @@ from tqdm import tqdm
 from lookout.style.typos.generation import (CandidatesGenerator, get_candidates_features,
                                             get_candidates_metadata)
 from lookout.style.typos.ranking import CandidatesRanker
-from lookout.style.typos.utils import CORRECT_TOKEN_COLUMN
+from lookout.style.typos.utils import Columns
 
 
 class TyposCorrector(Model):
@@ -103,7 +103,7 @@ class TyposCorrector(Model):
         if candidates is None:
             candidates = self.generator.generate_candidates(
                 typos, self.threads_number, save_candidates_file)
-        self.ranker.fit(typos[CORRECT_TOKEN_COLUMN], get_candidates_metadata(candidates),
+        self.ranker.fit(typos[Columns.CorrectToken], get_candidates_metadata(candidates),
                         get_candidates_features(candidates))
 
     def train_on_file(self, typos_file: str, candidates_file: str = None,

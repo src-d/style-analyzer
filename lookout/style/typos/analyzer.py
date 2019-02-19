@@ -13,7 +13,7 @@ import pandas
 from sourced.ml.algorithms import TokenParser, uast2sequence
 
 from lookout.style.typos.corrector_manager import TyposCorrectorManager
-from lookout.style.typos.utils import flatten_data, SPLIT_COLUMN, TYPO_COLUMN
+from lookout.style.typos.utils import Columns, flatten_data
 
 
 class IdTyposAnalyzer(Analyzer):
@@ -133,16 +133,17 @@ class IdTyposAnalyzer(Analyzer):
         :return: Dictionary of corrections grouped by ids of corresponding identifier \
                  in 'identifiers' and typoed tokens which have correction suggestions.
         """
-        df = pandas.DataFrame(columns=[self.INDEX_COLUMN, SPLIT_COLUMN])
+        df = pandas.DataFrame(columns=[self.INDEX_COLUMN, Columns.Split])
         df[self.INDEX_COLUMN] = range(len(identifiers))
-        df[SPLIT_COLUMN] = [" ".join(self.parser.split(i)) for i in identifiers]
-        df = flatten_data(df, new_column_name=TYPO_COLUMN)
+        df[Columns.Split] = [" ".join(self.parser.split(i)) for i in identifiers]
+        df = flatten_data(df, new_column_name=Columns.Token)
         suggestions = self.model.suggest(df, n_candidates=self.n_candidates, return_all=False)
         suggestions = self.filter_suggestions(df, suggestions)
         grouped_suggestions = defaultdict(dict)
         for index, row in df.iterrows():
             if index in suggestions.keys():
-                grouped_suggestions[row[self.INDEX_COLUMN]][row[TYPO_COLUMN]] = suggestions[index]
+                grouped_suggestions[row[self.INDEX_COLUMN]][row[Columns.Token]] =\
+                    suggestions[index]
         return grouped_suggestions
 
     def filter_suggestions(self, test_df: pandas.DataFrame,
