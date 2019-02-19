@@ -12,8 +12,7 @@ from keras.models import Sequential
 import numpy
 import pandas
 
-from lookout.style.typos.utils import extract_embeddings_from_fasttext, \
-    CORRECT_TOKEN_COLUMN, TYPO_COLUMN
+from lookout.style.typos.utils import extract_embeddings_from_fasttext, Columns
 
 
 def get_features(fasttext: FastText, typos: Sequence[str]) -> numpy.ndarray:
@@ -89,7 +88,7 @@ def create_and_train_nn_prediction(
     Train NN model for correction embedding prediction.
 
     :param fasttext: gensim.models.Fasttext model.
-    :param data: DataFrame containing columns [CORRECT_TOKEN_COLUMN, TYPO_COLUMN].
+    :param data: DataFrame containing columns [Columns.CorrectToken, Columns.Token].
     :param saved_model_file: Path to file to dump trained NN model.
     :param num_neurons: Number of neurons in each hidden layer.
     :param batch_size: Batch size for training.
@@ -98,8 +97,8 @@ def create_and_train_nn_prediction(
     :param num_epochs: Number of passes over the train dataset.
     :return: Trained Keras model.
     """
-    typo_vecs = get_features(fasttext, data[TYPO_COLUMN])
-    correction_vecs = get_target(fasttext, data[CORRECT_TOKEN_COLUMN])
+    typo_vecs = get_features(fasttext, data[Columns.Token])
+    correction_vecs = get_target(fasttext, data[Columns.CorrectToken])
     model = create_model(num_neurons, typo_vecs.shape[1], correction_vecs.shape[1])
     train_model(
         model, typo_vecs, correction_vecs, saved_model_file, batch_size, lr, decay, num_epochs)
@@ -130,7 +129,7 @@ def create_and_train_nn_prediction_from_file(
 
     :param fasttext: Path to the binary dump of a FastText model.
     :param data: Path to a CSV dump of pandas.DataFrame containing columns \
-                 [CORRECT_TOKEN_COLUMN, TYPO_COLUMN].
+                 [Columns.CorrectToken, Columns.Token].
     :param dump: Path to the file where to dump the trained NN model.
     :param num_neurons: Number of neurons in each hidden layer.
     :param batch_size: Batch size for training.

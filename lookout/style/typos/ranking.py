@@ -7,7 +7,7 @@ import numpy
 import pandas
 import xgboost as xgb
 
-from lookout.style.typos.utils import CANDIDATE_COLUMN, ID_COLUMN, rank_candidates
+from lookout.style.typos.utils import Columns, rank_candidates
 
 
 class CandidatesRanker(Model):
@@ -63,7 +63,7 @@ class CandidatesRanker(Model):
         :param identifiers: Series containing column right corrections and indexed in \
                             correspondence with typos from which candidates were generated.
         :param candidates: DataFrame containing information about candidates for correction. \
-                           Columns are [ID_COLUMN, TYPO_COLUMN, CANDIDATE_COLUMN].
+                           Columns are [Columns.Id, Columns.Token, Columns.Candidate].
         :param features: Matrix of features for candidates.
         :param val_part: Part of data used for validation.
         """
@@ -83,7 +83,7 @@ class CandidatesRanker(Model):
         Assign the correctness probability value for each of the candidates.
 
         :param candidates: DataFrame containing information about candidates for correction. \
-                           Columns are [ID_COLUMN, TYPO_COLUMN, CANDIDATE_COLUMN].
+                           Columns are [Columns.Id, Columns.Token, Columns.Candidate].
         :param features: Matrix of features for candidates.
         :param n_candidates: Number of most probably correct candidates to return for each typo.
         :param return_all: False to return corrections only for typos corrected in the \
@@ -117,7 +117,7 @@ class CandidatesRanker(Model):
     def _create_labels(identifiers: pandas.Series, candidates: pandas.DataFrame) -> numpy.ndarray:
         labels = []
         for _, row in candidates.iterrows():
-            labels.append(int(row[CANDIDATE_COLUMN] == identifiers[row[ID_COLUMN]]))
+            labels.append(int(row[Columns.Candidate] == identifiers[row[Columns.Id]]))
         return numpy.array(labels)
 
     def _generate_tree(self) -> dict:

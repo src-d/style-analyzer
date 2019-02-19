@@ -7,11 +7,9 @@ import numpy
 import pandas
 from pandas.util.testing import assert_frame_equal
 
-from lookout.style.typos.utils import (
-    add_context_info, AFTER_COLUMN, BEFORE_COLUMN, CANDIDATE_COLUMN, filter_suggestions,
-    flatten_data, ID_COLUMN, PROBABILITY_COLUMN, rank_candidates, SPLIT_COLUMN, SUGGESTIONS_COLUMN,
-    suggestions_to_df, suggestions_to_flat_df, TYPO_COLUMN,
-)
+from lookout.style.typos.utils import (add_context_info, Columns, filter_suggestions, flatten_data,
+                                       rank_candidates, suggestions_to_df, suggestions_to_flat_df)
+
 
 TEST_DATA_PATH = str(pathlib.Path(__file__).parent)
 
@@ -22,25 +20,25 @@ class DataTransformationsTest(unittest.TestCase):
         cls.data = pandas.read_csv(join(TEST_DATA_PATH, "test_data.csv.xz"),
                                    index_col=0).infer_objects()
         cls.custom_data = pandas.DataFrame([[["get", "tokens", "num"]],
-                                            [["use", "class"]]], columns=[SPLIT_COLUMN])
+                                            [["use", "class"]]], columns=[Columns.Split])
         cls.flat_custom_data = pandas.DataFrame([[["get", "tokens", "num"], "get"],
                                                  [["get", "tokens", "num"], "tokens"],
                                                  [["get", "tokens", "num"], "num"],
                                                  [["use", "class"], "use"],
                                                  [["use", "class"], "class"]],
-                                                columns=[SPLIT_COLUMN, TYPO_COLUMN])
+                                                columns=[Columns.Split, Columns.Token])
 
     def test_flatten_data(self):
         flat_data = pandas.read_csv(join(TEST_DATA_PATH, "test_flatten_data.csv.xz"),
                                     index_col=0).infer_objects()
         assert_frame_equal(flatten_data(self.data, "token"), flat_data)
-        assert_frame_equal(flatten_data(self.custom_data, TYPO_COLUMN), self.flat_custom_data)
+        assert_frame_equal(flatten_data(self.custom_data, Columns.Token), self.flat_custom_data)
 
     def test_add_context_info(self):
         context_added = pandas.read_csv(join(TEST_DATA_PATH, "test_add_context_info.csv.xz"),
                                         index_col=0).infer_objects()
-        context_added[AFTER_COLUMN] = pandas.eval(context_added[AFTER_COLUMN])
-        context_added[BEFORE_COLUMN] = pandas.eval(context_added[BEFORE_COLUMN])
+        context_added[Columns.After] = pandas.eval(context_added[Columns.After])
+        context_added[Columns.Before] = pandas.eval(context_added[Columns.Before])
         assert_frame_equal(add_context_info(self.data.copy()), context_added)
 
         added_context_custom = pandas.DataFrame(
@@ -49,7 +47,7 @@ class DataTransformationsTest(unittest.TestCase):
              [["get", "tokens", "num"], "num", ["get", "tokens"], []],
              [["use", "class"], "use", [], ["class"]],
              [["use", "class"], "class", ["use"], []]],
-            columns=[SPLIT_COLUMN, TYPO_COLUMN, BEFORE_COLUMN, AFTER_COLUMN])
+            columns=[Columns.Split, Columns.Token, Columns.Before, Columns.After])
         assert_frame_equal(add_context_info(self.flat_custom_data.copy()), added_context_custom)
 
 
@@ -64,15 +62,15 @@ class RankCandidatesTest(unittest.TestCase):
         cls.custom_data = pandas.DataFrame([[["get", "tokens", "num"], "get"],
                                             [["gwt", "tokens"], "gwt"],
                                             [["get", "tokem"], "tokem"]],
-                                           columns=[SPLIT_COLUMN, TYPO_COLUMN])
+                                           columns=[Columns.Split, Columns.Token])
         cls.custom_candidates = pandas.DataFrame([[0, "get", "get"],
                                                   [1, "gwt", "get"],
                                                   [1, "gwt", "gpt"],
                                                   [2, "tokem", "tokem"],
                                                   [2, "tokem", "taken"],
                                                   [2, "tokem", "token"]],
-                                                 columns=[ID_COLUMN, TYPO_COLUMN,
-                                                          CANDIDATE_COLUMN])
+                                                 columns=[Columns.Id, Columns.Token,
+                                                          Columns.Candidate])
         cls.custom_suggestions = {0: [("get", 1.0)],
                                   1: [("get", 0.9),
                                       ("gpt", 0.05)],
@@ -122,8 +120,8 @@ class RankCandidatesTest(unittest.TestCase):
                                                   [2, "tokem", [["token", 0.98],
                                                                 ["taken", 0.3],
                                                                 ["tokem", 0.01]]]],
-                                                 columns=[ID_COLUMN, TYPO_COLUMN,
-                                                          SUGGESTIONS_COLUMN],
+                                                 columns=[Columns.Id, Columns.Token,
+                                                          Columns.Suggestions],
                                                  index=[0, 1, 2])
         assert_frame_equal(suggestions_to_df(self.custom_data, self.custom_suggestions),
                            custom_suggestions_df)
@@ -141,9 +139,9 @@ class RankCandidatesTest(unittest.TestCase):
                                                        [2, "tokem", "token", 0.98],
                                                        [2, "tokem", "taken", 0.3],
                                                        [2, "tokem", "tokem", 0.01]],
-                                                      columns=[ID_COLUMN, TYPO_COLUMN,
-                                                               CANDIDATE_COLUMN,
-                                                               PROBABILITY_COLUMN])
+                                                      columns=[Columns.Id, Columns.Token,
+                                                               Columns.Candidate,
+                                                               Columns.Probability])
         assert_frame_equal(suggestions_to_flat_df(self.custom_data, self.custom_suggestions),
                            custom_suggestions_flat_df)
 
