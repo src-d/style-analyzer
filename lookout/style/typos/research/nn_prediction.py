@@ -12,7 +12,18 @@ from keras.models import Sequential
 import numpy
 import pandas
 
-from lookout.style.typos.utils import extract_embeddings_from_fasttext, Columns
+from lookout.style.typos.utils import Columns
+
+
+def extract_embeddings_from_fasttext(fasttext: FastText, tokens: Iterable[str]) -> numpy.ndarray:
+    """
+    Convert the embeddings from FastText to a dense matrix.
+
+    :param fasttext: trained embeddings.
+    :param tokens: list of tokens - axis Y of the returned matrix.
+    :return: matrix with extracted embeddings.
+    """
+    return numpy.array([fasttext.wv[token] for token in tokens])
 
 
 def get_features(fasttext: FastText, typos: Sequence[str]) -> numpy.ndarray:

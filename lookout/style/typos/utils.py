@@ -2,9 +2,8 @@
 
 from itertools import chain
 import lzma
-from typing import Dict, Iterable, List, NamedTuple, Tuple
+from typing import Dict, List, NamedTuple, Tuple
 
-from gensim.models.fasttext import FastText
 import numpy
 import pandas
 
@@ -15,17 +14,6 @@ Columns = NamedTuple(
      ("Suggestions", str)])(
     "token", "correct_token", "token_split", "correct_token_split", "after", "before", "id",
     "candidate", "features", "proba", "suggestions")
-
-
-def extract_embeddings_from_fasttext(fasttext: FastText, tokens: Iterable[str]) -> numpy.ndarray:
-    """
-    Convert the embeddings from FastText to a dense matrix.
-
-    :param fasttext: trained embeddings.
-    :param tokens: list of tokens - axis Y of the returned matrix.
-    :return: matrix with extracted embeddings.
-    """
-    return numpy.array([fasttext.wv[token] for token in tokens])
 
 
 def read_frequencies(file: str) -> Dict[str, int]:
