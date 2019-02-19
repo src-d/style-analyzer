@@ -428,7 +428,15 @@ class FormatAnalyzer(Analyzer):
         for line_number, line in self._group_line_nodes(
                 y, y_pred, vnodes_y, new_vnodes, rule_winners):
             line_ys, line_ys_pred, line_vnodes_y, new_line_vnodes, line_winners = line
-            new_code_line = code_generator.generate_new_line(new_line_vnodes)
+            try:
+                new_code_line = code_generator.generate_new_line(new_line_vnodes)
+            except Exception:
+                self._log.exception(
+                    "Failed to generate new line suggestion for line %d in %s. line vnodes:\n%s",
+                    line_number, file.path, "\n".join(
+                        "%s, y_old=%s" % (repr(vn), getattr(vn, "y_old", "N/A"))
+                        for vn in new_line_vnodes))
+                new_code_line = None
             if (new_line_vnodes and hasattr(new_line_vnodes[0], "y_old") and newline_index in
                     new_line_vnodes[0].y_old):
                 lines_num_diff = new_line_vnodes[0].y.count(newline_index) - \
