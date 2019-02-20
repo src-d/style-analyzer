@@ -1,7 +1,7 @@
 """Typo correction model."""
 
 from itertools import chain
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Tuple
 
 from modelforge import Model
 import pandas
@@ -118,11 +118,12 @@ class TyposCorrector(Model):
         Train corrector on tokens from the given file.
 
         :param data_file: A .csv dump of a dataframe, containing columns Columns.Token and \
-                          Columns.CorrectToken, column Columns.Split is optional, but used when present.
+                          Columns.CorrectToken, column Columns.Split is optional, \
+                          but used when present.
         :param candidates: A .csv.xz dump of a dataframe with precalculated candidates.
         :param save_candidates_file: Path to file where to save the candidates (.csv.xz).
         """
-        return self.train(pandas.read_csv(data_file, index_col=0), candidates, save_candidates_file)
+        self.train(pandas.read_csv(data_file, index_col=0), candidates, save_candidates_file)
 
     def suggest(self, data: pandas.DataFrame, candidates: str = None,
                 save_candidates_file: str = None, n_candidates: int = 3,
@@ -148,7 +149,8 @@ class TyposCorrector(Model):
                                 get_candidates_features(candidates), n_candidates, return_all)
 
     def suggest_on_file(self, data_file: str, candidates:  str = None,
-                        save_candidates_file: str = None) -> Dict[int, List[Tuple[str, float]]]:
+                        save_candidates_file: str = None, n_candidates: int = 3,
+                        return_all: bool = True) -> Dict[int, List[Tuple[str, float]]]:
         """
         Suggest corrections for the tokens from the given file.
 
@@ -161,7 +163,8 @@ class TyposCorrector(Model):
         :return: Dictionary {id : [[candidate, correctness_proba]]}, candidates are sorted \
                  by correctness probability in a descending order.
         """
-        return self.suggest(pandas.read_csv(data_file, index_col=0), candidates, save_candidates_file)
+        return self.suggest(pandas.read_csv(data_file, index_col=0), candidates,
+                            save_candidates_file, n_candidates, return_all)
 
     def suggest_by_batches(self, data: pandas.DataFrame, n_candidates: int = None,
                            return_all: bool = True, batch_size: int = 2048,
