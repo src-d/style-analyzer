@@ -7,12 +7,11 @@ from bblfsh import BblfshClient
 from bblfsh.client import NonUTF8ContentException
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2 import File
+from lookout.core.lib import filter_files_by_path
 import numpy
 from sklearn.exceptions import UndefinedMetricWarning
 import sklearn.metrics
 from tqdm import tqdm
-
-from lookout.style.format.files_filtering import filter_filepaths
 
 
 warnings.filterwarnings("ignore", category=UndefinedMetricWarning)
@@ -50,7 +49,7 @@ def prepare_files(filenames: Iterable[str], client: BblfshClient,
     :return: Iterator of File-s with content, uast, path and language set.
     """
     files = []
-    for file in tqdm(filter_filepaths(list(filenames))):
+    for file in tqdm(filter_files_by_path(list(filenames))):
         try:
             res = client.parse(file)
         except NonUTF8ContentException:

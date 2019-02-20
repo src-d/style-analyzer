@@ -3,11 +3,10 @@ Command line utilities to check the quality of a model on a given dataset, visua
 """
 from argparse import ArgumentParser
 import json
-import logging
 from typing import Any
 
 from lookout.core.cmdline import ArgumentDefaultsHelpFormatterNoNone
-from lookout.core.slogging import setup as setup_slogging
+from modelforge import slogging
 
 from lookout.style.format.descriptions import dump_rule
 from lookout.style.format.model import FormatModel
@@ -67,7 +66,6 @@ def add_rules_thresholds(my_parser: ArgumentParser):
 
 def dump_rule_entry(model, hash):
     """Command-line entry for "tool rule"."""
-    setup_slogging(logging.INFO, False)
     model = FormatModel().load(model)
     dump_rule(model, hash)
 
@@ -92,7 +90,7 @@ def create_parser() -> ArgumentParser:
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatterNoNone)
 
     # General options
-    parser.add("--log-level", default="DEBUG", help="Log verbosity level.")
+    slogging.add_logging_args(parser)
 
     subparsers = parser.add_subparsers(help="Commands")
 
@@ -246,8 +244,10 @@ def main() -> Any:
     """Entry point of the utility."""
     parser = create_parser()
     args = parser.parse_args()
-    setup_slogging(args.log_level, False)
+    slogging.setup(args.log_level, args.log_structured, args.log_config)
     delattr(args, "log_level")
+    delattr(args, "log_structured")
+    delattr(args, "log_config")
     try:
         handler = args.handler
         delattr(args, "handler")
