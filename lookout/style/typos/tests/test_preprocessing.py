@@ -14,7 +14,7 @@ class PreprocessingTest(unittest.TestCase):
                                  ["put tok", "put"],
                                  ["put tok", "tok"],
                                  ["put", "put"]], columns=[Columns.Split, Columns.Token])
-        self.assertTupleEqual(pick_subset_of_df_rows(data, size=4).shape, (4, 2))
+        self.assertTupleEqual(pick_subset_of_df_rows(data, size=4).shape, (4, 3))
 
 
 if __name__ == "__main__":
