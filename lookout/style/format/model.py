@@ -27,7 +27,7 @@ class FormatModel(AnalyzerModel):
 
     NAME = "code-format"
     VENDOR = "source{d}"
-    DESCRIPTION = "Model that contains Rules to format code style."
+    DESCRIPTION = "Model that contains Rules to format code."
     LICENSE = DEFAULT_LICENSE
 
     def __init__(self, **kwargs):
