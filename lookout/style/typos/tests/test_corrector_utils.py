@@ -7,8 +7,9 @@ import numpy
 import pandas
 from pandas.util.testing import assert_frame_equal
 
-from lookout.style.typos.utils import (add_context_info, Columns, filter_suggestions, flatten_data,
-                                       rank_candidates, suggestions_to_df, suggestions_to_flat_df)
+from lookout.style.typos.utils import (
+    add_context_info, Columns, filter_suggestions, flatten_data, flatten_df_by_column,
+    rank_candidates, suggestions_to_df, suggestions_to_flat_df)
 
 
 TEST_DATA_PATH = str(pathlib.Path(__file__).parent)
@@ -31,9 +32,9 @@ class DataTransformationsTest(unittest.TestCase):
     def test_flatten_data(self):
         raw_data = pandas.read_csv(join(TEST_DATA_PATH, "raw_test_data.csv.xz"),
                                    index_col=0).infer_objects()
-
-        assert_frame_equal(flatten_data(raw_data, Columns.Token), self.flat_data)
-        assert_frame_equal(flatten_data(self.custom_data, Columns.Token), self.flat_custom_data)
+        assert_frame_equal(flatten_data(raw_data, "token"), self.flat_data)
+        assert_frame_equal(flatten_df_by_column(self.custom_data, Columns.Split, Columns.Token,
+                                                str.split), self.flat_custom_data)
 
     def test_add_context_info(self):
         context_added = pandas.read_csv(join(TEST_DATA_PATH, "test_add_context_info.csv.xz"),
