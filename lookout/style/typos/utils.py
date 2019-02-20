@@ -164,7 +164,7 @@ def filter_suggestions(data: pandas.DataFrame, suggestions: Dict[int, List[Tuple
     Filter correction suggestions.
 
     :param data: DataFrame which contains column Columns.Token.
-    :param suggestions: Dictionary of suggestions, keys correspond with typos.index.
+    :param suggestions: Dictionary of suggestions, keys correspond with data.index.
     :param n_candidates: Number of most probably correct candidates to return for each typo.
     :param return_all: False to return corrections only for tokens corrected in the \
                        first candidate.
