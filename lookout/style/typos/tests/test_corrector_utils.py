@@ -57,7 +57,7 @@ class RankCandidatesTest(unittest.TestCase):
     def setUpClass(cls):
         cls.data = pandas.read_csv(join(TEST_DATA_PATH, "test_data.csv.xz"),
                                    index_col=0).infer_objects()
-        with open(join(TEST_DATA_PATH, "test_data_candidates_suggestions.pkl"), "br") as f:
+        with open(join(TEST_DATA_PATH, "test_data_candidates_suggestions.pickle"), "br") as f:
             cls.suggestions = pickle.load(f)
 
         cls.custom_data = pandas.DataFrame([[["get", "tokens", "num"], "get"],
@@ -86,7 +86,7 @@ class RankCandidatesTest(unittest.TestCase):
     def test_rank_candidates(self):
         candidates = pandas.read_csv(join(TEST_DATA_PATH, "test_data_candidates.csv.xz"),
                                      index_col=0).infer_objects()
-        proba = numpy.load(join(TEST_DATA_PATH, "test_data_candidates_proba.pkl"))
+        proba = numpy.load(join(TEST_DATA_PATH, "test_data_candidates_proba.pickle"))
         self.assertDictEqual(rank_candidates(candidates, proba, n_candidates=3), self.suggestions)
 
         proba = numpy.array([1.0, 0.9, 0.05, 0.01, 0.3, 0.98], dtype=float)
@@ -97,7 +97,7 @@ class RankCandidatesTest(unittest.TestCase):
                              self.custom_filtered_suggestions)
 
     def test_filter_suggestions(self):
-        with open(join(TEST_DATA_PATH, "test_data_candidates_filtered_suggestions.pkl"),
+        with open(join(TEST_DATA_PATH, "test_data_candidates_filtered_suggestions.pickle"),
                   "br") as f:
             filtered_suggestions = pickle.load(f)
         self.assertEqual(filter_suggestions(self.data, self.suggestions,
