@@ -1,10 +1,10 @@
 """Various glue functions to work with the input dataset and the output from FastText."""
 from itertools import chain
-import lzma
 from typing import Dict, List, NamedTuple, Tuple
 
 import numpy
 import pandas
+from smart_open import smart_open
 
 
 Columns = NamedTuple(
@@ -25,14 +25,10 @@ def read_frequencies(file: str) -> Dict[str, int]:
     :return: Dictionary of tokens frequencies.
     """
     frequencies = {}
-    try:
-        f = lzma.open(file, "rt")
-    except lzma.LZMAError:
-        f = open(file, "r")
-    for line in f:
-        split = line.split()
-        frequencies[split[0]] = int(split[1])
-    f.close()
+    with smart_open(file, "r") as f:
+        for line in f:
+            split = line.split()
+            frequencies[split[0]] = int(split[1])
     return frequencies
 
 
@@ -45,12 +41,8 @@ def read_vocabulary(file: str) -> List[str]:
                  File should be in .csv or compressed .csv.xz format.
     :return: List of tokens of the vocabulary.
     """
-    try:
-        f = lzma.open(file, "rt")
-    except lzma.LZMAError:
-        f = open(file, "r")
-    tokens = [line.split()[0] for line in f]
-    f.close()
+    with smart_open(file, "r") as f:
+        tokens = [line.split()[0] for line in f]
     return tokens
 
 
