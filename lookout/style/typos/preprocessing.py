@@ -5,31 +5,28 @@ import pandas
 from lookout.style.typos.utils import Columns
 
 
-def check_split(split: str, tokens_set: Set[str]) -> bool:
+def check_split(text: str, tokens: Set[str]) -> bool:
     """
-    Check whether all elements of the split are in tokens_set.
+    Check whether all tokens of the text belong to the given set.
 
-    :param split: String of space-separated tokens.
-    :param tokens_set: Set of tokens (reference vocabulary).
-    :return: True when all tokens of split belong to tokens_set.
+    :param text: String of space-separated tokens.
+    :param tokens: Set of tokens (reference vocabulary).
+    :return: True when all tokens of the `text` belong to `tokens`.
     """
-    if type(split) != str:
-        return False
-
-    for token in split.split():
-        if token not in tokens_set:
+    for token in text.split():
+        if token not in tokens:
             return False
     return True
 
 
-def filter_splits(data: Union[pandas.DataFrame, str], tokens_set: Set[str]) -> pandas.DataFrame:
+def filter_splits(data: Union[pandas.DataFrame, str], tokens: Set[str]) -> pandas.DataFrame:
     """
     Leave rows in a dataframe whose splits' tokens all belong to some vocabulary.
 
     :param data: Dataframe or its .csv dump, containing column Columns.Split.
-    :param tokens_set: Set of tokens (reference vocabulary).
+    :param tokens: Set of tokens (reference vocabulary).
     :return: Filtered dataframe.
     """
-    token_split = list(data[Columns.Split])
-    filter_array = list(map(lambda x: check_split(x, tokens_set), token_split))
-    return data[filter_array]
+    if isinstance(data, str):
+        data = pandas.read_csv(data, index_col=0)
+    return data.loc[data[Columns.Split].apply(lambda x: check_split(x, tokens))]
