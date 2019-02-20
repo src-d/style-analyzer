@@ -94,7 +94,7 @@ class CandidatesGenerator(Model):
         """
         Generate candidates for typos inside data.
 
-        :param data: DataFrame, containing column Columns.Token.
+        :param data: DataFrame which contains column Columns.Token.
         :param threads_number: Number of threads for multiprocessing.
         :param save_candidates_file: File to save candidates to.
         :param start_pool_size: Length of data, starting from which multiprocessing is desired.
@@ -117,7 +117,7 @@ class CandidatesGenerator(Model):
         candidates.columns = [Columns.Id, Columns.Token, Columns.Candidate, Columns.Features]
         candidates[Columns.Id] = candidates[Columns.Id].astype(data.index.dtype)
         if save_candidates_file is not None:
-            candidates.to_pickle(save_candidates_file)
+            candidates.to_csv(save_candidates_file, compression="xz")
         return candidates
 
     def dump(self) -> str:

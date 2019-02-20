@@ -101,7 +101,7 @@ def add_context_info(data: pandas.DataFrame) -> pandas.DataFrame:
 
     :param data: DataFrame. Column Columns.Split will be used for
                  creating context info if present.
-    :return: Provided data with added columns Columns.Before and Columns.After, containing lists
+    :return: Provided data with added columns Columns.Before and Columns.After which contains lists
              of corresponding contexts tokens.
     """
     if Columns.Before in data.columns and Columns.After in data.columns:
@@ -175,7 +175,7 @@ def filter_suggestions(typos: pandas.DataFrame, suggestions: Dict[int, List[Tupl
     """
     Filter correction suggestions.
 
-    :param typos: DataFrame, containing column Columns.Token.
+    :param typos: DataFrame which contains column Columns.Token.
     :param suggestions: Dictionary of suggestions, keys correspond with typos.index.
     :param n_candidates: Number of most probably correct candidates to return for each typo.
     :param return_all: False to return corrections only for typos corrected in the
