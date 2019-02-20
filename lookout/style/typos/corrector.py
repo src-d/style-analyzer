@@ -99,12 +99,12 @@ class TyposCorrector(Model):
         """
         Train corrector on tokens from the given dataset.
 
-        :param data: DataFrame, containing columns Columns.Token and Columns.CorrectToken, \
-                     column Columns.Split is optional, but used when present.
+        :param data: DataFrame which contains columns Columns.Token, Columns.CorrectToken, \
+                     and Columns.Split.
         :param candidates: A .csv.xz dump of a dataframe with precalculated candidates.
         :param save_candidates_file: Path to file where to save the candidates (.csv.xz).
         """
-        if not candidates:
+        if candidates is None:
             candidates = self.generator.generate_candidates(
                 data, self.threads_number, save_candidates_file)
         else:
@@ -117,9 +117,8 @@ class TyposCorrector(Model):
         """
         Train corrector on tokens from the given file.
 
-        :param data_file: A .csv dump of a dataframe, containing columns Columns.Token and \
-                          Columns.CorrectToken, column Columns.Split is optional, \
-                          but used when present.
+        :param data_file: A .csv dump of a dataframe which contains columns Columns.Token, \
+                          Columns.CorrectToken and Columns.Split.
         :param candidates: A .csv.xz dump of a dataframe with precalculated candidates.
         :param save_candidates_file: Path to file where to save the candidates (.csv.xz).
         """
@@ -131,8 +130,7 @@ class TyposCorrector(Model):
         """
         Suggest corrections for the tokens from the given dataset.
 
-        :param data: DataFrame, containing column Columns.Token, column Columns.Split \
-                     is optional, but used when present.
+        :param data: DataFrame which contains columns Columns.Token and Columns.Split.
         :param candidates: A .csv.xz dump of a dataframe with precalculated candidates.
         :param save_candidates_file: Path to file to save candidates to (.csv.xz).
         :param n_candidates: Number of most probable candidates to return.
@@ -140,7 +138,7 @@ class TyposCorrector(Model):
         :return: Dictionary {id : [[candidate, correctness_proba]]}, candidates are sorted \
                  by correctness probability in a descending order.
         """
-        if not candidates:
+        if candidates is None:
             candidates = self.generator.generate_candidates(
                 data, self.threads_number, save_candidates_file)
         else:
@@ -154,8 +152,8 @@ class TyposCorrector(Model):
         """
         Suggest corrections for the tokens from the given file.
 
-        :param data_file: A .csv dump of a DataFrame, containing column Columns.Token, \
-                     column Columns.Split is optional, but used when present.
+        :param data_file: A .csv dump of a DataFrame which contains columns Columns.Token \
+                          and Columns.Split.
         :param candidates: A .csv.xz dump of a dataframe with precalculated candidates.
         :param save_candidates_file: Path to file to save candidates to (.csv.xz).
         :param n_candidates: Number of most probable candidates to return.
@@ -173,8 +171,7 @@ class TyposCorrector(Model):
         Suggest corrections for the tokens from the given dataset by batches. \
         Does not support precalculated candidates.
 
-        :param data: DataFrame, containing column Columns.Token, \
-                     column Columns.Split is optional, but used when present.
+        :param data: DataFrame which contains columns Columns.Token and Columns.Split.
         :param n_candidates: Number of most probable candidates to return.
         :param return_all: False to return suggestions only for corrected tokens.
         :param batch_size: Batch size.
