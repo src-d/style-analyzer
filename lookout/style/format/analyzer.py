@@ -61,6 +61,7 @@ class FormatAnalyzer(Analyzer):
 
     model_type = FormatModel
     name = "style.format.analyzer.FormatAnalyzer"
+    vendor = "source{d}"
     version = 1
     description = "Source code formatting: whitespace, new lines, quotes, braces."
     defaults_for_analyze = {
@@ -230,7 +231,7 @@ class FormatAnalyzer(Analyzer):
         _log = logging.getLogger(cls.__name__)
         _log.info("train %s %s %s %s", __version__, ptr.url, ptr.commit,
                   pformat(config, width=4096, compact=True))
-        model = FormatModel().construct(cls, ptr)
+        model = FormatModel().generate(cls, ptr)
         config = cls._load_train_config(config)
         for language, files in files_by_language(files).items():
             try:

@@ -35,7 +35,7 @@ class MainTests(unittest.TestCase):
             "compare-quality": "compare_quality_reports_entry",
         }
         parser = main.create_parser()
-        subcommands = set([x.dest for x in parser._subparsers._actions[2]._choices_actions])
+        subcommands = set([x.dest for x in parser._subparsers._actions[4]._choices_actions])
         set_action2handler = set(action2handler)
         self.assertFalse(len(subcommands - set_action2handler),
                          "You forgot to add to this test {} subcommand(s) check".format(
