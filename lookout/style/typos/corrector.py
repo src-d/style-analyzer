@@ -94,70 +94,90 @@ class TyposCorrector(Model):
         self.generator.construct(vocabulary_file, frequencies_file, embeddings_file,
                                  neighbors_number, edit_candidates, max_distance, radius)
 
-    def train(self, data: Union[pandas.DataFrame, str],
-              candidates: Union[pandas.DataFrame, str] = None,
+    def train(self, data: pandas.DataFrame, candidates:  str = None,
               save_candidates_file: str = None) -> None:
         """
-        Train corrector on the given dataset of typoed tokens inside identifiers.
+        Train corrector on tokens from the given dataset.
 
-        :param data: DataFrame or its .csv dump, containing columns Columns.Token and \
-                     Columns.CorrectToken, column Columns.Split is optional, but used when present.
-        :param candidates: DataFrame or its .csv.xz dump with precalculated candidates.
-        :param save_candidates_file: Path to file where to save the candidates (.pkl).
+        :param data: DataFrame, containing columns Columns.Token and Columns.CorrectToken, \
+                     column Columns.Split is optional, but used when present.
+        :param candidates: A .csv.xz dump of a dataframe with precalculated candidates.
+        :param save_candidates_file: Path to file where to save the candidates (.csv.xz).
         """
-        if isinstance(data, str):
-            data = pandas.read_csv(data, index_col=0)
         if not candidates:
             candidates = self.generator.generate_candidates(
                 data, self.threads_number, save_candidates_file)
-        elif isinstance(candidates, str):
+        else:
             candidates = pandas.read_csv(candidates, index_col=0)
         self.ranker.fit(data[Columns.CorrectToken], get_candidates_metadata(candidates),
                         get_candidates_features(candidates))
 
-    def suggest(self, data: Union[pandas.DataFrame, str],
-                candidates: Union[pandas.DataFrame, str] = None,
+    def train_on_file(self, data_file: str, candidates:  str = None,
+                      save_candidates_file: str = None) -> None:
+        """
+        Train corrector on tokens from the given file.
+
+        :param data_file: A .csv dump of a dataframe, containing columns Columns.Token and \
+                          Columns.CorrectToken, column Columns.Split is optional, but used when present.
+        :param candidates: A .csv.xz dump of a dataframe with precalculated candidates.
+        :param save_candidates_file: Path to file where to save the candidates (.csv.xz).
+        """
+        return self.train(pandas.read_csv(data_file, index_col=0), candidates, save_candidates_file)
+
+    def suggest(self, data: pandas.DataFrame, candidates: str = None,
                 save_candidates_file: str = None, n_candidates: int = 3,
                 return_all: bool = True) -> Dict[int, List[Tuple[str, float]]]:
         """
-        Suggest corrections for given typos.
+        Suggest corrections for the tokens from the given dataset.
 
-        :param data: DataFrame or its .csv dump, containing column Columns.Token, \
-                     column Columns.Split is optional, but used when present.
-        :param candidates: DataFrame or its .csv.xz dump with precalculated candidates.
+        :param data: DataFrame, containing column Columns.Token, column Columns.Split \
+                     is optional, but used when present.
+        :param candidates: A .csv.xz dump of a dataframe with precalculated candidates.
+        :param save_candidates_file: Path to file to save candidates to (.csv.xz).
         :param n_candidates: Number of most probable candidates to return.
         :param return_all: False to return suggestions only for corrected tokens.
-        :param save_candidates_file: Path to file to save candidates to (.pkl).
         :return: Dictionary {id : [[candidate, correctness_proba]]}, candidates are sorted \
                  by correctness probability in a descending order.
         """
-        if isinstance(data, str):
-            data = pandas.read_csv(data, index_col=0)
         if not candidates:
             candidates = self.generator.generate_candidates(
                 data, self.threads_number, save_candidates_file)
-        elif isinstance(candidates, str):
+        else:
             candidates = pandas.read_csv(candidates, index_col=0)
         return self.ranker.rank(get_candidates_metadata(candidates),
                                 get_candidates_features(candidates), n_candidates, return_all)
 
-    def suggest_by_batches(self, data: Union[pandas.DataFrame, str], n_candidates: int = None,
-                           return_all: bool = True, batch_size: int = 2048,
-                           ) -> Dict[int, List[Tuple[str, float]]]:
+    def suggest_on_file(self, data_file: str, candidates:  str = None,
+                        save_candidates_file: str = None) -> Dict[int, List[Tuple[str, float]]]:
         """
-        Correct typos from dataset by batches. Does not support precalculated candidates.
+        Suggest corrections for the tokens from the given file.
 
-        Suggest corrections for given typos
-        :param data: DataFrame or its .csv dump, containing column "typo", \
-                     column "token_split" is optional, but used when present
-        :param n_candidates: Number of most probable candidates to return
-        :param return_all: False to return suggestions only for corrected tokens
-        :param batch_size: Batch size
+        :param data_file: A .csv dump of a DataFrame, containing column Columns.Token, \
+                     column Columns.Split is optional, but used when present.
+        :param candidates: A .csv.xz dump of a dataframe with precalculated candidates.
+        :param save_candidates_file: Path to file to save candidates to (.csv.xz).
+        :param n_candidates: Number of most probable candidates to return.
+        :param return_all: False to return suggestions only for corrected tokens.
         :return: Dictionary {id : [[candidate, correctness_proba]]}, candidates are sorted \
                  by correctness probability in a descending order.
         """
-        if isinstance(data, str):
-            data = pandas.read_csv(data, index_col=0)
+        return self.suggest(pandas.read_csv(data_file, index_col=0), candidates, save_candidates_file)
+
+    def suggest_by_batches(self, data: pandas.DataFrame, n_candidates: int = None,
+                           return_all: bool = True, batch_size: int = 2048,
+                           ) -> Dict[int, List[Tuple[str, float]]]:
+        """
+        Suggest corrections for the tokens from the given dataset by batches. \
+        Does not support precalculated candidates.
+
+        :param data: DataFrame, containing column Columns.Token, \
+                     column Columns.Split is optional, but used when present.
+        :param n_candidates: Number of most probable candidates to return.
+        :param return_all: False to return suggestions only for corrected tokens.
+        :param batch_size: Batch size.
+        :return: Dictionary {id : [[candidate, correctness_proba]]}, candidates are sorted \
+                 by correctness probability in a descending order.
+        """
         all_suggestions = []
         for i in tqdm(range(0, len(data), batch_size)):
             suggestions = self.suggest(data.iloc[i:i + batch_size, :], n_candidates=n_candidates,
