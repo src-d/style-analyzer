@@ -102,7 +102,7 @@ class TyposCorrector(Model):
 
         :param data: DataFrame or its .csv dump, containing columns Columns.Token and \
                      Columns.CorrectToken, column Columns.Split is optional, but used when present.
-        :param candidates: DataFrame or its pickle dump with precalculated candidates.
+        :param candidates: DataFrame or its .csv.xz dump with precalculated candidates.
         :param save_candidates_file: Path to file where to save the candidates (.pkl).
         """
         if isinstance(data, str):
@@ -111,7 +111,7 @@ class TyposCorrector(Model):
             candidates = self.generator.generate_candidates(
                 data, self.threads_number, save_candidates_file)
         elif isinstance(candidates, str):
-            candidates = pandas.read_pickle(candidates)
+            candidates = pandas.read_csv(candidates, index_col=0)
         self.ranker.fit(data[Columns.CorrectToken], get_candidates_metadata(candidates),
                         get_candidates_features(candidates))
 
@@ -124,7 +124,7 @@ class TyposCorrector(Model):
 
         :param data: DataFrame or its .csv dump, containing column Columns.Token, \
                      column Columns.Split is optional, but used when present.
-        :param candidates: DataFrame or its pickle dump with precalculated candidates.
+        :param candidates: DataFrame or its .csv.xz dump with precalculated candidates.
         :param n_candidates: Number of most probable candidates to return.
         :param return_all: False to return suggestions only for corrected tokens.
         :param save_candidates_file: Path to file to save candidates to (.pkl).
@@ -137,7 +137,7 @@ class TyposCorrector(Model):
             candidates = self.generator.generate_candidates(
                 data, self.threads_number, save_candidates_file)
         elif isinstance(candidates, str):
-            candidates = pandas.read_pickle(candidates)
+            candidates = pandas.read_csv(candidates, index_col=0)
         return self.ranker.rank(get_candidates_metadata(candidates),
                                 get_candidates_features(candidates), n_candidates, return_all)
 
@@ -160,9 +160,8 @@ class TyposCorrector(Model):
             data = pandas.read_csv(data, index_col=0)
         all_suggestions = []
         for i in tqdm(range(0, len(data), batch_size)):
-            suggestions = self.suggest(
-                data.loc[data.index[i]:data.index[min(len(data) - 1, i + batch_size - 1)], :],
-                n_candidates=n_candidates, return_all=return_all)
+            suggestions = self.suggest(data.iloc[i:i + batch_size, :], n_candidates=n_candidates,
+                                       return_all=return_all)
             all_suggestions.append(suggestions.items())
         return dict(chain.from_iterable(all_suggestions))
 

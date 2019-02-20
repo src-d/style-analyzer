@@ -117,7 +117,7 @@ class CandidatesGenerator(Model):
         candidates.columns = [Columns.Id, Columns.Token, Columns.Candidate, Columns.Features]
         candidates[Columns.Id] = candidates[Columns.Id].astype(data.index.dtype)
         if save_candidates_file is not None:
-            candidates.to_pickle(save_candidates_file)
+            candidates.to_csv(save_candidates_file, compression="xz")
         return candidates
 
     def dump(self) -> str:

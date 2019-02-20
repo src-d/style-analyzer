@@ -45,7 +45,9 @@ class CandidatesRankerTest(unittest.TestCase):
     def test_ranker(self):
         data = pandas.read_csv(join(TEST_DATA_PATH, "test_data.csv.xz"),
                                index_col=0).infer_objects()
-        candidates = pandas.read_pickle(join(TEST_DATA_PATH, "test_data_candidates_full.pkl"))
+        candidates = pandas.read_csv(join(TEST_DATA_PATH, "test_data_candidates_full.csv.xz"))
+        candidates.loc[:, Columns.Features] = candidates[Columns.Features].apply(
+            lambda x: list(map(float, x[1:-1].split())))
         ranker = CandidatesRanker()
         ranker.fit(data[Columns.CorrectToken], get_candidates_metadata(candidates),
                    get_candidates_features(candidates))
@@ -57,7 +59,9 @@ class CandidatesRankerTest(unittest.TestCase):
     def test_save_load(self):
         data = pandas.read_csv(join(TEST_DATA_PATH, "test_data.csv.xz"),
                                index_col=0).infer_objects()
-        candidates = pandas.read_pickle(join(TEST_DATA_PATH, "test_data_candidates_full.pkl"))
+        candidates = pandas.read_csv(join(TEST_DATA_PATH, "test_data_candidates_full.csv.xz"))
+        candidates.loc[:, Columns.Features] = candidates[Columns.Features].apply(
+            lambda x: list(map(float, x[1:-1].split())))
         ranker = CandidatesRanker()
         ranker.fit(data[Columns.CorrectToken], get_candidates_metadata(candidates),
                    get_candidates_features(candidates))
@@ -73,7 +77,9 @@ class CandidatesRankerTest(unittest.TestCase):
         self.assertTrue(CandidatesRanker() == CandidatesRanker())
         data = pandas.read_csv(join(TEST_DATA_PATH, "test_data.csv.xz"),
                                index_col=0).infer_objects()
-        candidates = pandas.read_pickle(join(TEST_DATA_PATH, "test_data_candidates_full.pkl"))
+        candidates = pandas.read_csv(join(TEST_DATA_PATH, "test_data_candidates_full.csv.xz"))
+        candidates.loc[:, Columns.Features] = candidates[Columns.Features].apply(
+            lambda x: list(map(float, x[1:-1].split())))
         ranker = CandidatesRanker()
         ranker.fit(data[Columns.CorrectToken], get_candidates_metadata(candidates),
                    get_candidates_features(candidates))
