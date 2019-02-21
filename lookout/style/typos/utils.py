@@ -134,7 +134,7 @@ def rank_candidates(candidates: pandas.DataFrame, pred_probs: List[float],
     :param n_candidates: Number of most probably correct candidates to return for each typo.
     :param return_all: False to return corrections only for tokens corrected in the \
                        first candidate.
-    :return: Dictionary `{id : [[candidate, correct_prob]]}`, candidates are sorted \
+    :return: Dictionary `{id : [(candidate, correctness_proba), ...]}`, candidates are sorted \
              by correct_prob in a descending order.
     """
     suggestions = {}
