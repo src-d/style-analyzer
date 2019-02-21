@@ -51,7 +51,6 @@ class CandidatesRanker(Model):
         :param train_rounds: Number of training rounds.
         :param early_stopping: Early stopping parameter.
         :param boost_param: Boosting parameters. The actual default is DEFAULT_BOOST_PARAM.
-        :return: Nothing.
         """
         self.train_rounds = train_rounds
         self.early_stopping = early_stopping
@@ -85,8 +84,7 @@ class CandidatesRanker(Model):
         """
         Assign the correctness probability value for each of the candidates.
 
-        :param candidates: DataFrame containing information about candidates for correction. \
-                           Columns are [Columns.Id, Columns.Token, Columns.Candidate].
+        :param candidates: DataFrame containing information about candidates for correction.
         :param features: Matrix of features for candidates.
         :param n_candidates: Number of most probably correct candidates to return for each typo.
         :param return_all: False to return corrections only for typos corrected in the \

@@ -155,7 +155,7 @@ class IdTyposAnalyzer(Analyzer):
         :param test_df: DataFrame with info about tested tokens.
         :param suggestions: Dictionary of correction suggestions grouped by \
                             typoed token index in test_df.
-        :return: Dictionary of filtered suggestions grouped by typoed token index in test_df.
+        :return: Dictionary of filtered suggestions grouped by checked token's index in test_df.
         """
         filtered_suggestions = {}
         tokens = test_df.typo

@@ -1,5 +1,4 @@
 """Generation of the typo correction candidates. Contains features extraction and serialization."""
-
 from itertools import chain
 from multiprocessing import Pool
 from typing import List, NamedTuple, Set, Union
@@ -15,6 +14,7 @@ from tqdm import tqdm
 
 from lookout.style.typos.symspell import EditDistance, SymSpell
 from lookout.style.typos.utils import add_context_info, Columns, read_frequencies, read_vocabulary
+
 
 TypoInfo = NamedTuple("TypoInfo", (("index", int),
                                    ("typo", str),
@@ -105,8 +105,9 @@ class CandidatesGenerator(Model):
                  and features for their ranking for each typo.
         """
         data = add_context_info(data)
-        typos = [TypoInfo(index, data.loc[index, Columns.Token], data.loc[index, Columns.Before],
-                          data.loc[index, Columns.Before])
+        typos = [TypoInfo(index, data.loc[index, Columns.Token],
+                          data.loc[index, Columns.Before],
+                          data.loc[index, Columns.After])
                  for i, index in enumerate(data.index)]
         if len(typos) > start_pool_size and threads_number > 1:
             with Pool(min(threads_number, len(typos))) as pool:
@@ -118,7 +119,7 @@ class CandidatesGenerator(Model):
             candidates = [self._lookup_corrections_for_token(t) for t in typos]
         candidates = pandas.DataFrame(list(chain.from_iterable(candidates)))
         candidates.columns = [Columns.Id, Columns.Token, Columns.Candidate, Columns.Features]
-        candidates[Columns.Id] = candidates[Columns.Id].astype(data.index.dtype)
+        candidates.loc[:, Columns.Id] = candidates[Columns.Id].astype(data.index.dtype)
         if save_candidates_file is not None:
             candidates.to_csv(save_candidates_file, compression="xz")
         return candidates
@@ -361,8 +362,9 @@ class CandidatesGenerator(Model):
         self.checker._deletes = deletes
         self.checker._words = {w: self.checker._words[i] for i, w in enumerate(words)}
         vectors = self.wv["vectors"]
-        wv = FastTextKeyedVectors(vectors.shape[1], self.wv["min_n"], self.wv["max_n"])
-        wv.vectors = vectors
+        wv = FastTextKeyedVectors(vectors.shape[1], self.wv["min_n"], self.wv["max_n"],
+                                  self.wv["bucket"], True)
+        wv.vectors = numpy.array(vectors)
         vocab = split_strings(self.wv["vocab"]["strings"])
         wv.vocab = {
             s: Vocab(index=i, count=self.wv["vocab"]["counts"][i])
@@ -370,7 +372,7 @@ class CandidatesGenerator(Model):
         wv.bucket = self.wv["bucket"]
         wv.index2word = wv.index2entity = vocab
         wv.num_ngram_vectors = self.wv["num_ngram_vectors"]
-        wv.vectors_ngrams = self.wv["vectors_ngrams"]
+        wv.vectors_ngrams = numpy.array(self.wv["vectors_ngrams"])
         wv.hash2index = {k: v for v, k in enumerate(self.wv["hash2index"])}
         self.wv = wv
 
