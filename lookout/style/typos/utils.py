@@ -87,10 +87,10 @@ def add_context_info(data: pandas.DataFrame) -> pandas.DataFrame:
     """
     Split context of identifier on before and after part and return new dataframe with the info.
 
-    :param data: DataFrame. Column Columns.Split will be used for
-                 creating context info if present.
-    :return: Provided data with added columns Columns.Before and Columns.After which contains lists
-             of corresponding contexts tokens.
+    :param data: DataFrame, containing column Columns.Token. \
+                 Column Columns.Split will be used for creating context info if present.
+    :return: New dataframe with added columns Columns.Before and Columns.After, \
+             containing lists of corresponding contexts tokens.
     """
     result_data = data.copy()
     if Columns.Before in result_data.columns and Columns.After in result_data.columns:
@@ -109,8 +109,8 @@ def add_context_info(data: pandas.DataFrame) -> pandas.DataFrame:
                 if isinstance(split, str):
                     split = split.split()
                 index = split.index(tokens[row_number])
-                before.append(split[:index])
-                after.append(split[index + 1:])
+                before.append(" ".join(split[:index]))
+                after.append(" ".join(split[index + 1:]))
 
     else:
         before = [[] for _ in range(len(result_data))]
@@ -128,13 +128,13 @@ def rank_candidates(candidates: pandas.DataFrame, pred_probs: List[float],
     """
     Rank candidates for tokens' correction based on the correctness probabilities.
 
-    :param candidates: DataFrame with columns Columns.Id, Columns.Token, "candidate" \
+    :param candidates: DataFrame with columns Columns.Id, Columns.Token, Columns.Candidate \
                        and indexed by range(len(pred_proba)).
     :param pred_probs: Array of probabilities of correctness of every candidate.
     :param n_candidates: Number of most probably correct candidates to return for each typo.
     :param return_all: False to return corrections only for tokens corrected in the \
                        first candidate.
-    :return: Dictionary {id : [[candidate, correct_prob]]}, candidates are sorted \
+    :return: Dictionary `{id : [(candidate, correctness_proba), ...]}`, candidates are sorted \
              by correct_prob in a descending order.
     """
     suggestions = {}
@@ -164,7 +164,7 @@ def filter_suggestions(data: pandas.DataFrame, suggestions: Dict[int, List[Tuple
     Filter correction suggestions.
 
     :param data: DataFrame which contains column Columns.Token.
-    :param suggestions: Dictionary of suggestions, keys correspond with typos.index.
+    :param suggestions: Dictionary of suggestions, keys correspond with data.index.
     :param n_candidates: Number of most probably correct candidates to return for each typo.
     :param return_all: False to return corrections only for tokens corrected in the \
                        first candidate.
@@ -181,8 +181,7 @@ def suggestions_to_df(data: pandas.DataFrame, suggestions: Dict[int, List[Tuple[
 
     :param data: DataFrame containing column Columns.Token.
     :param suggestions: Dictionary of suggestions, keys correspond with data.index.
-    :return: DataFrame with columns Columns.Token, Columns.Suggestions, \
-             indexed by data.index.
+    :return: DataFrame with columns Columns.Token, Columns.Suggestions, indexed by data.index.
     """
     suggestions_array = [[index, data.loc[index, Columns.Token], corrections]
                          for index, corrections in suggestions.items()]
@@ -198,8 +197,8 @@ def suggestions_to_flat_df(data: pandas.DataFrame,
 
     :param data: DataFrame containing column Columns.Token.
     :param suggestions: Dictionary of suggestions, keys correspond with data.index.
-    :return: DataFrame with columns Columns.Token, Columns.Candidate, \
-             Columns.Probability, indexed by data.index.
+    :return: DataFrame with columns Columns.Token, Columns.Candidate, Columns.Probability,
+             indexed by data.index.
     """
     flat_df = flatten_df_by_column(suggestions_to_df(data, suggestions),
                                    Columns.Suggestions, "suggestion")

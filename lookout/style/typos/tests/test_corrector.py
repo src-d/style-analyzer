@@ -18,8 +18,14 @@ class TyposCorrectorTest(unittest.TestCase):
     def setUpClass(cls):
         cls.data = pandas.read_csv(join(TEST_DATA_PATH, "test_data.csv.xz"),
                                    index_col=0).infer_objects()
+        cls.custom_data = pandas.DataFrame([["get tokens num", "get", "get"],
+                                            ["gwt tokens", "gwt", "get"],
+                                            ["get tokem", "tokem", "token"]],
+                                           columns=[Columns.Split, Columns.Token,
+                                                    Columns.CorrectToken])
         cls.corrector = TyposCorrector()
         cls.corrector.initialize_generator(VOCABULARY_FILE, VOCABULARY_FILE, FASTTEXT_DUMP_FILE)
+        cls.corrector.train(cls.data)
 
     def test_threads_number_setter(self):
         # Use unlikely number of threads for test

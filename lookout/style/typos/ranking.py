@@ -89,7 +89,7 @@ class CandidatesRanker(Model):
         :param n_candidates: Number of most probably correct candidates to return for each typo.
         :param return_all: False to return corrections only for typos corrected in the \
                            first candidate.
-        :return: Dictionary {id : [[candidate, correctness_proba]]}, candidates are sorted \
+        :return: Dictionary `{id : [(candidate, correctness_proba), ...]}`, candidates are sorted \
                  by correctness probability in a descending order.
         """
         dtest = xgb.DMatrix(features)

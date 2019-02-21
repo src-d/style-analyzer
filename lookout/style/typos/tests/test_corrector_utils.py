@@ -7,8 +7,9 @@ import numpy
 import pandas
 from pandas.util.testing import assert_frame_equal
 
-from lookout.style.typos.utils import (add_context_info, Columns, filter_suggestions, flatten_data,
-                                       rank_candidates, suggestions_to_df, suggestions_to_flat_df)
+from lookout.style.typos.utils import (
+    add_context_info, Columns, filter_suggestions, flatten_data, flatten_df_by_column,
+    rank_candidates, suggestions_to_df, suggestions_to_flat_df)
 
 
 TEST_DATA_PATH = str(pathlib.Path(__file__).parent)
@@ -17,13 +18,13 @@ TEST_DATA_PATH = str(pathlib.Path(__file__).parent)
 class DataTransformationsTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.custom_data = pandas.DataFrame([[["get", "tokens", "num"]],
-                                            [["use", "class"]]], columns=[Columns.Split])
-        cls.flat_custom_data = pandas.DataFrame([[["get", "tokens", "num"], "get"],
-                                                 [["get", "tokens", "num"], "tokens"],
-                                                 [["get", "tokens", "num"], "num"],
-                                                 [["use", "class"], "use"],
-                                                 [["use", "class"], "class"]],
+        cls.custom_data = pandas.DataFrame([["get tokens num"],
+                                            ["use class"]], columns=[Columns.Split])
+        cls.flat_custom_data = pandas.DataFrame([["get tokens num", "get"],
+                                                 ["get tokens num", "tokens"],
+                                                 ["get tokens num", "num"],
+                                                 ["use class", "use"],
+                                                 ["use class", "class"]],
                                                 columns=[Columns.Split, Columns.Token])
         cls.flat_data = pandas.read_csv(join(TEST_DATA_PATH, "test_flatten_data.csv.xz"),
                                         index_col=0).infer_objects()
@@ -31,23 +32,20 @@ class DataTransformationsTest(unittest.TestCase):
     def test_flatten_data(self):
         raw_data = pandas.read_csv(join(TEST_DATA_PATH, "raw_test_data.csv.xz"),
                                    index_col=0).infer_objects()
-
         assert_frame_equal(flatten_data(raw_data, Columns.Token), self.flat_data)
-        assert_frame_equal(flatten_data(self.custom_data, Columns.Token), self.flat_custom_data)
+        assert_frame_equal(flatten_df_by_column(self.custom_data, Columns.Split, Columns.Token,
+                                                str.split), self.flat_custom_data)
 
     def test_add_context_info(self):
         context_added = pandas.read_csv(join(TEST_DATA_PATH, "test_add_context_info.csv.xz"),
-                                        index_col=0).infer_objects()
-        context_added[Columns.After] = pandas.eval(context_added[Columns.After])
-        context_added[Columns.Before] = pandas.eval(context_added[Columns.Before])
-        assert_frame_equal(add_context_info(self.flat_data.copy()), context_added)
-
+                                        index_col=0).fillna("")
+        assert_frame_equal(add_context_info(self.flat_data), context_added)
         added_context_custom = pandas.DataFrame(
-            [[["get", "tokens", "num"], "get", [], ["tokens", "num"]],
-             [["get", "tokens", "num"], "tokens", ["get"], ["num"]],
-             [["get", "tokens", "num"], "num", ["get", "tokens"], []],
-             [["use", "class"], "use", [], ["class"]],
-             [["use", "class"], "class", ["use"], []]],
+            [["get tokens num", "get", "", "tokens num"],
+             ["get tokens num", "tokens", "get", "num"],
+             ["get tokens num", "num", "get tokens", ""],
+             ["use class", "use", "", "class"],
+             ["use class", "class", "use", ""]],
             columns=[Columns.Split, Columns.Token, Columns.Before, Columns.After])
         assert_frame_equal(add_context_info(self.flat_custom_data.copy()), added_context_custom)
 
@@ -60,9 +58,9 @@ class RankCandidatesTest(unittest.TestCase):
         with open(join(TEST_DATA_PATH, "test_data_candidates_suggestions.pickle"), "br") as f:
             cls.suggestions = pickle.load(f)
 
-        cls.custom_data = pandas.DataFrame([[["get", "tokens", "num"], "get"],
-                                            [["gwt", "tokens"], "gwt"],
-                                            [["get", "tokem"], "tokem"]],
+        cls.custom_data = pandas.DataFrame([["get tokens num", "get"],
+                                            ["gwt tokens", "gwt"],
+                                            ["get tokem", "tokem"]],
                                            columns=[Columns.Split, Columns.Token])
         cls.custom_candidates = pandas.DataFrame([[0, "get", "get"],
                                                   [1, "gwt", "get"],
