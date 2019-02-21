@@ -1,4 +1,4 @@
-from typing import Set, Union
+from typing import Set
 
 import pandas
 
@@ -19,14 +19,12 @@ def check_split(text: str, tokens: Set[str]) -> bool:
     return True
 
 
-def filter_splits(data: Union[pandas.DataFrame, str], tokens: Set[str]) -> pandas.DataFrame:
+def filter_splits(data: pandas.DataFrame, tokens: Set[str]) -> pandas.DataFrame:
     """
     Leave rows in a dataframe whose splits' tokens all belong to some vocabulary.
 
-    :param data: Dataframe or its .csv dump, containing column Columns.Split.
+    :param data: Dataframe which contains column Columns.Split.
     :param tokens: Set of tokens (reference vocabulary).
     :return: Filtered dataframe.
     """
-    if isinstance(data, str):
-        data = pandas.read_csv(data, index_col=0)
-    return data.loc[data[Columns.Split].apply(lambda x: check_split(x, tokens))]
+    return data[data[Columns.Split].apply(lambda x: check_split(x, tokens))]
