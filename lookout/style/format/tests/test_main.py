@@ -3,7 +3,7 @@ import sys
 import unittest
 from unittest.mock import patch
 
-import lookout.style.format.cmdline_tools as main
+import lookout.style.format.cmdline as main
 
 
 class MainTests(unittest.TestCase):

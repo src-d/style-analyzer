@@ -17,7 +17,7 @@ from typing import Iterable, Iterator, NamedTuple, Optional, Sequence, Type, Uni
 
 from dulwich import porcelain
 from lookout.core.analyzer import Analyzer
-from lookout.core.cmdline import create_model_repo_from_args
+from lookout.core.cmdline import create_model_repo
 from lookout.core.data_requests import DataService
 from lookout.core.event_listener import EventListener
 from lookout.core.manager import AnalyzerManager
@@ -73,7 +73,7 @@ class AnalyzerContextManager:
         self.args.db_kwargs = {}
         self.args.workers = 1
         # initialize model repository
-        self.model_repository = create_model_repo_from_args(self.args)
+        self.model_repository = create_model_repo(self.args)
         if init:
             self.model_repository.init()
         # initialize a new instance of DataService
