@@ -10,8 +10,8 @@ import pandas
 from pandas.util.testing import assert_frame_equal
 
 from lookout.style.typos.utils import (
-    add_context_info, Columns, filter_suggestions, flatten_data, rank_candidates,
-    read_frequencies, read_vocabulary, suggestions_to_df, suggestions_to_flat_df)
+    add_context_info, Columns, filter_suggestions, flatten_data, flatten_df_by_column,
+    rank_candidates, read_frequencies, read_vocabulary, suggestions_to_df, suggestions_to_flat_df)
 
 
 TEST_DATA_PATH = str(pathlib.Path(__file__).parent)
