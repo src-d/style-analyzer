@@ -32,7 +32,7 @@ class DataTransformationsTest(unittest.TestCase):
     def test_flatten_data(self):
         raw_data = pandas.read_csv(join(TEST_DATA_PATH, "raw_test_data.csv.xz"),
                                    index_col=0).infer_objects()
-        assert_frame_equal(flatten_data(raw_data, "token"), self.flat_data)
+        assert_frame_equal(flatten_data(raw_data, Columns.Token), self.flat_data)
         assert_frame_equal(flatten_df_by_column(self.custom_data, Columns.Split, Columns.Token,
                                                 str.split), self.flat_custom_data)
 

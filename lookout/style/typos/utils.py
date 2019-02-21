@@ -87,10 +87,10 @@ def add_context_info(data: pandas.DataFrame) -> pandas.DataFrame:
     """
     Split context of identifier on before and after part and return new dataframe with the info.
 
-    :param data: DataFrame. Column Columns.Split will be used for
-                 creating context info if present.
-    :return: Provided data with added columns Columns.Before and Columns.After which contains lists
-             of corresponding contexts tokens.
+    :param data: DataFrame, containing column Columns.Token. \
+                 Column Columns.Split will be used for creating context info if present.
+    :return: New dataframe with added columns Columns.Before and Columns.After, \
+             containing lists of corresponding contexts tokens.
     """
     result_data = data.copy()
     if Columns.Before in result_data.columns and Columns.After in result_data.columns:
