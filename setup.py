@@ -1,7 +1,12 @@
+from distutils.version import LooseVersion
 from importlib.machinery import SourceFileLoader
 import os
 
+import pip
 from setuptools import find_packages, setup
+
+if LooseVersion(pip.__version__) < LooseVersion("18.1"):
+    raise EnvironmentError("Installation of this package requires pip >= 18.1")
 
 lookout_style = SourceFileLoader("lookout", "./lookout/style/__init__.py").load_module()
 
@@ -43,6 +48,7 @@ setup(
         "xgboost>=0.72,<2.0",
         "tabulate>=0.8.0,<2.0",
         "python-igraph>=0.7.0,<2.0",
+        "smart-open @ git+https://github.com/vmarkovtsev/smart_open",
     ],
     extras_require={
         "tf": tf_requires,
