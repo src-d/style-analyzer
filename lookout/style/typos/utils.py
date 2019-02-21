@@ -181,8 +181,7 @@ def suggestions_to_df(data: pandas.DataFrame, suggestions: Dict[int, List[Tuple[
 
     :param data: DataFrame containing column Columns.Token.
     :param suggestions: Dictionary of suggestions, keys correspond with data.index.
-    :return: DataFrame with columns Columns.Token, Columns.Suggestions, \
-             indexed by data.index.
+    :return: DataFrame with columns Columns.Token, Columns.Suggestions, indexed by data.index.
     """
     suggestions_array = [[index, data.loc[index, Columns.Token], corrections]
                          for index, corrections in suggestions.items()]
@@ -198,8 +197,8 @@ def suggestions_to_flat_df(data: pandas.DataFrame,
 
     :param data: DataFrame containing column Columns.Token.
     :param suggestions: Dictionary of suggestions, keys correspond with data.index.
-    :return: DataFrame with columns Columns.Token, Columns.Candidate, \
-             Columns.Probability, indexed by data.index.
+    :return: DataFrame with columns Columns.Token, Columns.Candidate, Columns.Probability,
+             indexed by data.index.
     """
     flat_df = flatten_df_by_column(suggestions_to_df(data, suggestions),
                                    Columns.Suggestions, "suggestion")
