@@ -26,7 +26,7 @@ def read_frequencies(file: str) -> Dict[str, int]:
     """
     frequencies = {}
     with smart_open(file, "r") as f:
-        reader = csv.reader(f, delimiter=" ")
+        reader = csv.reader(f, delimiter=",")
         for line in reader:
             frequencies[line[0]] = int(line[1])
     return frequencies
@@ -41,7 +41,7 @@ def read_vocabulary(file: str) -> List[str]:
     :return: List of tokens of the vocabulary.
     """
     with smart_open(file, "r") as f:
-        reader = csv.reader(f, delimiter=" ")
+        reader = csv.reader(f, delimiter=",")
         tokens = [line[0] for line in reader]
     return tokens
 
