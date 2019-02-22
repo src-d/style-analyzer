@@ -57,7 +57,7 @@ class FormatModelTests(unittest.TestCase):
 
     def test_dump(self):
         fm = FormatModel()
-        self.assertEqual(fm.dump(), "code-format/[1, 0, 0] <unknown url> <unknown commit>")
+        self.assertEqual(fm.dump(), "generic/[1, 0, 0] <unknown url> <unknown commit>")
 
         DUMP = """code-format/[1] file:///var/folders/kw/93jybvs16_954hytgsq6ld7r0000gn/T/top-repos-quality-repos-jigt1n8g/jquery dae5f3ce3d2df27873d01f0d9682f6a91ad66b87
 

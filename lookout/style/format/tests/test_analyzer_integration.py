@@ -47,10 +47,10 @@ class TestAnalyzer:
             with patch("sys.argv", command.split(" ")):
                 launch_analyzer()
 
-        command = "analyzer run %s " % self.analyzer
+        command = "analyzer --log-level DEBUG run %s " % self.analyzer
         if self.config:
             command += " --config %s " % self.config
-        command += "--db sqlite:///%s --server localhost:%d --fs %s --log-level DEBUG"  \
+        command += "--db sqlite:///%s --server localhost:%d --fs %s"  \
                    % (self.db, self.port, self.fs)
         self.logs = logs = []
 
