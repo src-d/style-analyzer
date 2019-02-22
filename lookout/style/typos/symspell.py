@@ -2,6 +2,7 @@ import os
 import sys
 
 import numpy as np
+from smart_open import smart_open
 
 
 class SymSpell:
@@ -125,7 +126,7 @@ class SymSpell:
             corpus (str): Path to .csv corpus file.
         """
         if os.path.exists(corpus):
-            with open(corpus, "r") as f:
+            with smart_open(corpus, "r") as f:
                 for line in f:
                     key, count = line.split()
                     count = int(count)

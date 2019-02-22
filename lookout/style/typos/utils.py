@@ -4,6 +4,7 @@ from typing import Dict, List, NamedTuple, Tuple
 
 import numpy
 import pandas
+from smart_open import smart_open
 
 
 Columns = NamedTuple(
@@ -23,7 +24,7 @@ def read_frequencies(file: str) -> Dict[str, int]:
     :return: Dictionary of tokens frequencies.
     """
     frequencies = {}
-    with open(file, "r") as f:
+    with smart_open(file, "r") as f:
         for line in f:
             split = line.split()
             frequencies[split[0]] = int(split[1])
@@ -38,7 +39,7 @@ def read_vocabulary(file: str) -> List[str]:
                  First token in every line split-by-space is added to the vocabulary. \
     :return: List of tokens of the vocabulary.
     """
-    with open(file, "r") as f:
+    with smart_open(file, "r") as f:
         tokens = [line.split()[0] for line in f]
     return tokens
 

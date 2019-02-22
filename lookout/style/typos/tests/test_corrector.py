@@ -1,8 +1,6 @@
 import io
-import lzma
 from os.path import join
 import pathlib
-import tempfile
 import unittest
 
 import pandas
@@ -26,12 +24,7 @@ class TyposCorrectorTest(unittest.TestCase):
                                            columns=[Columns.Split, Columns.Token,
                                                     Columns.CorrectToken])
         cls.corrector = TyposCorrector()
-        with tempfile.NamedTemporaryFile() as vocabulary_file:
-            with lzma.open(VOCABULARY_FILE, "rt") as compressed:
-                with open(vocabulary_file.name, "w") as f:
-                    f.write(compressed.read())
-            cls.corrector.initialize_generator(vocabulary_file.name, vocabulary_file.name,
-                                               FASTTEXT_DUMP_FILE)
+        cls.corrector.initialize_generator(VOCABULARY_FILE, VOCABULARY_FILE, FASTTEXT_DUMP_FILE)
         cls.corrector.train(cls.data)
 
     def test_threads_number_setter(self):

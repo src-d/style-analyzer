@@ -1,8 +1,6 @@
-import lzma
 from os.path import join
 import pathlib
 import pickle
-import tempfile
 import unittest
 
 import numpy
@@ -19,12 +17,8 @@ TEST_DATA_PATH = str(pathlib.Path(__file__).parent)
 
 class ReadDataTest(unittest.TestCase):
     def test_read_functions(self):
-        with tempfile.NamedTemporaryFile() as vocabulary_file:
-            with lzma.open(join(TEST_DATA_PATH, "test_frequencies.csv.xz"), "rt") as compressed:
-                with open(vocabulary_file.name, "w") as f:
-                    f.write(compressed.read())
-            vocabulary = read_vocabulary(vocabulary_file.name)
-            frequencies = read_frequencies(vocabulary_file.name)
+        vocabulary = read_vocabulary(join(TEST_DATA_PATH, "test_frequencies.csv.xz"))
+        frequencies = read_frequencies(join(TEST_DATA_PATH, "test_frequencies.csv.xz"))
         self.assertEqual(len(vocabulary), 100)
         self.assertSetEqual(set(vocabulary), set(frequencies.keys()))
 

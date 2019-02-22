@@ -1,7 +1,8 @@
-import lzma
 import pathlib
 import tempfile
 import unittest
+
+from smart_open import smart_open
 
 from lookout.style.typos.symspell import EditDistance, SymSpell
 
@@ -21,7 +22,7 @@ class SymSpellTest(unittest.TestCase):
     def test_generate_candidates(self):
         symspell = SymSpell(max_dictionary_edit_distance=1)
         with tempfile.NamedTemporaryFile() as vocabulary_file:
-            with lzma.open(VOCABULARY_FILE, "rt") as compressed:
+            with smart_open(VOCABULARY_FILE, "rt") as compressed:
                 with open(vocabulary_file.name, "w") as f:
                     f.write(compressed.read())
             symspell.load_dictionary(vocabulary_file.name)
