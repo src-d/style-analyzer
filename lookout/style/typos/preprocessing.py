@@ -1,6 +1,8 @@
+import csv
 from typing import Set
 
 import pandas
+from smart_open import smart_open
 
 from lookout.style.typos.utils import Columns
 
@@ -43,6 +45,7 @@ def print_frequencies(tokens: Set[str], id_stats: pandas.DataFrame,
     :param path: Path to a .csv file to print frequencies to.
     """
     frequencies = id_stats.loc[tokens].dropna()[frequency_column]
-    with open(path, "w") as f:
-        for token in list(tokens):
-            print(token, frequencies[token], file=f)
+    with smart_open(path, "w") as f:
+        writer = csv.writer(f, delimiter=" ")
+        for line in frequencies.items():
+            writer.writerow(line)

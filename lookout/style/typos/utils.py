@@ -1,4 +1,5 @@
 """Various glue functions to work with the input dataset and the output from FastText."""
+import csv
 from itertools import chain
 from typing import Dict, List, NamedTuple, Tuple
 
@@ -25,9 +26,9 @@ def read_frequencies(file: str) -> Dict[str, int]:
     """
     frequencies = {}
     with smart_open(file, "r") as f:
-        for line in f:
-            split = line.split()
-            frequencies[split[0]] = int(split[1])
+        reader = csv.reader(f, delimiter=" ")
+        for line in reader:
+            frequencies[line[0]] = int(line[1])
     return frequencies
 
 
@@ -40,7 +41,8 @@ def read_vocabulary(file: str) -> List[str]:
     :return: List of tokens of the vocabulary.
     """
     with smart_open(file, "r") as f:
-        tokens = [line.split()[0] for line in f]
+        reader = csv.reader(f, delimiter=" ")
+        tokens = [line[0] for line in reader]
     return tokens
 
 
