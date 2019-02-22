@@ -1,6 +1,6 @@
 """Typo correction model."""
 from itertools import chain
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple
 
 from modelforge import Model
 import pandas
@@ -188,16 +188,14 @@ class TyposCorrector(Model):
             all_suggestions.append(suggestions.items())
         return dict(chain.from_iterable(all_suggestions))
 
-    def evaluate(self, test_data: Union[pandas.DataFrame, str]) -> None:
+    def evaluate(self, test_data: pandas.DataFrame) -> None:
         """
         Evaluate the corrector on the given test dataset.
 
         Save the result metrics to the model metadata and print it to the standard output.
-        :param test_data: DataFrame or its .csv dump, containing column Columns.Token, \
+        :param test_data: DataFrame which contains column Columns.Token, \
                           column Columns.Split is optional, but used when present
         """
-        if isinstance(test_data, str):
-            test_data = pandas.read_csv(test_data, index_col=0)
         suggestions = self.suggest(test_data)
         self._meta["metrics"] = get_score(test_data, suggestions).get_metrics()
         print_all_scores(test_data, suggestions)
