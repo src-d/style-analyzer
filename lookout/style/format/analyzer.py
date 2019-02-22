@@ -169,7 +169,7 @@ class FormatAnalyzer(Analyzer):
     @classmethod
     def check_training_required(
             cls, old_model: FormatModel, ptr: ReferencePointer, config: Mapping[str, Any],
-            data_service: "lookout.core.data_requests.DataService", **data) -> bool:
+            data_service: "lookout.core.data_requests.DataService", **_) -> bool:
         """
         Return True if the format model needs to be refreshed; otherwise, False.
 
@@ -179,13 +179,13 @@ class FormatAnalyzer(Analyzer):
         :param old_model: Current FormatModel.
         :param ptr: Git repository state pointer.
         :param config: configuration dict.
-        :param data: contains "files" - the list of files in the pointed state.
         :param data_service: connection to the Lookout data retrieval service.
         :return: True or False
         """
         _log = logging.getLogger(cls.__name__)
         changes = list(request_changes(
-            data_service.get_data(), old_model.ptr, ptr, contents=True, uast=False))
+            data_service.get_data(), old_model.ptr, ptr, contents=True, uast=True))
+        # TODO(vmarkovtsev): set uast=False after src-d/lookout#559 is resolved
         base_files_by_lang = files_by_language(c.base for c in changes)
         head_files_by_lang = files_by_language(c.head for c in changes)
         config = cls._load_train_config(config)
