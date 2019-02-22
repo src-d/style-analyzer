@@ -9,10 +9,18 @@ from pandas.util.testing import assert_frame_equal
 
 from lookout.style.typos.utils import (
     add_context_info, Columns, filter_suggestions, flatten_data, flatten_df_by_column,
-    rank_candidates, suggestions_to_df, suggestions_to_flat_df)
+    rank_candidates, read_frequencies, read_vocabulary, suggestions_to_df, suggestions_to_flat_df)
 
 
 TEST_DATA_PATH = str(pathlib.Path(__file__).parent)
+
+
+class ReadDataTest(unittest.TestCase):
+    def test_read_functions(self):
+        vocabulary = read_vocabulary(join(TEST_DATA_PATH, "test_frequencies.csv.xz"))
+        frequencies = read_frequencies(join(TEST_DATA_PATH, "test_frequencies.csv.xz"))
+        self.assertEqual(len(vocabulary), 100)
+        self.assertSetEqual(set(vocabulary), set(frequencies.keys()))
 
 
 class DataTransformationsTest(unittest.TestCase):
