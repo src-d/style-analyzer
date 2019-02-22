@@ -1,6 +1,7 @@
 import random
-import pandas
 import string
+
+import pandas
 from tqdm import tqdm
 
 from lookout.style.typos.utils import Columns
@@ -39,17 +40,18 @@ def rand_substitution(token: str) -> str:
     if len(token) == 0:
         return token
     pos = random.choice(range(len(token)))
-    letter = random.choice(letters)
-    return token[:pos] + letter + token[pos + 1:]
+    return token[:pos] + random.choice([c for c in letters if c != token[pos]]) + token[pos + 1:]
 
 
 def rand_swap(token: str) -> str:
     """
     Swap two random consequent symbols.
     """
-    if len(token) < 2:
+    if len(token) < 2 or len(set(token)) == 1:
         return token
     pos = random.choice(range(len(token) - 1))
+    while token[pos] == token[pos + 1]:
+        pos = random.choice(range(len(token) - 1))
     return token[:pos] + token[pos + 1] + token[pos] + token[pos + 2:]
 
 
@@ -80,7 +82,7 @@ def corrupt_tokens_in_df(data: pandas.DataFrame, typo_probability: float,
     result.loc[:, Columns.CorrectToken] = data[Columns.Token]
     result.loc[:, Columns.CorrectSplit] = data[Columns.Split]
     for i in tqdm(range(len(data))):
-        token = data.iloc[i, Columns.Token]
+        token = data.iloc[i][Columns.Token]
         typoed_token = token
         if len(token) > 1 and random.uniform(0, 1) < typo_probability:
             typoed_token = ""
@@ -88,6 +90,6 @@ def corrupt_tokens_in_df(data: pandas.DataFrame, typo_probability: float,
                 typoed_token = rand_typo(token)
                 while random.uniform(0, 1) < add_typo_probability:
                     typoed_token = rand_typo(typoed_token)
-        result.iloc[i, Columns.Split] = data.iloc[i, Columns.Split].replace(token, typoed_token)
-        result.iloc[i, Columns.Token] = typoed_token
+        result.iloc[i][Columns.Split] = data.iloc[i][Columns.Split].replace(token, typoed_token)
+        result.iloc[i][Columns.Token] = typoed_token
     return result
