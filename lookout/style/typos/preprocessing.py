@@ -46,6 +46,6 @@ def print_frequencies(tokens: Set[str], id_stats: pandas.DataFrame,
     """
     frequencies = id_stats.loc[tokens].dropna()[frequency_column]
     with smart_open(path, "w") as f:
-        writer = csv.writer(f, delimiter=",")
+        writer = csv.writer(f)
         for line in frequencies.items():
             writer.writerow(line)

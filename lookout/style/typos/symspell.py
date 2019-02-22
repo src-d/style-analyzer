@@ -128,9 +128,9 @@ class SymSpell:
         """
         if os.path.exists(corpus):
             with smart_open(corpus, "r") as f:
-                reader = csv.reader(f, delimiter=",")
+                reader = csv.reader(f)
                 for line in reader:
-                    self._create_dictionary_entry(line[0], line[1])
+                    self._create_dictionary_entry(*line)
 
         if self._deletes is None:
             self._deletes = dict()
