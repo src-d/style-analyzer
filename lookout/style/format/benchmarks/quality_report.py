@@ -5,7 +5,6 @@ import csv
 from datetime import datetime
 import functools
 import importlib
-import io
 import json
 import logging
 import logging.handlers
@@ -13,7 +12,7 @@ import os
 import subprocess
 import sys
 import tempfile
-from typing import Iterable, Iterator, NamedTuple, Optional, Sequence, Type, Union
+from typing import Iterable, Iterator, NamedTuple, Optional, Sequence, Tuple, Type, Union
 
 from dulwich import porcelain
 from lookout.core.analyzer import Analyzer
@@ -321,6 +320,49 @@ def handle_input_arg(input_arg: str, log: Optional[logging.Logger] = None) -> It
                 yield line
 
 
+def _generate_report_summary(reports: Iterable[Tuple[str, QualityReport]], report_name: str,
+                             ) -> str:
+    # precision, recall, f1, support, n_rules, avg_len stats
+    additional_fields = ("Rules Number", "Average Rule Len")
+    table = []
+    fields2id = OrderedDict()
+    for repo, report in reports:
+        metrics = _get_metrics(getattr(report, report_name))
+        if not table:
+            table.append(("repo",) + metrics._fields + additional_fields)
+            for i, field in enumerate(table[0]):
+                fields2id[field] = i
+        n_rules, avg_len = _get_model_summary(report.model_report)
+        table.append((get_repo_name(repo),) + metrics + (n_rules, avg_len))
+    avgvals = tuple(calc_avg(table[1:], fields2id[field]) for field in metrics._fields)
+    average = tuple(("%" + FLOAT_PRECISION) % v for v in avgvals[:-2])
+    average += tuple("%d" % v for v in avgvals[-2:])  # support, full_support
+    average += tuple(("%d", "%.1f")[i] % calc_avg(table[1:], fields2id[field])
+                     for i, field in enumerate(additional_fields))
+    fields_to_weight = (
+        ("precision", "support"), ("recall", "support"),
+        ("full_recall", "full_support"), ("f1", "support"),
+        ("full_f1", "full_support"), ("ppcr", "support"),
+    )
+    weighted_average = []
+    for field, weight_field in fields_to_weight:
+        weighted_average.append(("%" + FLOAT_PRECISION) % calc_weighted_avg(
+            table[1:], col=fields2id[field], weight_col=fields2id[weight_field]))
+    table.append(("average",) + average)
+    table.append(("weighted average",) + tuple(weighted_average))
+    float_fields = ("precision", "recall", "full_recall", "f1", "full_f1", "ppcr")
+    floatfmts = []
+    for field in fields2id:
+        if field in float_fields:
+            floatfmts.append(FLOAT_PRECISION)
+        elif field == "Average Rule Len":
+            floatfmts.append(".1f")
+        else:
+            floatfmts.append("g")
+
+    return tabulate(table, tablefmt="pipe", headers="firstrow", floatfmt=floatfmts)
+
+
 def generate_quality_report(input: str, output: str, force: bool, bblfsh: str, train_config: dict,
                             database: Optional[str] = None, fs: Optional[str] = None) -> None:
     """
@@ -425,51 +467,9 @@ def generate_quality_report(input: str, output: str, force: bool, bblfsh: str, t
                     log.exception("-" * 20 + "\nFailed to process %s repo", row["url"])
                     continue
 
-        # precision, recall, f1, support, n_rules, avg_len stats
-        additional_fields = ("Rules Number", "Average Rule Len")
         for report_name in ("train_report", "test_report"):
-            table = []
-            fields2id = OrderedDict()
-            with io.StringIO() as output:
-                for repo, report in reports:
-                    metrics = _get_metrics(getattr(report, report_name))
-                    if not table:
-                        table.append(("repo",) + metrics._fields + additional_fields)
-                        for i, field in enumerate(table[0]):
-                            fields2id[field] = i
-                    n_rules, avg_len = _get_model_summary(report.model_report)
-                    table.append((get_repo_name(repo),) + metrics + (n_rules, avg_len))
-                avgvals = tuple(calc_avg(table[1:], fields2id[field]) for field in metrics._fields)
-                average = tuple(("%" + FLOAT_PRECISION) % v for v in avgvals[:-2])
-                average += tuple("%d" % v for v in avgvals[-2:])  # support, full_support
-                average += tuple(("%d", "%.1f")[i] % calc_avg(table[1:], fields2id[field])
-                                 for i, field in enumerate(additional_fields))
-                fields_to_weight = (
-                    ("precision", "support"), ("recall", "support"),
-                    ("full_recall", "full_support"), ("f1", "support"),
-                    ("full_f1", "full_support"), ("ppcr", "support"),
-                )
-                weighted_average = []
-                for field, weight_field in fields_to_weight:
-                    weighted_average.append(("%" + FLOAT_PRECISION) % calc_weighted_avg(
-                        table[1:], col=fields2id[field], weight_col=fields2id[weight_field]))
-                table.append(("average",) + average)
-                table.append(("weighted average",) + tuple(weighted_average))
-                float_fields = ("precision", "recall", "full_recall", "f1", "full_f1", "ppcr")
-                floatfmts = []
-                for field in fields2id:
-                    if field in float_fields:
-                        floatfmts.append(FLOAT_PRECISION)
-                    elif field == "Average Rule Len":
-                        floatfmts.append(".1f")
-                    else:
-                        floatfmts.append("g")
-
-                print(tabulate(table, tablefmt="pipe", headers="firstrow", floatfmt=floatfmts),
-                      file=output)
-                summary = output.getvalue()
-            print(report_name)
-            print(summary)
+            summary = _generate_report_summary(reports, report_name)
+            log.info("\n%s\n%s", report_name, summary)
             summary_loc = os.path.join(output, "summary-%s.md" % report_name)
             with open(summary_loc, "w", encoding="utf-8") as f:
                 f.write(summary)
