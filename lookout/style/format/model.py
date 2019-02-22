@@ -25,9 +25,6 @@ class FormatModel(AnalyzerModel):
     configuration dictionary. Model is simple and must remain simple.
     """
 
-    NAME = "code-format"
-    VENDOR = "source{d}"
-    DESCRIPTION = "Model that contains Rules to format code."
     LICENSE = DEFAULT_LICENSE
 
     def __init__(self, **kwargs):
