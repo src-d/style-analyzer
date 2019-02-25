@@ -34,7 +34,7 @@ class PreprocessingTest(unittest.TestCase):
         vocabulary = {"get", "set"}
         with tempfile.NamedTemporaryFile() as vocabulary_file:
             print_frequencies(vocabulary, id_stats, frequency_column, vocabulary_file.name)
-            with open(vocabulary_file.name, "r") as f:
+            with open(vocabulary_file.name) as f:
                 lines = []
                 for line in f:
                     lines.append(line.strip())

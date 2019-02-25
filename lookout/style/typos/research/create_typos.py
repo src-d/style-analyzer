@@ -104,7 +104,7 @@ def corrupt(data_file, typo_probability, add_typo_probability, out_file):
 
 
 def corrupt_splits(data_file, typo_probability, add_typo_probability, out_file, repeats: int = 1):
-    with open(data_file, "r") as f:
+    with open(data_file) as f:
         with open(out_file, "w") as out:
             for _ in range(repeats):
                 for line in f:
