@@ -18,20 +18,6 @@ class ScoreMode(Enum):
     on_corrected = "on_corrected"
 
 
-def first_k_set(corrections: List[Tuple[str, float]], k: int) -> Set[str]:
-    """
-    Compose the set of k most probable correction candidates (tokens without probabilities).
-
-    :param corrections: List of corrections, sorted by probability.
-    :param k: Number of corrections to take.
-    :return: Set of k most probable correction tokens.
-    """
-    first_k = set()
-    for correction, _prob in corrections[:k]:
-        first_k.add(correction)
-    return first_k
-
-
 def get_scores(data: pandas.DataFrame, suggestions: Dict[int, List[Tuple[str, float]]],
                mode: ScoreMode = ScoreMode.correction, k: int = 1) -> Dict[str, float]:
     """

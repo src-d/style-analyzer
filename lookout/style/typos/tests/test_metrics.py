@@ -23,10 +23,6 @@ class MetricsTest(unittest.TestCase):
                            2: [("token", 0.98), ("taken", 0.3), ("tokem", 0.01)],
                            3: [("taken", 0.98), ("token", 0.9)]}
 
-    def test_first_k_set(self):
-        self.assertSetEqual(first_k_set([("token", 0.98), ("taken", 0.3), ("tokem", 0.01)], 2),
-                            {"token", "taken"})
-
     def test_get_score(self):
 
         self.assertDictEqual(get_scores(self.data, self.suggestions, ScoreMode.detection),
