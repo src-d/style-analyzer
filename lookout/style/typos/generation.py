@@ -1,7 +1,7 @@
 """Generation of the typo correction candidates. Contains features extraction and serialization."""
 from itertools import chain
 from multiprocessing import Pool
-from typing import List, NamedTuple, Set, Union
+from typing import List, NamedTuple, Optional, Set, Union
 
 from gensim.models import FastText
 from gensim.models.keyedvectors import FastTextKeyedVectors, Vocab
@@ -92,7 +92,7 @@ class CandidatesGenerator(Model):
         self.frequencies = read_frequencies(frequencies_file)
 
     def generate_candidates(self, data: pandas.DataFrame, threads_number: int,
-                            save_candidates_file: str = None,
+                            save_candidates_file: Optional[str] = None,
                             start_pool_size: int = 64) -> pandas.DataFrame:
         """
         Generate candidates for typos inside data.

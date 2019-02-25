@@ -1,6 +1,6 @@
 """Typo correction model."""
 from itertools import chain
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from modelforge import Model
 import pandas
@@ -59,9 +59,9 @@ class TyposCorrector(Model):
         """Set the number of threads for multiprocessing used to train and to predict."""
         self.ranker.boost_param["nthread"] = threads_number
 
-    def initialize_ranker(self, train_rounds: int = DEFAULT_TRAIN_ROUNDS,
-                          early_stopping: int = DEFAULT_EARLY_STOPPING,
-                          boost_params: dict = None) -> None:
+    def initialize_ranker(self, boost_params: Optional[dict] = None,
+                          train_rounds: int = DEFAULT_TRAIN_ROUNDS,
+                          early_stopping: int = DEFAULT_EARLY_STOPPING) -> None:
         """
         Apply the ranking parameters - see XGBoost docs for details.
 
@@ -71,10 +71,10 @@ class TyposCorrector(Model):
         :return: Nothing
         """
         boost_params = boost_params or self.DEFAULT_BOOST_PARAM
-        self.ranker.construct(train_rounds, early_stopping, boost_params)
+        self.ranker.construct(boost_params, train_rounds, early_stopping)
 
     def initialize_generator(self, vocabulary_file: str, frequencies_file: str,
-                             embeddings_file: str = None,
+                             embeddings_file: Optional[str] = None,
                              neighbors_number: int = DEFAULT_NEIGHBORS_NUMBER,
                              edit_candidates: int = DEFAULT_EDIT_CANDIDATES,
                              max_distance: int = DEFAULT_MAX_DISTANCE,
@@ -95,8 +95,8 @@ class TyposCorrector(Model):
         self.generator.construct(vocabulary_file, frequencies_file, embeddings_file,
                                  neighbors_number, edit_candidates, max_distance, radius)
 
-    def train(self, data: pandas.DataFrame, candidates:  str = None,
-              save_candidates_file: str = None) -> None:
+    def train(self, data: pandas.DataFrame, candidates:  Optional[str] = None,
+              save_candidates_file: Optional[str] = None) -> None:
         """
         Train corrector on tokens from the given dataset.
 
@@ -113,8 +113,8 @@ class TyposCorrector(Model):
         self.ranker.fit(data[Columns.CorrectToken], get_candidates_metadata(candidates),
                         get_candidates_features(candidates))
 
-    def train_on_file(self, data_file: str, candidates:  str = None,
-                      save_candidates_file: str = None) -> None:
+    def train_on_file(self, data_file: str, candidates:  Optional[str] = None,
+                      save_candidates_file: Optional[str] = None) -> None:
         """
         Train corrector on tokens from the given file.
 
@@ -125,8 +125,8 @@ class TyposCorrector(Model):
         """
         self.train(pandas.read_csv(data_file, index_col=0), candidates, save_candidates_file)
 
-    def suggest(self, data: pandas.DataFrame, candidates: str = None,
-                save_candidates_file: str = None, n_candidates: int = 3,
+    def suggest(self, data: pandas.DataFrame, candidates:  Optional[str] = None,
+                save_candidates_file: Optional[str] = None, n_candidates: int = 3,
                 return_all: bool = True) -> Dict[int, List[Tuple[str, float]]]:
         """
         Suggest corrections for the tokens from the given dataset.
@@ -147,8 +147,8 @@ class TyposCorrector(Model):
         return self.ranker.rank(get_candidates_metadata(candidates),
                                 get_candidates_features(candidates), n_candidates, return_all)
 
-    def suggest_on_file(self, data_file: str, candidates:  str = None,
-                        save_candidates_file: str = None, n_candidates: int = 3,
+    def suggest_on_file(self, data_file: str, candidates:  Optional[str] = None,
+                        save_candidates_file: Optional[str] = None, n_candidates: int = 3,
                         return_all: bool = True) -> Dict[int, List[Tuple[str, float]]]:
         """
         Suggest corrections for the tokens from the given file.
@@ -165,7 +165,7 @@ class TyposCorrector(Model):
         return self.suggest(pandas.read_csv(data_file, index_col=0), candidates,
                             save_candidates_file, n_candidates, return_all)
 
-    def suggest_by_batches(self, data: pandas.DataFrame, n_candidates: int = None,
+    def suggest_by_batches(self, data: pandas.DataFrame, n_candidates: int = 3,
                            return_all: bool = True, batch_size: int = 2048,
                            ) -> Dict[int, List[Tuple[str, float]]]:
         """

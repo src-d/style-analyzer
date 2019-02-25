@@ -121,7 +121,7 @@ def add_context_info(data: pandas.DataFrame) -> pandas.DataFrame:
 
 
 def rank_candidates(candidates: pandas.DataFrame, pred_probs: List[float],
-                    n_candidates: Optional[int], return_all: bool = True,
+                    n_candidates: Optional[int] = None, return_all: bool = True,
                     ) -> Dict[int, List[Tuple[str, float]]]:
     """
     Rank candidates for tokens' correction based on the correctness probabilities.
