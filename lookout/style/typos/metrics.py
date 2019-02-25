@@ -1,6 +1,6 @@
 from enum import Enum, unique
 import os
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Tuple
 
 import pandas
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
