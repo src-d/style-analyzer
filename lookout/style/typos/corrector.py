@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 from lookout.style.typos.generation import (CandidatesGenerator, get_candidates_features,
                                             get_candidates_metadata)
-from lookout.style.typos.metrics import get_scores, print_all_scores
+from lookout.style.typos.metrics import get_scores, generate_report
 from lookout.style.typos.ranking import CandidatesRanker
 from lookout.style.typos.utils import Columns
 
@@ -198,7 +198,7 @@ class TyposCorrector(Model):
         """
         suggestions = self.suggest(test_data)
         self._meta["metrics"] = get_scores(test_data, suggestions)
-        print_all_scores(test_data, suggestions)
+        print(generate_report(test_data, suggestions))
 
     def __eq__(self, other: "TyposCorrector") -> bool:
         return self.generator == other.generator and self.ranker == other.ranker
