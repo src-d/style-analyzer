@@ -76,6 +76,7 @@ def corrupt_tokens_in_df(data: pandas.DataFrame, typo_probability: float,
     :param typo_probability: Probability with which a token gets to be corrupted.
     :param add_typo_probability: Probability with which one more corruption happens to a \
                                  corrupted token.
+    :param log_level: Level of logging.
     :return: New dataframe with added columns Columns.CorrectToken and Columns.CorrectSplit, \
              which contain tokens and corresponding splits from the `data`. Columns.Token and \
              Columns.Split now contain partially corrupted tokens and corresponding splits.
