@@ -39,8 +39,8 @@ class PreprocessingTest(unittest.TestCase):
                 for line in f:
                     lines.append(line.strip())
             self.assertEqual(len(lines), 2)
-            self.assertIn("get 23", lines)
-            self.assertIn("set 17", lines)
+            self.assertIn("get,23", lines)
+            self.assertIn("set,17", lines)
 
 
 if __name__ == "__main__":
