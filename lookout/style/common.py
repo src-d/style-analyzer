@@ -37,7 +37,7 @@ def merge_dicts(*dicts: Mapping) -> dict:
 
 
 def load_jinja2_template(templates_path, report_template_filename: str) -> jinja2.Template:
-    """Function for loading jinja2 templates."""
+    """Load jinja2 template."""
     env = jinja2.Environment(trim_blocks=True, lstrip_blocks=True, keep_trailing_newline=True,
                              extensions=["jinja2.ext.do"])
     env.filters.update({
