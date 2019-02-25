@@ -1,3 +1,4 @@
+import csv
 import os
 import sys
 
@@ -127,10 +128,8 @@ class SymSpell:
         """
         if os.path.exists(corpus):
             with smart_open(corpus, "r") as f:
-                for line in f:
-                    key, count = line.split()
-                    count = int(count)
-                    self._create_dictionary_entry(key, count)
+                for line in csv.reader(f):
+                    self._create_dictionary_entry(line[0], int(line[1]))
 
         if self._deletes is None:
             self._deletes = dict()
@@ -148,7 +147,7 @@ class SymSpell:
             corpus (str): Path to corpus file.
         """
         if os.path.exists(corpus):
-            with open(corpus, "r") as f:
+            with open(corpus) as f:
                 for line in f:
                     for key in line.split():
                         self._create_dictionary_entry(key, 1)
