@@ -3,7 +3,7 @@
 | Score type | Accuracy  | Precision |  Recall   | F1-score  |
 |-----------:|:----------|:----------|:----------|:----------|
 {% for mode in scores %}
-|     {{ mode}}      | {% for metric in ["accuracy", "precision", "recall", "f1"] %} {{ "  %.3f " % a }} | {% endfor %}
+| {{ ":10s" % mode}} | {% for metric in ["accuracy", "precision", "recall", "f1"] %} {{ "  %.3f " % a }} | {% endfor %}
 {% endfor %}
 
 
