@@ -25,7 +25,7 @@ def read_frequencies(file: str) -> Dict[str, int]:
     :return: Dictionary of tokens frequencies.
     """
     frequencies = {}
-    with smart_open(file) as f:
+    with smart_open(file, "r") as f:
         for line in csv.reader(f):
             frequencies[line[0]] = int(line[1])
     return frequencies
@@ -39,7 +39,7 @@ def read_vocabulary(file: str) -> List[str]:
                  First token in every line split-by-space is added to the vocabulary. \
     :return: List of tokens of the vocabulary.
     """
-    with smart_open(file) as f:
+    with smart_open(file, "r") as f:
         tokens = [line[0] for line in csv.reader(f)]
     return tokens
 

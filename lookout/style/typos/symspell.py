@@ -127,7 +127,7 @@ class SymSpell:
             corpus (str): Path to .csv corpus file.
         """
         if os.path.exists(corpus):
-            with smart_open(corpus) as f:
+            with smart_open(corpus, "r") as f:
                 for line in csv.reader(f):
                     self._create_dictionary_entry(line[0], int(line[1]))
 
