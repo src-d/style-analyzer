@@ -7,7 +7,7 @@ import json
 import logging
 import os
 import pprint
-from typing import Any, Iterable, List, Mapping, NamedTuple, Optional, Sequence, Type, Union
+from typing import Any, Dict, Iterable, List, Mapping, NamedTuple, Optional, Sequence, Type, Union
 
 from bblfsh import BblfshClient
 import jinja2
@@ -72,12 +72,14 @@ def generate_quality_report(language: str, report: Mapping[str, Any], ptr: Refer
     return res
 
 
-def generate_model_report(model: FormatModel,
+def generate_model_report(model: FormatModel, analyze_config: Dict[str, Any],
                           languages: Optional[Union[str, Iterable[str]]] = None) -> str:
     """
     Generate report about model - description for each rule, min/max support, min/max confidence.
 
     :param model: trained format model.
+    :param analyze_config: config that is used at the analysis stage. It is needed to calculate \
+                           the real number of enabled rules.
     :param languages: Languages for which report should be created. You can specify one \
                       language as string, several as list of strings or None for all languages in \
                       the model.
@@ -89,8 +91,8 @@ def generate_model_report(model: FormatModel,
         if language not in model:
             raise NotFittedError(language)
     template = _load_jinja2_template("model_report.md.jinja2")
-    return template.render(model=model, languages=languages, FeatureExtractor=FeatureExtractor,
-                           describe_rule=describe_rule)
+    return template.render(model=model, languages=languages, analyze_config=analyze_config,
+                           FeatureExtractor=FeatureExtractor, describe_rule=describe_rule)
 
 
 class FakeStub:
@@ -334,7 +336,7 @@ class QualityReportAnalyzer(ReportAnalyzer):
 
         :return: report.
         """
-        return generate_model_report(model=self.model)
+        return generate_model_report(model=self.model, analyze_config=self.defaults_for_analyze)
 
     def generate_train_report(self, fixes: Iterable[FileFix]) -> str:
         """

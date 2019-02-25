@@ -10,7 +10,10 @@
 {% for language in languages %}
 ## {{ language }}
     {% set scns = namespace(min_support=1000000000000, max_support=-1, min_conf=1, max_conf=0) %}
-    {% for rule in model[language].rules %}
+    {% set rules = model[language].filter_by_confidence(
+        analyze_config["confidence_threshold"]).filter_by_support(
+        analyze_config["support_threshold"]) %}
+    {% for rule in rules.rules %}
         {% set scns.min_support = (scns.min_support, rule.stats.support)|min %}
         {% set scns.max_support = (scns.max_support, rule.stats.support)|max %}
         {% set scns.min_conf = (scns.min_conf, rule.stats.conf)|min %}
@@ -21,11 +24,11 @@
         "max_support": scns.max_support,
         "min_conf": scns.min_conf,
         "max_conf": scns.max_conf,
-        "num_rules": model[language]|length,
-        "avg_rule_len": model[language].avg_rule_len,
+        "num_rules": rules|length,
+        "avg_rule_len": rules.avg_rule_len,
     }) %}
 ### Summary
-{{ model[language] }}
+{{ rules }}
 
 | | |
 |-|-|
@@ -37,7 +40,7 @@
 ### Configuration
 
 ```json
-    {% set cfg = model[language].origin_config|deepcopy %}
+    {% set cfg = rules.origin_config|deepcopy %}
     {% do cfg["feature_extractor"].__setitem__("label_composites", "<cut>") %}
     {% do cfg["feature_extractor"].__setitem__("selected_features", "<cut>") %}
 {{ cfg|pformat(width=100) }}
@@ -47,10 +50,14 @@
 
 | rule number | description |
 |----:|:-----|
-{% set fe = FeatureExtractor(language=language, **model[language].origin_config["feature_extractor"]) %}
-{% for rule in model[language].rules %}
+{% set fe = FeatureExtractor(language=language, **rules.origin_config["feature_extractor"]) %}
+{% for rule in rules.rules %}
 | {{ loop.index }} | `{{ describe_rule(rule, fe).replace("\n", "<br>") }}` |
 {% endfor %}
+
+### Note
+All statistics are calculated with respect to the "analyze" config. This means that the rules were filtered by
+`confidence_threshold` and `support_threshold` values.
 
 {% endfor %}{# languages #}
 <details>
