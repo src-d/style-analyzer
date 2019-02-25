@@ -23,10 +23,6 @@ class ScoreMode(Enum):
 def _load_jinja2_template(report_template_filename: str) -> jinja2.Template:
     env = jinja2.Environment(trim_blocks=True, lstrip_blocks=True, keep_trailing_newline=True,
                              extensions=["jinja2.ext.do"])
-    env.filters.update({
-        "pformat": pprint.pformat,
-        "deepcopy": copy.deepcopy,
-    })
     loader = jinja2.FileSystemLoader((os.path.join(os.path.dirname(__file__), "..", "templates"),),
                                      followlinks=True)
     template = loader.load(env, report_template_filename)
