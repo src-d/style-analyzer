@@ -61,9 +61,10 @@ def get_scores(data: pandas.DataFrame, suggestions: Dict[int, List[Tuple[str, fl
         typoed = data.loc[i, Columns.Token] != data.loc[i, Columns.CorrectToken]
         if mode == ScoreMode.detection or not typoed:
             # If the word is not misspelled, model should not correct it in any mode
-            corrected_right = (suggestions[i][0][0] != data.loc[i, Columns.Token])
+            corrected_right = suggestions[i][0][0] != data.loc[i, Columns.Token]
         else:
-            corrected_right = (data.loc[i, Columns.CorrectToken] in first_k_set(suggestions[i], k))
+            corrected_right = data.loc[i, Columns.CorrectToken] in set(
+                correction for correction, _ in suggestions[i][:k])
         y_pred.append(corrected_right)
         y_true.append(typoed)
 
@@ -77,7 +78,7 @@ def generate_report(data: pandas.DataFrame, suggestions: Dict[int, List[Tuple[st
     """Print scores for suggestions in an easy readable way."""
     scores = {ScoreMode.detection.value: get_scores(data, suggestions, ScoreMode.detection)}
     for mode in [ScoreMode.on_corrected, ScoreMode.correction]:
-        for k in [1, 2, 3]:
+        for k in range(1, 3):
             scores["Top %i score %s" % (k, mode.value)] = get_scores(data, suggestions, mode, k)
     template = load_jinja2_template(os.path.join(os.path.dirname(__file__), "..", "templates"),
                                     "scores.md.jinja2")
