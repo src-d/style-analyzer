@@ -2,11 +2,10 @@
 
 | Score type | Accuracy | Precision | Recall | F1-score |
 |-----------:|:---------|:----------|:-------|:---------|
-{% for mode in scores -%}
-| `{{ mode }}` | {{ "%.3f" % scores[mode]["accuracy"] -}}
-| {{ "%.3f" % scores[mode]["precision"] -}}
-| {{ "%.3f" % scores[mode]["recall"] -}}
-| {{ "%.3f" % scores[mode]["f1"] -}} |
+{% for mode in scores %}
+    | `{{ mode }}` |
+    {% for metric in ["accuracy", "precision", "recall", "f1"] %}
+    {{ "%.3f" % scores[mode]["accuracy"] -}} |
 {% endfor %}
 
 

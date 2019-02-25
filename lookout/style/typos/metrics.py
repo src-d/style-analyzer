@@ -1,13 +1,11 @@
-import copy
 from enum import Enum, unique
 import os
-import pprint
 from typing import Dict, List, Set, Tuple
 
-import jinja2
 import pandas
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 
+from lookout.style.common import load_jinja2_template
 from lookout.style.typos.utils import Columns
 
 
@@ -18,17 +16,6 @@ class ScoreMode(Enum):
     detection = "detection"
     correction = "correction"
     on_corrected = "on_corrected"
-
-
-def _load_jinja2_template(report_template_filename: str) -> jinja2.Template:
-    env = jinja2.Environment(trim_blocks=True, lstrip_blocks=True, keep_trailing_newline=True,
-                             extensions=["jinja2.ext.do"])
-    loader = jinja2.FileSystemLoader((os.path.join(os.path.dirname(__file__), "..", "templates"),),
-                                     followlinks=True)
-    template = loader.load(env, report_template_filename)
-    # the following is really needed, otherwise e.g. range is undefined
-    template.globals = template.environment.globals
-    return template
 
 
 def first_k_set(corrections: List[Tuple[str, float]], k: int) -> Set[str]:
@@ -92,5 +79,6 @@ def generate_report(data: pandas.DataFrame, suggestions: Dict[int, List[Tuple[st
     for mode in [ScoreMode.on_corrected, ScoreMode.correction]:
         for k in [1, 2, 3]:
             scores["Top %i score %s" % (k, mode.value)] = get_scores(data, suggestions, mode, k)
-    template = _load_jinja2_template("scores.md.jinja2")
+    template = load_jinja2_template(os.path.join(os.path.dirname(__file__), "..", "templates"),
+                                    "scores.md.jinja2")
     return template.render(scores=scores)
