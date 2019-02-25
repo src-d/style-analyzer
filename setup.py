@@ -48,7 +48,7 @@ setup(
         "xgboost>=0.72,<2.0",
         "tabulate>=0.8.0,<2.0",
         "python-igraph>=0.7.0,<2.0",
-        "smart-open @ git+https://github.com/vmarkovtsev/smart_open",
+        "srcd_smart_open==1.9.0",
     ],
     extras_require={
         "tf": tf_requires,
