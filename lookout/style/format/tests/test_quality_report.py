@@ -9,21 +9,24 @@ import tempfile
 import unittest
 
 from lookout.core.test_helpers import server
+from modelforge import slogging
 from numpy.testing import assert_almost_equal
 
+from lookout.style.format.benchmarks.analyzer_context_manager import AnalyzerContextManager
 from lookout.style.format.benchmarks.general_report import print_reports, QualityReportAnalyzer
 from lookout.style.format.benchmarks.quality_report import _get_json_data, _get_metrics, \
     _get_model_summary
 from lookout.style.format.tests import long_test
 from lookout.style.format.tests.test_analyzer import get_analyze_config, get_train_config
 from lookout.style.format.tests.test_analyzer_integration import (
-    FROM_COMMIT, TestAnalyzer, TO_COMMIT)
+    FROM_COMMIT, TO_COMMIT)
 
 
 class PretrainedModelTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """Prepare environment & train the model for tests."""
+        slogging.setup("DEBUG", False)
         if not server.exefile.exists():
             server.fetch()
         # required config
@@ -167,8 +170,8 @@ class QualityReportTests(PretrainedModelTests):
     @long_test
     def test_train_review_analyzer_integration(self):
         """Integration test for review event."""
-        with TestAnalyzer(port=self.port, db=self.db.name, fs=self.fs.name,
-                          analyzer="lookout.style.format.benchmarks.general_report"):
+        with AnalyzerContextManager(analyzer=QualityReportAnalyzer,
+                                    port=self.port, db=self.db.name, fs=self.fs.name):
             server.run("push", FROM_COMMIT, TO_COMMIT, port=self.port,
                        git_dir=self.jquery_dir, config_json=json.dumps({
                             QualityReportAnalyzer.name: get_train_config()}))

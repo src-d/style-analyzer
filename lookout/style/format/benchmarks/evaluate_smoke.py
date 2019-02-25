@@ -17,9 +17,9 @@ import pandas
 from tqdm import tqdm
 
 from lookout.style.format.analyzer import FormatAnalyzer
+from lookout.style.format.benchmarks.analyzer_context_manager import AnalyzerContextManager
 from lookout.style.format.code_generator import CodeGenerator
 from lookout.style.format.feature_extractor import FeatureExtractor
-from lookout.style.format.tests.test_analyzer_integration import TestAnalyzer
 from lookout.style.format.utils import merge_dicts
 from lookout.style.format.virtual_node import VirtualNode
 
@@ -292,9 +292,6 @@ class SmokeEvalFormatAnalyzer(FormatAnalyzer):
         return []
 
 
-analyzer_class = SmokeEvalFormatAnalyzer
-
-
 def evaluate_smoke_entry(inputpath: str, reportdir: str, database: str, bblfsh: str,
                          train_config: dict, analyze_config: dict) -> None:
     """
@@ -304,7 +301,7 @@ def evaluate_smoke_entry(inputpath: str, reportdir: str, database: str, bblfsh: 
     report_filename = os.path.join(reportdir, "report.csv")
     log = logging.getLogger("evaluate_smoke")
     port = server.find_port()
-    train_config = {analyzer_class.name: train_config}
+    train_config = {SmokeEvalFormatAnalyzer.name: train_config}
 
     if database is None:
         db = tempfile.NamedTemporaryFile(dir=inputpath, prefix="db", suffix=".sqlite3")
@@ -316,10 +313,7 @@ def evaluate_smoke_entry(inputpath: str, reportdir: str, database: str, bblfsh: 
         else:
             log.info("Database %s not found and will be created." % database)
     with tempfile.TemporaryDirectory(dir=inputpath) as fs:
-        context_manager = TestAnalyzer(
-            port=port, db=database, fs=fs,
-            analyzer="lookout.style.format.benchmarks.evaluate_smoke")
-        with context_manager:
+        with AnalyzerContextManager(SmokeEvalFormatAnalyzer, port=port, db=database, fs=fs):
             inputpath = Path(inputpath)
             if not server.exefile.exists():
                 server.fetch()
@@ -333,7 +327,7 @@ def evaluate_smoke_entry(inputpath: str, reportdir: str, database: str, bblfsh: 
                 for row in tqdm(reader):
                     repopath = inputpath / row["repo"]
                     config_json = {
-                        analyzer_class.name:
+                        SmokeEvalFormatAnalyzer.name:
                             merge_dicts(analyze_config, {
                                 "repo_name": row["repo"],
                                 "style_name": row["style"],

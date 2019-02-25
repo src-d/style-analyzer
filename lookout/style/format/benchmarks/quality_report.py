@@ -1,10 +1,8 @@
 """Measure quality on several top repositories."""
-from argparse import Namespace
 from collections import OrderedDict
 import csv
 from datetime import datetime
 import functools
-import importlib
 import json
 import logging
 import logging.handlers
@@ -12,18 +10,14 @@ import os
 import subprocess
 import sys
 import tempfile
-from typing import Iterable, Iterator, NamedTuple, Optional, Sequence, Tuple, Type, Union
+from typing import Iterable, Iterator, NamedTuple, Optional, Sequence, Tuple, Union
 
 from dulwich import porcelain
-from lookout.core.analyzer import Analyzer
-from lookout.core.cmdline import create_model_repo_from_args
-from lookout.core.data_requests import DataService
-from lookout.core.event_listener import EventListener
-from lookout.core.manager import AnalyzerManager
 from lookout.core.test_helpers import server
 import numpy
 from tabulate import tabulate
 
+from lookout.style.format.benchmarks.analyzer_context_manager import AnalyzerContextManager
 from lookout.style.format.benchmarks.general_report import QualityReportAnalyzer
 from lookout.style.format.feature_extractor import FeatureExtractor
 
@@ -33,67 +27,6 @@ from lookout.style.format.feature_extractor import FeatureExtractor
 # https://github.com/vuejs/vuex,2e62705d4bce4ebcb8eca23df8c7b849125fc565,1ac16a95c574f6b1386016fb6d4f00cfd2ee1d60",  # noqa: E501
 
 FLOAT_PRECISION = ".3f"
-
-
-class AnalyzerContextManager:
-    """Context manager for launching analyzer."""
-
-    def __init__(
-            self, port: int, db: str, fs: str, config: str = "",
-            analyzer: Union[str, Sequence[str], Iterable[Type[Analyzer]]] = "lookout.style.format",
-            init: bool = True) -> None:
-        """
-        Init analyzer: model_repository, data_service, arguments, etc.
-
-        :param port: port to use for analyzer.
-        :param db: database location.
-        :param fs: location where to store results of launched analyzer.
-        :param config: Path to the configuration file with option defaults. If empty - skip.
-        :param analyzer: analyzer(s) to use.
-        :param init: To run `analyzer init` or not. \
-                     If you want to reuse existing database set False.
-        """
-        self.port = port
-        self.db = db
-        self.fs = fs
-        self.config_path = config  # mimic TestAnalyzer - not used so far
-        if isinstance(analyzer, (str, type)):
-            self.analyzer = [analyzer]
-        if isinstance(self.analyzer[0], str):
-            self.analyzer = [importlib.import_module(a).analyzer_class for a in self.analyzer]
-
-        class Args:
-            pass
-        self.args = Namespace()
-        self.args.db = "sqlite:///%s" % self.db
-        self.args.fs = self.fs
-        self.args.cache_size = "1G"
-        self.args.cache_ttl = "6h"
-        self.args.db_kwargs = {}
-        self.args.workers = 1
-        # initialize model repository
-        self.model_repository = create_model_repo_from_args(self.args)
-        if init:
-            self.model_repository.init()
-        # initialize a new instance of DataService
-        data_request_address = "0.0.0.0:10301"
-        self.data_service = DataService(data_request_address)
-
-    def __enter__(self) -> "AnalyzerContextManager":
-        self.manager = AnalyzerManager(
-            analyzers=self.analyzer,
-            model_repository=self.model_repository,
-            data_service=self.data_service,
-        )
-        self.listener = EventListener(address="0.0.0.0:%d" % self.port, handlers=self.manager,
-                                      n_workers=self.args.workers)
-        self.listener.start()
-        return self
-
-    def __exit__(self, exc_type=None, exc_val=None, exc_tb=None):
-        self.listener.stop()
-        self.model_repository.shutdown()
-        self.data_service.shutdown()
 
 
 def get_repo_name(url: str) -> str:
@@ -395,8 +328,7 @@ def generate_quality_report(input: str, output: str, force: bool, bblfsh: str, t
         database = database if database else os.path.join(tmpdirname, "db.sqlite3")
         fs = fs if fs else os.path.join(tmpdirname, "models")
         os.makedirs(fs, exist_ok=True)
-        with AnalyzerContextManager(port=port, db=database, fs=fs,
-                                    analyzer="lookout.style.format.benchmarks.general_report",
+        with AnalyzerContextManager(QualityReportAnalyzer, port=port, db=database, fs=fs,
                                     init=False):
             start_time = datetime.now()
             for ri, row in enumerate(repositories):

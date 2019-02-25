@@ -13,11 +13,10 @@ from lookout.core.test_helpers import server
 from tqdm import tqdm
 
 from lookout.style.format.analyzer import FormatAnalyzer
-from lookout.style.format.benchmarks.quality_report import AnalyzerContextManager, \
-    ensure_repo, handle_input_arg
+from lookout.style.format.benchmarks.analyzer_context_manager import AnalyzerContextManager
+from lookout.style.format.benchmarks.quality_report import ensure_repo, handle_input_arg
 from lookout.style.format.feature_extractor import FeatureExtractor
 
-analyzer_class = FormatAnalyzer
 
 docker_client = docker.from_env()
 bblfsh_name = "expected_vnodes_bblfshd"
@@ -108,10 +107,8 @@ def calc_expected_vnodes_number_entry(input: str, output: str, runs: int) -> Non
                 database = os.path.join(tmpdirname, "db.sqlite3")
                 fs = os.path.join(tmpdirname, "models")
                 os.makedirs(fs, exist_ok=fs)
-                with AnalyzerContextManager(
-                        port=port, db=database, fs=fs,
-                        analyzer="lookout.style.format.benchmarks.expected_vnodes_number",
-                        init=False):
+                with AnalyzerContextManager(FormatAnalyzer,  port=port, db=database, fs=fs,
+                                            init=False):
                     for row in tqdm(repositories):
                         try:
                             vnodes_number = get_vnodes_number(

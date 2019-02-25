@@ -368,6 +368,3 @@ class QualityReportAnalyzer(ReportAnalyzer):
                     "Test classification report is unavailable for language %s. Skipping." % lang)
             return generate_quality_report(lang, classification_report, self.model.ptr, [], 0,
                                            name="Test")
-
-
-analyzer_class = QualityReportAnalyzer
