@@ -130,7 +130,7 @@ class EvaluateSmokeTests(unittest.TestCase):
                                  get_train_config(), get_analyze_config())
             report = pandas.read_csv(os.path.join(report_dir, "report.csv"))
             self.assertEqual(len(report), 11)
-            self.assertEqual(len(report.columns), 15)
+            self.assertEqual(len(report.columns), 10)
 
 
 if __name__ == "__main__":

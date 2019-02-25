@@ -7,12 +7,11 @@ from bblfsh import BblfshClient
 from bblfsh.client import NonUTF8ContentException
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2 import File
+from lookout.core.lib import filter_files_by_path
 import numpy
 from sklearn.exceptions import UndefinedMetricWarning
 import sklearn.metrics
 from tqdm import tqdm
-
-from lookout.style.format.files_filtering import filter_filepaths
 
 
 warnings.filterwarnings("ignore", category=UndefinedMetricWarning)
@@ -50,7 +49,7 @@ def prepare_files(filenames: Iterable[str], client: BblfshClient,
     :return: Iterator of File-s with content, uast, path and language set.
     """
     files = []
-    for file in tqdm(filter_filepaths(list(filenames))):
+    for file in tqdm(filter_files_by_path(list(filenames))):
         try:
             res = client.parse(file)
         except NonUTF8ContentException:
@@ -108,30 +107,6 @@ def merge_dicts(*dicts: Mapping) -> dict:
                 stack.append((d1.setdefault(key, {}), value))
             else:
                 d1[key] = value
-    return res
-
-
-def flatten_dict(d: Dict[str, Any], level_separator: str="_") -> Dict[str, Any]:
-    """
-    Convert nested dictionaries with string keys into one flat dict.
-
-    Example:
-    >>> a = {"1": 1, "2": {"3": 3, "4": 4}}
-    >>> flatten_dict(a)
-    >>> {"1": 1, "2_3": 3, "2_4": 4}}
-
-    :param d: Dictionary to flatten.
-    :param level_separator: String separator between names of different level.
-    :return: new Flat Dictionary
-    """
-    res = dict()
-    queue = list(d.items())
-    while queue:
-        key, val = queue.pop(0)
-        if not isinstance(val, dict):
-            res[key] = val
-        else:
-            queue.extend((key+level_separator+cur_key, val[cur_key]) for cur_key in val)
     return res
 
 

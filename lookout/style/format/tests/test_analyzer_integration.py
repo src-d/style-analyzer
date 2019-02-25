@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 from lookout.__main__ import main as launch_analyzer
 from lookout.core.event_listener import EventListener
-from lookout.core.test_helpers.server import find_port, run as launch_server
+from lookout.core.test_helpers import server
 
 from lookout.style.format.tests import long_test
 
@@ -47,10 +47,10 @@ class TestAnalyzer:
             with patch("sys.argv", command.split(" ")):
                 launch_analyzer()
 
-        command = "analyzer run %s " % self.analyzer
+        command = "analyzer --log-level DEBUG run %s " % self.analyzer
         if self.config:
             command += " --config %s " % self.config
-        command += "--db sqlite:///%s --server localhost:%d --fs %s --log-level DEBUG"  \
+        command += "--db sqlite:///%s --server localhost:%d --fs %s"  \
                    % (self.db, self.port, self.fs)
         self.logs = logs = []
 
@@ -91,7 +91,7 @@ class TestAnalyzer:
 
 class BaseAnalyzerIntegrationTests(unittest.TestCase):
     def setUp(self, fs=None):
-        self.port = find_port()
+        self.port = server.find_port()
         self.db = tempfile.NamedTemporaryFile(dir=self.base_dir)
         if fs is None:
             self.fs = tempfile.TemporaryDirectory(dir=self.base_dir)
@@ -99,6 +99,8 @@ class BaseAnalyzerIntegrationTests(unittest.TestCase):
             self.fs = fs
 
         self.analyzer = TestAnalyzer(port=self.port, db=self.db.name, fs=self.fs.name).__enter__()
+        if not os.path.exists(str(server.exefile)):
+            server.fetch()
 
     def tearDown(self, fs_cleanup=True):
         if fs_cleanup:
@@ -123,7 +125,7 @@ class AnalyzerIntegrationTests(BaseAnalyzerIntegrationTests):
         cls.base_dir_.cleanup()
 
     def test_review(self):
-        launch_server(
+        server.run(
             "review",
             FROM_COMMIT,
             TO_COMMIT,

@@ -12,7 +12,7 @@ from lookout.core.test_helpers import server
 from numpy.testing import assert_almost_equal
 
 from lookout.style.format.benchmarks.general_report import print_reports, QualityReportAnalyzer
-from lookout.style.format.benchmarks.top_repos_quality import _get_json_data, _get_metrics, \
+from lookout.style.format.benchmarks.quality_report import _get_json_data, _get_metrics, \
     _get_model_summary
 from lookout.style.format.tests import long_test
 from lookout.style.format.tests.test_analyzer import get_analyze_config, get_train_config
@@ -148,10 +148,10 @@ class QualityReportTests(PretrainedModelTests):
         self.assertEqual(qcount, 1)
         output = output[:output.find("# Model report for")]
         metrics = _get_metrics(output)
-        expected_metrics = (0.9756371814092953, 0.9756371814092953,
-                            0.8856753997958490, 0.9756371814092953,
-                            0.9284822543249510, 0.9077917659067710,
-                            2668, 2939)
+        expected_metrics = (0.9292385057471264, 0.9292385057471264,
+                            0.8507070042749095, 0.9292385057471263,
+                            0.8882403433476395, 0.9154883262084841,
+                            2784, 3041)
         assert_almost_equal(metrics, expected_metrics, decimal=15)
 
     def test_no_model(self):

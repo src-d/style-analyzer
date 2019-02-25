@@ -16,8 +16,8 @@ from sklearn.exceptions import NotFittedError
 from lookout.style.format.descriptions import describe_rule_attrs, describe_sample
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.model import FormatModel
-from lookout.style.format.postprocess import filter_uast_breaking_preds
 from lookout.style.format.rules import Rules
+from lookout.style.format.uast_stability_checker import UASTStabilityChecker
 from lookout.style.format.virtual_node import VirtualNode
 
 logging.basicConfig(level="DEBUG")
@@ -113,10 +113,10 @@ def return_features() -> Response:
     y_pred, rule_winners, rules, grouped_quote_predictions = rules.predict(
         X=X, vnodes_y=vnodes_y, vnodes=vnodes, feature_extractor=fe)
     refuse_to_predict = y_pred < 0
-    _, _, _, _, safe_preds = filter_uast_breaking_preds(
-        y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, files={file.path: file},
-        feature_extractor=fe, stub=client._stub, vnode_parents=vnode_parents,
-        node_parents=node_parents, rule_winners=rule_winners,
+    checker = UASTStabilityChecker(fe)
+    _, _, _, _, safe_preds = checker.check(
+        y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, files=[file], stub=client._stub,
+        vnode_parents=vnode_parents, node_parents=node_parents, rule_winners=rule_winners,
         grouped_quote_predictions=grouped_quote_predictions)
     break_uast = [False] * X.shape[0]
     for wrong_pred in set(range(X.shape[0])).difference(safe_preds):

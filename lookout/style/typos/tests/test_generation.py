@@ -9,8 +9,7 @@ from pandas.util.testing import assert_frame_equal
 
 from lookout.style.typos.generation import (CandidatesGenerator, get_candidates_features,
                                             get_candidates_metadata)
-from lookout.style.typos.utils import (CANDIDATE_COLUMN, CORRECT_TOKEN_COLUMN, FEATURES_COLUMN,
-                                       ID_COLUMN, SPLIT_COLUMN, TYPO_COLUMN)
+from lookout.style.typos.utils import Columns
 
 TEST_DATA_PATH = pathlib.Path(__file__).parent
 FASTTEXT_DUMP_FILE = str(TEST_DATA_PATH / "id_vecs_10.bin")
@@ -24,13 +23,13 @@ class CandidatesSplitTest(unittest.TestCase):
             [[0, "gut", "get", numpy.array([0.1, 0.2], dtype="float32")],
              [1, "cit", "cut", numpy.array([0.8, 0.3], dtype="float32")],
              [1, "cit", "cit", numpy.array([0.1, 0.5], dtype="float32")]],
-            columns=[ID_COLUMN, TYPO_COLUMN, CANDIDATE_COLUMN, FEATURES_COLUMN])
+            columns=[Columns.Id, Columns.Token, Columns.Candidate, Columns.Features])
 
     def test_get_candidates_tokens(self):
         tokens = pandas.DataFrame([[0, "gut", "get"],
                                    [1, "cit", "cut"],
                                    [1, "cit", "cit"]],
-                                  columns=[ID_COLUMN, TYPO_COLUMN, CANDIDATE_COLUMN])
+                                  columns=[Columns.Id, Columns.Token, Columns.Candidate])
         assert_frame_equal(get_candidates_metadata(self.candidates), tokens)
 
     def test_get_candidates_features(self):
@@ -64,14 +63,15 @@ class GeneratorTest(unittest.TestCase):
         custom_data = pandas.DataFrame([[["get", "tokens", "num"], "tokens", "tokens"],
                                         [["gwt", "tokens"], "gwt", "get"],
                                         [["get", "tokem"], "tokem", "token"]],
-                                       columns=[SPLIT_COLUMN, TYPO_COLUMN, CORRECT_TOKEN_COLUMN])
+                                       columns=[Columns.Split, Columns.Token,
+                                                Columns.CorrectToken])
         for test_data in [data, custom_data]:
             candidates = generator.generate_candidates(test_data, threads_number=1,
                                                        start_pool_size=len(test_data) + 1)
             self.assertFalse(candidates.isnull().values.any())
-            self.assertSequenceEqual(set(candidates[ID_COLUMN].values), set(test_data.index))
-            self.assertSequenceEqual(set(candidates[TYPO_COLUMN].values),
-                                     set(test_data[TYPO_COLUMN].values))
+            self.assertSequenceEqual(set(candidates[Columns.Id].values), set(test_data.index))
+            self.assertSequenceEqual(set(candidates[Columns.Token].values),
+                                     set(test_data[Columns.Token].values))
 
 
 if __name__ == "__main__":

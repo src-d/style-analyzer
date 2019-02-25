@@ -1,5 +1,4 @@
 """Generation of the typo correction candidates. Contains features extraction and serialization."""
-
 from itertools import chain
 from multiprocessing import Pool
 from typing import List, NamedTuple, Set, Union
@@ -10,18 +9,17 @@ from modelforge import merge_strings, Model, split_strings
 import numpy
 import pandas
 from scipy.spatial.distance import cosine
+from sourced.ml.models.license import DEFAULT_LICENSE
 from tqdm import tqdm
 
 from lookout.style.typos.symspell import EditDistance, SymSpell
-from lookout.style.typos.utils import (
-    add_context_info, CANDIDATE_COLUMN, FEATURES_COLUMN, ID_COLUMN, read_frequencies,
-    read_vocabulary, TYPO_COLUMN,
-)
+from lookout.style.typos.utils import add_context_info, Columns, read_frequencies, read_vocabulary
+
 
 TypoInfo = NamedTuple("TypoInfo", (("index", int),
                                    ("typo", str),
-                                   ("before", list),
-                                   ("after", list)))
+                                   ("before", str),
+                                   ("after", str)))
 
 Features = NamedTuple("Features", (("index", int),
                                    ("typo", str),
@@ -40,6 +38,8 @@ class CandidatesGenerator(Model):
 
     NAME = "candidates_generator"
     VENDOR = "source{d}"
+    DESCRIPTION = "Model that generates candidates to fix typos."
+    LICENSE = DEFAULT_LICENSE
     NO_COMPRESSION = ("/wv/vectors/",)
     DEFAULT_RADIUS = 3
     DEFAULT_MAX_DISTANCE = 2
@@ -97,7 +97,7 @@ class CandidatesGenerator(Model):
         """
         Generate candidates for typos inside data.
 
-        :param data: DataFrame, containing column TYPO_COLUMN.
+        :param data: DataFrame which contains column Columns.Token.
         :param threads_number: Number of threads for multiprocessing.
         :param save_candidates_file: File to save candidates to.
         :param start_pool_size: Length of data, starting from which multiprocessing is desired.
@@ -105,8 +105,9 @@ class CandidatesGenerator(Model):
                  and features for their ranking for each typo.
         """
         data = add_context_info(data)
-        typos = [TypoInfo(index, data.loc[index].typo, data.loc[index].before,
-                          data.loc[index].after)
+        typos = [TypoInfo(index, data.loc[index, Columns.Token],
+                          data.loc[index, Columns.Before],
+                          data.loc[index, Columns.After])
                  for i, index in enumerate(data.index)]
         if len(typos) > start_pool_size and threads_number > 1:
             with Pool(min(threads_number, len(typos))) as pool:
@@ -117,10 +118,10 @@ class CandidatesGenerator(Model):
         else:
             candidates = [self._lookup_corrections_for_token(t) for t in typos]
         candidates = pandas.DataFrame(list(chain.from_iterable(candidates)))
-        candidates.columns = [ID_COLUMN, TYPO_COLUMN, CANDIDATE_COLUMN, FEATURES_COLUMN]
-        candidates[ID_COLUMN] = candidates[ID_COLUMN].astype(data.index.dtype)
+        candidates.columns = [Columns.Id, Columns.Token, Columns.Candidate, Columns.Features]
+        candidates.loc[:, Columns.Id] = candidates[Columns.Id].astype(data.index.dtype)
         if save_candidates_file is not None:
-            candidates.to_pickle(save_candidates_file)
+            candidates.to_csv(save_candidates_file, compression="xz")
         return candidates
 
     def dump(self) -> str:
@@ -203,9 +204,9 @@ class CandidatesGenerator(Model):
             candidate_tokens.extend(typo_neighbors)
 
             if len(typo_info.before + typo_info.after) > 0:
-                context_neighbors = self._closest(self._compound_vec(typo_info.before +
-                                                                     typo_info.after),
-                                                  self.neighbors_number)
+                context_neighbors = self._closest(
+                    self._compound_vec("%s %s" % (typo_info.before, typo_info.after)),
+                    self.neighbors_number)
                 candidate_tokens.extend(context_neighbors)
 
         candidate_tokens = {candidate for candidate in candidate_tokens
@@ -232,7 +233,7 @@ class CandidatesGenerator(Model):
         """
         before_vec = self._compound_vec(typo_info.before)
         after_vec = self._compound_vec(typo_info.after)
-        context_vec = self._compound_vec(typo_info.before + typo_info.after)
+        context_vec = self._compound_vec("%s %s" % (typo_info.before, typo_info.after))
         return Features(typo_info.index, typo_info.typo, candidate, numpy.concatenate((
             (
                 self._freq(typo_info.typo),
@@ -273,7 +274,8 @@ class CandidatesGenerator(Model):
         return -numpy.log((1.0 * self._freq(first_token) + 1e-5) /
                           (1.0 * self._freq(second_token) + 1e-5))
 
-    def _compound_vec(self, split: List[str]) -> numpy.ndarray:
+    def _compound_vec(self, text: str) -> numpy.ndarray:
+        split = text.split()
         compound_vec = numpy.zeros(self.wv["a"].shape)
         if len(split) == 0:
             return compound_vec
@@ -361,8 +363,9 @@ class CandidatesGenerator(Model):
         self.checker._deletes = deletes
         self.checker._words = {w: self.checker._words[i] for i, w in enumerate(words)}
         vectors = self.wv["vectors"]
-        wv = FastTextKeyedVectors(vectors.shape[1], self.wv["min_n"], self.wv["max_n"])
-        wv.vectors = vectors
+        wv = FastTextKeyedVectors(vectors.shape[1], self.wv["min_n"], self.wv["max_n"],
+                                  self.wv["bucket"], True)
+        wv.vectors = numpy.array(vectors)
         vocab = split_strings(self.wv["vocab"]["strings"])
         wv.vocab = {
             s: Vocab(index=i, count=self.wv["vocab"]["counts"][i])
@@ -370,7 +373,7 @@ class CandidatesGenerator(Model):
         wv.bucket = self.wv["bucket"]
         wv.index2word = wv.index2entity = vocab
         wv.num_ngram_vectors = self.wv["num_ngram_vectors"]
-        wv.vectors_ngrams = self.wv["vectors_ngrams"]
+        wv.vectors_ngrams = numpy.array(self.wv["vectors_ngrams"])
         wv.hash2index = {k: v for v, k in enumerate(self.wv["hash2index"])}
         self.wv = wv
 
@@ -379,11 +382,11 @@ def get_candidates_features(candidates: pandas.DataFrame) -> numpy.ndarray:
     """
     Take the feature vectors belonging to the typo correction candidates from the table.
     """
-    return numpy.vstack(candidates[FEATURES_COLUMN].values)
+    return numpy.vstack(candidates[Columns.Features].values)
 
 
 def get_candidates_metadata(candidates: pandas.DataFrame) -> pandas.DataFrame:
     """
     Take the information about the typo correction candidates from the table.
     """
-    return candidates[[ID_COLUMN, TYPO_COLUMN, CANDIDATE_COLUMN]]
+    return candidates[[Columns.Id, Columns.Token, Columns.Candidate]]

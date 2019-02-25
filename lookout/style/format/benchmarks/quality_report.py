@@ -1,23 +1,22 @@
 """Measure quality on several top repositories."""
-from argparse import ArgumentParser, Namespace
+from argparse import Namespace
 from collections import OrderedDict
 import csv
 from datetime import datetime
 import functools
 import importlib
-import io
 import json
 import logging
 import logging.handlers
 import os
+import subprocess
 import sys
 import tempfile
-from typing import Iterable, Iterator, NamedTuple, Optional, Sequence, Type, Union
+from typing import Iterable, Iterator, NamedTuple, Optional, Sequence, Tuple, Type, Union
 
 from dulwich import porcelain
-from lookout.core import slogging
 from lookout.core.analyzer import Analyzer
-from lookout.core.cmdline import ArgumentDefaultsHelpFormatterNoNone, create_model_repo_from_args
+from lookout.core.cmdline import create_model_repo_from_args
 from lookout.core.data_requests import DataService
 from lookout.core.event_listener import EventListener
 from lookout.core.manager import AnalyzerManager
@@ -26,6 +25,7 @@ import numpy
 from tabulate import tabulate
 
 from lookout.style.format.benchmarks.general_report import QualityReportAnalyzer
+from lookout.style.format.feature_extractor import FeatureExtractor
 
 
 # TODO: add to ./benchmarks/data/quality_report_repos.csv after bblfsh python client v3 is released and we use it  # noqa: E501
@@ -141,22 +141,51 @@ class QualityReport:
         self.test_report = test_report
 
 
+class RestartReport(ValueError):
+    """Exception raises if report collection should be restarted."""
+
+
 def measure_quality(repository: str, from_commit: str, to_commit: str, port: int,
                     review_config: dict, train_config: dict, bblfsh: Optional[str],
-                    ) -> QualityReport:
+                    vnodes_expected_number: Optional[int], restarts: int=3) -> QualityReport:
     """
     Generate `QualityReport` for a repository. If it fails it returns empty reports.
 
     :param repository: URL of repository.
-    :param from_commit: Hash of commit.
-    :param to_commit: Hash of commit.
+    :param from_commit: Hash of the base commit.
+    :param to_commit: Hash of the head commit.
     :param port: Port for QualityReportAnalyzer.
     :param review_config: config for review.
     :param train_config: config for train.
     :param bblfsh: Babelfish server address to use. Specify None to use the default value.
+    :param vnodes_expected_number: Specify number for expected number of vnodes if known. \
+                                   report collection will be restarted if number of extracted \
+                                   vnodes does not match.
+    :param restarts: Number of restarts if number of extracted vnodes does not match.
     :return: Reports.
     """
     report = QualityReport()
+    log = logging.getLogger("QualityAnalyzer")
+
+    # This dirty hack should be removed as soon as
+    # https://github.com/src-d/style-analyzer/issues/557 resolved.
+    sum_vnodes_number = 0
+    call_numbers = 0
+
+    _convert_files_to_xy_backup = FeatureExtractor._convert_files_to_xy
+
+    def _convert_files_to_xy(self, parsed_files):
+        nonlocal sum_vnodes_number, call_numbers
+        call_numbers += 1
+        sum_vnodes_number += sum(len(vn) for vn, _, _ in parsed_files)
+        # sum_vnodes_number + 1 because of whatever reason if you extract test and train
+        # separately you have -1 vnode
+        # TODO (zurk): investigate ^
+        if call_numbers == 2 and sum_vnodes_number + 1 != vnodes_expected_number:
+            raise RestartReport("VNodes number does not match to expected: %d != %d:" % (
+                sum_vnodes_number, vnodes_expected_number))
+        log.info("VNodes number match to expected %d. ", vnodes_expected_number)
+        return _convert_files_to_xy_backup(self, parsed_files)
 
     def capture_report(func, name):
         @functools.wraps(func)
@@ -177,11 +206,24 @@ def measure_quality(repository: str, from_commit: str, to_commit: str, port: int
         for name in reports:
             setattr(QualityReportAnalyzer, reports[name],
                     capture_report(getattr(QualityReportAnalyzer, reports[name]), name))
+        if vnodes_expected_number:
+            log.info("Vnodes expected number is equal to %d", vnodes_expected_number)
+            FeatureExtractor._convert_files_to_xy = _convert_files_to_xy
         with tempfile.TemporaryDirectory(prefix="top-repos-quality-repos-") as tmpdirname:
             git_dir = ensure_repo(repository, tmpdirname)
-            server.run("push", fr=from_commit, to=to_commit, port=port, git_dir=git_dir,
-                       log_level="warning", bblfsh=bblfsh,
-                       config_json=json.dumps(train_config))
+            for attempt_number in range(restarts):
+                sum_vnodes_number = -1
+                try:
+                    server.run(
+                       "push", fr=from_commit, to=to_commit, port=port, git_dir=git_dir,
+                       log_level="warning", bblfsh=bblfsh, config_json=json.dumps(train_config))
+                    break
+                except subprocess.CalledProcessError:
+                    # Assume that we failed because VNodes number does not match to expected one
+                    log.warning("%d/%d try to train the model failed.", attempt_number, restarts)
+            else:
+                raise RuntimeError("Run out of %d attempts. Failed to train proper model for %s." %
+                                   (restarts, repository))
             server.run("review", fr=from_commit, to=to_commit, port=port, git_dir=git_dir,
                        log_level="warning", bblfsh=bblfsh,
                        config_json=json.dumps(review_config))
@@ -189,6 +231,8 @@ def measure_quality(repository: str, from_commit: str, to_commit: str, port: int
         for name in reports:
             setattr(QualityReportAnalyzer, reports[name],
                     getattr(QualityReportAnalyzer, reports[name]).original)
+        if vnodes_expected_number:
+            FeatureExtractor._convert_files_to_xy = _convert_files_to_xy_backup
     return report
 
 
@@ -276,13 +320,69 @@ def handle_input_arg(input_arg: str, log: Optional[logging.Logger] = None) -> It
                 yield line
 
 
-def main(args):
-    """Entry point for quality report generation."""
-    os.makedirs(args.output, exist_ok=True)
-    assert os.path.isdir(args.output), "Output should be a directory"
-    slogging.setup(args.log_level, False)
+def _generate_report_summary(reports: Iterable[Tuple[str, QualityReport]], report_name: str,
+                             ) -> str:
+    # precision, recall, f1, support, n_rules, avg_len stats
+    additional_fields = ("Rules Number", "Average Rule Len")
+    table = []
+    fields2id = OrderedDict()
+    for repo, report in reports:
+        metrics = _get_metrics(getattr(report, report_name))
+        if not table:
+            table.append(("repo",) + metrics._fields + additional_fields)
+            for i, field in enumerate(table[0]):
+                fields2id[field] = i
+        n_rules, avg_len = _get_model_summary(report.model_report)
+        table.append((get_repo_name(repo),) + metrics + (n_rules, avg_len))
+    avgvals = tuple(calc_avg(table[1:], fields2id[field]) for field in metrics._fields)
+    average = tuple(("%" + FLOAT_PRECISION) % v for v in avgvals[:-2])
+    average += tuple("%d" % v for v in avgvals[-2:])  # support, full_support
+    average += tuple(("%d", "%.1f")[i] % calc_avg(table[1:], fields2id[field])
+                     for i, field in enumerate(additional_fields))
+    fields_to_weight = (
+        ("precision", "support"), ("recall", "support"),
+        ("full_recall", "full_support"), ("f1", "support"),
+        ("full_f1", "full_support"), ("ppcr", "support"),
+    )
+    weighted_average = []
+    for field, weight_field in fields_to_weight:
+        weighted_average.append(("%" + FLOAT_PRECISION) % calc_weighted_avg(
+            table[1:], col=fields2id[field], weight_col=fields2id[weight_field]))
+    table.append(("average",) + average)
+    table.append(("weighted average",) + tuple(weighted_average))
+    float_fields = ("precision", "recall", "full_recall", "f1", "full_f1", "ppcr")
+    floatfmts = []
+    for field in fields2id:
+        if field in float_fields:
+            floatfmts.append(FLOAT_PRECISION)
+        elif field == "Average Rule Len":
+            floatfmts.append(".1f")
+        else:
+            floatfmts.append("g")
+
+    return tabulate(table, tablefmt="pipe", headers="firstrow", floatfmt=floatfmts)
+
+
+def generate_quality_report(input: str, output: str, force: bool, bblfsh: str, train_config: dict,
+                            database: Optional[str] = None, fs: Optional[str] = None) -> None:
+    """
+    Generate quality report for the given data. Entry point for command line interface.
+
+    :param input: csv file with repositories to make report. Should contain url, to and from \
+                  columns.
+    :param output: Directory where to save results.
+    :param force: force to overwrite results stored in output directory if True. \
+                  Stored results will be used if False.
+    :param bblfsh: bblfsh address to use.
+    :param train_config: config for analyzer train.
+    :param database: sqlite3 database path to store the models. Temporary file is used if not set.
+    :param fs: Model repository file system root. Temporary directory is used if not set.
+    :return:
+    """
+    os.makedirs(output, exist_ok=True)
+    assert os.path.isdir(output), "Output should be a directory"
     log = logging.getLogger("QualityAnalyzer")
-    handler = logging.handlers.RotatingFileHandler(os.path.join(args.output, "errors.txt"))
+    handler = logging.handlers.RotatingFileHandler(os.path.join(output, "errors.txt"))
     handler.setLevel(logging.ERROR)
     log.addHandler(handler)
     if not server.exefile.exists():
@@ -290,12 +390,11 @@ def main(args):
     reports = []
     port = server.find_port()
     review_config = {QualityReportAnalyzer.name: {"aggregate": True}}
-    train_config = json.loads(args.train_config)
-    repositories = list(csv.DictReader(handle_input_arg(args.input)))
+    repositories = list(csv.DictReader(handle_input_arg(input)))
     with tempfile.TemporaryDirectory() as tmpdirname:
-        database = args.database if args.database else os.path.join(tmpdirname, "db.sqlite3")
-        fs = args.fs if args.fs else os.path.join(tmpdirname, "models")
-        os.makedirs(fs, exist_ok=fs)
+        database = database if database else os.path.join(tmpdirname, "db.sqlite3")
+        fs = fs if fs else os.path.join(tmpdirname, "models")
+        os.makedirs(fs, exist_ok=True)
         with AnalyzerContextManager(port=port, db=database, fs=fs,
                                     analyzer="lookout.style.format.benchmarks.general_report",
                                     init=False):
@@ -321,19 +420,22 @@ def main(args):
                          now + left if left is not None else None, " " * 11,
                          "=" * 80,
                          )
-                report_loc = os.path.join(args.output, get_repo_name(row["url"]))
+                report_loc = os.path.join(output, get_repo_name(row["url"]))
                 train_rep_loc = report_loc + ".train_report.md"
                 model_rep_loc = report_loc + ".model_report.md"
                 test_rep_loc = report_loc + ".test_report.md"
                 # generate or read report
                 try:
-                    if args.force or not os.path.exists(train_rep_loc) or \
+                    if force or not os.path.exists(train_rep_loc) or \
                             not os.path.exists(model_rep_loc):
                         # Skip this step if report was already generated
+                        vnodes_expected_number = int(row["vnodes_number"]) \
+                            if "vnodes_number" in row else None
                         report = measure_quality(
                             row["url"], to_commit=row["to"], from_commit=row["from"], port=port,
                             review_config=review_config, train_config=train_config,
-                            bblfsh=args.bblfsh)
+                            bblfsh=bblfsh,
+                            vnodes_expected_number=vnodes_expected_number)
                         if report.train_report is not None:
                             with open(train_rep_loc, "w", encoding="utf-8") as f:
                                 f.write(report.train_report)
@@ -344,7 +446,7 @@ def main(args):
                             with open(test_rep_loc, "w", encoding="utf-8") as f:
                                 f.write(report.test_report)
                     else:
-                        log.info("Found existing reports for %s in %s", row["url"], args.output)
+                        log.info("Found existing reports for %s in %s", row["url"], output)
                         report = QualityReport()
                         with open(train_rep_loc, encoding="utf-8") as f:
                             report.train_report = f.read()
@@ -365,84 +467,9 @@ def main(args):
                     log.exception("-" * 20 + "\nFailed to process %s repo", row["url"])
                     continue
 
-        # precision, recall, f1, support, n_rules, avg_len stats
-        additional_fields = ("Rules Number", "Average Rule Len")
         for report_name in ("train_report", "test_report"):
-            table = []
-            fields2id = OrderedDict()
-            with io.StringIO() as output:
-                for repo, report in reports:
-                    metrics = _get_metrics(getattr(report, report_name))
-                    if not table:
-                        table.append(("repo",) + metrics._fields + additional_fields)
-                        for i, field in enumerate(table[0]):
-                            fields2id[field] = i
-                    n_rules, avg_len = _get_model_summary(report.model_report)
-                    table.append((get_repo_name(repo),) + metrics + (n_rules, avg_len))
-                avgvals = tuple(calc_avg(table[1:], fields2id[field]) for field in metrics._fields)
-                average = tuple(("%" + FLOAT_PRECISION) % v for v in avgvals[:-2])
-                average += tuple("%d" % v for v in avgvals[-2:])  # support, full_support
-                average += tuple(("%d", "%.1f")[i] % calc_avg(table[1:], fields2id[field])
-                                 for i, field in enumerate(additional_fields))
-                fields_to_weight = (
-                    ("precision", "support"), ("recall", "support"),
-                    ("full_recall", "full_support"), ("f1", "support"),
-                    ("full_f1", "full_support"), ("ppcr", "support"),
-                )
-                weighted_average = []
-                for field, weight_field in fields_to_weight:
-                    weighted_average.append(("%" + FLOAT_PRECISION) % calc_weighted_avg(
-                        table[1:], col=fields2id[field], weight_col=fields2id[weight_field]))
-                table.append(("average",) + average)
-                table.append(("weighted average",) + tuple(weighted_average))
-                float_fields = ("precision", "recall", "full_recall", "f1", "full_f1", "ppcr")
-                floatfmts = []
-                for field in fields2id:
-                    if field in float_fields:
-                        floatfmts.append(FLOAT_PRECISION)
-                    elif field == "Average Rule Len":
-                        floatfmts.append(".1f")
-                    else:
-                        floatfmts.append("g")
-
-                print(tabulate(table, tablefmt="pipe", headers="firstrow", floatfmt=floatfmts),
-                      file=output)
-                summary = output.getvalue()
-            print(report_name)
-            print(summary)
-            summary_loc = os.path.join(args.output, "summary-%s.md" % report_name)
+            summary = _generate_report_summary(reports, report_name)
+            log.info("\n%s\n%s", report_name, summary)
+            summary_loc = os.path.join(output, "summary-%s.md" % report_name)
             with open(summary_loc, "w", encoding="utf-8") as f:
                 f.write(summary)
-
-
-def create_parser() -> ArgumentParser:
-    """Create command line arguments for quality report generation entry point."""
-    parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatterNoNone)
-    parser.add_argument(
-        "-i", "--input", required=True,
-        help="csv file with repositories to make report. Should contain url, to and from columns.")
-    parser.add_argument(
-        "-o", "--output", required=True,
-        help="Directory where to save results.")
-    parser.add_argument(
-        "-f", "--force", action="store_true",
-        help="If this flag is used - force to overwrite results stored in output directory. "
-             "If not - stored results will be used if they exist.")
-    parser.add_argument(
-        "-b", "--bblfsh", help="Bblfsh address to use.")
-    parser.add_argument(
-        "--train-config", default="{}",
-        help="Config for analyzer train in json format.")
-    parser.add_argument(
-        "--database", default=None, help="sqlite3 database path to store the models.")
-    parser.add_argument(
-        "--fs", default=None, help="Model repository file system root.")
-    parser.add_argument(
-        "--log-level", default="DEBUG", help="Logging level")
-    return parser
-
-
-if __name__ == "__main__":
-    parser = create_parser()
-    args = parser.parse_args()
-    main(args)

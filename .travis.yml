@@ -39,10 +39,12 @@ matrix:
         - pip install -r doc/requirements.txt -r requirements-lint.txt
         - cd lookout/style/format/visualizer && npm install && cd -
       script:
+        - set -e
         - make check
         - rm -rf lookout/core/server
         - cd doc && make
         - cd ../lookout/style/format/visualizer && npm run build
+        - set +e
     - stage: test
       python: 3.5
       script: *_coverage
@@ -55,6 +57,7 @@ matrix:
         - travis_retry make bblfsh-start
         - make docker-build VERSION=test
         - make docker-test
+        - set +e
     - python: 3.7
       script: *_coverage
       install: *_install

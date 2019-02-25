@@ -5,9 +5,10 @@ from typing import Dict, List, Tuple
 from modelforge import Model
 import numpy
 import pandas
+from sourced.ml.models.license import DEFAULT_LICENSE
 import xgboost as xgb
 
-from lookout.style.typos.utils import CANDIDATE_COLUMN, ID_COLUMN, rank_candidates
+from lookout.style.typos.utils import Columns, rank_candidates
 
 
 class CandidatesRanker(Model):
@@ -18,6 +19,8 @@ class CandidatesRanker(Model):
 
     NAME = "candidates_ranks"
     VENDOR = "source{d}"
+    DESCRIPTION = "Model that ranks candidates according to their probability to fix the typo."
+    LICENSE = DEFAULT_LICENSE
     DEFAULT_TRAIN_ROUNDS = 4000
     DEFAULT_EARLY_STOPPING = 200
     DEFAULT_BOOST_PARAM = {"max_depth": 6,
@@ -48,7 +51,6 @@ class CandidatesRanker(Model):
         :param train_rounds: Number of training rounds.
         :param early_stopping: Early stopping parameter.
         :param boost_param: Boosting parameters. The actual default is DEFAULT_BOOST_PARAM.
-        :return: Nothing.
         """
         self.train_rounds = train_rounds
         self.early_stopping = early_stopping
@@ -63,7 +65,7 @@ class CandidatesRanker(Model):
         :param identifiers: Series containing column right corrections and indexed in \
                             correspondence with typos from which candidates were generated.
         :param candidates: DataFrame containing information about candidates for correction. \
-                           Columns are [ID_COLUMN, TYPO_COLUMN, CANDIDATE_COLUMN].
+                           Columns are [Columns.Id, Columns.Token, Columns.Candidate].
         :param features: Matrix of features for candidates.
         :param val_part: Part of data used for validation.
         """
@@ -82,13 +84,12 @@ class CandidatesRanker(Model):
         """
         Assign the correctness probability value for each of the candidates.
 
-        :param candidates: DataFrame containing information about candidates for correction. \
-                           Columns are [ID_COLUMN, TYPO_COLUMN, CANDIDATE_COLUMN].
+        :param candidates: DataFrame containing information about candidates for correction.
         :param features: Matrix of features for candidates.
         :param n_candidates: Number of most probably correct candidates to return for each typo.
         :param return_all: False to return corrections only for typos corrected in the \
                            first candidate.
-        :return: Dictionary {id : [[candidate, correctness_proba]]}, candidates are sorted \
+        :return: Dictionary `{id : [(candidate, correctness_proba), ...]}`, candidates are sorted \
                  by correctness probability in a descending order.
         """
         dtest = xgb.DMatrix(features)
@@ -117,7 +118,7 @@ class CandidatesRanker(Model):
     def _create_labels(identifiers: pandas.Series, candidates: pandas.DataFrame) -> numpy.ndarray:
         labels = []
         for _, row in candidates.iterrows():
-            labels.append(int(row[CANDIDATE_COLUMN] == identifiers[row[ID_COLUMN]]))
+            labels.append(int(row[Columns.Candidate] == identifiers[row[Columns.Id]]))
         return numpy.array(labels)
 
     def _generate_tree(self) -> dict:

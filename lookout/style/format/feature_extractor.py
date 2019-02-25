@@ -4,7 +4,7 @@ import importlib
 from itertools import chain, islice, zip_longest
 import logging
 from operator import itemgetter
-from typing import (Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Union)
+from typing import (Dict, Iterable, List, Mapping, Optional, Sequence, Set, Tuple, Union)
 
 import bblfsh
 from lookout.core.api.service_data_pb2 import File
@@ -14,9 +14,9 @@ from sklearn.exceptions import NotFittedError
 from sklearn.feature_selection import SelectKBest, VarianceThreshold
 
 from lookout.style.format.classes import (
-    CLASS_INDEX, CLASS_PRINTABLES, CLASS_REPRESENTATIONS, CLS_DOUBLE_QUOTE, CLS_NEWLINE, CLS_NOOP,
+    CLASS_INDEX, CLASS_PRINTABLES, CLASS_REPRESENTATIONS, CLS_DOUBLE_QUOTE, CLS_NOOP,
     CLS_SINGLE_QUOTE, CLS_SPACE, CLS_SPACE_DEC, CLS_SPACE_INC, CLS_TAB, CLS_TAB_DEC, CLS_TAB_INC,
-    INDEX_CLS_TO_STR)
+    INDEX_CLS_TO_STR, NEWLINE_INDEX, QUOTES_INDEX)
 from lookout.style.format.features import (  # noqa: F401
     Feature, FEATURE_CLASSES, FeatureGroup, FeatureId, FeatureLayout, Layout,
     MultipleValuesFeature, MutableFeatureLayout, MutableLayout)
@@ -103,6 +103,135 @@ class FeatureExtractor:
         if self.labels_to_class_sequences:
             self._compute_feature_info()
 
+    @property
+    def index_to_feature(self) -> IndexToFeature:
+        """Return the mapping from integer indices to the corresponding feature names."""
+        if not hasattr(self, "_index_to_feature"):
+            raise NotFittedError()
+        return self._index_to_feature
+
+    @property
+    def feature_to_indices(self) -> FeatureLayout[Sequence[int]]:
+        """Return the mapping from feature names to the corresponding integer indices."""
+        if not hasattr(self, "_feature_to_indices"):
+            raise NotFittedError()
+        return self._feature_to_indices
+
+    @property
+    def features(self) -> FeatureLayout[Feature]:
+        """Return the `Feature`-s used by this feature extractor."""
+        if not hasattr(self, "_features"):
+            raise NotFittedError()
+        return self._features
+
+    @property
+    def feature_names(self) -> List[str]:
+        """
+        Return the names of the features.
+
+        A feature name uniquely identifies a feature. It reflects the feature structure: it is
+        comprised of the feature group the feature belongs to, its sibling identifier, its feature
+        name and its index if applicable.
+
+        Those names, as well as the feature layout, depend on the configuration used to launch the
+        analyzer.
+        """
+        if not hasattr(self, "_feature_names"):
+            raise NotFittedError()
+        return self._feature_names
+
+    @property
+    def composite_class_representations(self) -> List[str]:
+        """
+        Return the class representations of composite classes.
+
+        :return: Strings representing the composite classes.
+        """
+        return ["".join(CLASS_REPRESENTATIONS[label] for label in labels)
+                for labels in self.labels_to_class_sequences]
+
+    @property
+    def composite_class_printables(self) -> List[str]:
+        """
+        Return the class printables of composite classes.
+
+        :return: Strings that can be printed to represent the composite classes.
+        """
+        return ["".join(CLASS_PRINTABLES[label] for label in labels)
+                for labels in self.labels_to_class_sequences]
+
+    def count_features(self, feature_group: Optional[FeatureGroup] = None,
+                       neighbour_index: Optional[int] = None) -> int:
+        """Return the feature count of a given subset of features."""
+        if not hasattr(self, "_feature_count"):
+            raise NotFittedError()
+        if feature_group is None:
+            return self._feature_count
+        if neighbour_index is None:
+            return self._feature_group_counts[feature_group]
+        return self._feature_node_counts[feature_group][neighbour_index]
+
+    def extract_features(self, files: Iterable[File], lines: Optional[List[List[int]]] = None) \
+            -> Optional[Union[Tuple[csr_matrix, numpy.ndarray,
+                                    Tuple[List[VirtualNode], List[VirtualNode],
+                                          Dict[int, bblfsh.Node], Dict[int, bblfsh.Node]]],
+                              Tuple[csr_matrix, numpy.ndarray,
+                                    Tuple[List[VirtualNode], List[VirtualNode],
+                                          Dict[int, bblfsh.Node], Dict[int, bblfsh.Node],
+                                          List[List[int]]]]]]:
+        """
+        Compute features and labels required by downstream models given a list of `File`-s.
+
+        :param files: the list of `File`-s (see service_data.proto) of the same language.
+        :param lines: the list of enabled line numbers per file. The lines which are not \
+                      mentioned will not be extracted.
+        :return: tuple of numpy.ndarray (2 and 1 dimensional respectively): features and labels, \
+                 the corresponding `VirtualNode`-s and the parents mapping \
+                 or None in case no features were extracted.
+        """
+        parsed_files, node_parents, vnode_parents = self._parse_vnodes(files, lines)
+        xy = self._convert_files_to_xy(parsed_files)
+        if xy is None:
+            return None
+        X, y, vnodes_y, vnodes, sibling_indices_list = xy
+        self._log.debug("Features shape: %s", X.shape)
+        if self.return_sibling_indices:
+            return X, y, (vnodes_y, vnodes, vnode_parents, node_parents, sibling_indices_list)
+        return X, y, (vnodes_y, vnodes, vnode_parents, node_parents)
+
+    def select_features(self, X: csr_matrix, y: numpy.ndarray) -> Tuple[csr_matrix, numpy.ndarray]:
+        """
+        Select the most useful features based on sklearn's univariate feature selection.
+
+        :param X: Scipy CSR 2-dimensional matrix of features to select.
+        :param y: Numpy 1-dimensional array of labels.
+        :return: Tuple of a CSR matrix with only the selected features (columns) kept and an \
+                 array of the indices of the kept features for later reapplication.
+        """
+        if self.selected_features is not None:
+            return X, self.selected_features
+        feature_selector = VarianceThreshold()
+        X = feature_selector.fit_transform(X)
+        self.selected_features = feature_selector.get_support(indices=True)
+        if self.select_features_number and self.select_features_number < X.shape[1]:
+            feature_selector = SelectKBest(k=self.select_features_number)
+            X = feature_selector.fit_transform(X, y)
+            if self.selected_features is not None:
+                self.selected_features = self.selected_features[feature_selector.get_support(
+                    indices=True)]
+            else:
+                self.selected_features = feature_selector.get_support(indices=True)
+        self._log.debug("Features shape after selection: %s" % (X.shape,))
+        if self.selected_features is None:
+            self.selected_features = numpy.arange(X.shape[1])
+        self._compute_feature_info()
+        return X, self.selected_features
+
+    def label_to_str(self, label: int) -> str:
+        """Convert a label to string."""
+        return "".join(INDEX_CLS_TO_STR[cls]
+                       for cls in self.labels_to_class_sequences[label])
+
     def _compute_feature_info(self) -> None:
         if self.selected_features is not None:
             selected_features_set = set(self.selected_features)
@@ -169,72 +298,10 @@ class FeatureExtractor:
                                       for group, counts in self._feature_node_counts.items()}
         self._feature_count = sum(self._feature_group_counts.values())
 
-    @property
-    def index_to_feature(self) -> IndexToFeature:
-        """Return the mapping from integer indices to the corresponding feature names."""
-        if not hasattr(self, "_index_to_feature"):
-            raise NotFittedError()
-        return self._index_to_feature
-
-    @property
-    def feature_to_indices(self) -> FeatureLayout[Sequence[int]]:
-        """Return the mapping from feature names to the corresponding integer indices."""
-        if not hasattr(self, "_feature_to_indices"):
-            raise NotFittedError()
-        return self._feature_to_indices
-
-    @property
-    def features(self) -> FeatureLayout[Feature]:
-        """Return the `Feature`-s used by this feature extractor."""
-        if not hasattr(self, "_features"):
-            raise NotFittedError()
-        return self._features
-
-    @property
-    def feature_names(self) -> List[str]:
-        """
-        Return the names of the features.
-
-        A feature name uniquely identifies a feature. It reflects the feature structure: it is
-        comprised of the feature group the feature belongs to, its sibling identifier, its feature
-        name and its index if applicable.
-
-        Those names, as well as the feature layout, depend on the configuration used to launch the
-        analyzer.
-        """
-        if not hasattr(self, "_feature_names"):
-            raise NotFittedError()
-        return self._feature_names
-
-    def count_features(self, feature_group: Optional[FeatureGroup] = None,
-                       neighbour_index: Optional[int] = None) -> int:
-        """Return the feature count of a given subset of features."""
-        if not hasattr(self, "_feature_count"):
-            raise NotFittedError()
-        if feature_group is None:
-            return self._feature_count
-        if neighbour_index is None:
-            return self._feature_group_counts[feature_group]
-        return self._feature_node_counts[feature_group][neighbour_index]
-
-    def extract_features(self, files: Iterable[File], lines: List[List[int]]=None) \
-            -> Optional[Union[Tuple[csr_matrix, numpy.ndarray,
-                                    Tuple[List[VirtualNode], List[VirtualNode],
-                                          Mapping[int, bblfsh.Node], Mapping[int, bblfsh.Node]]],
-                              Tuple[csr_matrix, numpy.ndarray,
-                                    Tuple[List[VirtualNode], List[VirtualNode],
-                                          Mapping[int, bblfsh.Node], Mapping[int, bblfsh.Node],
-                                          List[List[int]]]]]]:
-        """
-        Compute features and labels required by downstream models given a list of `File`-s.
-
-        :param files: the list of `File`-s (see service_data.proto) of the same language.
-        :param lines: the list of enabled line numbers per file. The lines which are not \
-                      mentioned will not be extracted.
-        :return: tuple of numpy.ndarray (2 and 1 dimensional respectively): features and labels, \
-                 the corresponding `VirtualNode`-s and the parents mapping \
-                 or None in case no features were extracted.
-        """
+    def _parse_vnodes(self, files: Iterable[File], lines: Optional[List[List[int]]] = None,
+                      ) -> Tuple[List[Tuple[List[VirtualNode], Dict[int, bblfsh.Node], Set[int]]],
+                                 Dict[int, bblfsh.Node],
+                                 Dict[int, bblfsh.Node]]:
         node_parents = {}
         vnode_parents = {}
         parsed_files = []
@@ -261,39 +328,40 @@ class FeatureExtractor:
             parsed_files.append((file_vnodes, file_parents, file_lines))
             node_parents.update(file_parents)
             self._fill_vnode_parents(file_parents, file_vnodes, uast, vnode_parents)
-
         vnodes_parsed_number = sum(len(vn) for vn, _, _ in parsed_files)
         self._log.debug("Parsed %d vnodes", vnodes_parsed_number)
+        return parsed_files, node_parents, vnode_parents
+
+    def _convert_files_to_xy(
+            self, parsed_files: List[Tuple[List[VirtualNode], Dict[int, bblfsh.Node], Set[int]]],
+            ) -> Optional[Tuple[csr_matrix, numpy.ndarray, List[VirtualNode], List[VirtualNode],
+                          List[List[int]]]]:
+        vnodes_parsed_number = sum(len(vn) for vn, _, _ in parsed_files)
+        index_labels = not self.labels_to_class_sequences
         # filter composite labels by support
         if index_labels:
             self._compute_labels_mappings(chain.from_iterable(vn for vn, _, _ in parsed_files))
-
         files_vnodes_y = [[vnode for vnode in file_vnodes
                            if vnode.is_labeled_on_lines(file_lines) and
                            vnode.y in self.class_sequences_to_labels]
                           for file_vnodes, _, file_lines in parsed_files]
-
         labels = [[self.class_sequences_to_labels[vnode.y]
                    for vnode in file_vnodes_y]
                   for file_vnodes_y in files_vnodes_y]
         if not labels:
             # nothing was extracted
             return None
-
         y = numpy.concatenate(labels)
         self._log.debug("%d out of %d are labeled and saved after filtering", y.shape[0],
                         vnodes_parsed_number)
-
         if index_labels:
             self._compute_feature_info()
-
         features = [feature for group_features in self._features.values()
                     for node_features in group_features for feature in node_features.values()]
         xs = []
         vnodes = []
         vnodes_y = []
-        if self.return_sibling_indices:
-            sibling_indices_list = []
+        sibling_indices_list = []
         assert len(parsed_files) == len(files_vnodes_y)
         for (file_vnodes, file_parents, _), file_vnodes_y in zip(parsed_files, files_vnodes_y):
             vnodes.extend(file_vnodes)
@@ -305,65 +373,7 @@ class FeatureExtractor:
                 sibling_indices_list.extend(sibling_indices)
         assert len(y) == len(vnodes_y)
         X = vstack(xs)
-
-        self._log.debug("Features shape: %s", X.shape)
-        self._log.debug("Labels shape: %s", y.shape)
-        if self.return_sibling_indices:
-            return X, y, (vnodes_y, vnodes, vnode_parents, node_parents, sibling_indices_list)
-        return X, y, (vnodes_y, vnodes, vnode_parents, node_parents)
-
-    def select_features(self, X: csr_matrix, y: numpy.ndarray) -> Tuple[csr_matrix, numpy.ndarray]:
-        """
-        Select the most useful features based on sklearn's univariate feature selection.
-
-        :param X: Scipy CSR 2-dimensional matrix of features to select.
-        :param y: Numpy 1-dimensional array of labels.
-        :return: Tuple of a CSR matrix with only the selected features (columns) kept and an \
-                 array of the indices of the kept features for later reapplication.
-        """
-        if self.selected_features is not None:
-            return X, self.selected_features
-        feature_selector = VarianceThreshold()
-        X = feature_selector.fit_transform(X)
-        self.selected_features = feature_selector.get_support(indices=True)
-        if self.select_features_number and self.select_features_number < X.shape[1]:
-            feature_selector = SelectKBest(k=self.select_features_number)
-            X = feature_selector.fit_transform(X, y)
-            if self.selected_features is not None:
-                self.selected_features = self.selected_features[feature_selector.get_support(
-                    indices=True)]
-            else:
-                self.selected_features = feature_selector.get_support(indices=True)
-        self._log.debug("Features shape after selection: %s" % (X.shape,))
-        if self.selected_features is None:
-            self.selected_features = numpy.arange(X.shape[1])
-        self._compute_feature_info()
-        return X, self.selected_features
-
-    @property
-    def composite_class_representations(self) -> List[str]:
-        """
-        Return the class representations of composite classes.
-
-        :return: Strings representing the composite classes.
-        """
-        return ["".join(CLASS_REPRESENTATIONS[label] for label in labels)
-                for labels in self.labels_to_class_sequences]
-
-    @property
-    def composite_class_printables(self) -> List[str]:
-        """
-        Return the class printables of composite classes.
-
-        :return: Strings that can be printed to represent the composite classes.
-        """
-        return ["".join(CLASS_PRINTABLES[label] for label in labels)
-                for labels in self.labels_to_class_sequences]
-
-    def label_to_str(self, label: int) -> str:
-        """Convert a label to string."""
-        return "".join(INDEX_CLS_TO_STR[cls]
-                       for cls in self.labels_to_class_sequences[label])
+        return X, y, vnodes_y, vnodes, sibling_indices_list
 
     def _create_neighbours(self, vnodes: Sequence[VirtualNode], vnodes_y: Sequence[VirtualNode],
                            parents: Mapping[int, bblfsh.Node],
@@ -479,16 +489,30 @@ class FeatureExtractor:
                         y=cls, path=path)
                 continue
             line_offset = 0
+            traling_chars = lines[0].splitlines()[0]
+            if traling_chars:
+                # node contains trailing whitespaces from the previous line
+                assert set(traling_chars) <= {" ", "\t"}
+                y = [CLASS_INDEX[CLS_SPACE if yi == " " else CLS_TAB] for yi in traling_chars]
+                yield VirtualNode(
+                    traling_chars,
+                    node.start,
+                    Position(node.start.offset + len(traling_chars), node.start.line,
+                             node.start.col + len(traling_chars)),
+                    y=tuple(y), path=path)
+                lines[0] = lines[0][len(traling_chars):]
+                line_offset += len(traling_chars)
+
             for i, line in enumerate(lines[:-1]):
-                # `line` contains trailing whitespaces, we add it to the newline node
+                # `line` ends with \r\n, we prepend \r to the newline node
                 start_offset = node.start.offset + line_offset
-                start_col = node.start.col if i == 0 else 1
+                start_col = node.start.col + line_offset if i == 0 else 1
                 lineno = node.start.line + i
                 yield VirtualNode(
                     line,
                     Position(start_offset, lineno, start_col),
                     Position(start_offset + len(line), lineno + 1, 1),
-                    y=(CLASS_INDEX[CLS_NEWLINE],), path=path)
+                    y=(NEWLINE_INDEX,), path=path)
                 line_offset += len(line)
             line = lines[-1].splitlines()[0] if lines[-1] else ""
             my_indent = list(line)
@@ -507,6 +531,11 @@ class FeatureExtractor:
                         node.end, path=path)
                     continue
                 # indentation decreases
+                if indentation[:len(line)]:
+                    yield VirtualNode(
+                        "".join(indentation[:len(line)]),
+                        Position(offset, lineno, col),
+                        node.end, is_accumulated_indentation=True, path=path)
                 for char in indentation[len(line):]:
                     if char == "\t":
                         cls = (CLASS_INDEX[CLS_TAB_DEC],)
@@ -514,17 +543,22 @@ class FeatureExtractor:
                         cls = (CLASS_INDEX[CLS_SPACE_DEC],)
                     yield VirtualNode(
                         "",
-                        Position(offset, lineno, col),
-                        Position(offset, lineno, col),
+                        node.end,
+                        node.end,
                         y=cls, path=path)
                 indentation = indentation[:len(line)]
+            else:
+                # indentation is stable or increases
                 if indentation:
                     yield VirtualNode(
                         "".join(indentation),
                         Position(offset, lineno, col),
-                        node.end, is_accumulated_indentation=True, path=path)
-            else:
-                # indentation is stable or increases
+                        Position(offset + len(indentation), lineno, col + len(indentation)),
+                        is_accumulated_indentation=True, path=path)
+                offset += len(indentation)
+                col += len(indentation)
+                for char in my_indent:
+                    indentation.append(char)
                 for i, char in enumerate(my_indent):
                     if char == "\t":
                         cls = (CLASS_INDEX[CLS_TAB_INC],)
@@ -537,14 +571,6 @@ class FeatureExtractor:
                         y=cls, path=path)
                 offset += len(my_indent)
                 col += len(my_indent)
-                if indentation:
-                    yield VirtualNode(
-                        "".join(indentation),
-                        Position(offset, lineno, col),
-                        Position(offset + len(indentation), lineno, col + len(indentation)),
-                        is_accumulated_indentation=True, path=path)
-                for char in my_indent:
-                    indentation.append(char)
 
     def _merge_classes_to_composite_labels(
             self, vnodes: Iterable[VirtualNode], path: str, index_labels: bool = False,
@@ -558,12 +584,27 @@ class FeatureExtractor:
         :yield: The sequence of `VirtualNode`-s which is identical to the input but \
                 the successive Y-nodes are merged together.
         """
+        def _class_seq_to_vnodes(value, start, end, current_class_seq, path):
+            if NEWLINE_INDEX not in current_class_seq or \
+                    current_class_seq[0] == NEWLINE_INDEX:
+                # if there are no trailing whitespaces or tabs
+                yield VirtualNode(value=value, start=start, end=end,
+                                  y=tuple(current_class_seq), path=path)
+            else:
+                index = current_class_seq.index(NEWLINE_INDEX)
+                middle = Position(start.offset + index, start.line, start.col + index)
+                yield VirtualNode(value=value[:index], start=start, end=middle,
+                                  y=tuple(current_class_seq[:index]), path=path)
+                yield VirtualNode(value=value[index:], start=middle, end=end,
+                                  y=tuple(current_class_seq[index:]), path=path)
+
         start, end, value, current_class_seq = None, None, "", []
         for vnode in vnodes:
-            if vnode.y is None:
+            if vnode.y is None and not vnode.is_accumulated_indentation or (
+                vnode.y is not None and vnode.y[0] in QUOTES_INDEX
+            ):
                 if current_class_seq:
-                    yield VirtualNode(value=value, start=start, end=end,
-                                      y=tuple(current_class_seq), path=path)
+                    yield from _class_seq_to_vnodes(value, start, end, current_class_seq, path)
                     start, end, value, current_class_seq = None, None, "", []
                 yield vnode
             else:
@@ -571,11 +612,11 @@ class FeatureExtractor:
                     start = vnode.start
                 end = vnode.end
                 value += vnode.value
-                current_class_seq.extend(vnode.y)
+                if not vnode.is_accumulated_indentation:
+                    current_class_seq.extend(vnode.y)
         if current_class_seq:
             assert value
-            yield VirtualNode(value=value, start=start, end=end, y=tuple(current_class_seq),
-                              path=path)
+            yield from _class_seq_to_vnodes(value, start, end, current_class_seq, path)
 
     def _add_noops(self, vnodes: Sequence[VirtualNode], path: str, index_labels: bool = False,
                    ) -> List[VirtualNode]:
@@ -596,7 +637,7 @@ class FeatureExtractor:
                                                 end=Position(0, 1, 1), y=noop_label, path=path))
         for vnode, next_vnode in zip(vnodes, islice(vnodes, 1, None)):
             augmented_vnodes.append(vnode)
-            if vnode.y is None and not vnode.is_accumulated_indentation and next_vnode.y is None:
+            if vnode.y is None and next_vnode.y is None:
                 augmented_vnodes.append(VirtualNode(value="", start=vnode.end, end=vnode.end,
                                                     y=noop_label, path=path))
         augmented_vnodes.append(next_vnode)
@@ -754,8 +795,9 @@ class FeatureExtractor:
                         len(support) - len(self.labels_to_class_sequences), len(support),
                         self.cutoff_label_support)
 
-    def _fill_vnode_parents(self, file_parents: dict, file_vnodes: List[VirtualNode],
-                            uast: bblfsh.Node, vnode_parents: dict):
+    def _fill_vnode_parents(self, file_parents: Mapping[int, bblfsh.Node],
+                            file_vnodes: List[VirtualNode], uast: bblfsh.Node,
+                            vnode_parents: Mapping[int, bblfsh.Node]):
         closest_left_node_id = None
         for j, vn in enumerate(file_vnodes):
             if vn.node:

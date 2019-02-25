@@ -2,7 +2,6 @@
 Defines TyposCorrectorManager - the storage of TyposCorrector instances which is intended \
 to be used globally.
 """
-
 from typing import Iterable
 
 from lookout.style.typos.corrector import TyposCorrector

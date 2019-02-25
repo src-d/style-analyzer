@@ -1,4 +1,19 @@
 import random
+from typing import Dict, Iterable, List, NamedTuple, Tuple
+
+from gensim.models.fasttext import FastText
+import numpy
+
+
+def extract_embeddings_from_fasttext(fasttext: FastText, tokens: Iterable[str]) -> numpy.ndarray:
+    """
+    Convert the embeddings from FastText to a dense matrix.
+
+    :param fasttext: trained embeddings.
+    :param tokens: list of tokens - axis Y of the returned matrix.
+    :return: matrix with extracted embeddings.
+    """
+    return numpy.fromiter((fasttext.wv[token] for token in tokens), numpy.float32, len(tokens))
 
 
 def rand_bool(true_prob):

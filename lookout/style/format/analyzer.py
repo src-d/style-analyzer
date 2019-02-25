@@ -27,10 +27,10 @@ from lookout.style.format.descriptions import describe_rule, get_change_descript
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.model import FormatModel
 from lookout.style.format.optimizer import Optimizer
-from lookout.style.format.postprocess import filter_uast_breaking_preds
 from lookout.style.format.rules import Rules, TrainableRules
+from lookout.style.format.uast_stability_checker import UASTStabilityChecker
 from lookout.style.format.utils import generate_comment, merge_dicts
-from lookout.style.format.virtual_node import VirtualNode
+from lookout.style.format.virtual_node import Position, VirtualNode
 
 # silence skopt's rant
 warnings.filterwarnings("ignore", message="The objective has been evaluated at this point before.")
@@ -61,6 +61,7 @@ class FormatAnalyzer(Analyzer):
 
     model_type = FormatModel
     name = "style.format.analyzer.FormatAnalyzer"
+    vendor = "source{d}"
     version = 1
     description = "Source code formatting: whitespace, new lines, quotes, braces."
     defaults_for_analyze = {
@@ -230,7 +231,7 @@ class FormatAnalyzer(Analyzer):
         _log = logging.getLogger(cls.__name__)
         _log.info("train %s %s %s %s", __version__, ptr.url, ptr.commit,
                   pformat(config, width=4096, compact=True))
-        model = FormatModel().construct(cls, ptr)
+        model = FormatModel().generate(cls, ptr)
         config = cls._load_train_config(config)
         for language, files in files_by_language(files).items():
             try:
@@ -255,7 +256,7 @@ class FormatAnalyzer(Analyzer):
                 continue
             else:
                 _log.info("training on %d %s files", len(files), language)
-            train_files, test_files = FormatAnalyzer.get_train_test_split(
+            train_files, test_files = FormatAnalyzer.split_train_test(
                 files, lang_config["test_dataset_ratio"], random_state=random_state)
             # ensure that the features are reproducible
             train_files = sorted(train_files, key=lambda x: x.path)
@@ -413,11 +414,11 @@ class FormatAnalyzer(Analyzer):
             X=X, vnodes_y=vnodes_y, vnodes=vnodes, feature_extractor=fe)
         y_pred = rules.fill_missing_predictions(y_pred_pure, y)
         if self.config["uast_break_check"]:
-            y, y_pred, vnodes_y, rule_winners, safe_preds = filter_uast_breaking_preds(
-                y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, files={file.path: file},
-                feature_extractor=fe, stub=bblfsh_stub, vnode_parents=vnode_parents,
-                node_parents=node_parents, rule_winners=rule_winners,
-                grouped_quote_predictions=grouped_quote_predictions)
+            checker = UASTStabilityChecker(fe)
+            y, y_pred, vnodes_y, rule_winners, safe_preds = checker.check(
+                y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, files=[file],
+                stub=bblfsh_stub, vnode_parents=vnode_parents, node_parents=node_parents,
+                rule_winners=rule_winners, grouped_quote_predictions=grouped_quote_predictions)
             y_pred_pure = y_pred_pure[safe_preds]
         assert len(y) == len(y_pred)
         assert len(y) == len(rule_winners)
@@ -428,7 +429,15 @@ class FormatAnalyzer(Analyzer):
         for line_number, line in self._group_line_nodes(
                 y, y_pred, vnodes_y, new_vnodes, rule_winners):
             line_ys, line_ys_pred, line_vnodes_y, new_line_vnodes, line_winners = line
-            new_code_line = code_generator.generate_new_line(new_line_vnodes)
+            try:
+                new_code_line = code_generator.generate_new_line(new_line_vnodes)
+            except Exception:
+                self._log.exception(
+                    "Failed to generate new line suggestion for line %d in %s. line vnodes:\n%s",
+                    line_number, file.path, "\n".join(
+                        "%s, y_old=%s" % (repr(vn), getattr(vn, "y_old", "N/A"))
+                        for vn in new_line_vnodes))
+                new_code_line = None
             if (new_line_vnodes and hasattr(new_line_vnodes[0], "y_old") and newline_index in
                     new_line_vnodes[0].y_old):
                 lines_num_diff = new_line_vnodes[0].y.count(newline_index) - \
@@ -451,8 +460,8 @@ class FormatAnalyzer(Analyzer):
         return token_fixes, new_vnodes, y_pred_pure, y
 
     @staticmethod
-    def get_train_test_split(files: Sequence[File], test_dataset_ratio: float,
-                             random_state: int) -> Tuple[Sequence[File], Sequence[File]]:
+    def split_train_test(files: Sequence[File], test_dataset_ratio: float,
+                         random_state: int) -> Tuple[Sequence[File], Sequence[File]]:
         """
         Create train test split for the files collection.
 
@@ -496,9 +505,42 @@ class FormatAnalyzer(Analyzer):
         return int(round(confidence * 100 / confidence_count))
 
     @staticmethod
+    def _split_vnodes_by_lines(vnodes: List[VirtualNode]) -> Iterator:
+        """
+        Split VirtualNode to several one-line VirtualNode if it is placed on several lines.
+
+        New line character concatenated to the next line.
+        It is applied to vnodes with y=None only.
+        """
+        stack = vnodes[::-1]
+        while stack:
+            vnode = stack.pop()
+            value_lines = vnode.value.splitlines()
+            if vnode.y is not None or len(value_lines) <= 1:
+                yield vnode
+                continue
+            if value_lines[0] == "":
+                # if there is only end of line characters we concatenate it to the next line
+                next_line = value_lines[1] if len(value_lines) > 1 else ""
+                value1 = vnode.value.splitlines(keepends=True)[0] + next_line
+                middle = Position(offset=vnode.start.offset + len(value1),
+                                  line=vnode.start.line + 1,
+                                  col=1 + len(next_line))
+            else:
+                value1 = value_lines[0]
+                middle = Position(offset=vnode.start.offset + len(value1), line=vnode.start.line,
+                                  col=vnode.start.col + len(value1))
+            value2 = vnode.value[len(value1):]
+            if value2:
+                # value2 can be multi-line so we put it back
+                stack.append(VirtualNode(value=value2, start=middle, end=vnode.end,
+                                         node=vnode.node))
+            yield VirtualNode(value=value1, start=vnode.start, end=middle, node=vnode.node)
+
+    @staticmethod
     def _group_line_nodes(
         y: Sequence[int], y_pred: Sequence[int], vnodes_y: Sequence[VirtualNode],
-        new_vnodes: Sequence[VirtualNode], rule_winners: Sequence[int],
+        new_vnodes: List[VirtualNode], rule_winners: Sequence[int],
         ) -> Tuple[int, Tuple[Sequence[int], Sequence[int], Sequence[VirtualNode],
                               Sequence[VirtualNode], Sequence[int]]]:
         """
@@ -536,7 +578,7 @@ class FormatAnalyzer(Analyzer):
 
         for line_no, (line_y, line_y_pred, line_vnodes_y, line_rule_winners) in result:
             line_vnodes = []
-            for vnode in new_vnodes:
+            for vnode in FormatAnalyzer._split_vnodes_by_lines(new_vnodes):
                 if vnode.end.line > line_no:
                     break
                 elif vnode.end.line == line_no:

@@ -1,7 +1,12 @@
+from distutils.version import LooseVersion
 from importlib.machinery import SourceFileLoader
 import os
 
+import pip
 from setuptools import find_packages, setup
+
+if LooseVersion(pip.__version__) < LooseVersion("18.1"):
+    raise EnvironmentError("Installation of this package requires pip >= 18.1")
 
 lookout_style = SourceFileLoader("lookout", "./lookout/style/__init__.py").load_module()
 
@@ -33,8 +38,8 @@ setup(
     namespace_packages=["lookout"],
     keywords=["machine learning on source code", "babelfish", "lookout"],
     install_requires=[
-        "sourced-ml>=0.7.2,<0.8",
-        "lookout-sdk-ml>=0.8.1,<0.9",
+        "sourced-ml>=0.8.2,<0.9",
+        "lookout-sdk-ml>=0.13.1,<0.14",
         "scikit-learn>=0.20,<2.0",
         "scikit-optimize>=0.5,<2.0",
         "pandas>=0.22,<2.0",
@@ -43,6 +48,7 @@ setup(
         "xgboost>=0.72,<2.0",
         "tabulate>=0.8.0,<2.0",
         "python-igraph>=0.7.0,<2.0",
+        "srcd_smart_open==1.9.0",
     ],
     extras_require={
         "tf": tf_requires,
@@ -56,7 +62,8 @@ setup(
     tests_require=tests_require,
     package_data={"": ["../LICENSE.md", "../README.md", "../requirements.txt", "README.md"],
                   "lookout.style.format": ["templates/*.jinja2"],
-                  "lookout.style.format.benchmarks": ["data/js_smoke_init.tar.xz"],
+                  "lookout.style.format.benchmarks": ["data/js_smoke_init.tar.xz",
+                                                      "data/quality_report_repos.csv"],
                   "lookout.style.format.langs": ["*.jinja2"],
                   "lookout.style.format.tests": ["*.asdf", "*.xz"],
                   "lookout.style.format.tests.bugs.001_analyze_skips_lines":
@@ -66,7 +73,9 @@ setup(
                       ["browser-policy-content.js"],
                   "lookout.style.format.tests.bugs.003_classify_vnodes_negative_col":
                       ["jquery.layout.js"],
-                  "lookout.style.typos.tests": ["*.asdf", "*.xz", "*.pkl", "id_vecs_10.bin"]},
+                  "lookout.style.format.tests.bugs.004_generate_each_line":
+                      ["jquery.layout.js"],
+                  "lookout.style.typos.tests": ["*.asdf", "*.xz", "*.pickle", "id_vecs_10.bin"]},
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Environment :: Console",

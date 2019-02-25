@@ -687,7 +687,7 @@ class TrainableRules(BaseEstimator, ClassifierMixin):
                     (tree_.children_right[node], path + (RuleAttribute(name, True, threshold),)))
             else:
                 freqs = tree_.value[node][0]
-                # why -0.5? See the papers mentioned in _prune_attributes()
+                # why -0.5? Read R. Quinlan's paper about production rules.
                 support = freqs.sum()
                 conf = (freqs.max() - 0.5) / support
                 leaf2rule[node] = len(rules) + offset

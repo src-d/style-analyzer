@@ -11,7 +11,6 @@ from typing import Any, Iterable, List, Mapping, NamedTuple, Optional, Sequence,
 
 from bblfsh import BblfshClient
 import jinja2
-from lookout.core import slogging
 from lookout.core.analyzer import ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2 import Change, File
@@ -153,9 +152,8 @@ def analyze_files(analyzer_type: Type[FormatAnalyzer], config: dict, model_path:
 
 @profile
 def print_reports(input_pattern: str, bblfsh: str, language: str, model_path: str,
-                  config: Union[str, dict] = "{}", log_level: str = "INFO") -> None:
+                  config: Union[str, dict] = "{}") -> None:
     """Print reports for a given model on a given dataset."""
-    slogging.setup(log_level, False)
     log = logging.getLogger("quality_report")
     config = config if isinstance(config, dict) else json.loads(config)
     for report in analyze_files(
