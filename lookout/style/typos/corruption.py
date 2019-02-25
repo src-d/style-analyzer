@@ -64,7 +64,7 @@ def rand_typo(token: str) -> str:
 
 
 def corrupt_tokens_in_df(data: pandas.DataFrame, typo_probability: float,
-                         add_typo_probability: float, log_level: logging.Logger = logging.DEBUG,
+                         add_typo_probability: float, log_level: int = logging.DEBUG,
                          ) -> pandas.DataFrame:
     """
     Create artificial typos in tokens (identifiers) in a pandas DataFrame. \
