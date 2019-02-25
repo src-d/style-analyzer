@@ -9,7 +9,8 @@ from lookout.style.typos.utils import Columns
 
 @unique
 class ScoreMode(Enum):
-    """"Modes for calculation scores of typos correction"""
+    """Modes for calculation scores of typos correction."""
+
     detection = 0
     correction = 1
     on_corrected = 2
