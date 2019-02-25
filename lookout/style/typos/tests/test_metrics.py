@@ -1,10 +1,9 @@
 import pathlib
-import tempfile
 import unittest
 
 import pandas
 
-from lookout.style.typos.metrics import first_k_set, get_scores, print_all_scores, ScoreMode
+from lookout.style.typos.metrics import first_k_set, generate_report, get_scores, ScoreMode
 from lookout.style.typos.utils import Columns
 
 
@@ -38,10 +37,9 @@ class MetricsTest(unittest.TestCase):
                              {"accuracy": 2 / 3, "precision": 2 / 3, "recall": 1.0, "f1": 0.8})
 
     def test_print_all_scores(self):
-        with tempfile.NamedTemporaryFile() as f:
-            print_all_scores(self.data, self.suggestions, f.name)
-            with open(f.name, "r") as read_f:
-                self.assertEqual(len(read_f.readlines()), 9)
+        report = generate_report(self.data, self.suggestions)
+        print(report)
+        self.assertEqual(len(report.split("\n")), 9)
 
 
 if __name__ == "__main__":

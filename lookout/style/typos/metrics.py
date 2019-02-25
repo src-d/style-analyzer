@@ -1,6 +1,10 @@
+import copy
 from enum import Enum, unique
-from typing import Dict, List, Optional, Set, TextIO, Tuple
+import os
+import pprint
+from typing import Dict, List, Set, Tuple
 
+import jinja2
 import pandas
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 
@@ -11,9 +15,24 @@ from lookout.style.typos.utils import Columns
 class ScoreMode(Enum):
     """Modes for calculation scores of typos correction."""
 
-    detection = 0
-    correction = 1
-    on_corrected = 2
+    detection = "detection"
+    correction = "correction"
+    on_corrected = "on_corrected"
+
+
+def _load_jinja2_template(report_template_filename: str) -> jinja2.Template:
+    env = jinja2.Environment(trim_blocks=True, lstrip_blocks=True, keep_trailing_newline=True,
+                             extensions=["jinja2.ext.do"])
+    env.filters.update({
+        "pformat": pprint.pformat,
+        "deepcopy": copy.deepcopy,
+    })
+    loader = jinja2.FileSystemLoader((os.path.join(os.path.dirname(__file__), "..", "templates"),),
+                                     followlinks=True)
+    template = loader.load(env, report_template_filename)
+    # the following is really needed, otherwise e.g. range is undefined
+    template.globals = template.environment.globals
+    return template
 
 
 def first_k_set(corrections: List[Tuple[str, float]], k: int) -> Set[str]:
@@ -54,35 +73,28 @@ def get_scores(data: pandas.DataFrame, suggestions: Dict[int, List[Tuple[str, fl
     """
     y_true, y_pred = [], []
     for i in data.index:
-        if mode == "on_corrected" and suggestions[i][0][0] == data.loc[i, Columns.Token]:
+        if mode == ScoreMode.on_corrected and suggestions[i][0][0] == data.loc[i, Columns.Token]:
             continue
         typoed = data.loc[i, Columns.Token] != data.loc[i, Columns.CorrectToken]
-        if mode == "detection" or not typoed:
+        if mode == ScoreMode.detection or not typoed:
             # If the word is not misspelled, model should not correct it in any mode
             corrected_right = (suggestions[i][0][0] != data.loc[i, Columns.Token])
         else:
             corrected_right = (data.loc[i, Columns.CorrectToken] in first_k_set(suggestions[i], k))
         y_pred.append(corrected_right)
-        y_true.append(data.loc[i, Columns.Token] != data.loc[i, Columns.CorrectToken])
+        y_true.append(typoed)
 
     precision, recall, f1, _ = precision_recall_fscore_support(y_true, y_pred, average="binary")
     accuracy = accuracy_score(y_true, y_pred)
     return {"accuracy": accuracy, "precision": precision, "recall": recall, "f1": f1}
 
 
-def print_all_scores(data: pandas.DataFrame, suggestions: Dict[int, List[Tuple[str, float]]],
-                     file: Optional[TextIO]) -> None:
+def generate_report(data: pandas.DataFrame, suggestions: Dict[int, List[Tuple[str, float]]],
+                    ) -> str:
     """Print scores for suggestions in an easy readable way."""
-    print("%-20s| %-10s| %-10s| %-10s| %-10s" %
-          ("Metrics", "Accuracy", "Precision", "Recall", "F1"), file=file)
-    print("-" * 20 + "|" + ("-" * 11 + "|") * 3 + "-" * 11, file=file)
-    scores = [get_scores(data, suggestions, ScoreMode.detection)]
+    scores = {ScoreMode.detection.value: get_scores(data, suggestions, ScoreMode.detection)}
     for mode in [ScoreMode.on_corrected, ScoreMode.correction]:
         for k in [1, 2, 3]:
-            scores.append(get_scores(data, suggestions, mode, k))
-    for i, score_name in enumerate(["DETECTION SCORE", "TOP1 SCORE ON CORR",
-                                    "TOP2 SCORE ON CORR", "TOP3 SCORE ON CORR",
-                                    "TOP1 SCORE ALL", "TOP2 SCORE ALL", "TOP3 SCORE ALL"]):
-        print("%-20s| %-10.3f| %-10.3f| %-10.3f| %-10.3f" % (
-            score_name, scores[i]["accuracy"], scores[i]["precision"], scores[i]["recall"],
-            scores[i]["f1"]), file=file)
+            scores["Top %i score %s" % (k, mode.value)] = get_scores(data, suggestions, mode, k)
+    template = _load_jinja2_template("scores.md.jinja2")
+    return template.render(scores=scores)
