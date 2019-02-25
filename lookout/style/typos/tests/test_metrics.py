@@ -4,7 +4,7 @@ import unittest
 
 import pandas
 
-from lookout.style.typos.metrics import first_k_set, get_scores, print_all_scores
+from lookout.style.typos.metrics import first_k_set, get_scores, print_all_scores, ScoreMode
 from lookout.style.typos.utils import Columns
 
 
@@ -30,11 +30,11 @@ class MetricsTest(unittest.TestCase):
 
     def test_get_score(self):
 
-        self.assertDictEqual(get_scores(self.data, self.suggestions, mode="detection"),
+        self.assertDictEqual(get_scores(self.data, self.suggestions, ScoreMode.detection),
                              {"accuracy": 0.75, "precision": 2 / 3, "recall": 1.0, "f1": 0.8})
-        self.assertDictEqual(get_scores(self.data, self.suggestions, mode="correction", k=1),
+        self.assertDictEqual(get_scores(self.data, self.suggestions, ScoreMode.correction, k=1),
                              {"accuracy": 0.5, "precision": 0.5, "recall": 0.5, "f1": 0.5})
-        self.assertDictEqual(get_scores(self.data, self.suggestions, mode="on_corrected", k=2),
+        self.assertDictEqual(get_scores(self.data, self.suggestions, ScoreMode.on_corrected, k=2),
                              {"accuracy": 2 / 3, "precision": 2 / 3, "recall": 1.0, "f1": 0.8})
 
     def test_print_all_scores(self):

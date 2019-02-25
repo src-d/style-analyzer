@@ -1,9 +1,17 @@
-from typing import Dict, List, Set, Tuple
+from enum import Enum, unique
+from typing import Dict, List, Optional, Set, TextIO, Tuple
 
 import pandas
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 
 from lookout.style.typos.utils import Columns
+
+
+@unique
+class ScoreMode(Enum):
+    detection = 0
+    correction = 1
+    on_corrected = 2
 
 
 def first_k_set(corrections: List[Tuple[str, float]], k: int) -> Set[str]:
@@ -21,17 +29,18 @@ def first_k_set(corrections: List[Tuple[str, float]], k: int) -> Set[str]:
 
 
 def get_scores(data: pandas.DataFrame, suggestions: Dict[int, List[Tuple[str, float]]],
-               mode: str = "correction", k: int = 1) -> Dict[str, float]:
+               mode: ScoreMode = ScoreMode.correction, k: int = 1) -> Dict[str, float]:
     """
     Calculate the score of the solution of the specific typo correction problem.
 
     Token is considered corrected, when the first suggestion doesn't match the token.
     Supports three problems:
-    'detection': Typo is detected right: token is corrected when and only when it is not typo-ed.
-    'correction': Correctly spelled tokens should not be corrected. Typo-ed tokens should \
-                  contain the right correction among first k suggestions.
-    'on_corrected': Same as `correction`, but only the tokens, corrected by \
-                    the suggestions, are taken into account.
+    `ScoreMode.detection`: Typo is detected right: token is corrected when and only when \
+                           it is not typo-ed.
+    `ScoreMode.correction`: Correctly spelled tokens should not be corrected. Typo-ed tokens \
+                            should  contain the right correction among first k suggestions.
+    `ScoreMode.on_corrected`: Same as `correction`, but only the tokens, corrected by \
+                              the suggestions, are taken into account.
     :param data: DataFrame which is indexed by Columns.Id and has columns Column.Token and \
                  Column.CorrectToken.
     :param suggestions: `{id : [(candidate, correct_prob)]}`, candidates are sorted \
@@ -60,21 +69,18 @@ def get_scores(data: pandas.DataFrame, suggestions: Dict[int, List[Tuple[str, fl
 
 
 def print_all_scores(data: pandas.DataFrame, suggestions: Dict[int, List[Tuple[str, float]]],
-                     path: str = None) -> None:
+                     file: Optional[TextIO]) -> None:
     """Print scores for suggestions in an easy readable way."""
-    file = None if not path else open(path, "w")
     print("%-20s| %-10s| %-10s| %-10s| %-10s" %
           ("Metrics", "Accuracy", "Precision", "Recall", "F1"), file=file)
     print("-" * 20 + "|" + ("-" * 11 + "|") * 3 + "-" * 11, file=file)
-    scores = [get_scores(data, suggestions, mode="detection")]
-    for mode in ["on_corrected", "correction"]:
+    scores = [get_scores(data, suggestions, ScoreMode.detection)]
+    for mode in [ScoreMode.on_corrected, ScoreMode.correction]:
         for k in [1, 2, 3]:
-            scores.append(get_scores(data, suggestions, mode=mode, k=k))
+            scores.append(get_scores(data, suggestions, mode, k))
     for i, score_name in enumerate(["DETECTION SCORE", "TOP1 SCORE ON CORR",
                                     "TOP2 SCORE ON CORR", "TOP3 SCORE ON CORR",
                                     "TOP1 SCORE ALL", "TOP2 SCORE ALL", "TOP3 SCORE ALL"]):
         print("%-20s| %-10.3f| %-10.3f| %-10.3f| %-10.3f" % (
             score_name, scores[i]["accuracy"], scores[i]["precision"], scores[i]["recall"],
             scores[i]["f1"]), file=file)
-    if path:
-        file.close()
