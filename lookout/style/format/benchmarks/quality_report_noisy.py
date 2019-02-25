@@ -29,8 +29,8 @@ from lookout.style.format.virtual_node import VirtualNode
 # format: url,clean_commit,noisy_commit
 REPOSITORIES = """
 https://github.com/warenlg/axios,75c8b3f146aaa8a71f7dca0263686fb1799f8f31,b5d60bb7aaa1b3ba0f286a5dad3028968831fd1d
+https://github.com/warenlg/jquery,dfa92ccead70d7dd5735a36c6d0dd1af680271cd,6f0f8a9bb739c5fe6d979736ef5d1e4a0be83446
 """.strip()
-# https://github.com/warenlg/jquery,dfa92ccead70d7dd5735a36c6d0dd1af680271cd,6f0f8a9bb739c5fe6d979736ef5d1e4a0be83446
 
 Misprediction = NamedTuple("Misprediction", [("y", numpy.ndarray), ("pred", numpy.ndarray),
                                              ("node", List[VirtualNode]), ("rule", numpy.ndarray)])
@@ -230,22 +230,22 @@ def compute_metrics(changes_count: int, predictions_count: int, true_positive: i
     :return: Prediction rate and precision metrics.
     """
     false_positive = predictions_count - true_positive
-    predr = predictions_count / changes_count
+    prediction_rate = predictions_count / changes_count
     try:
         precision = true_positive / (true_positive + false_positive)
     except ZeroDivisionError:
         precision = 1.
-    return predr, precision
+    return prediction_rate, precision
 
 
-def plot_curve(repositories: Iterable[str], predrs: Mapping[str, numpy.ndarray],
+def plot_curve(repositories: Iterable[str], prediction_rates: Mapping[str, numpy.ndarray],
                precisions: Mapping[str, numpy.ndarray], precision_threshold: float,
                limit_conf_id: Mapping[str, int], path_to_figure: str) -> None:
     """
     Plot y versus x as lines and markers using matplotlib.
 
     :param repositories: List of the repository names we plot the precision-recall curve.
-    :param predrs: Dict of 1-D numpy array containing the x coordinates.
+    :param prediction_rates: Dict of 1-D numpy array containing the x coordinates.
     :param precisions: Dict of 1-D numpy array containing the y coordinates.
     :param precision_threshold: Precision threshold tolerated by the model. \
            Limit drawn as a red horizontal line on the figure.
@@ -259,26 +259,28 @@ def plot_curve(repositories: Iterable[str], predrs: Mapping[str, numpy.ndarray],
         import matplotlib.pyplot as plt
     except ImportError:
         sys.exit("Matplotlib is required to plot the Precision/Recall curve")
-    f, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 12), sharex=True, tight_layout=True)
+    f, axes = plt.subplots(2, 1, figsize=(12, 12), sharex=True, tight_layout=True)
     f.add_subplot(111, frameon=False)
     plt.tick_params(labelcolor="none", top=False, bottom=False, left=False, right=False)
-    plt.xlabel("Normalized number of rules")
+    plt.xlabel("Normalized number of rules", fontsize=17, labelpad=20)
     for repo in repositories:
-        predrs_array = numpy.asarray(predrs[repo])
+        x0 = limit_conf_id[repo]
+        prediction_rates_array = numpy.asarray(prediction_rates[repo])
         precisions_array = numpy.asarray(precisions[repo])
-        rules = numpy.asarray([i / predrs_array.shape[0] for i in range(predrs_array.shape[0])])
-        ax1.plot(rules, predrs_array)
-        ax1.set_ylabel("PredR")
-        ax1.spines["right"].set_visible(False)
-        ax1.spines["top"].set_visible(False)
-        ax2.plot(rules, precisions_array)
-        ax2.set_ylabel("precision")
-        ax2.spines["right"].set_visible(False)
-        ax2.spines["top"].set_visible(False)
+        rules = numpy.asarray([i / prediction_rates_array.shape[0]
+                               for i in range(prediction_rates_array.shape[0])])
+        for ax, metric, ylabel in zip(axes, (prediction_rates_array, precisions_array),
+                                      ("prediction rate", "precision")):
+            ax.plot(rules[x0:], metric[x0:], color="lightgrey")
+            ax.plot(rules[:x0 + 1], metric[:x0 + 1], label=repo)
+            ax.set_ylabel(ylabel, fontsize=17, labelpad=20)
+            ax.spines["right"].set_visible(False)
+            ax.spines["top"].set_visible(False)
+            ax.tick_params(labelsize=17, color="gray")
     f.add_subplot(212, frameon=False)
-    plt.tick_params(labelcolor="none", top="off", bottom="off", left="off", right="off")
-    handles, labels = plt.get_legend_handles_labels()
-    plt.legend(handles, labels, loc="best", fontsize=17)
+    plt.tick_params(labelcolor="none", top=False, bottom=False, left=False, right=False)
+    handles, labels = ax.get_legend_handles_labels()
+    plt.legend(handles, labels, loc="upper right", fontsize=17)
     plt.savefig(path_to_figure, pad_inches=0, bbox_inches="tight")
 
 
@@ -297,7 +299,7 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
     :param dir_output: Path to the output directory where to store the quality report in Markdown \
            and the precision-recall curve in png format.
     :param repos: Input list of urls to the repositories to analyze. \
-           Should be strings separated by newlines. If if is None, \
+           Should be strings separated by newlines. If it is None, \
            we use the string defined at the beginning of the file.
     """
     log = logging.getLogger("quality_report_noisy")
@@ -305,8 +307,8 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
     # initialization
     repo_names = []
     last_accepted_rule = {}
-    predrs, precisions, accepted_rules = (defaultdict(list) for _ in range(3))
-    n_mistakes, prec_max_predr, confidence_threshold_exp, max_predr, \
+    prediction_rates, precisions, accepted_rules = (defaultdict(list) for _ in range(3))
+    n_mistakes, prec_max_prediction_rate, confidence_threshold_exp, max_prediction_rate, \
         n_rules, n_rules_filtered = ({} for _ in range(6))
     if repos is None:
         repos = REPOSITORIES
@@ -369,25 +371,27 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
                                          if any(r[0] == m.rule for r in rules_id[:i + 1])}
                     style_fixes = get_style_fixes(filtered_mispreds, vnodes_y_true,
                                                   true_files, noisy_files, feature_extractor)
-                    predr, precision = compute_metrics(changes_count=changes_count,
-                                                       predictions_count=len(filtered_mispreds),
-                                                       true_positive=len(style_fixes))
-                    predrs[repo].append(round(predr, 3))
+                    prediction_rate, precision = compute_metrics(
+                        changes_count=changes_count,
+                        predictions_count=len(filtered_mispreds),
+                        true_positive=len(style_fixes))
+                    prediction_rates[repo].append(round(prediction_rate, 3))
                     precisions[repo].append(round(precision, 3))
-                print("prediction rate x:", predrs[repo])
+                print("prediction rate x:", prediction_rates[repo])
                 print("precision y:", precisions[repo])
 
                 # compute other statistics and quality metrics for the model's evaluation
                 repo_names.append(repo)
                 n_mistakes[repo] = len(true_files)
-                prec_max_predr[repo] = precisions[repo][-1]
-                max_predr[repo] = max(predrs[repo])
+                prec_max_prediction_rate[repo] = precisions[repo][-1]
+                max_prediction_rate[repo] = max(prediction_rates[repo])
                 n_rules_filtered[repo] = len(rules_id)
 
                 # compute the confidence and prediction rate limit for a given precision threshold
-                for i, (predr, prec) in enumerate(zip(predrs[repo], precisions[repo])):
+                for i, (prediction_rate, prec) in enumerate(zip(prediction_rates[repo],
+                                                                precisions[repo])):
                     if prec >= precision_threshold:
-                        accepted_rules[repo].append((i, rules_id[i][1], predr))
+                        accepted_rules[repo].append((i, rules_id[i][1], prediction_rate))
                 last_accepted_rule[repo] = min(accepted_rules[repo], key=itemgetter(1))
                 confidence_threshold_exp[repo] = (last_accepted_rule[repo][0],
                                                   last_accepted_rule[repo][1])
@@ -405,7 +409,8 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
 
     # compile the curves showing the evolutions of the prediction rate and precision score
     path_to_figure = os.path.join(dir_output, "pr_curves.png")
-    plot_curve(repo_names, predrs, precisions, precision_threshold, limit_conf_id, path_to_figure)
+    plot_curve(repo_names, prediction_rates, precisions, precision_threshold,
+               limit_conf_id, path_to_figure)
 
     # compile the markdown template for the report through jinja2
     loader = jinja2.FileSystemLoader((os.path.join(os.path.dirname(__file__), "..", "templates"),),
@@ -414,9 +419,10 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
     env.globals.update(range=range)
     template = loader.load(env, "noisy_quality_report.md.jinja2")
     report = template.render(repos=repo_names, n_mistakes=n_mistakes,
-                             prec_max_predr=prec_max_predr,
+                             prec_max_prediction_rate=prec_max_prediction_rate,
                              confidence_threshold_exp=round(max_confidence_threshold_exp[1], 2),
-                             max_predr=max_predr, confidence_threshold=confidence_threshold,
+                             max_prediction_rate=max_prediction_rate,
+                             confidence_threshold=confidence_threshold,
                              support_threshold=support_threshold,
                              n_rules=n_rules, n_rules_filtered=n_rules_filtered,
                              path_to_figure=path_to_figure)
