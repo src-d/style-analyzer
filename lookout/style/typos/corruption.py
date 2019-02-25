@@ -1,3 +1,4 @@
+import logging
 import random
 import string
 
@@ -63,7 +64,8 @@ def rand_typo(token: str) -> str:
 
 
 def corrupt_tokens_in_df(data: pandas.DataFrame, typo_probability: float,
-                         add_typo_probability: float) -> pandas.DataFrame:
+                         add_typo_probability: float, log_level: logging.Logger = logging.DEBUG,
+                         ) -> pandas.DataFrame:
     """
     Create artificial typos in tokens (identifiers) in a pandas DataFrame. \
     Augment some of the identifiers from the dataframe with `typo_probability`, \
@@ -81,7 +83,10 @@ def corrupt_tokens_in_df(data: pandas.DataFrame, typo_probability: float,
     result = data.copy()
     result.loc[:, Columns.CorrectToken] = data[Columns.Token]
     result.loc[:, Columns.CorrectSplit] = data[Columns.Split]
-    for i in tqdm(range(len(data))):
+    indices = range(len(data))
+    if log_level == logging.DEBUG:
+        indices = tqdm(indices)
+    for i in indices:
         token = data.iloc[i][Columns.Token]
         typoed_token = token
         if len(token) > 1 and random.uniform(0, 1) < typo_probability:
