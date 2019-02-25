@@ -12,7 +12,7 @@ letters = list(string.ascii_lowercase)
 
 def rand_insert(token: str) -> str:
     """
-    Add random letter inside a token.
+    Add a random letter inside the token.
     """
     letter = random.choice(letters)
     if len(token) == 0:
@@ -25,7 +25,7 @@ def rand_insert(token: str) -> str:
 
 def rand_delete(token: str) -> str:
     """
-    Delete random symbol from a token.
+    Delete a random symbol from the token.
     """
     if len(token) == 0:
         return token
@@ -35,7 +35,7 @@ def rand_delete(token: str) -> str:
 
 def rand_substitution(token: str) -> str:
     """
-    Substitute random symbol with a letter inside a token.
+    Substitute a random symbol with a letter inside the token.
     """
     if len(token) == 0:
         return token
@@ -45,7 +45,7 @@ def rand_substitution(token: str) -> str:
 
 def rand_swap(token: str) -> str:
     """
-    Swap two random consequent symbols.
+    Swap two random consequent symbols inside the token.
     """
     if len(token) < 2 or len(set(token)) == 1:
         return token
@@ -57,7 +57,7 @@ def rand_swap(token: str) -> str:
 
 def rand_typo(token: str) -> str:
     """
-    Make random typo in a token.
+    Make a random typo in the token.
     """
     return random.choice([rand_insert, rand_delete, rand_substitution, rand_swap])(token)
 
@@ -65,7 +65,7 @@ def rand_typo(token: str) -> str:
 def corrupt_tokens_in_df(data: pandas.DataFrame, typo_probability: float,
                          add_typo_probability: float) -> pandas.DataFrame:
     """
-    Create artificial typos in tokens from a dataframe. \
+    Create artificial typos in tokens from the dataframe. \
     Augment some of identifiers from dataframe with "typo_probability", \
     consequent typos in the same word happen with "add_typo_probability" each. \
     Operations happens out-of-place.
