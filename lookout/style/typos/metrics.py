@@ -1,7 +1,7 @@
 from typing import Dict, List, Set, Tuple
 
 import pandas
-from sklearn.metrics import classification_report
+from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 
 from lookout.style.typos.utils import Columns
 
@@ -20,8 +20,8 @@ def first_k_set(corrections: List[Tuple[str, float]], k: int) -> Set[str]:
     return first_k
 
 
-def get_score(data: pandas.DataFrame, suggestions: Dict[int, List[Tuple[str, float]]],
-              mode: str = "correction", k: int = 1) -> Scores:
+def get_scores(data: pandas.DataFrame, suggestions: Dict[int, List[Tuple[str, float]]],
+               mode: str = "correction", k: int = 1) -> Dict[str, float]:
     """
     Calculate the score of the solution of the specific typo correction problem.
 
@@ -45,9 +45,36 @@ def get_score(data: pandas.DataFrame, suggestions: Dict[int, List[Tuple[str, flo
     for i in data.index:
         if mode == "on_corrected" and suggestions[i][0][0] == data.loc[i, Columns.Token]:
             continue
-        corrected_right = (data.loc[i, Columns.CorrectToken] in first_k_set(suggestions[i], k))
-        if mode == "detection":
+        typoed = data.loc[i, Columns.Token] != data.loc[i, Columns.CorrectToken]
+        if mode == "detection" or not typoed:
+            # If the word is not misspelled, model should not correct it in any mode
             corrected_right = (suggestions[i][0][0] != data.loc[i, Columns.Token])
+        else:
+            corrected_right = (data.loc[i, Columns.CorrectToken] in first_k_set(suggestions[i], k))
         y_pred.append(corrected_right)
         y_true.append(data.loc[i, Columns.Token] != data.loc[i, Columns.CorrectToken])
-    return classification_report(y_true, y_pred, output_dict=True)
+
+    precision, recall, f1, _ = precision_recall_fscore_support(y_true, y_pred, average="binary")
+    accuracy = accuracy_score(y_true, y_pred)
+    return {"accuracy": accuracy, "precision": precision, "recall": recall, "f1": f1}
+
+
+def print_all_scores(data: pandas.DataFrame, suggestions: Dict[int, List[Tuple[str, float]]],
+                     path: str = None) -> None:
+    """Print scores for suggestions in an easy readable way."""
+    file = None if not path else open(path, "w")
+    print("%-20s| %-10s| %-10s| %-10s| %-10s" %
+          ("Metrics", "Accuracy", "Precision", "Recall", "F1"), file=file)
+    print("-" * 20 + "|" + ("-" * 11 + "|") * 3 + "-" * 11, file=file)
+    scores = [get_scores(data, suggestions, mode="detection")]
+    for mode in ["on_corrected", "correction"]:
+        for k in [1, 2, 3]:
+            scores.append(get_scores(data, suggestions, mode=mode, k=k))
+    for i, score_name in enumerate(["DETECTION SCORE", "TOP1 SCORE ON CORR",
+                                    "TOP2 SCORE ON CORR", "TOP3 SCORE ON CORR",
+                                    "TOP1 SCORE ALL", "TOP2 SCORE ALL", "TOP3 SCORE ALL"]):
+        print("%-20s| %-10.3f| %-10.3f| %-10.3f| %-10.3f" % (
+            score_name, scores[i]["accuracy"], scores[i]["precision"], scores[i]["recall"],
+            scores[i]["f1"]), file=file)
+    if path:
+        file.close()

@@ -1,40 +1,47 @@
 import pathlib
+import tempfile
 import unittest
 
 import pandas
 
-from lookout.style.typos.metrics import get_score, Scores
+from lookout.style.typos.metrics import first_k_set, get_scores, print_all_scores
 from lookout.style.typos.utils import Columns
 
 
 TEST_DATA_PATH = str(pathlib.Path(__file__).parent)
 
 
-class ScoreClassTest(unittest.TestCase):
-    def test_score_functions(self):
-        scores = Scores(tp=12, fp=3, tn=3, fn=12)
-        self.assertDictEqual(
-            {"accuracy": 0.5, "precision": 0.8, "recall": 0.5, "f1": 2 / (1 / 0.8 + 1 / 0.5)},
-            scores.get_metrics())
-
-
 class MetricsTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.data = pandas.DataFrame([["get", "get"],
+                                     ["gwt", "get"],
+                                     ["tokem", "token"],
+                                     ["token", "token"]],
+                                    columns=[Columns.Token, Columns.CorrectToken])
+        cls.suggestions = {0: [("get", 1.0)],
+                           1: [("got", 0.9), ("get", 0.5), ("gwt", 0.01)],
+                           2: [("token", 0.98), ("taken", 0.3), ("tokem", 0.01)],
+                           3: [("taken", 0.98), ("token", 0.9)]}
+
+    def test_first_k_set(self):
+        self.assertSetEqual(first_k_set([("token", 0.98), ("taken", 0.3), ("tokem", 0.01)], 2),
+                            {"token", "taken"})
+
     def test_get_score(self):
-        data = pandas.DataFrame([["get", "get"],
-                                 ["gwt", "get"],
-                                 ["tokem", "token"],
-                                 ["token", "token"]],
-                                columns=[Columns.Token, Columns.CorrectToken])
-        suggestions = {0: [("get", 1.0)],
-                       1: [("got", 0.9), ("get", 0.5), ("gwt", 0.01)],
-                       2: [("token", 0.98), ("taken", 0.3), ("tokem", 0.01)],
-                       3: [("taken", 0.98), ("token", 0.9)]}
-        self.assertEqual(get_score(data, suggestions, mode="detection"),
-                         Scores(2, 1, 1, 0))
-        self.assertEqual(get_score(data, suggestions, mode="correction", k=1),
-                         Scores(1, 1, 1, 1))
-        self.assertEqual(get_score(data, suggestions, mode="on_corrected", k=2),
-                         Scores(2, 1, 0, 0))
+
+        self.assertDictEqual(get_scores(self.data, self.suggestions, mode="detection"),
+                             {"accuracy": 0.75, "precision": 2 / 3, "recall": 1.0, "f1": 0.8})
+        self.assertDictEqual(get_scores(self.data, self.suggestions, mode="correction", k=1),
+                             {"accuracy": 0.5, "precision": 0.5, "recall": 0.5, "f1": 0.5})
+        self.assertDictEqual(get_scores(self.data, self.suggestions, mode="on_corrected", k=2),
+                             {"accuracy": 2 / 3, "precision": 2 / 3, "recall": 1.0, "f1": 0.8})
+
+    def test_print_all_scores(self):
+        with tempfile.NamedTemporaryFile() as f:
+            print_all_scores(self.data, self.suggestions, f.name)
+            with open(f.name, "r") as read_f:
+                self.assertEqual(len(read_f.readlines()), 9)
 
 
 if __name__ == "__main__":
