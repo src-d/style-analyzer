@@ -65,10 +65,10 @@ def rand_typo(token: str) -> str:
 def corrupt_tokens_in_df(data: pandas.DataFrame, typo_probability: float,
                          add_typo_probability: float) -> pandas.DataFrame:
     """
-    Create artificial typos in tokens from the dataframe. \
-    Augment some of identifiers from dataframe with "typo_probability", \
-    consequent typos in the same word happen with "add_typo_probability" each. \
-    Operations happens out-of-place.
+    Create artificial typos in tokens (identifiers) in a pandas DataFrame. \
+    Augment some of the identifiers from the dataframe with `typo_probability`, \
+    the consequent typos in the same word happen with `add_typo_probability` each. \
+    Operations run out-of-place.
 
     :param data: Dataframe which contains columns Columns.Token and Columns.Split.
     :param typo_probability: Probability with which a token gets to be corrupted.
