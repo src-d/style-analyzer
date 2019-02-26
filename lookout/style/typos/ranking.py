@@ -1,6 +1,6 @@
 """Ranking typo correction candidates using a GBT."""
 import multiprocessing
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from modelforge import Model
 import numpy
@@ -42,9 +42,9 @@ class CandidatesRanker(Model):
         self.boost_param = self.DEFAULT_BOOST_PARAM
         self.bst = None  # type: xgb.Booster
 
-    def construct(self, train_rounds: int = DEFAULT_TRAIN_ROUNDS,
-                  early_stopping: int = DEFAULT_EARLY_STOPPING,
-                  boost_param: dict = None) -> None:
+    def construct(self, boost_param: Optional[dict] = None,
+                  train_rounds: int = DEFAULT_TRAIN_ROUNDS,
+                  early_stopping: int = DEFAULT_EARLY_STOPPING) -> None:
         """
         Assign the training parameters. See XGBoost docs for the details.
 
