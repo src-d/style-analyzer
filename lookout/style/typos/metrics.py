@@ -11,7 +11,16 @@ from lookout.style.typos.utils import Columns
 
 @unique
 class ScoreMode(Enum):
-    """Modes for calculation scores of typos correction."""
+    """
+    Modes for calculation scores of typos correction.
+
+    `ScoreMode.detection`: Typo is detected right: token is corrected when and only when \
+                           it is not typo-ed.
+    `ScoreMode.correction`: Correctly spelled tokens should not be corrected. Typo-ed tokens \
+                            should  contain the right correction among first k suggestions.
+    `ScoreMode.on_corrected`: Same as `correction`, but only the tokens, corrected by \
+                              the suggestions, are taken into account.
+    """
 
     detection = "detection"
     correction = "correction"
@@ -66,6 +75,6 @@ def generate_report(data: pandas.DataFrame, suggestions: Dict[int, List[Tuple[st
     for mode in [ScoreMode.on_corrected, ScoreMode.correction]:
         for k in range(1, 4):
             scores["Top %i score %s" % (k, mode.value)] = get_scores(data, suggestions, mode, k)
-    template = load_jinja2_template(os.path.join(os.path.dirname(__file__), "..", "templates"),
-                                    "scores.md.jinja2")
+    template = load_jinja2_template(
+        os.path.join(os.path.dirname(__file__), "templates", "scores.md.jinja2"))
     return template.render(scores=scores)

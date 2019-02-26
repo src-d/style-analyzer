@@ -16,6 +16,7 @@ import numpy
 from sklearn.exceptions import NotFittedError
 
 from lookout.style.common import load_jinja2_template, merge_dicts
+from lookout.style.format import TEMPLATES_ROOT
 from lookout.style.format.analyzer import FileFix, FormatAnalyzer
 from lookout.style.format.benchmarks.time_profile import profile
 from lookout.style.format.descriptions import describe_rule
@@ -45,8 +46,7 @@ def generate_quality_report(language: str, report: Mapping[str, Any], ptr: Refer
     if max_files > 0:
         to_show = to_show[:max_files]
 
-    template = load_jinja2_template(os.path.join(os.path.dirname(__file__), "..", "templates"),
-                                    "quality_report.md.jinja2")
+    template = load_jinja2_template(os.path.join(TEMPLATES_ROOT, "quality_report.md.jinja2"))
     # TODO(vmarkovtsev): move all the logic inside the template
     res = template.render(language=language, ptr=ptr, conf_mat=report["confusion_matrix"],
                           target_names=report["target_names"], files=to_show,
@@ -74,8 +74,7 @@ def generate_model_report(model: FormatModel, analyze_config: Dict[str, Any],
         if language not in model:
             raise NotFittedError(language)
 
-    template = load_jinja2_template(os.path.join(os.path.dirname(__file__), "..", "templates"),
-                                     "model_report.md.jinja2")
+    template = load_jinja2_template(os.path.join(TEMPLATES_ROOT, "model_report.md.jinja2"))
     return template.render(model=model, languages=languages, analyze_config=analyze_config,
                            FeatureExtractor=FeatureExtractor, describe_rule=describe_rule)
 
