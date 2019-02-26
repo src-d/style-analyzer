@@ -1,6 +1,6 @@
 import unittest
 
-from lookout.style.format.utils import merge_dicts
+from lookout.style.common import merge_dicts
 
 
 class RulesMergeDicts(unittest.TestCase):

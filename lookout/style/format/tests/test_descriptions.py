@@ -10,13 +10,13 @@ import unittest
 import bblfsh
 from lookout.core.api.service_data_pb2 import File
 
+from lookout.style.common import merge_dicts
 from lookout.style.format.analyzer import FormatAnalyzer
 from lookout.style.format.descriptions import describe_rule, hash_rule
 from lookout.style.format.feature_extractor import FeatureExtractor, FeatureGroup
 from lookout.style.format.features import FeatureId
 from lookout.style.format.rules import Rule, RuleAttribute, RuleStats
 from lookout.style.format.tests.test_analyzer import get_train_config
-from lookout.style.format.utils import merge_dicts
 
 
 class DescriptionsTests(unittest.TestCase):

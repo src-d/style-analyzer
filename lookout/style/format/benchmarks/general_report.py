@@ -18,13 +18,13 @@ from lookout.core.data_requests import DataService, request_files
 import numpy
 from sklearn.exceptions import NotFittedError
 
+from lookout.style.common import merge_dicts
 from lookout.style.format.analyzer import FileFix, FormatAnalyzer
 from lookout.style.format.benchmarks.time_profile import profile
 from lookout.style.format.descriptions import describe_rule
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.model import FormatModel
-from lookout.style.format.utils import generate_comment, get_classification_report, \
-    merge_dicts, prepare_files
+from lookout.style.format.utils import generate_comment, get_classification_report, prepare_files
 from lookout.style.format.virtual_node import VirtualNode
 
 

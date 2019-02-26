@@ -21,6 +21,7 @@ from lookout.core.metrics import submit_event
 import numpy
 
 from lookout.style import __version__
+from lookout.style.common import merge_dicts
 from lookout.style.format.classes import CLASS_INDEX, CLS_NEWLINE
 from lookout.style.format.code_generator import CodeGenerator
 from lookout.style.format.descriptions import describe_rule, get_change_description, hash_rule
@@ -29,7 +30,7 @@ from lookout.style.format.model import FormatModel
 from lookout.style.format.optimizer import Optimizer
 from lookout.style.format.rules import Rules, TrainableRules
 from lookout.style.format.uast_stability_checker import UASTStabilityChecker
-from lookout.style.format.utils import generate_comment, merge_dicts
+from lookout.style.format.utils import generate_comment
 from lookout.style.format.virtual_node import Position, VirtualNode
 
 # silence skopt's rant
