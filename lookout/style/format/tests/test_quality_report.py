@@ -101,21 +101,22 @@ class QualityReportTests(PretrainedModelTests):
             output = output[:test_report_start]
             model_data = _get_json_data(output)["javascript"]
             self.assertEqual(model_data, {
-                "avg_rule_len": 12.719585849870578,
+                "avg_rule_len": 11.214128035320089,
                 "max_conf": 0.9999598264694214,
                 "max_support": 21880,
-                "min_conf": 0.8006756901741028,
-                "min_support": 16,
-                "num_rules": 1159})
-            lines = ["|Min support|16|",
+                "min_conf": 0.9206641912460327,
+                "min_support": 81,
+                "num_rules": 453,
+            })
+            lines = ["|Min support|81|",
                      "|Max support|21880|",
-                     "|Min confidence|0.8006756901741028|",
+                     "|Min confidence|0.9206641912460327|",
                      "|Max confidence|0.9999598264694214|"]
             for line in lines:
                 self.assertIn(line, output)
             num_rules, avg_len = _get_model_summary(output)
-            self.assertEqual(num_rules, 1159)
-            self.assertEqual(avg_len, 12.719585849870578)
+            self.assertEqual(num_rules, 453)
+            self.assertAlmostEqual(avg_len, 11.214128035320089)
 
     def test_eval(self):
         """Test on normal input."""
