@@ -2,6 +2,7 @@ import os
 import tempfile
 import unittest
 
+from modelforge import slogging
 import pandas
 
 from lookout.style.format.benchmarks import generate_smoke
@@ -14,6 +15,7 @@ from lookout.style.format.tests.test_analyzer import get_analyze_config, get_tra
 class EvaluateSmokeTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        slogging.setup("DEBUG", False)
         cls.seqs3 = [
             ("", "", ""),
             ("abc", "", ""),
