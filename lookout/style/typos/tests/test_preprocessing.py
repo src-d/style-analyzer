@@ -4,15 +4,11 @@ import unittest
 import pandas
 from pandas.util.testing import assert_frame_equal
 
-from lookout.style.typos.preprocessing import check_split, filter_splits, print_frequencies
+from lookout.style.typos.preprocessing import filter_splits, print_frequencies
 from lookout.style.typos.utils import Columns
 
 
 class PreprocessingTest(unittest.TestCase):
-    def test_check_split(self):
-        self.assertTrue(check_split("get the value", {"get", "the", "value", "here"}))
-        self.assertFalse(check_split("get the value", {"get", "value", "here"}))
-
     def test_filter_splits(self):
         data = pandas.DataFrame([["get value", "get"],
                                  ["get value", "value"],
