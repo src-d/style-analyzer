@@ -35,9 +35,9 @@ def get_scores(data: pandas.DataFrame, suggestions: Dict[int, List[Tuple[str, fl
                  Column.CorrectToken.
     :param suggestions: `{id : [(candidate, correct_prob)]}`, candidates are sorted \
                         by correct_prob in a descending order .
-    :param mode: One of 'detection', 'correction', 'on_corrected'.
+    :param mode: One of `ScoreMode.detection`, `ScoreMode.correction`, `ScoreMode.on_corrected`.
     :param k: Number of the first suggested corrections to check. Used in modes \
-              'correction', 'on_corrected'.
+              `ScoreMode.correction`, `ScoreMode.on_corrected`.
     :return: Scores of the suggestions.
     """
     y_true, y_pred = [], []
@@ -49,8 +49,8 @@ def get_scores(data: pandas.DataFrame, suggestions: Dict[int, List[Tuple[str, fl
             # If the word is not misspelled, model should not correct it in any mode
             corrected_right = suggestions[i][0][0] != data.loc[i, Columns.Token]
         else:
-            corrected_right = data.loc[i, Columns.CorrectToken] in set(
-                correction for correction, _ in suggestions[i][:k])
+            corrected_right = data.loc[i, Columns.CorrectToken] in {
+                correction for correction, _ in suggestions[i][:k]}
         y_pred.append(corrected_right)
         y_true.append(typoed)
 
@@ -64,7 +64,7 @@ def generate_report(data: pandas.DataFrame, suggestions: Dict[int, List[Tuple[st
     """Print scores for suggestions in an easy readable way."""
     scores = {ScoreMode.detection.value: get_scores(data, suggestions, ScoreMode.detection)}
     for mode in [ScoreMode.on_corrected, ScoreMode.correction]:
-        for k in range(1, 3):
+        for k in range(1, 4):
             scores["Top %i score %s" % (k, mode.value)] = get_scores(data, suggestions, mode, k)
     template = load_jinja2_template(os.path.join(os.path.dirname(__file__), "..", "templates"),
                                     "scores.md.jinja2")
