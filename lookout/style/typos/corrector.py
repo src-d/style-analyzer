@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 from lookout.style.typos.generation import (CandidatesGenerator, get_candidates_features,
                                             get_candidates_metadata)
-from lookout.style.typos.metrics import get_scores, generate_report
+from lookout.style.typos.metrics import generate_report, get_scores
 from lookout.style.typos.ranking import CandidatesRanker
 from lookout.style.typos.utils import Columns
 
