@@ -155,23 +155,6 @@ def rank_candidates(candidates: pandas.DataFrame, pred_probs: List[float],
     return suggestions
 
 
-def filter_suggestions(data: pandas.DataFrame, suggestions: Dict[int, List[Tuple[str, float]]],
-                       n_candidates: int = 1, return_all: bool = False,
-                       ) -> Dict[int, List[Tuple[str, float]]]:
-    """
-    Filter correction suggestions.
-
-    :param data: DataFrame which contains column Columns.Token.
-    :param suggestions: Dictionary of suggestions, keys correspond with data.index.
-    :param n_candidates: Number of most probably correct candidates to return for each typo.
-    :param return_all: False to return corrections only for tokens corrected in the \
-                       first candidate.
-    :return: Dictionary of filtered suggestions.
-    """
-    return {index: suggestions[index][:n_candidates] for index, row in data.iterrows()
-            if return_all or suggestions[index][0][0] != row[Columns.Token]}
-
-
 def suggestions_to_df(data: pandas.DataFrame, suggestions: Dict[int, List[Tuple[str, float]]],
                       ) -> pandas.DataFrame:
     """

@@ -8,7 +8,7 @@ import pandas
 from pandas.util.testing import assert_frame_equal
 
 from lookout.style.typos.utils import (
-    add_context_info, Columns, filter_suggestions, flatten_data, flatten_df_by_column,
+    add_context_info, Columns, flatten_data, flatten_df_by_column,
     rank_candidates, read_frequencies, read_vocabulary, suggestions_to_df, suggestions_to_flat_df)
 
 
@@ -101,18 +101,6 @@ class RankCandidatesTest(unittest.TestCase):
         self.assertDictEqual(rank_candidates(self.custom_candidates, proba, n_candidates=2,
                                              return_all=False),
                              self.custom_filtered_suggestions)
-
-    def test_filter_suggestions(self):
-        with open(join(TEST_DATA_PATH, "test_data_candidates_filtered_suggestions.pickle"),
-                  "br") as f:
-            filtered_suggestions = pickle.load(f)
-        self.assertEqual(filter_suggestions(self.data, self.suggestions,
-                                            n_candidates=2, return_all=False),
-                         filtered_suggestions)
-
-        self.assertEqual(filter_suggestions(self.custom_data, self.custom_suggestions,
-                                            n_candidates=2, return_all=False),
-                         self.custom_filtered_suggestions)
 
     def test_suggestions_to_df(self):
         suggestions_df = pandas.read_csv(join(TEST_DATA_PATH,
