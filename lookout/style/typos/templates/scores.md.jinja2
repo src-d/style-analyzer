@@ -11,6 +11,7 @@ Top 3 score on_corrected
 |-------------------------:|:----------|:----------|:----------|:----------|
 {% for mode in scores %}
 | {{ "%24s" % mode}} | {% for metric in ["accuracy", "precision", "recall", "f1"] %} {{ "  %.3f " % scores[mode][metric] }} | {% endfor %}
+
 {% endfor %}
 
 
