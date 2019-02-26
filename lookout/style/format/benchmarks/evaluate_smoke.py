@@ -16,11 +16,11 @@ from lookout.core.test_helpers import server
 import pandas
 from tqdm import tqdm
 
+from lookout.style.common import merge_dicts
 from lookout.style.format.analyzer import FormatAnalyzer
 from lookout.style.format.benchmarks.analyzer_context_manager import AnalyzerContextManager
 from lookout.style.format.code_generator import CodeGenerator
 from lookout.style.format.feature_extractor import FeatureExtractor
-from lookout.style.format.utils import merge_dicts
 from lookout.style.format.virtual_node import VirtualNode
 
 EMPTY = "␣"
