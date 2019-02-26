@@ -1,8 +1,9 @@
 from copy import deepcopy
-import jinja2
 import os
 import pprint
 from typing import Mapping
+
+import jinja2
 
 
 def merge_dicts(*dicts: Mapping) -> dict:
