@@ -1,16 +1,13 @@
 """Facilities to report the quality of a given model on a given dataset."""
 from collections import Counter, OrderedDict
-import copy
 import glob
 from itertools import chain
 import json
 import logging
 import os
-import pprint
 from typing import Any, Dict, Iterable, List, Mapping, NamedTuple, Optional, Sequence, Type, Union
 
 from bblfsh import BblfshClient
-import jinja2
 from lookout.core.analyzer import ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2 import Change, File
@@ -18,7 +15,8 @@ from lookout.core.data_requests import DataService, request_files
 import numpy
 from sklearn.exceptions import NotFittedError
 
-from lookout.style.common import merge_dicts
+from lookout.style.common import load_jinja2_template, merge_dicts
+from lookout.style.format import TEMPLATES_ROOT
 from lookout.style.format.analyzer import FileFix, FormatAnalyzer
 from lookout.style.format.benchmarks.time_profile import profile
 from lookout.style.format.descriptions import describe_rule
@@ -26,21 +24,6 @@ from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.model import FormatModel
 from lookout.style.format.utils import generate_comment, get_classification_report, prepare_files
 from lookout.style.format.virtual_node import VirtualNode
-
-
-def _load_jinja2_template(report_template_filename: str) -> jinja2.Template:
-    env = jinja2.Environment(trim_blocks=True, lstrip_blocks=True, keep_trailing_newline=True,
-                             extensions=["jinja2.ext.do"])
-    env.filters.update({
-        "pformat": pprint.pformat,
-        "deepcopy": copy.deepcopy,
-    })
-    loader = jinja2.FileSystemLoader((os.path.join(os.path.dirname(__file__), "..", "templates"),),
-                                     followlinks=True)
-    template = loader.load(env, report_template_filename)
-    # the following is really needed, otherwise e.g. range is undefined
-    template.globals = template.environment.globals
-    return template
 
 
 def generate_quality_report(language: str, report: Mapping[str, Any], ptr: ReferencePointer,
@@ -63,7 +46,7 @@ def generate_quality_report(language: str, report: Mapping[str, Any], ptr: Refer
     if max_files > 0:
         to_show = to_show[:max_files]
 
-    template = _load_jinja2_template("quality_report.md.jinja2")
+    template = load_jinja2_template(os.path.join(TEMPLATES_ROOT, "quality_report.md.jinja2"))
     # TODO(vmarkovtsev): move all the logic inside the template
     res = template.render(language=language, ptr=ptr, conf_mat=report["confusion_matrix"],
                           target_names=report["target_names"], files=to_show,
@@ -90,7 +73,8 @@ def generate_model_report(model: FormatModel, analyze_config: Dict[str, Any],
     for language in languages:
         if language not in model:
             raise NotFittedError(language)
-    template = _load_jinja2_template("model_report.md.jinja2")
+
+    template = load_jinja2_template(os.path.join(TEMPLATES_ROOT, "model_report.md.jinja2"))
     return template.render(model=model, languages=languages, analyze_config=analyze_config,
                            FeatureExtractor=FeatureExtractor, describe_rule=describe_rule)
 

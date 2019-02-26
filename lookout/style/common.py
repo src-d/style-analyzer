@@ -1,5 +1,9 @@
 from copy import deepcopy
+import os
+import pprint
 from typing import Mapping
+
+import jinja2
 
 
 def merge_dicts(*dicts: Mapping) -> dict:
@@ -32,3 +36,19 @@ def merge_dicts(*dicts: Mapping) -> dict:
             else:
                 d1[key] = value
     return res
+
+
+def load_jinja2_template(path: str) -> jinja2.Template:
+    """Return a loaded template by the specified file path."""
+    env = jinja2.Environment(trim_blocks=True, lstrip_blocks=True, keep_trailing_newline=True,
+                             extensions=["jinja2.ext.do"])
+    env.filters.update({
+        "pformat": pprint.pformat,
+        "deepcopy": deepcopy,
+    })
+    root, name = os.path.split(path)
+    loader = jinja2.FileSystemLoader((root,), followlinks=True)
+    template = loader.load(env, name)
+    # the following is really needed, otherwise e.g. range is undefined
+    template.globals = template.environment.globals
+    return template
