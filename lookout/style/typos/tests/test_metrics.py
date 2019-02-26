@@ -35,7 +35,6 @@ class MetricsTest(unittest.TestCase):
     def test_print_all_scores(self):
         report = generate_report(self.data, self.suggestions)
         print(report)
-        self.assertEqual(len(report.split("\n")), 9)
 
 
 if __name__ == "__main__":

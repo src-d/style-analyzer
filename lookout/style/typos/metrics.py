@@ -71,10 +71,6 @@ def get_scores(data: pandas.DataFrame, suggestions: Dict[int, List[Tuple[str, fl
 def generate_report(data: pandas.DataFrame, suggestions: Dict[int, List[Tuple[str, float]]],
                     ) -> str:
     """Print scores for suggestions in an easy readable way."""
-    scores = {ScoreMode.detection.value: get_scores(data, suggestions, ScoreMode.detection)}
-    for mode in [ScoreMode.on_corrected, ScoreMode.correction]:
-        for k in range(1, 4):
-            scores["Top %i score %s" % (k, mode.value)] = get_scores(data, suggestions, mode, k)
     template = load_jinja2_template(
         os.path.join(os.path.dirname(__file__), "templates", "scores.md.jinja2"))
-    return template.render(scores=scores)
+    return template.render(ScoreMode=ScoreMode, get_scores=get_scores, **locals())
