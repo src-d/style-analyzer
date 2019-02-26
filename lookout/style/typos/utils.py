@@ -48,7 +48,7 @@ def flatten_df_by_column(data: pandas.DataFrame, column: str, new_column: str,
                          apply_function=lambda x: x) -> pandas.DataFrame:
     """
     Flatten DataFrame by `column` with extracted elements put to `new_column`. \
-    Operation happens out-of-place.
+    Operation runs out-of-place.
 
     :param data: DataFrame to flatten.
     :param column: Column to expand.
@@ -64,21 +64,6 @@ def flatten_df_by_column(data: pandas.DataFrame, column: str, new_column: str,
     result = pandas.DataFrame(flat_values, columns=data.columns)
     result[new_column] = flat_column
     return result.infer_objects()
-
-
-def flatten_data(data: pandas.DataFrame, new_column_name=Columns.Token) -> pandas.DataFrame:
-    """
-    Flatten identifiers data in column `new_column_name`. Operation happels out-of-place.
-
-    :param data: DataFrame containing column `new_column_name` with splitted identifiers \
-                 either as strings or as lists of tokens.
-    :param new_column_name: Name of column to put tokens from splits to.
-    :return: Flattened DataFrame.
-    """
-    apply_function = (lambda x: x) if isinstance(data[Columns.Split].tolist()[0], list) \
-        else (lambda x: str(x).split())
-    return flatten_df_by_column(data, Columns.Split, new_column_name,
-                                apply_function=apply_function)
 
 
 def add_context_info(data: pandas.DataFrame) -> pandas.DataFrame:

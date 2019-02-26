@@ -8,7 +8,7 @@ import pandas
 from pandas.util.testing import assert_frame_equal
 
 from lookout.style.typos.utils import (
-    add_context_info, Columns, flatten_data, flatten_df_by_column,
+    add_context_info, Columns, flatten_df_by_column,
     rank_candidates, read_frequencies, read_vocabulary, suggestions_to_df, suggestions_to_flat_df)
 
 
@@ -40,7 +40,8 @@ class DataTransformationsTest(unittest.TestCase):
     def test_flatten_data(self):
         raw_data = pandas.read_csv(join(TEST_DATA_PATH, "raw_test_data.csv.xz"),
                                    index_col=0).infer_objects()
-        assert_frame_equal(flatten_data(raw_data, Columns.Token), self.flat_data)
+        assert_frame_equal(flatten_df_by_column(raw_data, Columns.Split, Columns.Token, str.split),
+                           self.flat_data)
         assert_frame_equal(flatten_df_by_column(self.custom_data, Columns.Split, Columns.Token,
                                                 str.split), self.flat_custom_data)
 
