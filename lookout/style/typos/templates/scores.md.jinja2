@@ -3,7 +3,7 @@
 {% set scores = {"Detection score": get_scores(data, suggestions, ScoreMode.detection)} %}
 {% for mode in [ScoreMode.on_corrected, ScoreMode.correction] %}
         {% for k in range(1, 4) %}
-            {% set _dummy = scores.update({"Top %i score %s" % (k, mode.value): get_scores(data, suggestions, mode, k)}) %}
+            {% do scores.__setitem__("Top %i score %s" % (k, mode.value), get_scores(data, suggestions, mode, k)) %}
         {% endfor %}
 {% endfor %}
 Top 3 score on_corrected

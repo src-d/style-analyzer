@@ -197,7 +197,7 @@ class TyposCorrector(Model):
                           column Columns.Split is optional, but used when present
         """
         suggestions = self.suggest(test_data)
-        self._meta["metrics"] = get_scores(test_data, suggestions)
+        self.metrics = get_scores(test_data, suggestions)
         print(generate_report(test_data, suggestions))
 
     def __eq__(self, other: "TyposCorrector") -> bool:
