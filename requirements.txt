@@ -10,3 +10,4 @@ xgboost==0.72.1
 tabulate==0.8.2
 python-igraph==0.7.1.post6
 srcd_smart_open==1.9.0
+googledrivedownloader==0.3

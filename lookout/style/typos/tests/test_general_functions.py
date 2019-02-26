@@ -1,24 +1,30 @@
-import os
+import tempfile
 import unittest
 
-import pandas
-from pandas.util.testing import assert_frame_equal
-
-from lookout.style.typos.run_corrector import defaults_for_preparation, prepare_data
-from lookout.style.typos.utils import read_vocabulary, read_frequencies
+from lookout.style.typos.general import prepare_data
+from lookout.style.typos.utils import Columns, read_frequencies, read_vocabulary
 
 
 class PreparationTest(unittest.TestCase):
     def test_prepare_data(self):
-        params = {
-            
-        }
-        data = prepare_data({"vocabulary_size": 5000})
-        vocabulary = read_vocabulary(defaults_for_preparation["vocabulary_path"])
-        self.assertEqual(len(vocabulary), 5000)
-        self.assertTrue(os.path.exists(defaults_for_preparation["frequencies_path"]))
-        frequencies = read_frequencies(defaults_for_preparation["frequencies_path"])
-
+        with tempfile.NamedTemporaryFile() as input_file:
+            with tempfile.NamedTemporaryFile() as voc_file:
+                with tempfile.NamedTemporaryFile() as freq_file:
+                    params = {
+                        "load_from_drive": True,
+                        "input_path": input_file.name,
+                        "vocabulary_size": 5000,
+                        "frequencies_size": None,
+                        "vocabulary_path": voc_file.name,
+                        "frequencies_path": freq_file.name,
+                    }
+                    data = prepare_data(params)
+                    vocabulary = read_vocabulary(params["vocabulary_path"])
+                    self.assertEqual(len(vocabulary), params["vocabulary_size"])
+                    self.assertSetEqual(set(data[Columns.Token]), set(vocabulary))
+                    frequencies = read_frequencies(params["frequencies_path"])
+                    self.assertTrue(set(vocabulary).issubset(set(frequencies.keys())))
+                    self.assertTrue({Columns.Token, Columns.Split}.issubset(data.columns))
 
 
 if __name__ == "__main__":

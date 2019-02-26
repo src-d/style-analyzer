@@ -13,7 +13,8 @@ DRIVE_FASTTEXT_ID = "1hCOIwKn-QZLVv1S385HxyNMeERgKGIvo"
 
 
 defaults_for_preparation = {
-    "input_path": None,
+    "load_from_drive": False,
+    "input_path": "lookout/style/typos/data/raw_data.csv",
     "frequency_column": "num_occ",
     "vocabulary_size": 10000,
     "frequencies_size": None,
@@ -36,9 +37,10 @@ def prepare_data(params: Optional[Mapping[str, Any]] = None) -> pandas.DataFrame
     4. Save prepared dataset, if needed.
 
     :param params: Dictionary with parameters for data preparation. Used fields are:
+                   load_from_drive: True to load raw dataset from google drive.
                    input_path: Path to a .csv dump of input dataframe. Should contain \
-                               column Columns.Split. If not specified, default \
-                               dataset will be downloaded from google drive.
+                               column Columns.Split. If `"load_from_drive"` is True,
+                               the dataset from drive will be loaded to this path.
                    frequency_column: Name of column with identifiers frequencies. If not \
                                      specified, every split is considered to have frequency 1.
                    vocabulary_size: Number of most frequent tokens to take as a vocabulary.
@@ -51,16 +53,17 @@ def prepare_data(params: Optional[Mapping[str, Any]] = None) -> pandas.DataFrame
     :return: Filtered dataset.
     """
     params = merge_dicts(defaults_for_preparation, params)
-    if params["input_path"] is None:
-        params["input_path"] = "lookout/style/typos/data/1M_repos2ids.csv"
+    if params["load_from_drive"]:
         gdd.download_file_from_google_drive(file_id=DRIVE_DATASET_ID,
-                                            dest_path=params["input_path"])
+                                            dest_path=params["input_path"],
+                                            overwrite=True)
     data = pandas.read_csv(params["input_path"])
     if params["frequency_column"] not in data.columns:
         params["frequency_column"] = "freq"
         data[params["frequency_column"]] = [1] * len(data)
 
     # Expand dataframe by splits (repeat rows for every token in splits)
+    data.loc[:, [Columns.Split]] = data[Columns.Split].astype(str)
     flat_data = flatten_df_by_column(data, Columns.Split, Columns.Token,
                                      apply_function=lambda x: str(x).split())
 
@@ -71,9 +74,10 @@ def prepare_data(params: Optional[Mapping[str, Any]] = None) -> pandas.DataFrame
     # Derive new vocabulary for future use
     params["frequencies_size"] = params["frequencies_size"] or len(stats)
     vocabulary_tokens = set(stats.index[:params["vocabulary_size"]])
-    print_frequencies(vocabulary_tokens, params["frequency_column"], stats, params["vocabulary_path"])
-    print_frequencies(set(stats.index[:params["frequencies_size"]]), params["frequency_column"], stats,
-                      params["frequencies_path"])
+    print_frequencies(vocabulary_tokens, stats, params["frequency_column"],
+                      params["vocabulary_path"])
+    print_frequencies(set(stats.index[:params["frequencies_size"]]), stats,
+                      params["frequency_column"], params["frequencies_path"])
 
     # Leave only splits that contain tokens from vocabulary
     prepared_data = filter_splits(flat_data, vocabulary_tokens)
