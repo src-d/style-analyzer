@@ -1,3 +1,4 @@
+import os
 from typing import Any, Mapping, Optional
 
 from google_drive_downloader import GoogleDriveDownloader as gdd
@@ -13,7 +14,7 @@ DRIVE_FASTTEXT_ID = "1hCOIwKn-QZLVv1S385HxyNMeERgKGIvo"
 
 
 defaults_for_preparation = {
-    "load_from_drive": False,
+    "load_from_drive": True,
     "input_path": "lookout/style/typos/data/raw_data.csv",
     "frequency_column": "num_occ",
     "vocabulary_size": 10000,
@@ -23,7 +24,7 @@ defaults_for_preparation = {
 }
 
 
-def prepare_data(params: Optional[Mapping[str, Any]] = None) -> pandas.DataFrame:
+def prepare_data(params: Mapping[str, Any] = {}) -> pandas.DataFrame:
     """
     Get all necessary data from raw dataset of splitted identifiers with some statistics.
 
@@ -54,9 +55,10 @@ def prepare_data(params: Optional[Mapping[str, Any]] = None) -> pandas.DataFrame
     """
     params = merge_dicts(defaults_for_preparation, params)
     if params["load_from_drive"]:
+        overwrite = os.path.exists(params["input_path"])
         gdd.download_file_from_google_drive(file_id=DRIVE_DATASET_ID,
                                             dest_path=params["input_path"],
-                                            overwrite=True)
+                                            overwrite=overwrite)
     data = pandas.read_csv(params["input_path"])
     if params["frequency_column"] not in data.columns:
         data[Columns.Frequency] = [1] * len(data)
