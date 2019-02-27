@@ -4,7 +4,9 @@ import shutil
 from tempfile import mkdtemp
 import unittest
 
-from lookout.style.typos.datasets_preparation import prepare_data
+import pandas
+
+from lookout.style.typos.datasets_preparation import get_datasets, prepare_data
 from lookout.style.typos.utils import Columns, read_frequencies, read_vocabulary
 
 
@@ -48,6 +50,21 @@ class PreparationTest(unittest.TestCase):
         self.assertTrue(set(vocabulary).issubset(set(frequencies.keys())))
         self.assertTrue({Columns.Token, Columns.Split}.issubset(data.columns))
         shutil.rmtree(temp_dir)
+
+
+class DatasetsTest(unittest.TestCase):
+    def test_get_datasets(self):
+        prepared = pandas.read_csv(str(pathlib.Path(__file__).parent / "prepared_data.csv.xz"),
+                                   index_col=0)
+        train, test = get_datasets(prepared, train_size=1000, test_size=100,
+                                   typo_prob=0.5, add_typo_prob=0.5)
+        self.assertTrue({Columns.Token, Columns.CorrectToken, Columns.Split,
+                         Columns.CorrectSplit}.issubset(set(train.columns)))
+        corrupted = sum(train[Columns.Token] != train[Columns.CorrectToken])
+        self.assertAlmostEqual(corrupted, 500, delta=20)
+        self.assertEqual(len(train), 1000)
+        self.assertEqual(len(test), 100)
+        print(len(set(train[Columns.Token]).intersection(set(test[Columns.Token]))))
 
 
 if __name__ == "__main__":

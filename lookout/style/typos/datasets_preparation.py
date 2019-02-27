@@ -1,13 +1,15 @@
 from copy import deepcopy
 import os
 import pathlib
-from typing import Any, Mapping, Optional
+from typing import Any, Mapping, Optional, Tuple
 import urllib.request
 
 import pandas
+from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
 from lookout.style.common import merge_dicts
+from lookout.style.typos.corruption import corrupt_tokens_in_df
 from lookout.style.typos.preprocessing import filter_splits, print_frequencies
 from lookout.style.typos.utils import Columns, flatten_df_by_column
 
@@ -108,3 +110,29 @@ def prepare_data(params: Optional[Mapping[str, Any]] = None) -> pandas.DataFrame
     prepared_data = filter_splits(flat_data, vocabulary_tokens)[[Columns.Frequency, Columns.Split,
                                                                  Columns.Token]]
     return prepared_data
+
+
+def get_datasets(prepared_data: pandas.DataFrame, train_size: int = 50000,
+                 test_size: int = 10000, typo_prob: float = 0.5,
+                 add_typo_prob: float = 0.01) -> Tuple[pandas.DataFrame, pandas.DataFrame]:
+    """
+    Create train and test datasets of typos.
+
+    1. Pick specified amount of data from input dataset.
+    2. Artificially create typos in picked identifiers and put them to train and test datasets.
+    3. Save results, if needed.
+    :param prepared_data: Dataframe of correct splitted identifiers. Must contain columns \
+                          Columns.Split, Columns.Frequency and Columns.Token.
+    :param train_size: Train dataset size.
+    :param test_size: Test dataset size.
+    :param typo_prob: Probability with which a token gets to be corrupted.
+    :param add_typo_prob: Probability with which one more corruption happens to a \
+                                 corrupted token.
+    :return: Train and test datasets.
+    """
+    # With replace=True we get the real examples distribution, but there's
+    # a small probability of having the same examples in train and test datasets
+    # (it IS small because a big amount of random typos can be made in one word)
+    data = prepared_data.sample(train_size + test_size, weights=Columns.Frequency, replace=True)
+    data = corrupt_tokens_in_df(data, typo_prob, add_typo_prob)
+    return train_test_split(data, test_size=test_size)
