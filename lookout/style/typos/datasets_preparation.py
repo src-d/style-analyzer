@@ -67,7 +67,7 @@ def prepare_data(params: Optional[Mapping[str, Any]] = None) -> pandas.DataFrame
         gdd.download_file_from_google_drive(file_id=params["drive_dataset_id"],
                                             dest_path=raw_data_path)
 
-    data = pandas.read_csv(raw_data_path)
+    data = pandas.read_csv(raw_data_path, index_col=0)
     if params["frequency_column"] not in data.columns:
         data[Columns.Frequency] = 1
     else:
@@ -91,5 +91,6 @@ def prepare_data(params: Optional[Mapping[str, Any]] = None) -> pandas.DataFrame
                                                               params["frequencies_filename"]))
 
     # Leave only splits that contain tokens from vocabulary
-    prepared_data = filter_splits(flat_data, vocabulary_tokens)
+    prepared_data = filter_splits(flat_data, vocabulary_tokens)[[Columns.Frequency, Columns.Split,
+                                                                 Columns.Token]]
     return prepared_data
