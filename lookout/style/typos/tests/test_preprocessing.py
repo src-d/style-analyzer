@@ -24,12 +24,11 @@ class PreprocessingTest(unittest.TestCase):
         assert_frame_equal(filter_splits(data, vocabulary), result)
 
     def test_print_frequencies(self):
-        frequency_column = "num_occ"
-        id_stats = pandas.DataFrame([[23], [6], [17]], columns=[frequency_column],
+        id_stats = pandas.DataFrame([[23], [6], [17]], columns=[Columns.Frequency],
                                     index=["get", "token", "set"])
         vocabulary = {"get", "set"}
         with tempfile.NamedTemporaryFile() as vocabulary_file:
-            print_frequencies(vocabulary, id_stats, frequency_column, vocabulary_file.name)
+            print_frequencies(vocabulary, id_stats, vocabulary_file.name)
             with open(vocabulary_file.name) as f:
                 lines = []
                 for line in f:

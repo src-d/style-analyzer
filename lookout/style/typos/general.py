@@ -59,25 +59,24 @@ def prepare_data(params: Optional[Mapping[str, Any]] = None) -> pandas.DataFrame
                                             overwrite=True)
     data = pandas.read_csv(params["input_path"])
     if params["frequency_column"] not in data.columns:
-        params["frequency_column"] = "freq"
-        data[params["frequency_column"]] = [1] * len(data)
+        data[Columns.Frequency] = [1] * len(data)
+    else:
+        data = data.rename(columns={params["frequency_column"]: Columns.Frequency})
 
     # Expand dataframe by splits (repeat rows for every token in splits)
-    data.loc[:, [Columns.Split]] = data[Columns.Split].astype(str)
+    data[Columns.Split] = data[Columns.Split].astype(str)
     flat_data = flatten_df_by_column(data, Columns.Split, Columns.Token,
-                                     apply_function=lambda x: str(x).split())
+                                     apply_function=lambda x: x.split())
 
     # Collect statistics for tokens
-    stats = flat_data[[params["frequency_column"], Columns.Token]].groupby([Columns.Token]).sum()
-    stats = stats.sort_values(by=[params["frequency_column"]], ascending=False)
+    stats = flat_data[[Columns.Frequency, Columns.Token]].groupby([Columns.Token]).sum()
+    stats = stats.sort_values(by=[Columns.Frequency], ascending=False)
 
     # Derive new vocabulary for future use
-    params["frequencies_size"] = params["frequencies_size"] or len(stats)
+    frequencies_tokens = set(stats.index[:(params["frequencies_size"] or len(stats))])
     vocabulary_tokens = set(stats.index[:params["vocabulary_size"]])
-    print_frequencies(vocabulary_tokens, stats, params["frequency_column"],
-                      params["vocabulary_path"])
-    print_frequencies(set(stats.index[:params["frequencies_size"]]), stats,
-                      params["frequency_column"], params["frequencies_path"])
+    print_frequencies(vocabulary_tokens, stats, params["vocabulary_path"])
+    print_frequencies(frequencies_tokens, stats, params["frequencies_path"])
 
     # Leave only splits that contain tokens from vocabulary
     prepared_data = filter_splits(flat_data, vocabulary_tokens)
