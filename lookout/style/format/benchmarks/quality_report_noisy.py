@@ -19,6 +19,7 @@ from yaml import safe_load
 
 from lookout.style.format.analyzer import FormatAnalyzer
 from lookout.style.format.benchmarks.general_report import FakeDataService
+from lookout.style.format.config import DEFAULT_CONFIG
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.model import FormatModel
 from lookout.style.format.rules import Rules
@@ -54,16 +55,17 @@ def train(training_dir: str, ref: ReferencePointer, output_path: str, language: 
         with open(config) as fh:
             config = safe_load(fh)
     else:
-        config = FormatAnalyzer.defaults_for_train
+        config = DEFAULT_CONFIG
     filepaths = glob.glob(os.path.join(training_dir, "**", "*.js"), recursive=True)
     model = FormatAnalyzer.train(ref, config, FakeDataService(
         bblfsh_client=bblfsh_client,
-        files=parse_files(filepaths=filepaths,
-                          line_length_limit=config["global"]["line_length_limit"],
-                          overall_size_limit=config["global"]["overall_size_limit"],
-                          client=bblfsh_client,
-                          language=language,
-                          log=log),
+        files=parse_files(
+            filepaths=filepaths,
+            line_length_limit=config["train"]["language_defaults"]["line_length_limit"],
+            overall_size_limit=config["train"]["language_defaults"]["overall_size_limit"],
+            client=bblfsh_client,
+            language=language,
+            log=log),
         changes=None))
     model.save(output_path)
     return model
