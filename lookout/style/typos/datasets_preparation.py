@@ -2,9 +2,10 @@ from copy import deepcopy
 import os
 import pathlib
 from typing import Any, Mapping, Optional
+import urllib.request
 
-from google_drive_downloader import GoogleDriveDownloader as gdd
 import pandas
+from tqdm import tqdm
 
 from lookout.style.common import merge_dicts
 from lookout.style.typos.preprocessing import filter_splits, print_frequencies
@@ -14,7 +15,8 @@ from lookout.style.typos.utils import Columns, flatten_df_by_column
 defaults_for_preparation = {
     "data_dir": str(pathlib.Path(__file__).parent / "data"),
     "input_path": str(pathlib.Path(__file__).parent / "data" / "raw_data.csv"),
-    "drive_dataset_id": "1muNVWPe68XK8SFvqIv3V728NmkT46aTx",
+    "dataset_url": "https://docs.google.com/uc?export=download&"
+                   "id=1muNVWPe68XK8SFvqIv3V728NmkT46aTx",
     "frequency_column": "num_occ",
     "vocabulary_size": 10000,
     "frequencies_size": None,
@@ -22,6 +24,19 @@ defaults_for_preparation = {
     "vocabulary_filename": "vocabulary.csv",
     "frequencies_filename": "frequencies.csv",
 }
+
+
+class _DownloadProgressBar(tqdm):
+    def update_to(self, b: int = 1, bsize: int = 1, tsize: Optional[int] = None) -> None:
+        if tsize is not None:
+            self.total = tsize
+        self.update(b * bsize - self.n)
+
+
+def _download_url(url: str, output_path: str) -> None:
+    with _DownloadProgressBar(unit="B", unit_scale=True,
+                              miniters=1, desc=url.split("/")[-1]) as t:
+        urllib.request.urlretrieve(url, filename=output_path, reporthook=t.update_to)
 
 
 def prepare_data(params: Optional[Mapping[str, Any]] = None) -> pandas.DataFrame:
@@ -64,8 +79,7 @@ def prepare_data(params: Optional[Mapping[str, Any]] = None) -> pandas.DataFrame
     raw_data_path = params["input_path"]
     if raw_data_path is None or not os.path.exists(raw_data_path):
         raw_data_path = os.path.join(params["data_dir"], params["raw_data_filename"])
-        gdd.download_file_from_google_drive(file_id=params["drive_dataset_id"],
-                                            dest_path=raw_data_path)
+        _download_url(params["dataset_url"], raw_data_path)
 
     data = pandas.read_csv(raw_data_path, index_col=0)
     if params["frequency_column"] not in data.columns:
