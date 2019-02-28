@@ -8,13 +8,13 @@ import bblfsh
 from lookout.style.format.analyzer import FormatAnalyzer
 from lookout.style.format.code_generator import CodeGenerator
 from lookout.style.format.feature_extractor import FeatureExtractor
-from lookout.style.format.tests.test_analyzer import FakeFile, get_train_config
+from lookout.style.format.tests.test_analyzer import FakeFile, get_config
 
 
 class FeaturesTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        config = FormatAnalyzer._load_train_config(get_train_config())
+        config = FormatAnalyzer._load_config(get_config())["train"]
         cls.extractor = FeatureExtractor(language="javascript",
                                          **config["javascript"]["feature_extractor"])
         test_js_code_filepath = Path(__file__).parent / "jquery.layout.js"

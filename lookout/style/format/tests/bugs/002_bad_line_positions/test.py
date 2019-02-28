@@ -5,12 +5,12 @@ import bblfsh
 
 from lookout.style.format.analyzer import FormatAnalyzer
 from lookout.style.format.feature_extractor import FeatureExtractor
-from lookout.style.format.tests.test_analyzer import get_train_config
+from lookout.style.format.tests.test_analyzer import get_config
 
 
 class FeaturesTests(unittest.TestCase):
     def setUp(self):
-        config = FormatAnalyzer._load_train_config(get_train_config())
+        config = FormatAnalyzer._load_config(get_config())["train"]
         self.extractor = FeatureExtractor(language="javascript",
                                           **config["javascript"]["feature_extractor"])
 

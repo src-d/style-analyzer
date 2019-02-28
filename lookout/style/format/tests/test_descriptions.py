@@ -16,7 +16,7 @@ from lookout.style.format.descriptions import describe_rule, hash_rule
 from lookout.style.format.feature_extractor import FeatureExtractor, FeatureGroup
 from lookout.style.format.features import FeatureId
 from lookout.style.format.rules import Rule, RuleAttribute, RuleStats
-from lookout.style.format.tests.test_analyzer import get_train_config
+from lookout.style.format.tests.test_analyzer import get_config
 
 
 class DescriptionsTests(unittest.TestCase):
@@ -29,17 +29,19 @@ class DescriptionsTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        config = FormatAnalyzer._load_train_config(merge_dicts(
-            get_train_config(), {
-                "javascript": {
-                    "feature_extractor": {
-                        "left_siblings_window": 1,
-                        "right_siblings_window": 1,
-                        "parents_depth": 1,
-                        "node_features": ["start_line", "reserved", "roles"],
+        config = FormatAnalyzer._load_config(merge_dicts(
+            get_config(), {
+                "train": {
+                    "javascript": {
+                        "feature_extractor": {
+                            "left_siblings_window": 1,
+                            "right_siblings_window": 1,
+                            "parents_depth": 1,
+                            "node_features": ["start_line", "reserved", "roles"],
+                        },
                     },
                 },
-            }))
+            }))["train"]
         base = Path(__file__).parent
         with lzma.open(str(base / "benchmark.js.xz"), mode="rt") as fin:
             contents = fin.read()

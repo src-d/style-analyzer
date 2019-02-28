@@ -125,8 +125,8 @@ def create_parser() -> ArgumentParser:
     quality_report_parser.add_argument(
         "-b", "--bblfsh", help="Bblfsh address to use.")
     quality_report_parser.add_argument(
-        "--train-config", type=json.loads, default="{}",
-        help="Config for analyzer train in json format.")
+        "--config", type=json.loads, default="{}",
+        help="Config for analyzer in json format.")
     quality_report_parser.add_argument(
         "--database", default=None, help="sqlite3 database path to store the models."
                                          "Temporary file is used if not set.")
@@ -205,11 +205,8 @@ def create_parser() -> ArgumentParser:
         "--bblfsh",
         help="Babelfish server's address.")
     eval_smoke_parser.add_argument(
-        "--train-config", type=json.loads, default="{}",
-        help="Json config for train step.")
-    eval_smoke_parser.add_argument(
-        "--analyze-config", type=json.loads, default="{}",
-        help=" Json config for analyze step.")
+        "--config", type=json.loads, default="{}",
+        help="JSON config for FormatAnalyzer.")
     eval_smoke_parser.add_argument(
         "--database", type=str, default=None,
         help="Path to the sqlite3 database with trained models metadata. "

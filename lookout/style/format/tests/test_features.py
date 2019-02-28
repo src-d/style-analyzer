@@ -14,7 +14,7 @@ from lookout.style.format.analyzer import FormatAnalyzer
 from lookout.style.format.classes import CLASS_INDEX, CLASSES, CLS_NEWLINE, CLS_NOOP, \
     CLS_SINGLE_QUOTE, CLS_SPACE, CLS_SPACE_DEC, CLS_SPACE_INC
 from lookout.style.format.feature_extractor import FeatureExtractor
-from lookout.style.format.tests.test_analyzer import get_train_config
+from lookout.style.format.tests.test_analyzer import get_config
 from lookout.style.format.virtual_node import Position, VirtualNode
 
 
@@ -29,8 +29,8 @@ class FeaturesTests(unittest.TestCase):
             cls.uast = bblfsh.Node.FromString(fin.read())
 
     def setUp(self):
-        config = FormatAnalyzer._load_train_config(get_train_config())
-        self.final_config = config["javascript"]
+        config = FormatAnalyzer._load_config(get_config())
+        self.final_config = config["train"]["javascript"]
         self.extractor = FeatureExtractor(language="javascript",
                                           **self.final_config["feature_extractor"])
 

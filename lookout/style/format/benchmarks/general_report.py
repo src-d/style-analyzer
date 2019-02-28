@@ -73,7 +73,6 @@ def generate_model_report(model: FormatModel, analyze_config: Dict[str, Any],
     for language in languages:
         if language not in model:
             raise NotFittedError(language)
-
     template = load_jinja2_template(os.path.join(TEMPLATES_ROOT, "model_report.md.jinja2"))
     return template.render(model=model, languages=languages, analyze_config=analyze_config,
                            FeatureExtractor=FeatureExtractor, describe_rule=describe_rule)
@@ -210,8 +209,8 @@ class ReportAnalyzer(FormatAnalyzerSpy):
     * generate_model_report (optional - by default it will return empty string)
     """
 
-    defaults_for_analyze = merge_dicts(FormatAnalyzer.defaults_for_analyze,
-                                       {"aggregate": False})
+    default_config = merge_dicts(FormatAnalyzer.default_config,
+                                 {"aggregate": False})
 
     def generate_train_report(self, fixes: Iterable[FileFix]) -> str:
         """
@@ -308,11 +307,10 @@ class QualityReportAnalyzer(ReportAnalyzer):
     version = 1
     description = "Source code formatting quality report generator: " \
                   "whitespace, new lines, quotes, etc."
-    defaults_for_analyze = merge_dicts(ReportAnalyzer.defaults_for_analyze,
-                                       {"max_files": 10})
-    defaults_for_train = merge_dicts(ReportAnalyzer.defaults_for_train,
-                                     {"global": {"test_dataset_ratio": 0.2,
-                                                 }})
+    default_config = merge_dicts(ReportAnalyzer.default_config,
+                                 {"max_files": 10,
+                                  "train": {"language_defaults": {"test_dataset_ratio": 0.2}},
+                                  })
 
     def generate_model_report(self) -> str:
         """
@@ -320,7 +318,7 @@ class QualityReportAnalyzer(ReportAnalyzer):
 
         :return: report.
         """
-        return generate_model_report(model=self.model, analyze_config=self.defaults_for_analyze)
+        return generate_model_report(model=self.model, analyze_config=self.analyze_config)
 
     def generate_train_report(self, fixes: Iterable[FileFix]) -> str:
         """

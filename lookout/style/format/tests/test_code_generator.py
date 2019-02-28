@@ -12,7 +12,7 @@ from lookout.style.format.code_generator import CodeGenerator, InapplicableInden
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.rules import Rule, RuleStats
 from lookout.style.format.tests.code_generator_data import cases, label_composites
-from lookout.style.format.tests.test_analyzer import get_train_config
+from lookout.style.format.tests.test_analyzer import get_config
 from lookout.style.format.virtual_node import Position, VirtualNode
 
 
@@ -45,7 +45,7 @@ class GeneratorTestsMeta(type):
 
     @classmethod
     def generate_local_test(mcs, case_name, uast, contents):
-        fe_config = FormatAnalyzer._load_train_config(get_train_config())["javascript"]
+        fe_config = FormatAnalyzer._load_config(get_config())["train"]["javascript"]
         feature_extractor = FeatureExtractor(language="javascript",
                                              label_composites=label_composites,
                                              **fe_config["feature_extractor"])
@@ -80,8 +80,8 @@ class CodeGeneratorTests(unittest.TestCase, metaclass=GeneratorTestsMeta):
             contents = fin.read()
         with lzma.open(str(base / "benchmark_small.js.uast.xz")) as fin:
             uast = bblfsh.Node.FromString(fin.read())
-        config = FormatAnalyzer._load_train_config(get_train_config())
-        fe_config = config["javascript"]
+        config = FormatAnalyzer._load_config(get_config())
+        fe_config = config["train"]["javascript"]
         cls.feature_extractor = FeatureExtractor(language="javascript",
                                                  label_composites=label_composites,
                                                  **fe_config["feature_extractor"])
@@ -124,8 +124,8 @@ class CodeGeneratorTests(unittest.TestCase, metaclass=GeneratorTestsMeta):
             contents = fin.read()
         with lzma.open(str(base / "benchmark_small.js.uast.xz")) as fin:
             uast = bblfsh.Node.FromString(fin.read())
-        config = FormatAnalyzer._load_train_config(get_train_config())
-        fe_config = config["javascript"]
+        config = FormatAnalyzer._load_config(get_config())
+        fe_config = config["train"]["javascript"]
 
         for case in expected_res:
             offsets, y_pred, _ = cases[case]

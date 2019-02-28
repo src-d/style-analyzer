@@ -20,37 +20,38 @@ from lookout.style.format.tests.test_model import compare_models
 Change = NamedTuple("Change", [("base", File), ("head", File)])
 
 
-def get_train_config():
+def get_config():
     return {
-        "global": {
-            "feature_extractor": {
-                "left_siblings_window": 2,
-                "right_siblings_window": 2,
-                "parents_depth": 2,
-                "select_features_number": 250,
-                "return_sibling_indices": False,
-                "cutoff_label_support": 5,
+        "train": {
+            "language_defaults": {
+                "feature_extractor": {
+                    "left_siblings_window": 2,
+                    "right_siblings_window": 2,
+                    "parents_depth": 2,
+                    "select_features_number": 250,
+                    "return_sibling_indices": False,
+                    "cutoff_label_support": 5,
+                },
+                "trainable_rules": {
+                    "prune_branches_algorithms": ["reduced-error"],
+                    "top_down_greedy_budget": [False, .5],
+                    "prune_attributes": False,
+                    "n_estimators": 3,
+                },
+                "optimizer": {
+                    "n_iter": 6,
+                },
+                "random_state": 42,
+                "lines_ratio_train_trigger": 0.8,
             },
-            "trainable_rules": {
-                "prune_branches_algorithms": ["reduced-error"],
-                "top_down_greedy_budget": [False, .5],
-                "prune_attributes": False,
-                "n_estimators": 3,
-            },
-            "optimizer": {
-                "n_iter": 6,
-            },
-            "random_state": 42,
-            "lines_ratio_train_trigger": 0.8,
         },
-    }
-
-
-def get_analyze_config():
-    return {
-        "confidence_threshold": 0.9,
-        "support_threshold": 10,
-        "uast_break_check": False,
+        "analyze": {
+            "language_defaults": {
+                "confidence_threshold": 0.9,
+                "support_threshold": 10,
+                "uast_break_check": False,
+            },
+        },
     }
 
 
@@ -113,10 +114,10 @@ class AnalyzerTests(unittest.TestCase):
     def test_train(self):
         self.data_service = FakeDataService(
             self.bblfsh_client, files=self.base_files.values(), changes=[])
-        model1 = FormatAnalyzer.train(self.ptr, get_train_config(), self.data_service)
+        model1 = FormatAnalyzer.train(self.ptr, get_config(), self.data_service)
         self.assertIsInstance(model1, FormatModel)
         self.assertIn("javascript", model1, str(model1))
-        model2 = FormatAnalyzer.train(self.ptr, get_train_config(), self.data_service)
+        model2 = FormatAnalyzer.train(self.ptr, get_config(), self.data_service)
         self.assertEqual(model1["javascript"].rules, model2["javascript"].rules)
         self.assertGreater(len(model1["javascript"]), 5)
         # Check that model can be saved without problems and then load back
@@ -133,9 +134,9 @@ class AnalyzerTests(unittest.TestCase):
             files=self.base_files.values(),
             changes=[Change(base=self.base_files[k], head=self.head_files[k])
                      for k in common])
-        model = FormatAnalyzer.train(self.ptr, get_train_config(), self.data_service)
+        model = FormatAnalyzer.train(self.ptr, get_config(), self.data_service)
         required = FormatAnalyzer.check_training_required(
-            model, self.ptr, get_train_config(), self.data_service)
+            model, self.ptr, get_config(), self.data_service)
         self.assertFalse(required)
         self.data_service = FakeDataService(
             self.bblfsh_client,
@@ -143,16 +144,16 @@ class AnalyzerTests(unittest.TestCase):
             changes=[Change(base=remove_uast(self.base_files[k]), head=self.head_files[k])
                      for k in common])
         required = FormatAnalyzer.check_training_required(
-            model, self.ptr, get_train_config(), self.data_service)
+            model, self.ptr, get_config(), self.data_service)
         self.assertTrue(required)
 
     def test_train_cutoff_labels(self):
         self.data_service = FakeDataService(
             self.bblfsh_client, files=self.base_files.values(), changes=[])
-        model1 = FormatAnalyzer.train(self.ptr, get_train_config(), self.data_service)
+        model1 = FormatAnalyzer.train(self.ptr, get_config(), self.data_service)
         self.assertIsInstance(model1, FormatModel)
         self.assertIn("javascript", model1, str(model1))
-        model2 = FormatAnalyzer.train(self.ptr, get_train_config(), self.data_service)
+        model2 = FormatAnalyzer.train(self.ptr, get_config(), self.data_service)
         self.assertEqual(model1["javascript"].rules, model2["javascript"].rules)
         self.assertGreater(len(model1["javascript"]), 5)
         # Check that model can be saved without problems and then load back
@@ -169,10 +170,10 @@ class AnalyzerTests(unittest.TestCase):
             files=self.base_files.values(),
             changes=[Change(base=remove_uast(self.base_files[k]), head=self.head_files[k])
                      for k in common])
-        config = get_analyze_config()
+        config = get_config()
         # Make uast_break_check only here
-        config["uast_break_check"] = True
-        model = FormatAnalyzer.train(self.ptr, get_train_config(), self.data_service)
+        config["analyze"]["language_defaults"]["uast_break_check"] = True
+        model = FormatAnalyzer.train(self.ptr, config, self.data_service)
         analyzer = FormatAnalyzer(model, self.ptr.url, config)
         comments = analyzer.analyze(self.ptr, self.ptr, self.data_service)
         self.assertGreater(len(comments), 0)
@@ -180,11 +181,11 @@ class AnalyzerTests(unittest.TestCase):
     def test_file_filtering(self):
         self.data_service = FakeDataService(
             self.bblfsh_client, files=self.base_files.values(), changes=[])
-        config = get_train_config()
-        config["global"]["line_length_limit"] = 0
+        config = get_config()
+        config["train"]["language_defaults"]["line_length_limit"] = 0
         model_trained = FormatAnalyzer.train(self.ptr, config, self.data_service)
         self.assertEqual(len(model_trained._rules_by_lang), 0)
-        config["global"]["line_length_limit"] = 500
+        config["train"]["language_defaults"]["line_length_limit"] = 500
         model_trained = FormatAnalyzer.train(self.ptr, config, self.data_service)
         self.assertGreater(len(model_trained._rules_by_lang), 0)
 

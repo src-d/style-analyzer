@@ -17,9 +17,8 @@ from lookout.style.format.benchmarks.general_report import print_reports, Qualit
 from lookout.style.format.benchmarks.quality_report import _get_json_data, _get_metrics, \
     _get_model_summary
 from lookout.style.format.tests import long_test
-from lookout.style.format.tests.test_analyzer import get_analyze_config, get_train_config
-from lookout.style.format.tests.test_analyzer_integration import (
-    FROM_COMMIT, TO_COMMIT)
+from lookout.style.format.tests.test_analyzer import get_config
+from lookout.style.format.tests.test_analyzer_integration import FROM_COMMIT, TO_COMMIT
 
 
 class PretrainedModelTests(unittest.TestCase):
@@ -79,12 +78,12 @@ class Capturing(list):
 class QualityReportTests(PretrainedModelTests):
     def test_eval_empty_input(self):
         """Test on empty folder - expect only model and test report."""
+        config = {"analyze": {"language_defaults": {"uast_break_check": False}}}
         with tempfile.TemporaryDirectory() as folder:
             input_pattern = os.path.join(folder, "**", "*")
             with Capturing() as output:
                 print_reports(input_pattern=input_pattern, bblfsh=self.bblfsh,
-                              language=self.language, model_path=self.model_path,
-                              config={"uast_break_check": False})
+                              language=self.language, model_path=self.model_path, config=config)
             self.assertEqual(
                 output[:3], [
                     "# Model report for file:///var/folders/kw/93jybvs16_954hytgsq6ld7r0000gn/T/"
@@ -125,7 +124,7 @@ class QualityReportTests(PretrainedModelTests):
         with Capturing() as output:
             print_reports(input_pattern=input_pattern, bblfsh=self.bblfsh,
                           language=self.language, model_path=self.model_path,
-                          config={"uast_break_check": False})
+                          config={"analyze": {"language_defaults": {"uast_break_check": False}}})
         self.assertIn(q_report_header, output[0])
         self.assertIn("### Summary", output)
         self.assertIn("### Classification report", output)
@@ -144,9 +143,11 @@ class QualityReportTests(PretrainedModelTests):
         q_report_header = "# Train report for javascript"
         input_pattern = os.path.join(self.jquery_dir, "**", "*")
         with Capturing() as output:
-            print_reports(input_pattern=input_pattern, bblfsh=self.bblfsh,
-                          language=self.language, model_path=self.model_path,
-                          config={"uast_break_check": False, "aggregate": True})
+            print_reports(
+                input_pattern=input_pattern, bblfsh=self.bblfsh, language=self.language,
+                config={"analyze": {"language_defaults": {"uast_break_check": False}},
+                        "aggregate": True},
+                model_path=self.model_path)
         output = "\n".join(output)
         qcount = output.count(q_report_header)
         self.assertEqual(qcount, 1)
@@ -173,12 +174,9 @@ class QualityReportTests(PretrainedModelTests):
         """Integration test for review event."""
         with AnalyzerContextManager(analyzer=QualityReportAnalyzer,
                                     port=self.port, db=self.db.name, fs=self.fs.name):
-            server.run("push", FROM_COMMIT, TO_COMMIT, port=self.port,
-                       git_dir=self.jquery_dir, config_json=json.dumps({
-                            QualityReportAnalyzer.name: get_train_config()}))
             server.run("review", FROM_COMMIT, TO_COMMIT, port=self.port,
                        git_dir=self.jquery_dir, config_json=json.dumps({
-                            QualityReportAnalyzer.name: get_analyze_config()}))
+                            QualityReportAnalyzer.name: get_config()}))
 
 
 if __name__ == "__main__":
