@@ -4,7 +4,7 @@ Fix code style faults using 🤖
 
 
 [![Read the Docs](https://img.shields.io/readthedocs/style-analyzer.svg)](https://readthedocs.org/projects/style-analyzer/)
-[![Travis build status](https://travis-ci.org/src-d/style-analyzer.svg?branch=master)](https://travis-ci.org/src-d/style-analyzer)
+[![Travis build status](https://travis-ci.com/src-d/style-analyzer.svg?branch=master)](https://travis-ci.com/src-d/style-analyzer)
 [![Code coverage](https://codecov.io/github/src-d/style-analyzer/coverage.svg)](https://codecov.io/github/src-d/style-analyzer)
 [![Docker build status](https://img.shields.io/docker/build/srcd/style-analyzer.svg)](https://hub.docker.com/r/srcd/style-analyzer)
 [![PyPi package status](https://img.shields.io/pypi/v/lookout-style.svg)](https://pypi.python.org/pypi/lookout-style)
