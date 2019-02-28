@@ -10,7 +10,7 @@
 | repository |  number of mistakes  | precision at max recall | empirical confidence threshold |    max recall     |        Number of rules (filtered / overall)          |
 |:----------:|:--------------------:|:-----------------------:|:------------------------------:|:-----------------:|:----------------------------------------------------:|
 {% for repo in repos %}
-|  {{repo}}  | {{n_mistakes[repo]}} |  {{prec_max_rec[repo]}} |  {{confidence_threshold_exp}}  | {{max_rec[repo]}} | `{{ n_rules_filtered[repo] }} / {{ n_rules[repo] }}` |
+|  {{repo}}  | {{n_mistakes[repo]}} |  {{prec_max_prediction_rate[repo]}} |  {{confidence_threshold_exp}}  | {{max_prediction_rate[repo]}} | `{{ n_rules_filtered[repo] }} / {{ n_rules[repo] }}` |
 {% endfor %}
 
 ### Precision-recall curves

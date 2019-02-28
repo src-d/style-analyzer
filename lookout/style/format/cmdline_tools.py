@@ -154,9 +154,6 @@ def create_parser() -> ArgumentParser:
         "-o", "--dir-output", required=True, type=str,
         help="Path to the output directory where to store the quality report and the "
              "precision-recall curve.")
-    quality_report_noisy_parser.add_argument(
-        "--retrain", action="store_true", default=False,
-        help="Force model retraining")
 
     # Compare two quality reports summaries
     compare_quality_parser = add_parser(

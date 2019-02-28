@@ -56,7 +56,7 @@ def train(training_dir: str, ref: ReferencePointer, output_path: str, language: 
             config = safe_load(fh)
     else:
         config = {}
-    filenames = glob.glob(os.path.join(training_dir, "**", "*"), recursive=True)
+    filenames = glob.glob(os.path.join(training_dir, "**", "*.js"), recursive=True)
     model = FormatAnalyzer.train(
         ref,
         config,
@@ -227,34 +227,25 @@ def compute_metrics(changes_count: int, predictions_count: int, true_positive: i
     :param changes_count: Overall number of cases.
     :param predictions_count: Total number of predictions made by the model.
     :param true_positive: Number of positive cases predicted as positive.
-    :return: Precision, recall and F1-score metrics.
+    :return: Prediction rate and precision metrics.
     """
     false_positive = predictions_count - true_positive
-    false_negative = changes_count - predictions_count
+    prediction_rate = predictions_count / changes_count
     try:
         precision = true_positive / (true_positive + false_positive)
     except ZeroDivisionError:
         precision = 1.
-    try:
-        recall = true_positive / (true_positive + false_negative)
-    except ZeroDivisionError:
-        recall = 0.
-    try:
-        f1_score = 2 * precision * recall / (precision + recall)
-    except ZeroDivisionError:
-        f1_score = 0.
-    return precision, recall, f1_score
+    return prediction_rate, precision
 
 
-def plot_curve(repositories: Iterable[str], recalls: Mapping[str, numpy.ndarray],
+def plot_curve(repositories: Iterable[str], prediction_rates: Mapping[str, numpy.ndarray],
                precisions: Mapping[str, numpy.ndarray], precision_threshold: float,
-               limit_conf_id: Mapping[str, int],
-               path_to_figure: str) -> None:
+               limit_conf_id: Mapping[str, int], path_to_figure: str) -> None:
     """
     Plot y versus x as lines and markers using matplotlib.
 
     :param repositories: List of the repository names we plot the precision-recall curve.
-    :param recalls: Dict of 1-D numpy array containing the x coordinates.
+    :param prediction_rates: Dict of 1-D numpy array containing the x coordinates.
     :param precisions: Dict of 1-D numpy array containing the y coordinates.
     :param precision_threshold: Precision threshold tolerated by the model. \
            Limit drawn as a red horizontal line on the figure.
@@ -268,34 +259,36 @@ def plot_curve(repositories: Iterable[str], recalls: Mapping[str, numpy.ndarray]
         import matplotlib.pyplot as plt
     except ImportError:
         sys.exit("Matplotlib is required to plot the Precision/Recall curve")
-    plt.figure(figsize=(15, 10))
-    ax = plt.subplot(111)
+    f, axes = plt.subplots(2, 1, figsize=(12, 12), sharex=True, tight_layout=True)
+    f.add_subplot(111, frameon=False)
+    plt.tick_params(labelcolor="none", top=False, bottom=False, left=False, right=False)
+    plt.xlabel("Normalized number of rules", fontsize=17, labelpad=20)
     for repo in repositories:
         x0 = limit_conf_id[repo]
-        ax.plot(numpy.asarray(recalls[repo][x0:]),
-                numpy.asarray(precisions[repo][x0:]),
-                marker="x", linestyle="--", color="lightgrey")
-        ax.plot(numpy.asarray(recalls[repo][:x0 + 1]),
-                numpy.asarray(precisions[repo][:x0 + 1]),
-                marker="x", linestyle="--", label=repo)
-    plt.axhline(precision_threshold, color="r",
-                label="input precision threshold: %.2f" % (precision_threshold))
+        prediction_rates_array = numpy.asarray(prediction_rates[repo])
+        precisions_array = numpy.asarray(precisions[repo])
+        rules = numpy.asarray([i / prediction_rates_array.shape[0]
+                               for i in range(prediction_rates_array.shape[0])])
+        for ax, metric, ylabel in zip(axes, (prediction_rates_array, precisions_array),
+                                      ("prediction rate", "precision")):
+            ax.plot(rules[x0:], metric[x0:], color="lightgrey")
+            ax.plot(rules[:x0 + 1], metric[:x0 + 1], label=repo)
+            ax.set_ylabel(ylabel, fontsize=17, labelpad=20)
+            ax.spines["right"].set_visible(False)
+            ax.spines["top"].set_visible(False)
+            ax.tick_params(labelsize=17, color="gray")
+    f.add_subplot(212, frameon=False)
+    plt.tick_params(labelcolor="none", top=False, bottom=False, left=False, right=False)
     handles, labels = ax.get_legend_handles_labels()
-    ax.legend(handles, labels, loc="best", fontsize=17)
-    ax.set_title("Precision-recall curves on the artificial noisy dataset", fontsize=17)
-    ax.set_ylabel("Precision", fontsize=17, labelpad=15)
-    ax.set_xlabel("Recall", fontsize=17, labelpad=15)
-    ax.spines["right"].set_visible(False)
-    ax.spines["top"].set_visible(False)
-    plt.savefig(path_to_figure)
+    plt.legend(handles, labels, loc="upper right", fontsize=17)
+    plt.savefig(path_to_figure, pad_inches=0, bbox_inches="tight")
 
 
 def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float,
-                         support_threshold: int, precision_threshold: float,
-                         dir_output: str, retrain: bool, repos: Optional[str] = None,
-                         ) -> None:
+                         support_threshold: int, precision_threshold: float, dir_output: str,
+                         repos: Optional[str] = None) -> None:
     """
-    Generate a quality report on the artificial noisy dataset including a precision-recall curve.
+    Generate a quality report on the artificial noisy dataset including evaluation curves.
 
     :param bblfsh: Babelfish client. Babelfish server should be started accordingly.
     :param language: Language to consider, others will be discarded.
@@ -305,45 +298,50 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
            Limit drawn as a red horizontal line on the figure.
     :param dir_output: Path to the output directory where to store the quality report in Markdown \
            and the precision-recall curve in png format.
-    :param repos: Input list of urls or paths to the repositories to analyze. \
-           Should be strings separated by newlines.
-    :param retrain: Set True if you want to force model retraining.
+    :param repos: Input list of urls to the repositories to analyze. \
+           Should be strings separated by newlines. If it is None, \
+           we use the string defined at the beginning of the file.
     """
     log = logging.getLogger("quality_report_noisy")
+
+    # initialization
     repo_names = []
     last_accepted_rule = {}
-    precisions, recalls, accepted_rules = (defaultdict(list) for _ in range(3))
-    n_mistakes, prec_max_rec, confidence_threshold_exp, max_rec, \
+    prediction_rates, precisions, accepted_rules = (defaultdict(list) for _ in range(3))
+    n_mistakes, prec_max_prediction_rate, confidence_threshold_exp, max_prediction_rate, \
         n_rules, n_rules_filtered = ({} for _ in range(6))
     if repos is None:
         repos = REPOSITORIES
     try:
+        # fetch the the original and noisy repositories
         client = BblfshClient(bblfsh)
         log.info("Repositories: %s", repos)
         with tempfile.TemporaryDirectory() as tmpdirname:
             for raw in repos.splitlines():
                 repo_path, clean_commit, noisy_commit = raw.split(",")
                 repo = repo_path.split("/")[-1]
-                if repo_path.startswith("https://github.com"):
-                    log.info("Fetching %s", repo_path)
-                    git_dir = os.path.join(tmpdirname, repo)
-                    git_dir_noisy = os.path.join(tmpdirname, repo + "_noisy")
-                    cmd1 = "git clone --single-branch --branch master %s %s" % (repo_path, git_dir)
-                    cmd2 = "git clone --single-branch --branch style-noise-1-per-file %s %s" \
-                        % (repo_path, git_dir_noisy)
-                    try:
-                        for cmd in (cmd1, cmd2):
-                            log.debug("Running: %s", cmd)
-                            subprocess.check_call(cmd.split())
-                    except subprocess.CalledProcessError as e:
-                        raise ConnectionError("Unable to fetch repository %s" % repo_path) from e
-                    input_pattern = os.path.join(git_dir, "**", "*.js")
-                    input_pattern_noisy = os.path.join(git_dir_noisy, "**", "*.js")
-                    model_path = os.path.join(git_dir_noisy, "style-analyzer-model", "model.asdf")
-                else:
-                    input_pattern = os.path.join(repo_path, "**", "*.js")
-                    input_pattern_noisy = os.path.join(repo_path + "_noisy", "**", "*.js")
-                    model_path = os.path.join(repo_path, "model.asdf")
+                log.info("Fetching %s", repo_path)
+                git_dir = os.path.join(tmpdirname, repo)
+                git_dir_noisy = os.path.join(tmpdirname, repo + "_noisy")
+                cmd1 = "git clone --single-branch --branch master %s %s" % (repo_path, git_dir)
+                cmd2 = "git clone --single-branch --branch style-noise-1-per-file %s %s" \
+                    % (repo_path, git_dir_noisy)
+                try:
+                    for cmd in (cmd1, cmd2):
+                        log.debug("Running: %s", cmd)
+                        subprocess.check_call(cmd.split())
+                except subprocess.CalledProcessError as e:
+                    raise ConnectionError("Unable to fetch repository %s" % repo_path) from e
+
+                # train the model on the original repository
+                ref = ReferencePointer(repo_path, "HEAD", clean_commit)
+                model_path = os.path.join(git_dir, "model.asdf")
+                format_model = train(git_dir, ref, model_path, language, bblfsh, None)
+                rules = format_model[language]
+
+                # extract the raw data and the diff from the repositories
+                input_pattern = os.path.join(git_dir, "**", "*.js")
+                input_pattern_noisy = os.path.join(git_dir_noisy, "**", "*.js")
                 true_content = get_content_from_repo(input_pattern)
                 noisy_content = get_content_from_repo(input_pattern_noisy)
                 true_files, noisy_files, start_changes = get_difflib_changes(true_content,
@@ -353,16 +351,14 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
                 log.info("Number of files modified by adding style noise: %d / %d",
                          len(true_files), len(true_content))
                 del true_content, noisy_content
-                if retrain:
-                    ref = ReferencePointer(repo_path, "HEAD", clean_commit)
-                    format_model = train(git_dir, ref, model_path, language, bblfsh, None)
-                else:
-                    format_model = FormatModel().load(model_path)
-                rules = format_model[language]
+
+                # extract the features
                 feature_extractor = FeatureExtractor(language=language,
                                                      **rules.origin_config["feature_extractor"])
                 vnodes_y_true = files2vnodes(true_files, feature_extractor, client)
                 mispreds_noise = files2mispreds(noisy_files, feature_extractor, rules, client, log)
+
+                # compute the prediction rate and precision score on the artificial noisy dataset
                 diff_mispreds = get_diff_mispreds(mispreds_noise, start_changes)
                 changes_count = len(start_changes)
                 n_rules[repo] = len(rules.rules)
@@ -375,26 +371,27 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
                                          if any(r[0] == m.rule for r in rules_id[:i + 1])}
                     style_fixes = get_style_fixes(filtered_mispreds, vnodes_y_true,
                                                   true_files, noisy_files, feature_extractor)
-                    precision, recall, f1_score = compute_metrics(
+                    prediction_rate, precision = compute_metrics(
                         changes_count=changes_count,
                         predictions_count=len(filtered_mispreds),
                         true_positive=len(style_fixes))
+                    prediction_rates[repo].append(round(prediction_rate, 3))
                     precisions[repo].append(round(precision, 3))
-                    recalls[repo].append(round(recall, 3))
-                log.info([m.node.path for m in style_fixes])
-                print("recall x:", recalls[repo])
+                print("prediction rate x:", prediction_rates[repo])
                 print("precision y:", precisions[repo])
 
-                # compute some stats and quality metrics for the model's evaluation
+                # compute other statistics and quality metrics for the model's evaluation
                 repo_names.append(repo)
                 n_mistakes[repo] = len(true_files)
-                prec_max_rec[repo] = precisions[repo][-1]
-                max_rec[repo] = max(recalls[repo])
+                prec_max_prediction_rate[repo] = precisions[repo][-1]
+                max_prediction_rate[repo] = max(prediction_rates[repo])
                 n_rules_filtered[repo] = len(rules_id)
-                # compute the confidence and recall limit for the given precision threshold
-                for i, (prec, rec) in enumerate(zip(precisions[repo], recalls[repo])):
+
+                # compute the confidence and prediction rate limit for a given precision threshold
+                for i, (prediction_rate, prec) in enumerate(zip(prediction_rates[repo],
+                                                                precisions[repo])):
                     if prec >= precision_threshold:
-                        accepted_rules[repo].append((i, rules_id[i][1], rec))
+                        accepted_rules[repo].append((i, rules_id[i][1], prediction_rate))
                 last_accepted_rule[repo] = min(accepted_rules[repo], key=itemgetter(1))
                 confidence_threshold_exp[repo] = (last_accepted_rule[repo][0],
                                                   last_accepted_rule[repo][1])
@@ -410,24 +407,22 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
                 break
             limit_conf_id[repo] = rule[0]
 
-    # compile the precision-recall curves
+    # compile the curves showing the evolutions of the prediction rate and precision score
     path_to_figure = os.path.join(dir_output, "pr_curves.png")
-    plot_curve(repo_names, recalls, precisions, precision_threshold, limit_conf_id, path_to_figure)
+    plot_curve(repo_names, prediction_rates, precisions, precision_threshold,
+               limit_conf_id, path_to_figure)
 
     # compile the markdown template for the report through jinja2
     loader = jinja2.FileSystemLoader((os.path.join(os.path.dirname(__file__), "..", "templates"),),
                                      followlinks=True)
-    env = jinja2.Environment(
-        trim_blocks=True,
-        lstrip_blocks=True,
-        keep_trailing_newline=True,
-    )
+    env = jinja2.Environment(trim_blocks=True, lstrip_blocks=True, keep_trailing_newline=True)
     env.globals.update(range=range)
     template = loader.load(env, "noisy_quality_report.md.jinja2")
     report = template.render(repos=repo_names, n_mistakes=n_mistakes,
-                             prec_max_rec=prec_max_rec,
+                             prec_max_prediction_rate=prec_max_prediction_rate,
                              confidence_threshold_exp=round(max_confidence_threshold_exp[1], 2),
-                             max_rec=max_rec, confidence_threshold=confidence_threshold,
+                             max_prediction_rate=max_prediction_rate,
+                             confidence_threshold=confidence_threshold,
                              support_threshold=support_threshold,
                              n_rules=n_rules, n_rules_filtered=n_rules_filtered,
                              path_to_figure=path_to_figure)
