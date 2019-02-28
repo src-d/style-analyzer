@@ -24,9 +24,9 @@ class PostprocessingTests(unittest.TestCase):
         cls.bblfsh_client = bblfsh.BblfshClient("0.0.0.0:9432")
         cls.data_service = FakeDataService(cls.bblfsh_client, files=None, changes=None)
         cls.stub = cls.data_service.get_bblfsh()
-        cls.config = FormatAnalyzer._load_train_config({
-            "global": {"feature_extractor": {"cutoff_label_support": 0}},
-        })[cls.language]["feature_extractor"]
+        cls.config = FormatAnalyzer._load_config({
+            "train": {"language_defaults": {"feature_extractor": {"cutoff_label_support": 0}}},
+        })["train"][cls.language]["feature_extractor"]
 
     @classmethod
     def tearDownClass(cls):

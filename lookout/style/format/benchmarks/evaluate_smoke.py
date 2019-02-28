@@ -292,8 +292,8 @@ class SmokeEvalFormatAnalyzer(FormatAnalyzer):
         return []
 
 
-def evaluate_smoke_entry(inputpath: str, reportdir: str, database: str, bblfsh: str,
-                         train_config: dict, analyze_config: dict) -> None:
+def evaluate_smoke_entry(inputpath: str, reportdir: str, database: str, bblfsh: str, config: dict,
+                         ) -> None:
     """
     CLI entry point.
     """
@@ -301,7 +301,6 @@ def evaluate_smoke_entry(inputpath: str, reportdir: str, database: str, bblfsh: 
     report_filename = os.path.join(reportdir, "report.csv")
     log = logging.getLogger("evaluate_smoke")
     port = server.find_port()
-    train_config = {SmokeEvalFormatAnalyzer.name: train_config}
 
     if database is None:
         db = tempfile.NamedTemporaryFile(dir=inputpath, prefix="db", suffix=".sqlite3")
@@ -328,14 +327,11 @@ def evaluate_smoke_entry(inputpath: str, reportdir: str, database: str, bblfsh: 
                     repopath = inputpath / row["repo"]
                     config_json = {
                         SmokeEvalFormatAnalyzer.name:
-                            merge_dicts(analyze_config, {
+                            merge_dicts(config, {
                                 "repo_name": row["repo"],
                                 "style_name": row["style"],
                                 "report_path": reportdir,
                             })}
-                    server.run("push", fr=row["from"], to=row["to"], port=port,
-                               git_dir=str(repopath), log_level="warning", bblfsh=bblfsh,
-                               config_json=json.dumps(train_config))
                     server.run("review", fr=row["from"], to=row["to"], port=port,
                                git_dir=str(repopath), log_level="warning", bblfsh=bblfsh,
                                config_json=json.dumps(config_json))

@@ -31,12 +31,16 @@ class CodeGeneratorTests(unittest.TestCase):
         comment_template_flie = os.path.join(os.path.dirname(__file__), "..", "templates",
                                              "comment.jinja2")
         config = {
-            "report_code_lines": True,
-            "report_triggered_rules": True,
-            "comment_template": comment_template_flie,
+            "analyze": {
+                "language_defaults": {
+                    "report_code_lines": True,
+                    "report_triggered_rules": True,
+                    "comment_template": comment_template_flie,
+                },
+            },
         }
         analyzer = FormatAnalyzer(config=config, model=FakeModel(), url="http://github.com/x/y")
-        language = "<language>"
+        language = "javascript"
         line_number = 2
         suggested_code = "<new code line>"
         partial_backup = functools.partial
@@ -54,7 +58,7 @@ class CodeGeneratorTests(unittest.TestCase):
             functools.partial = fake_partitial
             text = analyzer.render_comment_text(file_fix, 0)
             res = """format: style mismatch:
-```<language>
+```javascript
 1|<first code line>
 2|<second code line>
 3|<third code line>

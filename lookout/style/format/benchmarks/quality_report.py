@@ -17,6 +17,7 @@ from lookout.core.test_helpers import server
 import numpy
 from tabulate import tabulate
 
+from lookout.style.common import merge_dicts
 from lookout.style.format.benchmarks.analyzer_context_manager import AnalyzerContextManager
 from lookout.style.format.benchmarks.general_report import QualityReportAnalyzer
 from lookout.style.format.feature_extractor import FeatureExtractor
@@ -79,8 +80,8 @@ class RestartReport(ValueError):
 
 
 def measure_quality(repository: str, from_commit: str, to_commit: str, port: int,
-                    review_config: dict, train_config: dict, bblfsh: Optional[str],
-                    vnodes_expected_number: Optional[int], restarts: int=3) -> QualityReport:
+                    config: dict, bblfsh: Optional[str], vnodes_expected_number: Optional[int],
+                    restarts: int=3) -> QualityReport:
     """
     Generate `QualityReport` for a repository. If it fails it returns empty reports.
 
@@ -88,8 +89,7 @@ def measure_quality(repository: str, from_commit: str, to_commit: str, port: int
     :param from_commit: Hash of the base commit.
     :param to_commit: Hash of the head commit.
     :param port: Port for QualityReportAnalyzer.
-    :param review_config: config for review.
-    :param train_config: config for train.
+    :param config: config for FormatAnalyzer.
     :param bblfsh: Babelfish server address to use. Specify None to use the default value.
     :param vnodes_expected_number: Specify number for expected number of vnodes if known. \
                                    report collection will be restarted if number of extracted \
@@ -149,7 +149,7 @@ def measure_quality(repository: str, from_commit: str, to_commit: str, port: int
                 try:
                     server.run(
                        "push", fr=from_commit, to=to_commit, port=port, git_dir=git_dir,
-                       log_level="warning", bblfsh=bblfsh, config_json=json.dumps(train_config))
+                       log_level="warning", bblfsh=bblfsh, config_json=json.dumps(config))
                     break
                 except subprocess.CalledProcessError:
                     # Assume that we failed because VNodes number does not match to expected one
@@ -159,7 +159,7 @@ def measure_quality(repository: str, from_commit: str, to_commit: str, port: int
                                    (restarts, repository))
             server.run("review", fr=from_commit, to=to_commit, port=port, git_dir=git_dir,
                        log_level="warning", bblfsh=bblfsh,
-                       config_json=json.dumps(review_config))
+                       config_json=json.dumps(config))
     finally:
         for name in reports:
             setattr(QualityReportAnalyzer, reports[name],
@@ -296,7 +296,7 @@ def _generate_report_summary(reports: Iterable[Tuple[str, QualityReport]], repor
     return tabulate(table, tablefmt="pipe", headers="firstrow", floatfmt=floatfmts)
 
 
-def generate_quality_report(input: str, output: str, force: bool, bblfsh: str, train_config: dict,
+def generate_quality_report(input: str, output: str, force: bool, bblfsh: str, config: dict,
                             database: Optional[str] = None, fs: Optional[str] = None) -> None:
     """
     Generate quality report for the given data. Entry point for command line interface.
@@ -307,7 +307,7 @@ def generate_quality_report(input: str, output: str, force: bool, bblfsh: str, t
     :param force: force to overwrite results stored in output directory if True. \
                   Stored results will be used if False.
     :param bblfsh: bblfsh address to use.
-    :param train_config: config for analyzer train.
+    :param config: config for FormatAnalyzer.
     :param database: sqlite3 database path to store the models. Temporary file is used if not set.
     :param fs: Model repository file system root. Temporary directory is used if not set.
     :return:
@@ -322,7 +322,7 @@ def generate_quality_report(input: str, output: str, force: bool, bblfsh: str, t
         server.fetch()  # download executable
     reports = []
     port = server.find_port()
-    review_config = {QualityReportAnalyzer.name: {"aggregate": True}}
+    config = {QualityReportAnalyzer.name: merge_dicts(config, {"aggregate": True})}
     repositories = list(csv.DictReader(handle_input_arg(input)))
     with tempfile.TemporaryDirectory() as tmpdirname:
         database = database if database else os.path.join(tmpdirname, "db.sqlite3")
@@ -365,8 +365,7 @@ def generate_quality_report(input: str, output: str, force: bool, bblfsh: str, t
                             if "vnodes_number" in row else None
                         report = measure_quality(
                             row["url"], to_commit=row["to"], from_commit=row["from"], port=port,
-                            review_config=review_config, train_config=train_config,
-                            bblfsh=bblfsh,
+                            config=config, bblfsh=bblfsh,
                             vnodes_expected_number=vnodes_expected_number)
                         if report.train_report is not None:
                             with open(train_rep_loc, "w", encoding="utf-8") as f:

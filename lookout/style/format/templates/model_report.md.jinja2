@@ -11,8 +11,8 @@
 ## {{ language }}
     {% set scns = namespace(min_support=1000000000000, max_support=-1, min_conf=1, max_conf=0) %}
     {% set rules = model[language].filter_by_confidence(
-        analyze_config["confidence_threshold"]).filter_by_support(
-        analyze_config["support_threshold"]) %}
+        analyze_config[language]["confidence_threshold"]).filter_by_support(
+        analyze_config[language]["support_threshold"]) %}
     {% for rule in rules.rules %}
         {% set scns.min_support = (scns.min_support, rule.stats.support)|min %}
         {% set scns.max_support = (scns.max_support, rule.stats.support)|max %}

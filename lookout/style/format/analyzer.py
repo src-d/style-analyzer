@@ -3,10 +3,9 @@ from collections import defaultdict
 import functools
 from itertools import chain
 import logging
-import os
 from pprint import pformat
 import random
-from typing import Any, Iterator, List, Mapping, NamedTuple, Sequence, Tuple
+from typing import Any, Iterator, List, Mapping, MutableMapping, NamedTuple, Sequence, Tuple
 import warnings
 
 import bblfsh  # noqa: F401
@@ -24,6 +23,7 @@ from lookout.style import __version__
 from lookout.style.common import merge_dicts
 from lookout.style.format.classes import CLASS_INDEX, CLS_NEWLINE
 from lookout.style.format.code_generator import CodeGenerator
+from lookout.style.format.config import DEFAULT_CONFIG, get_supported_languages
 from lookout.style.format.descriptions import describe_rule, get_change_description, hash_rule
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.model import FormatModel
@@ -65,68 +65,9 @@ class FormatAnalyzer(Analyzer):
     vendor = "source{d}"
     version = 1
     description = "Source code formatting: whitespace, new lines, quotes, braces."
-    defaults_for_analyze = {
-        "confidence_threshold": 0.92,
-        "support_threshold": 80,
-        "report_code_lines": False,
-        "report_triggered_rules": False,
-        "report_parse_failures": False,
-        "uast_break_check": True,
-        "comment_template": os.path.join(os.path.dirname(__file__), "templates",
-                                         "comment.jinja2"),
-    }
-    defaults_for_train = {
-        "global": {
-            "feature_extractor": {
-                "left_siblings_window": 5,
-                "right_siblings_window": 5,
-                "parents_depth": 2,
-                "node_features": ["start_line", "start_col"],
-                "left_features": ["length", "diff_offset", "diff_col", "diff_line",
-                                  "internal_type", "label", "reserved", "roles"],
-                "right_features": ["length", "internal_type", "reserved", "roles"],
-                "parent_features": ["internal_type", "roles"],
-                "no_labels_on_right": True,
-                "debug_parsing": False,
-                "select_features_number": 500,
-                "return_sibling_indices": False,
-                "cutoff_label_support": 80,
-            },
-            "trainable_rules": {
-                "prune_branches_algorithms": ["reduced-error"],
-                "top_down_greedy_budget": [False, .5],
-                "prune_attributes": True,
-                "attribute_similarity_threshold": 0.98,
-                "confidence_threshold": 0.8,
-                "prune_dataset_ratio": .2,
-                "n_estimators": 10,
-            },
-            "optimizer": {
-                "n_iter": 50,
-                "cv": 3,
-                "n_jobs": -1,
-                "base_model_name_categories": ["sklearn.ensemble.RandomForestClassifier",
-                                               "sklearn.tree.DecisionTreeClassifier"],
-                "max_depth_categories": [None, 5, 10],
-                "max_features_categories": [None, "auto"],
-                "min_samples_leaf_min": 90,
-                "min_samples_leaf_max": 120,
-                "min_samples_split_min": 180,
-                "min_samples_split_max": 240,
-            },
-            "random_state": 42,
-            "test_dataset_ratio": 0.0,
-            "line_length_limit": 500,
-            "lower_bound_instances": 500,
-            "overall_size_limit": 5 << 20,  # 5 MB
-            "lines_ratio_train_trigger": 0.2,
-        },
-        # selected settings for each particular language which overwrite "global"
-        # empty {} is still required if we do not have any adjustments
-        "javascript": {},
-    }
+    default_config = DEFAULT_CONFIG
 
-    def __init__(self, model: FormatModel, url: str, config: Mapping[str, Any]) -> None:
+    def __init__(self, model: FormatModel, url: str, config: MutableMapping[str, Any]) -> None:
         """
         Construct a FormatAnalyzer.
 
@@ -136,8 +77,11 @@ class FormatAnalyzer(Analyzer):
         """
         super().__init__(model, url, config)
         self._log = logging.getLogger(type(self).__name__)
-        self.config = self._load_analyze_config(self.config)
-        with open(self.config["comment_template"], encoding="utf-8") as f:
+        self.config = self._load_config(config)
+        self.analyze_config = self.config["analyze"]
+        # to prevent anyone use self.config["analyze"] instead of analyze_config
+        del self.config["analyze"]
+        with open(self.analyze_config["comment_template"], encoding="utf-8") as f:
             self.comment_template = Template(f.read(), trim_blocks=True, lstrip_blocks=True)
 
     @with_changed_uasts_and_contents
@@ -189,10 +133,10 @@ class FormatAnalyzer(Analyzer):
             data_service.get_data(), old_model.ptr, ptr, contents=True, uast=False))
         base_files_by_lang = files_by_language(c.base for c in changes)
         head_files_by_lang = files_by_language(c.head for c in changes)
-        config = cls._load_train_config(config)
+        config = cls._load_config(config)
         for language, head_files in head_files_by_lang.items():
             try:
-                lang_config = config[language]
+                lang_config = config["train"][language]
             except KeyError:
                 _log.warning("language %s is not supported, skipped", language)
                 continue
@@ -230,17 +174,17 @@ class FormatAnalyzer(Analyzer):
         :return: AnalyzerModel containing the learned rules, per language.
         """
         _log = logging.getLogger(cls.__name__)
+        train_config = cls._load_config(config)["train"]
         _log.info("train %s %s %s %s", __version__, ptr.url, ptr.commit,
-                  pformat(config, width=4096, compact=True))
+                  pformat(train_config, width=4096, compact=True))
         model = FormatModel().generate(cls, ptr)
-        config = cls._load_train_config(config)
         for language, files in files_by_language(files).items():
             try:
-                lang_config = config[language]
+                lang_config = train_config[language]
             except KeyError:
                 _log.warning("language %s is not supported, skipped", language)
                 continue
-            _log.info("effective config for %s:\n%s", language,
+            _log.info("effective train config for %s:\n%s", language,
                       pformat(lang_config, width=120, compact=True))
             random_state = lang_config["random_state"]
             files = filter_files(
@@ -336,8 +280,9 @@ class FormatAnalyzer(Analyzer):
                             len(head_files), lang, lang)
                 continue
             rules = self.model[lang]
-            rules = rules.filter_by_confidence(self.config["confidence_threshold"]) \
-                .filter_by_support(self.config["support_threshold"])
+            config = self.analyze_config[lang]
+            rules = rules.filter_by_confidence(config["confidence_threshold"]) \
+                .filter_by_support(config["support_threshold"])
             for file in filter_files(head_files, rules.origin_config["line_length_limit"],
                                      rules.origin_config["overall_size_limit"], log=log):
                 processed_files_counter[lang] += 1
@@ -356,7 +301,7 @@ class FormatAnalyzer(Analyzer):
                 feature_extractor_output = fe.extract_features([file], [lines])
                 if feature_extractor_output is None:
                     submit_event("%s.analyze.%s.parse_failures" % (self.name, lang), 1)
-                    if self.config["report_parse_failures"]:
+                    if config["report_parse_failures"]:
                         log.warning("Failed to parse %s", file.path)
                         yield FileFix(error="Failed to parse", head_file=file, language=lang,
                                       feature_extractor=fe, base_file=prev_file, file_vnodes=[],
@@ -391,8 +336,9 @@ class FormatAnalyzer(Analyzer):
             get_change_description, feature_extractor=file_fix.feature_extractor)
         code_lines = file_fix.head_file.content.decode("utf-8", "replace").splitlines()
         line_fix = file_fix.line_fixes[fix_index]
+        config = self.analyze_config[file_fix.language]
         return self.comment_template.render(
-                config=self.config,                     # configuration of the analyzer
+                config=config,                          # configuration of the analyzer
                 language=file_fix.language,             # programming language of the code
                 line_number=line_fix.line_number,       # line number for the comment
                 code_lines=code_lines,                  # original file code lines
@@ -414,7 +360,7 @@ class FormatAnalyzer(Analyzer):
         y_pred_pure, rule_winners, new_rules, grouped_quote_predictions = rules.predict(
             X=X, vnodes_y=vnodes_y, vnodes=vnodes, feature_extractor=fe)
         y_pred = rules.fill_missing_predictions(y_pred_pure, y)
-        if self.config["uast_break_check"]:
+        if self.analyze_config[file.language.lower()]["uast_break_check"]:
             checker = UASTStabilityChecker(fe)
             y, y_pred, vnodes_y, rule_winners, safe_preds = checker.check(
                 y=y, y_pred=y_pred, vnodes_y=vnodes_y, vnodes=vnodes, files=[file],
@@ -588,29 +534,22 @@ class FormatAnalyzer(Analyzer):
                    (line_y, line_y_pred, line_vnodes_y, line_vnodes, line_rule_winners))
 
     @classmethod
-    def _load_analyze_config(cls, config: Mapping[str, Any]) -> Mapping[str, Any]:
+    def _load_config(cls, config: Mapping[str, Any]) -> Mapping[str, Any]:
         """
-        Merge config for `analyze()` with the default config.
+        Merge provided config with the default values.
 
         :param config: User-defined config.
         :return: Full config.
         """
-        return merge_dicts(cls.defaults_for_analyze, config)
-
-    @classmethod
-    def _load_train_config(cls, config: Mapping[str, Any]) -> Mapping[str, Any]:
-        """
-        Merge config for `train()` with the default config.
-
-        :param config: User-defined config.
-        :return: Full config.
-        """
-        config = merge_dicts(cls.defaults_for_train, config)
-        global_config = config.pop("global")
-        try:
-            return {lang: merge_dicts(global_config, lang_config)
-                    for lang, lang_config in config.items()}
-        except AttributeError as e:
-            raise ValueError("Config %s can not be merged with default values config: %s: %s" % (
-                config, global_config, e,
-            )) from None
+        supported_langs = get_supported_languages()
+        effective_config = merge_dicts(cls.default_config, config)
+        for key in ["train", "analyze"]:
+            global_config = effective_config[key].pop("language_defaults")
+            try:
+                for lang in supported_langs:
+                    effective_config[key][lang] = merge_dicts(
+                        global_config, effective_config[key].get(lang, {}))
+            except AttributeError as e:
+                raise ValueError("Config %s can not be merged with default values config: "
+                                 "%s: %s" % (config, global_config, e)) from None
+        return effective_config
