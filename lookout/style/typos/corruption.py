@@ -1,12 +1,20 @@
+from functools import partial
 import logging
+from multiprocessing import Pool
 import random
 import string
+from typing import NamedTuple, Tuple
 
 import pandas
 from tqdm import tqdm
 
-from lookout.style.typos.utils import Columns
-
+Columns = NamedTuple(
+    "Columns",
+    [("Token", str), ("CorrectToken", str), ("Split", str), ("CorrectSplit", str), ("After", str),
+     ("Before", str), ("Id", str), ("Candidate", str), ("Features", str), ("Probability", str),
+     ("Suggestions", str), ("Frequency", str)])(
+    "token", "correct_token", "token_split", "correct_token_split", "after", "before", "id",
+    "candidate", "features", "proba", "suggestions", "freq")
 
 letters = list(string.ascii_lowercase)
 
@@ -56,15 +64,26 @@ def rand_swap(token: str) -> str:
     return token[:pos] + token[pos + 1] + token[pos] + token[pos + 2:]
 
 
-def rand_typo(token: str) -> str:
-    """
-    Make a random typo in the token.
-    """
-    return random.choice([rand_insert, rand_delete, rand_substitution, rand_swap])(token)
+def _rand_typo(token_split: Tuple[str, str], typo_probability: float,
+               add_typo_probability: float) -> Tuple[str, str]:
+    token, split = token_split
+    typoed_token = token
+    if len(token) > 1 and random.uniform(0, 1) < typo_probability:
+        typoed_token = ""
+        while len(typoed_token) < 2:
+            typoed_token = random.choice([rand_insert, rand_delete, rand_substitution,
+                                          rand_swap])(token)
+            while random.uniform(0, 1) < add_typo_probability:
+                typoed_token = random.choice([rand_insert, rand_delete, rand_substitution,
+                                              rand_swap])(typoed_token)
+    if typoed_token != token:
+        split = split.replace(token, typoed_token)
+    return typoed_token, split
 
 
 def corrupt_tokens_in_df(data: pandas.DataFrame, typo_probability: float,
-                         add_typo_probability: float, log_level: int = logging.DEBUG,
+                         add_typo_probability: float, threads_number: int = 16,
+                         log_level: int = logging.DEBUG,
                          ) -> pandas.DataFrame:
     """
     Create artificial typos in tokens (identifiers) in a pandas DataFrame. \
@@ -76,26 +95,30 @@ def corrupt_tokens_in_df(data: pandas.DataFrame, typo_probability: float,
     :param typo_probability: Probability with which a token gets to be corrupted.
     :param add_typo_probability: Probability with which one more corruption happens to a \
                                  corrupted token.
+    :param threads_number: Number of threads for multiprocessing
     :param log_level: Level of logging.
     :return: New dataframe with added columns Columns.CorrectToken and Columns.CorrectSplit, \
              which contain tokens and corresponding splits from the `data`. Columns.Token and \
              Columns.Split now contain partially corrupted tokens and corresponding splits.
     """
+    tokens_splits = list(zip(data[Columns.Token].astype(str), data[Columns.Split].astype(str)))
+
+    def _wrap(x):
+        if log_level == logging.DEBUG:
+            return tqdm(x, total=len(tokens_splits))
+        else:
+            return x
+
+    with Pool(threads_number) as pool:
+        typoed_tokens_splits = list(_wrap(pool.imap(
+            partial(_rand_typo,
+                    typo_probability=typo_probability,
+                    add_typo_probability=add_typo_probability), tokens_splits,
+            chunksize=min(8192, 1 + len(tokens_splits) // threads_number))))
+
     result = data.copy()
-    result.loc[:, Columns.CorrectToken] = data[Columns.Token]
-    result.loc[:, Columns.CorrectSplit] = data[Columns.Split]
-    indices = range(len(data))
-    if log_level == logging.DEBUG:
-        indices = tqdm(indices)
-    for i in indices:
-        token = data.iloc[i][Columns.Token]
-        typoed_token = token
-        if len(token) > 1 and random.uniform(0, 1) < typo_probability:
-            typoed_token = ""
-            while len(typoed_token) < 2:
-                typoed_token = rand_typo(token)
-                while random.uniform(0, 1) < add_typo_probability:
-                    typoed_token = rand_typo(typoed_token)
-        result.iloc[i][Columns.Split] = data.iloc[i][Columns.Split].replace(token, typoed_token)
-        result.iloc[i][Columns.Token] = typoed_token
+    result[Columns.Token] = [x[0] for x in typoed_tokens_splits]
+    result[Columns.Split] = [x[1] for x in typoed_tokens_splits]
+    result[Columns.CorrectToken] = data[Columns.Token]
+    result[Columns.CorrectSplit] = data[Columns.Split]
     return result
