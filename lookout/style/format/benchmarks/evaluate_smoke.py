@@ -278,7 +278,7 @@ class SmokeEvalFormatAnalyzer(FormatAnalyzer):
             bad_style_code = file_fix.head_file.content.decode("utf-8", "replace")
             correct_style_code = file_fix.base_file.content.decode("utf-8", "replace")
             row = {
-                "repo": self.config["repo_name"],
+                "repo": self.model.ptr.url.split("/")[-1],
                 "style": self.config["style_name"],
                 "filepath": filepath,
                 "bad_style_file": bad_style_code,
@@ -328,7 +328,6 @@ def evaluate_smoke_entry(inputpath: str, reportdir: str, database: str, bblfsh: 
                     config_json = {
                         SmokeEvalFormatAnalyzer.name:
                             merge_dicts(config, {
-                                "repo_name": row["repo"],
                                 "style_name": row["style"],
                                 "report_path": reportdir,
                             })}
