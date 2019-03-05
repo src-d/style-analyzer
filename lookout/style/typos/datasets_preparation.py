@@ -21,8 +21,8 @@ DATA_DIR = pathlib.Path(__file__).parent / "data"
 defaults_for_fasttext = {
     "size": 100000000,
     "corrupt": True,
-    "typo_prob": 0.2,
-    "add_typo_prob": 0.005,
+    "typo_probability": 0.2,
+    "add_typo_probability": 0.005,
     "fasttext_path": str(DATA_DIR / "emb.bin"),
     "dim": 8,
     "bucket": 200000,
@@ -152,22 +152,21 @@ def get_datasets(prepared_data: pandas.DataFrame, train_size: int = 50000,
     return train_test_split(data, test_size=test_size)
 
 
-def tune_fasttext_model(data: pandas.DataFrame,
-                        params: Optional[Mapping[str, Any]] = None) -> None:
+def train_fasttext(data: pandas.DataFrame, params: Optional[Mapping[str, Any]] = None) -> None:
     """
-    Tune fasttext model on given data.
+    Train fasttext model on the given dataset of code identifiers.
 
-    :param data: Dataframe which contains columns Columns.Split and Columns.Frequency.
-    :param params: Parameters for training the model, supports:
+    :param data: Dataframe with columns Columns.Split and Columns.Frequency.
+    :param params: Parameters for training the model, options:
                    size: Number of identifiers to pick from the given data to train fasttext on.
-                   corrupt: True to make random artificial typos in some part of the training data.
-                   typo_prob: Probability with which a token gets to be corrupted, \
-                                     used when `corrupt=True`.
-                   add_typo_prob: Probability with which one more corruption happens to a \
-                                         corrupted token, used when `corrupt=True`.
-                   fasttext_path: Path to put tuned fasttext model to.
+                   corrupt: Value indicating whether to make random artificial typos in \
+                            the training data. Identifiers are corrupted with `typo_probability`.
+                   typo_probability: Probability with which a token is corrupted, used if `corrupt=True`.
+                   add_typo_probability: Probability with which another corruption happens in a \
+                                  corrupted token, used if `corrupt=True`.
+                   fasttext_path: Path where to store the trained fasttext model.
                    dim: Number of dimensions for embeddings in the new model.
-                   bucket: Number of hash buckets to keep in the fasttext model:
+                   bucket: Number of hash buckets to keep in the fasttext model: \
                            the less there are, the more compact the model gets.
     """
     if params is None:
@@ -175,12 +174,12 @@ def tune_fasttext_model(data: pandas.DataFrame,
     params = merge_dicts(defaults_for_fasttext, params)
     train_data = data.sample(params["size"], weights=Columns.Frequency, replace=True)
     if params["corrupt"]:
-        train_data = corrupt_tokens_in_df(train_data, params["typo_prob"],
-                                          params["add_typo_prob"])
+        train_data = corrupt_tokens_in_df(train_data, params["typo_probability"],
+                                          params["add_typo_probability"])
     with tempfile.NamedTemporaryFile() as ids_file:
         with open(ids_file.name, "w") as f:
             for token_split in train_data[Columns.Split]:
-                print(token_split, file=f)
+                f.write(token_split + "\n")
         model = fastText.train_unsupervised(ids_file.name, minCount=1, epoch=10,
                                             dim=params["dim"], bucket=params["bucket"])
     model.save_model(params["fasttext_path"])

@@ -7,7 +7,7 @@ import unittest
 from gensim.models import FastText
 import pandas
 
-from lookout.style.typos.datasets_preparation import get_datasets, prepare_data, tune_fasttext_model
+from lookout.style.typos.datasets_preparation import get_datasets, prepare_data, train_fasttext
 from lookout.style.typos.utils import Columns, read_frequencies, read_vocabulary
 
 
@@ -74,7 +74,7 @@ class FasttextTest(unittest.TestCase):
                                index_col=0)
         temp_dir = tempfile.mkdtemp()
         params = {"size": 1000, "fasttext_path": os.path.join(temp_dir, "ft.bin"), "dim": 5}
-        tune_fasttext_model(data, params)
+        train_fasttext(data, params)
         model = FastText.load_fasttext_format(params["fasttext_path"])
         self.assertTupleEqual(model.wv["get"].shape, (5,))
         shutil.rmtree(temp_dir)
