@@ -61,7 +61,7 @@ class DatasetsTest(unittest.TestCase):
         self.assertTrue({Columns.Token, Columns.CorrectToken, Columns.Split,
                          Columns.CorrectSplit}.issubset(set(train.columns)))
         corrupted = sum(train[Columns.Token] != train[Columns.CorrectToken])
-        self.assertAlmostEqual(corrupted, 500, delta=20)
+        self.assertAlmostEqual(corrupted, 500, delta=50)
         self.assertEqual(len(train), 1000)
         self.assertEqual(len(test), 100)
         print(len(set(train[Columns.Token]).intersection(set(test[Columns.Token]))))
