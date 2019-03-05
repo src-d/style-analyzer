@@ -191,13 +191,12 @@ def train_and_evaluate(train_data: pandas.DataFrame, test_data: pandas.DataFrame
                        vocabulary_path: str, frequencies_path: str, fasttext_path: str,
                        threads_number: int = 8) -> TyposCorrector:
     """
-    Create and train TyposCorrector model on given data.
+    Create and train TyposCorrector model on the given data.
 
-    :param train_data: DataFrame, or its .csv dump, containing columns Columns.Token and
-                       Columns.CorrectToken, column Columns.Split is optional, but used
-                       when present.
-    :param test_data: Dataframe or its .csv dump, containing columns
-                      Columns.Token and Columns.CorrectToken.
+    :param train_data: Dataframe which contains columns Columns.Token, Columns.Split and \
+                       Columns.CorrectToken.
+    :param test_data: Dataframe which contains columns Columns.Token, Columns.Split and \
+                      Columns.CorrectToken.
     :param vocabulary_path: Path to a file with vocabulary.
     :param frequencies_path: Path to a file with tokens' frequencies.
     :param fasttext_path: Path to a FastText model dump.
