@@ -15,7 +15,7 @@ def filter_splits(data: pandas.DataFrame, tokens: Set[str]) -> pandas.DataFrame:
     :param tokens: Set of tokens (reference vocabulary).
     :return: Filtered dataframe.
     """
-    return data[data[Columns.Split].apply(lambda x: set(x.split()).issubset(tokens))]
+    return data[[set(x.split()).issubset(tokens) for x in data[Columns.Split]]]
 
 
 def print_frequencies(tokens: Set[str], id_stats: pandas.DataFrame, path: str) -> None:

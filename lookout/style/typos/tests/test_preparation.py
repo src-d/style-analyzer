@@ -6,11 +6,14 @@ import unittest
 from gensim.models import FastText
 import pandas
 
-from lookout.style.typos.datasets_preparation import get_datasets, prepare_data, train_fasttext
+from lookout.style.typos.preparation import (get_datasets, prepare_data, train_and_evaluate,
+                                             train_fasttext)
 from lookout.style.typos.utils import Columns, read_frequencies, read_vocabulary
 
 
 TEST_DATA_DIR = pathlib.Path(__file__).parent
+FASTTEXT_DUMP_FILE = str(TEST_DATA_DIR / "id_vecs_10.bin")
+VOCABULARY_FILE = str(TEST_DATA_DIR / "test_frequencies.csv.xz")
 
 
 class PreparationTest(unittest.TestCase):
@@ -77,6 +80,15 @@ class FasttextTest(unittest.TestCase):
             train_fasttext(data, params)
             model = FastText.load_fasttext_format(params["fasttext_path"])
             self.assertTupleEqual(model.wv["get"].shape, (5,))
+
+
+class TrainingTest(unittest.TestCase):
+    def test_train_and_evaluate(self):
+        data = pandas.read_csv(str(TEST_DATA_DIR / "test_data.csv.xz"), index_col=0)
+        model = train_and_evaluate(data, data, VOCABULARY_FILE, VOCABULARY_FILE,
+                                   FASTTEXT_DUMP_FILE)
+        suggestions = model.suggest_on_file(str(TEST_DATA_DIR / "test_data.csv.xz"))
+        self.assertSetEqual(set(suggestions.keys()), set(data.index))
 
 
 if __name__ == "__main__":
