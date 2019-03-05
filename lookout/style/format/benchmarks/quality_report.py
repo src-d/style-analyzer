@@ -13,12 +13,11 @@ import tempfile
 from typing import Iterable, Iterator, NamedTuple, Optional, Sequence, Tuple, Union
 
 from dulwich import porcelain
-from lookout.core.test_helpers import server
+from lookout.core.helpers.analyzer_context_manager import AnalyzerContextManager
 import numpy
 from tabulate import tabulate
 
 from lookout.style.common import merge_dicts
-from lookout.style.format.benchmarks.analyzer_context_manager import AnalyzerContextManager
 from lookout.style.format.benchmarks.general_report import QualityReportAnalyzer
 from lookout.style.format.feature_extractor import FeatureExtractor
 
@@ -79,16 +78,16 @@ class RestartReport(ValueError):
     """Exception raises if report collection should be restarted."""
 
 
-def measure_quality(repository: str, from_commit: str, to_commit: str, port: int,
-                    config: dict, bblfsh: Optional[str], vnodes_expected_number: Optional[int],
-                    restarts: int=3) -> QualityReport:
+def measure_quality(repository: str, from_commit: str, to_commit: str,
+                    context: AnalyzerContextManager, config: dict, bblfsh: Optional[str],
+                    vnodes_expected_number: Optional[int], restarts: int=3) -> QualityReport:
     """
     Generate `QualityReport` for a repository. If it fails it returns empty reports.
 
     :param repository: URL of repository.
     :param from_commit: Hash of the base commit.
     :param to_commit: Hash of the head commit.
-    :param port: Port for QualityReportAnalyzer.
+    :param context: LookoutSDK instance to query analyzer.
     :param config: config for FormatAnalyzer.
     :param bblfsh: Babelfish server address to use. Specify None to use the default value.
     :param vnodes_expected_number: Specify number for expected number of vnodes if known. \
@@ -147,9 +146,8 @@ def measure_quality(repository: str, from_commit: str, to_commit: str, port: int
             for attempt_number in range(restarts):
                 sum_vnodes_number = -1
                 try:
-                    server.run(
-                       "push", fr=from_commit, to=to_commit, port=port, git_dir=git_dir,
-                       log_level="warning", bblfsh=bblfsh, config_json=json.dumps(config))
+                    context.push(fr=from_commit, to=to_commit, git_dir=git_dir,
+                                 log_level="warning", bblfsh=bblfsh, config_json=config)
                     break
                 except subprocess.CalledProcessError:
                     # Assume that we failed because VNodes number does not match to expected one
@@ -157,9 +155,8 @@ def measure_quality(repository: str, from_commit: str, to_commit: str, port: int
             else:
                 raise RuntimeError("Run out of %d attempts. Failed to train proper model for %s." %
                                    (restarts, repository))
-            server.run("review", fr=from_commit, to=to_commit, port=port, git_dir=git_dir,
-                       log_level="warning", bblfsh=bblfsh,
-                       config_json=json.dumps(config))
+            context.review(fr=from_commit, to=to_commit, git_dir=git_dir, log_level="warning",
+                           bblfsh=bblfsh, config_json=config)
     finally:
         for name in reports:
             setattr(QualityReportAnalyzer, reports[name],
@@ -318,18 +315,15 @@ def generate_quality_report(input: str, output: str, force: bool, bblfsh: str, c
     handler = logging.handlers.RotatingFileHandler(os.path.join(output, "errors.txt"))
     handler.setLevel(logging.ERROR)
     log.addHandler(handler)
-    if not server.exefile.exists():
-        server.fetch()  # download executable
     reports = []
-    port = server.find_port()
     config = {QualityReportAnalyzer.name: merge_dicts(config, {"aggregate": True})}
     repositories = list(csv.DictReader(handle_input_arg(input)))
     with tempfile.TemporaryDirectory() as tmpdirname:
         database = database if database else os.path.join(tmpdirname, "db.sqlite3")
         fs = fs if fs else os.path.join(tmpdirname, "models")
         os.makedirs(fs, exist_ok=True)
-        with AnalyzerContextManager(QualityReportAnalyzer, port=port, db=database, fs=fs,
-                                    init=False):
+        with AnalyzerContextManager(QualityReportAnalyzer, db=database, fs=fs,
+                                    init=False) as context:
             start_time = datetime.now()
             for ri, row in enumerate(repositories):
                 now = datetime.now()
@@ -364,8 +358,8 @@ def generate_quality_report(input: str, output: str, force: bool, bblfsh: str, c
                         vnodes_expected_number = int(row["vnodes_number"]) \
                             if "vnodes_number" in row else None
                         report = measure_quality(
-                            row["url"], to_commit=row["to"], from_commit=row["from"], port=port,
-                            config=config, bblfsh=bblfsh,
+                            row["url"], to_commit=row["to"], from_commit=row["from"],
+                            context=context, config=config, bblfsh=bblfsh,
                             vnodes_expected_number=vnodes_expected_number)
                         if report.train_report is not None:
                             with open(train_rep_loc, "w", encoding="utf-8") as f:

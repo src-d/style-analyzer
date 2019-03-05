@@ -1,6 +1,5 @@
 import glob
 import io
-import json
 import os
 from pathlib import Path
 import sys
@@ -8,11 +7,10 @@ import tarfile
 import tempfile
 import unittest
 
-from lookout.core.test_helpers import server
+from lookout.core.helpers.analyzer_context_manager import AnalyzerContextManager
 from modelforge import slogging
 from numpy.testing import assert_almost_equal
 
-from lookout.style.format.benchmarks.analyzer_context_manager import AnalyzerContextManager
 from lookout.style.format.benchmarks.general_report import print_reports, QualityReportAnalyzer
 from lookout.style.format.benchmarks.quality_report import _get_json_data, _get_metrics, \
     _get_model_summary
@@ -26,8 +24,6 @@ class PretrainedModelTests(unittest.TestCase):
     def setUpClass(cls):
         """Prepare environment & train the model for tests."""
         slogging.setup("DEBUG", False)
-        if not server.exefile.exists():
-            server.fetch()
         # required config
         cls.bblfsh = "0.0.0.0:9432"
         cls.language = "javascript"
@@ -36,7 +32,6 @@ class PretrainedModelTests(unittest.TestCase):
         parent_loc = Path(__file__).parent.resolve()
         cls.base_dir_ = tempfile.TemporaryDirectory()
         cls.base_dir = cls.base_dir_.name
-        cls.port = server.find_port()
         # extract repo
         cls.jquery_dir = os.path.join(cls.base_dir, "jquery")
         # str() is needed for Python 3.5
@@ -52,7 +47,6 @@ class PretrainedModelTests(unittest.TestCase):
         cls.base_dir_.cleanup()
 
     def setUp(self):
-        self.port = server.find_port()
         self.db = tempfile.NamedTemporaryFile(dir=self.base_dir)
         self.fs = tempfile.TemporaryDirectory(dir=self.base_dir)
 
@@ -173,10 +167,9 @@ class QualityReportTests(PretrainedModelTests):
     def test_train_review_analyzer_integration(self):
         """Integration test for review event."""
         with AnalyzerContextManager(analyzer=QualityReportAnalyzer,
-                                    port=self.port, db=self.db.name, fs=self.fs.name):
-            server.run("review", FROM_COMMIT, TO_COMMIT, port=self.port,
-                       git_dir=self.jquery_dir, config_json=json.dumps({
-                            QualityReportAnalyzer.name: get_config()}))
+                                    db=self.db.name, fs=self.fs.name) as context:
+            context.review(FROM_COMMIT, TO_COMMIT, git_dir=self.jquery_dir, config_json={
+                           QualityReportAnalyzer.name: get_config()})
 
 
 if __name__ == "__main__":

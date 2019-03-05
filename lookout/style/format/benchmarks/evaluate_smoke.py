@@ -1,7 +1,6 @@
 """Module for Smoke dataset evaluation."""
 import csv
 from difflib import SequenceMatcher
-import json
 import logging
 import os
 from pathlib import Path
@@ -12,13 +11,12 @@ from typing import Any, Dict, List, Sequence, Tuple, Union
 from lookout.core.analyzer import ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.data_requests import DataService, with_changed_uasts_and_contents
-from lookout.core.test_helpers import server
+from lookout.core.helpers.analyzer_context_manager import AnalyzerContextManager
 import pandas
 from tqdm import tqdm
 
 from lookout.style.common import merge_dicts
 from lookout.style.format.analyzer import FormatAnalyzer
-from lookout.style.format.benchmarks.analyzer_context_manager import AnalyzerContextManager
 from lookout.style.format.code_generator import CodeGenerator
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.virtual_node import VirtualNode
@@ -300,8 +298,6 @@ def evaluate_smoke_entry(inputpath: str, reportdir: str, database: str, bblfsh: 
     start_time = time.time()
     report_filename = os.path.join(reportdir, "report.csv")
     log = logging.getLogger("evaluate_smoke")
-    port = server.find_port()
-
     if database is None:
         db = tempfile.NamedTemporaryFile(dir=inputpath, prefix="db", suffix=".sqlite3")
         database = db.name
@@ -312,10 +308,8 @@ def evaluate_smoke_entry(inputpath: str, reportdir: str, database: str, bblfsh: 
         else:
             log.info("Database %s not found and will be created." % database)
     with tempfile.TemporaryDirectory(dir=inputpath) as fs:
-        with AnalyzerContextManager(SmokeEvalFormatAnalyzer, port=port, db=database, fs=fs):
+        with AnalyzerContextManager(SmokeEvalFormatAnalyzer, db=database, fs=fs) as server:
             inputpath = Path(inputpath)
-            if not server.exefile.exists():
-                server.fetch()
             index_file = inputpath / "index.csv"
             os.makedirs(reportdir, exist_ok=True)
             with open(report_filename, "w") as report:
@@ -331,9 +325,8 @@ def evaluate_smoke_entry(inputpath: str, reportdir: str, database: str, bblfsh: 
                                 "style_name": row["style"],
                                 "report_path": reportdir,
                             })}
-                    server.run("review", fr=row["from"], to=row["to"], port=port,
-                               git_dir=str(repopath), log_level="warning", bblfsh=bblfsh,
-                               config_json=json.dumps(config_json))
+                    server.review(fr=row["from"], to=row["to"], git_dir=str(repopath),
+                                  log_level="warning", bblfsh=bblfsh, config_json=config_json)
             log.info("Quality report saved to %s", reportdir)
 
     report = pandas.read_csv(report_filename)

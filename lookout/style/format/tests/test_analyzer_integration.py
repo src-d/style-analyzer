@@ -6,11 +6,10 @@ import tarfile
 import tempfile
 import unittest
 
-from lookout.core.test_helpers import server
+from lookout.core.helpers.analyzer_context_manager import AnalyzerContextManager
 from modelforge import slogging
 
 from lookout.style.format.analyzer import FormatAnalyzer
-from lookout.style.format.benchmarks.analyzer_context_manager import AnalyzerContextManager
 from lookout.style.format.tests import long_test
 
 FROM_COMMIT = "HEAD" + "^" * 9
@@ -19,15 +18,14 @@ TO_COMMIT = "HEAD"
 
 class BaseAnalyzerIntegrationTests(unittest.TestCase):
     def setUp(self, fs=None):
-        self.port = server.find_port()
         self.db = tempfile.NamedTemporaryFile(dir=self.base_dir)
         if fs is None:
             self.fs = tempfile.TemporaryDirectory(dir=self.base_dir)
         else:
             self.fs = fs
 
-        self.analyzer = AnalyzerContextManager(
-            FormatAnalyzer, port=self.port, db=self.db.name, fs=self.fs.name).__enter__()
+        self.context = AnalyzerContextManager(
+            FormatAnalyzer, db=self.db.name, fs=self.fs.name).__enter__()
         self.logs = logs = []
 
         class ShadowHandler(logging.Handler):
@@ -37,13 +35,10 @@ class BaseAnalyzerIntegrationTests(unittest.TestCase):
         self.log_handler = ShadowHandler()
         logging.getLogger().addHandler(self.log_handler)
 
-        if not os.path.exists(str(server.exefile)):
-            server.fetch()
-
     def tearDown(self, fs_cleanup=True):
         if fs_cleanup:
             self.fs.cleanup()
-        self.analyzer.__exit__()
+        self.context.__exit__()
         logging.getLogger().removeHandler(self.log_handler)
 
 
@@ -65,11 +60,7 @@ class AnalyzerIntegrationTests(BaseAnalyzerIntegrationTests):
         cls.base_dir_.cleanup()
 
     def test_review(self):
-        server.run(
-            "review",
-            FROM_COMMIT,
-            TO_COMMIT,
-            self.port, git_dir=self.jquery_dir)
+        self.context.review(FROM_COMMIT, TO_COMMIT, git_dir=self.jquery_dir)
         matches = re.search(r"FormatAnalyzer: (\d+) comments", "".join(self.logs))
         self.assertTrue(matches)
         self.assertGreater(int(matches.group(1)), 0)
