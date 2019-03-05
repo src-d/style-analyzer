@@ -72,11 +72,12 @@ class FasttextTest(unittest.TestCase):
     def test_get_fasttext_model(self):
         data = pandas.read_csv(str(pathlib.Path(__file__).parent / "prepared_data.csv.xz"),
                                index_col=0)
-        with tempfile.NamedTemporaryFile() as ft_file:
-            params = {"size": 1000, "fasttext_path": ft_file.name, "dim": 5}
-            tune_fasttext_model(data, params)
-            model = FastText.load_fasttext_format(ft_file.name)
-            self.assertTupleEqual(model.wv["get"].shape, (5,))
+        temp_dir = tempfile.mkdtemp()
+        params = {"size": 1000, "fasttext_path": os.path.join(temp_dir, "ft.bin"), "dim": 5}
+        tune_fasttext_model(data, params)
+        model = FastText.load_fasttext_format(params["fasttext_path"])
+        self.assertTupleEqual(model.wv["get"].shape, (5,))
+        shutil.rmtree(temp_dir)
 
 
 if __name__ == "__main__":
