@@ -64,16 +64,16 @@ def rand_swap(token: str) -> str:
     return token[:pos] + token[pos + 1] + token[pos] + token[pos + 2:]
 
 
-def _rand_typo(token_split: Tuple[str, str], typo_prob: float,
-               add_typo_prob: float) -> Tuple[str, str]:
+def _rand_typo(token_split: Tuple[str, str], typo_probability: float,
+               add_typo_probability: float) -> Tuple[str, str]:
     token, split = token_split
     typoed_token = token
-    if len(token) > 1 and random.uniform(0, 1) < typo_prob:
+    if len(token) > 1 and random.uniform(0, 1) < typo_probability:
         typoed_token = ""
         while len(typoed_token) < 2:
             typoed_token = random.choice([rand_insert, rand_delete, rand_substitution,
                                           rand_swap])(token)
-            while random.uniform(0, 1) < add_typo_prob:
+            while random.uniform(0, 1) < add_typo_probability:
                 typoed_token = random.choice([rand_insert, rand_delete, rand_substitution,
                                               rand_swap])(typoed_token)
     if typoed_token != token:
@@ -81,19 +81,19 @@ def _rand_typo(token_split: Tuple[str, str], typo_prob: float,
     return typoed_token, split
 
 
-def corrupt_tokens_in_df(data: pandas.DataFrame, typo_prob: float,
-                         add_typo_prob: float, threads_number: int = 16,
+def corrupt_tokens_in_df(data: pandas.DataFrame, typo_probability: float,
+                         add_typo_probability: float, threads_number: int = 16,
                          log_level: int = logging.DEBUG,
                          ) -> pandas.DataFrame:
     """
     Create artificial typos in tokens (identifiers) in a pandas DataFrame. \
-    Augment some of the identifiers from the dataframe with `typo_prob`, \
-    the consequent typos in the same word happen with `add_typo_prob` each. \
+    Augment some of the identifiers from the dataframe with `typo_probability`, \
+    the consequent typos in the same word happen with `add_typo_probability` each. \
     Operations run out-of-place.
 
     :param data: Dataframe which contains columns Columns.Token and Columns.Split.
-    :param typo_prob: Probability with which a token gets to be corrupted.
-    :param add_typo_prob: Probability with which one more corruption happens to a \
+    :param typo_probability: Probability with which a token gets to be corrupted.
+    :param add_typo_probability: Probability with which one more corruption happens to a \
                                  corrupted token.
     :param threads_number: Number of threads for multiprocessing
     :param log_level: Level of logging.
@@ -112,8 +112,8 @@ def corrupt_tokens_in_df(data: pandas.DataFrame, typo_prob: float,
     with Pool(threads_number) as pool:
         typoed_tokens_splits = list(_wrap(pool.imap(
             partial(_rand_typo,
-                    typo_prob=typo_prob,
-                    add_typo_prob=add_typo_prob), tokens_splits,
+                    typo_probability=typo_probability,
+                    add_typo_probability=add_typo_probability), tokens_splits,
             chunksize=min(8192, 1 + len(tokens_splits) // threads_number))))
 
     result = data.copy()

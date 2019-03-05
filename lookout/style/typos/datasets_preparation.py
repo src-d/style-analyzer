@@ -113,26 +113,26 @@ def prepare_data(params: Optional[Mapping[str, Any]] = None) -> pandas.DataFrame
 
 
 def get_datasets(prepared_data: pandas.DataFrame, train_size: int = 50000,
-                 test_size: int = 10000, typo_prob: float = 0.5,
-                 add_typo_prob: float = 0.01) -> Tuple[pandas.DataFrame, pandas.DataFrame]:
+                 test_size: int = 10000, typo_probability: float = 0.5,
+                 add_typo_probability: float = 0.01) -> Tuple[pandas.DataFrame, pandas.DataFrame]:
     """
-    Create train and test datasets of typos.
+    Create the train and the test datasets of typos.
 
-    1. Pick specified amount of data from input dataset.
-    2. Artificially create typos in picked identifiers and put them to train and test datasets.
-    3. Save results, if needed.
+    1. Take the specified number of lines from the input dataset.
+    2. Make artificial typos in picked identifiers and split them into train and test.
+    3. Return results.
     :param prepared_data: Dataframe of correct splitted identifiers. Must contain columns \
                           Columns.Split, Columns.Frequency and Columns.Token.
     :param train_size: Train dataset size.
     :param test_size: Test dataset size.
-    :param typo_prob: Probability with which a token gets to be corrupted.
-    :param add_typo_prob: Probability with which one more corruption happens to a \
+    :param typo_probability: Probability with which a token gets to be corrupted.
+    :param add_typo_probability: Probability with which one more corruption happens to a \
                                  corrupted token.
     :return: Train and test datasets.
     """
-    # With replace=True we get the real examples distribution, but there's
-    # a small probability of having the same examples in train and test datasets
-    # (it IS small because a big amount of random typos can be made in one word)
+    # With replace=True we get the real examples distribution, but there's a small
+    # probability of having the same examples of misspellings in train and test datasets
+    # (it IS small because a big number of random typos can be made in a single word)
     data = prepared_data.sample(train_size + test_size, weights=Columns.Frequency, replace=True)
-    data = corrupt_tokens_in_df(data, typo_prob, add_typo_prob)
+    data = corrupt_tokens_in_df(data, typo_probability, add_typo_probability)
     return train_test_split(data, test_size=test_size)

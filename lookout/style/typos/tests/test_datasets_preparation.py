@@ -57,7 +57,7 @@ class DatasetsTest(unittest.TestCase):
         prepared = pandas.read_csv(str(pathlib.Path(__file__).parent / "prepared_data.csv.xz"),
                                    index_col=0)
         train, test = get_datasets(prepared, train_size=1000, test_size=100,
-                                   typo_prob=0.5, add_typo_prob=0.5)
+                                   typo_probability=0.5, add_typo_probability=0.5)
         self.assertTrue({Columns.Token, Columns.CorrectToken, Columns.Split,
                          Columns.CorrectSplit}.issubset(set(train.columns)))
         corrupted = sum(train[Columns.Token] != train[Columns.CorrectToken])
