@@ -6,24 +6,26 @@ import unittest
 from gensim.models import FastText
 import pandas
 
+from lookout.style.format.tests import long_test
 from lookout.style.typos.preparation import (get_datasets, prepare_data, train_and_evaluate,
                                              train_fasttext)
 from lookout.style.typos.utils import Columns, read_frequencies, read_vocabulary
 
 
 TEST_DATA_DIR = pathlib.Path(__file__).parent
-FASTTEXT_DUMP_FILE = str(TEST_DATA_DIR / "id_vecs_10.bin")
-VOCABULARY_FILE = str(TEST_DATA_DIR / "test_frequencies.csv.xz")
 
 
 class PreparationTest(unittest.TestCase):
+    @long_test
     def test_prepare_data_with_load(self):
         with tempfile.TemporaryDirectory(prefix="lookout_typos_prepare_load_") as temp_dir:
             params = {
                 "data_dir": temp_dir,
+                "dataset_url": "https://docs.google.com/uc?export=download&"
+                               "id=1htVU1UR0gSmopVbvU6_Oc-4iD0cw1ldo",
                 "input_path": None,
-                "vocabulary_size": 1000,
-                "frequencies_size": 10000,
+                "vocabulary_size": 10,
+                "frequencies_size": 20,
                 "vocabulary_filename": "vocabulary.csv",
                 "frequencies_filename": "frequencies.csv",
             }
@@ -72,11 +74,12 @@ class DatasetsTest(unittest.TestCase):
 
 
 class FasttextTest(unittest.TestCase):
+    @long_test
     def test_get_fasttext_model(self):
         data = pandas.read_csv(str(TEST_DATA_DIR / "prepared_data.csv.xz"),
                                index_col=0)
         with tempfile.TemporaryDirectory(prefix="lookout_typos_fasttext_") as temp_dir:
-            params = {"size": 1000, "fasttext_path": os.path.join(temp_dir, "ft.bin"), "dim": 5}
+            params = {"size": 100, "fasttext_path": os.path.join(temp_dir, "ft.bin"), "dim": 5}
             train_fasttext(data, params)
             model = FastText.load_fasttext_format(params["fasttext_path"])
             self.assertTupleEqual(model.wv["get"].shape, (5,))
@@ -85,8 +88,9 @@ class FasttextTest(unittest.TestCase):
 class TrainingTest(unittest.TestCase):
     def test_train_and_evaluate(self):
         data = pandas.read_csv(str(TEST_DATA_DIR / "test_data.csv.xz"), index_col=0)
-        model = train_and_evaluate(data, data, VOCABULARY_FILE, VOCABULARY_FILE,
-                                   FASTTEXT_DUMP_FILE)
+        vocabulary_file = str(TEST_DATA_DIR / "test_frequencies.csv.xz")
+        model = train_and_evaluate(data, data, vocabulary_file, vocabulary_file,
+                                   str(TEST_DATA_DIR / "test_ft.bin"))
         suggestions = model.suggest_on_file(str(TEST_DATA_DIR / "test_data.csv.xz"))
         self.assertSetEqual(set(suggestions.keys()), set(data.index))
 

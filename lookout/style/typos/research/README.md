@@ -57,7 +57,7 @@ Frequencies for code identifiers' tokens are available at
 - File with pretrained fasttext model.
 
 Pretrained 10-dimensional vectorizer is available at
-`lookout/style/typos/research/id_vecs_10.bin`.
+`lookout/style/typos/research/test_ft.bin`.
 
 ### Input
 
@@ -98,7 +98,7 @@ from lookout.style.typos.corrector import TyposCorrector
 
 corrector = TyposCorrector()
 corrector.initialize_generator("lookout/style/typos/16k_vocabulary.csv", "lookout/style/typos/research/all_frequencies.csv",
-"lookout/style/typos/research/id_vecs_10.bin")
+"lookout/style/typos/research/test_ft.bin")
 corrector.train("train_data.csv")
 corrector.save("corrector.asdf")
 ```

@@ -9,7 +9,7 @@ from lookout.style.typos.corrector import TyposCorrector
 from lookout.style.typos.utils import Columns
 
 TEST_DATA_PATH = str(pathlib.Path(__file__).parent)
-FASTTEXT_DUMP_FILE = str(pathlib.Path(__file__).parent / "id_vecs_10.bin")
+FASTTEXT_DUMP_FILE = str(pathlib.Path(__file__).parent / "test_ft.bin")
 VOCABULARY_FILE = str(pathlib.Path(__file__).parent / "test_frequencies.csv.xz")
 
 
