@@ -9,11 +9,11 @@ from typing import Optional
 
 import docker
 import docker.errors
-from lookout.core.test_helpers import server
+from lookout.core.helpers.analyzer_context_manager import AnalyzerContextManager
+from lookout.core.helpers.server import find_port
 from tqdm import tqdm
 
 from lookout.style.format.analyzer import FormatAnalyzer
-from lookout.style.format.benchmarks.analyzer_context_manager import AnalyzerContextManager
 from lookout.style.format.benchmarks.quality_report import ensure_repo, handle_input_arg
 from lookout.style.format.feature_extractor import FeatureExtractor
 
@@ -31,7 +31,7 @@ def _stop_bblfshd():
 
 def _restart_bblfshd(first_run: bool=False) -> str:
     log = logging.getLogger(bblfsh_name)
-    port = server.find_port()
+    port = find_port()
     log.info("Restarting bblfshd")
     if not first_run:
         _stop_bblfshd()
@@ -46,15 +46,15 @@ def _restart_bblfshd(first_run: bool=False) -> str:
     return address
 
 
-def get_vnodes_number(repository: str, from_commit: str, to_commit: str, port: int,
-                      bblfsh: Optional[str]) -> int:
+def get_vnodes_number(repository: str, from_commit: str, to_commit: str,
+                      context: AnalyzerContextManager, bblfsh: Optional[str]) -> int:
     """
     Calculate the number of expected vnodes number for a repository.
 
     :param repository: URL of repository.
     :param from_commit: Hash of the base commit.
     :param to_commit: Hash of the head commit.
-    :param port: Port for FormatAnalyzer.
+    :param context: LookoutSDK instance to query analyzer.
     :param bblfsh: Babelfish server address to use. Specify None to use the default value.
     :return: expected vnodes number for a repository.
     """
@@ -73,8 +73,8 @@ def get_vnodes_number(repository: str, from_commit: str, to_commit: str, port: i
         with tempfile.TemporaryDirectory(prefix="top-repos-quality-repos-") as tmpdirname:
             git_dir = ensure_repo(repository, tmpdirname)
             try:
-                server.run("push", fr=from_commit, to=to_commit, port=port, git_dir=git_dir,
-                           log_level="warning", bblfsh=bblfsh)
+                context.push(fr=from_commit, to=to_commit, git_dir=git_dir, log_level="warning",
+                             bblfsh=bblfsh)
             except subprocess.CalledProcessError as e:
                 # Force stop expected
                 pass
@@ -96,9 +96,7 @@ def calc_expected_vnodes_number_entry(input: str, output: str, runs: int) -> Non
     handler = logging.handlers.RotatingFileHandler(output + ".errors")
     handler.setLevel(logging.ERROR)
     log.addHandler(handler)
-    if not server.exefile.exists():
-        server.fetch()  # download executable
-    port = server.find_port()
+
     repositories = list(csv.DictReader(handle_input_arg(input)))
     try:
         bblfsh = _restart_bblfshd(first_run=True)
@@ -107,13 +105,13 @@ def calc_expected_vnodes_number_entry(input: str, output: str, runs: int) -> Non
                 database = os.path.join(tmpdirname, "db.sqlite3")
                 fs = os.path.join(tmpdirname, "models")
                 os.makedirs(fs, exist_ok=fs)
-                with AnalyzerContextManager(FormatAnalyzer,  port=port, db=database, fs=fs,
-                                            init=False):
+                with AnalyzerContextManager(FormatAnalyzer, db=database, fs=fs,
+                                            init=False) as server:
                     for row in tqdm(repositories):
                         try:
                             vnodes_number = get_vnodes_number(
                                 row["url"], to_commit=row["to"], from_commit=row["from"],
-                                port=port, bblfsh=bblfsh)
+                                context=server, bblfsh=bblfsh)
                             log.info("%d/%d run. Expected vnodes number for %s is %d.",
                                      cur_run + 1, runs, row["url"], vnodes_number)
                             if row.get("vnodes_number", vnodes_number) != vnodes_number:
