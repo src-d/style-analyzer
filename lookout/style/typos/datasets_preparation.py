@@ -1,9 +1,11 @@
 from copy import deepcopy
 import os
 import pathlib
+import tempfile
 from typing import Any, Mapping, Optional, Tuple
 import urllib.request
 
+import fastText
 import pandas
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
@@ -14,9 +16,21 @@ from lookout.style.typos.preprocessing import filter_splits, print_frequencies
 from lookout.style.typos.utils import Columns, flatten_df_by_column
 
 
+DATA_DIR = pathlib.Path(__file__).parent / "data"
+
+defaults_for_fasttext = {
+    "size": 100000000,
+    "corrupt": True,
+    "typo_probability": 0.2,
+    "add_typo_probability": 0.005,
+    "fasttext_path": str(DATA_DIR / "emb.bin"),
+    "dim": 8,
+    "bucket": 200000,
+}
+
 defaults_for_preparation = {
-    "data_dir": str(pathlib.Path(__file__).parent / "data"),
-    "input_path": str(pathlib.Path(__file__).parent / "data" / "raw_data.csv"),
+    "data_dir": str(DATA_DIR),
+    "input_path": str(DATA_DIR / "raw_data.csv"),
     "dataset_url": "https://docs.google.com/uc?export=download&"
                    "id=1muNVWPe68XK8SFvqIv3V728NmkT46aTx",
     "frequency_column": "num_occ",
@@ -136,3 +150,37 @@ def get_datasets(prepared_data: pandas.DataFrame, train_size: int = 50000,
     data = prepared_data.sample(train_size + test_size, weights=Columns.Frequency, replace=True)
     data = corrupt_tokens_in_df(data, typo_probability, add_typo_probability)
     return train_test_split(data, test_size=test_size)
+
+
+def train_fasttext(data: pandas.DataFrame, params: Optional[Mapping[str, Any]] = None) -> None:
+    """
+    Train fasttext model on the given dataset of code identifiers.
+
+    :param data: Dataframe with columns Columns.Split and Columns.Frequency.
+    :param params: Parameters for training the model, options:
+                   size: Number of identifiers to pick from the given data to train fasttext on.
+                   corrupt: Value indicating whether to make random artificial typos in \
+                            the training data. Identifiers are corrupted with `typo_probability`.
+                   typo_probability: Probability with which a token is corrupted, used \
+                                     if `corrupt=True`.
+                   add_typo_probability: Probability with which another corruption happens in a \
+                                  corrupted token, used if `corrupt=True`.
+                   fasttext_path: Path where to store the trained fasttext model.
+                   dim: Number of dimensions for embeddings in the new model.
+                   bucket: Number of hash buckets to keep in the fasttext model: \
+                           the less there are, the more compact the model gets.
+    """
+    if params is None:
+        params = {}
+    params = merge_dicts(defaults_for_fasttext, params)
+    train_data = data.sample(params["size"], weights=Columns.Frequency, replace=True)
+    if params["corrupt"]:
+        train_data = corrupt_tokens_in_df(train_data, params["typo_probability"],
+                                          params["add_typo_probability"])
+    with tempfile.NamedTemporaryFile() as ids_file:
+        with open(ids_file.name, "w") as f:
+            for token_split in train_data[Columns.Split]:
+                f.write(token_split + "\n")
+        model = fastText.train_unsupervised(ids_file.name, minCount=1, epoch=10,
+                                            dim=params["dim"], bucket=params["bucket"])
+    model.save_model(params["fasttext_path"])
