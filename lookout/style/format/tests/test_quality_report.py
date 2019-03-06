@@ -72,7 +72,8 @@ class Capturing(list):
 class QualityReportTests(PretrainedModelTests):
     def test_eval_empty_input(self):
         """Test on empty folder - expect only model and test report."""
-        config = {"analyze": {"language_defaults": {"uast_break_check": False}}}
+        config = {"analyze": {"language_defaults": {"uast_break_check": False}},
+                  "aggregate": True}
         with tempfile.TemporaryDirectory() as folder:
             input_pattern = os.path.join(folder, "**", "*")
             with Capturing() as output:
@@ -113,23 +114,22 @@ class QualityReportTests(PretrainedModelTests):
 
     def test_eval(self):
         """Test on normal input."""
-        q_report_header = "# Train report for javascript"
+        q_report_header_train = "# Train report for javascript"
+        q_report_header_test = "# Test report for javascript"
         input_pattern = os.path.join(self.jquery_dir, "**", "*")
         with Capturing() as output:
             print_reports(input_pattern=input_pattern, bblfsh=self.bblfsh,
                           language=self.language, model_path=self.model_path,
                           config={"analyze": {"language_defaults": {"uast_break_check": False}}})
-        self.assertIn(q_report_header, output[0])
-        self.assertIn("### Summary", output)
+        self.assertIn(q_report_header_train, output[0])
         self.assertIn("### Classification report", output)
         self.assertGreater(len(output), 100)
         output = "\n".join(output)
         test_report_start = output.find("Test report")
         self.assertNotEqual(test_report_start, -1)
-        output = output[:test_report_start]
-        self.assertIn("javascript", _get_json_data(output))
-        self.assertIn("# Model report", output)
-        qcount = output.count(q_report_header)
+        qcount = output.count(q_report_header_train)
+        self.assertEqual(qcount, 14)
+        qcount = output.count(q_report_header_test)
         self.assertEqual(qcount, 14)
 
     def test_eval_aggregate(self):
@@ -145,7 +145,7 @@ class QualityReportTests(PretrainedModelTests):
         output = "\n".join(output)
         qcount = output.count(q_report_header)
         self.assertEqual(qcount, 1)
-        output = output[:output.find("# Model report for")]
+        output = output[output.find("# Train report"):output.find("# Test report")]
         metrics = _get_metrics(output)
         expected_metrics = (0.9292385057471264, 0.9292385057471264,
                             0.8507070042749095, 0.9292385057471263,
