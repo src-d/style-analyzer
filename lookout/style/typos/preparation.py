@@ -66,7 +66,7 @@ def _download_url(url: str, output_path: str) -> None:
         urllib.request.urlretrieve(url, filename=output_path, reporthook=t.update_to)
 
 
-def prepare_data(params: Optional[Mapping[str, Any]] = None) -> pandas.DataFrame:
+def prepare_data(preparation_config: Optional[Mapping[str, Any]] = None) -> pandas.DataFrame:
     """
     Generate all the necessary data from the raw dataset of split identifiers.
 
@@ -79,7 +79,7 @@ def prepare_data(params: Optional[Mapping[str, Any]] = None) -> pandas.DataFrame
        The result is a dataset of tokens which will be considered correct. It will be used
        for creating artificial misspelling cases for training and testing the corrector model.
     4. Save prepared dataset, if needed.
-    :param params: Dictionary with parameters for data preparation. Used fields are:
+    :param preparation_config: Dictionary with parameters for data preparation. Used fields are:
                    data_dir: Directory to put all derived data to.
                    drive_dataset_id: ID of google drive document, where raw dataset is stored.
                    input_path: Path to a .csv dump of input dataframe. Should contain \
@@ -100,20 +100,21 @@ def prepare_data(params: Optional[Mapping[str, Any]] = None) -> pandas.DataFrame
                                       dataset to.
     :return: Dataset baked for training the typos correction.
     """
-    if params is None:
-        params = {}
-    params = merge_dicts(defaults_for_preparation, params)
+    if preparation_config is None:
+        preparation_config = {}
+    preparation_config = merge_dicts(defaults_for_preparation, preparation_config)
 
-    raw_data_path = params["input_path"]
+    raw_data_path = preparation_config["input_path"]
     if raw_data_path is None or not os.path.exists(raw_data_path):
-        raw_data_path = os.path.join(params["data_dir"], params["raw_data_filename"])
-        _download_url(params["dataset_url"], raw_data_path)
+        raw_data_path = os.path.join(preparation_config["data_dir"],
+                                     preparation_config["raw_data_filename"])
+        _download_url(preparation_config["dataset_url"], raw_data_path)
 
     data = pandas.read_csv(raw_data_path, index_col=0, keep_default_na=False)
-    if params["frequency_column"] not in data.columns:
+    if preparation_config["frequency_column"] not in data.columns:
         data[Columns.Frequency] = 1
     else:
-        data = data.rename(columns={params["frequency_column"]: Columns.Frequency})
+        data = data.rename(columns={preparation_config["frequency_column"]: Columns.Frequency})
 
     # Expand dataframe by splits (repeat rows for every token in splits)
     data[Columns.Split] = data[Columns.Split].astype(str)
@@ -125,28 +126,30 @@ def prepare_data(params: Optional[Mapping[str, Any]] = None) -> pandas.DataFrame
     stats = stats.sort_values(by=Columns.Frequency, ascending=False)
 
     # Derive new vocabulary for future use
-    frequencies_tokens = set(stats.index[:(params["frequencies_size"] or len(stats))])
-    vocabulary_tokens = set(stats.index[:params["vocabulary_size"]])
-    print_frequencies(vocabulary_tokens, stats, os.path.join(params["data_dir"],
-                                                             params["vocabulary_filename"]))
-    print_frequencies(frequencies_tokens, stats, os.path.join(params["data_dir"],
-                                                              params["frequencies_filename"]))
+    frequencies_tokens = set(stats.index[:(preparation_config["frequencies_size"] or len(stats))])
+    vocabulary_tokens = set(stats.index[:preparation_config["vocabulary_size"]])
+    print_frequencies(vocabulary_tokens, stats, os.path.join(
+        preparation_config["data_dir"], preparation_config["vocabulary_filename"]))
+    print_frequencies(frequencies_tokens, stats, os.path.join(
+        preparation_config["data_dir"], preparation_config["frequencies_filename"]))
 
     # Leave only splits that contain tokens from vocabulary
     prepared_data = filter_splits(flat_data, vocabulary_tokens)[[Columns.Frequency, Columns.Split,
                                                                  Columns.Token]]
     prepared_data.index = range(len(prepared_data))
-    if params["prepared_filename"] is not None:
-        prepared_data.to_csv(os.path.join(params["data_dir"], params["prepared_filename"]))
+    if preparation_config["prepared_filename"] is not None:
+        prepared_data.to_csv(os.path.join(preparation_config["data_dir"],
+                                          preparation_config["prepared_filename"]))
     return prepared_data
 
 
-def train_fasttext(data: pandas.DataFrame, params: Optional[Mapping[str, Any]] = None) -> None:
+def train_fasttext(data: pandas.DataFrame, fasttext_config: Optional[Mapping[str, Any]] = None,
+                   ) -> None:
     """
     Train fasttext model on the given dataset of code identifiers.
 
     :param data: Dataframe with columns Columns.Split and Columns.Frequency.
-    :param params: Parameters for training the model, options:
+    :param fasttext_config: Parameters for training the model, options:
                    size: Number of identifiers to pick from the given data to train fasttext on.
                    corrupt: Value indicating whether to make random artificial typos in \
                             the training data. Identifiers are corrupted with `typo_probability`.
@@ -159,33 +162,35 @@ def train_fasttext(data: pandas.DataFrame, params: Optional[Mapping[str, Any]] =
                    bucket: Number of hash buckets to keep in the fasttext model: \
                            the less there are, the more compact the model gets.
     """
-    if params is None:
-        params = {}
-    params = merge_dicts(defaults_for_fasttext, params)
+    if fasttext_config is None:
+        fasttext_config = {}
+    fasttext_config = merge_dicts(defaults_for_fasttext, fasttext_config)
     try:
         import fastText
     except ImportError:
         sys.exit("Please install fastText."
                  "Run `pip3 install git+https://github.com/facebookresearch/fastText"
                  "@51e6738d734286251b6ad02e4fdbbcfe5b679382`")
-    if params is None:
-        params = {}
-    params = merge_dicts(defaults_for_fasttext, params)
+    if fasttext_config is None:
+        fasttext_config = {}
+    fasttext_config = merge_dicts(defaults_for_fasttext, fasttext_config)
     train_data = data[[len(str(x).split()) > 2 for x in data[Columns.Split]]].sample(
-        params["size"], weights=Columns.Frequency, replace=True)
-    if params["corrupt"]:
-        train_data = corrupt_tokens_in_df(train_data, params["typo_probability"],
-                                          params["add_typo_probability"])
+        fasttext_config["size"], weights=Columns.Frequency, replace=True)
+    if fasttext_config["corrupt"]:
+        train_data = corrupt_tokens_in_df(train_data, fasttext_config["typo_probability"],
+                                          fasttext_config["add_typo_probability"])
     with tempfile.NamedTemporaryFile() as ids_file:
         with open(ids_file.name, "w") as f:
             for token_split in train_data[Columns.Split]:
                 f.write(token_split + "\n")
         model = fastText.train_unsupervised(ids_file.name, minCount=1, epoch=10,
-                                            dim=params["dim"], bucket=params["bucket"])
-    model.save_model(params["fasttext_path"])
+                                            dim=fasttext_config["dim"],
+                                            bucket=fasttext_config["bucket"])
+    model.save_model(fasttext_config["fasttext_path"])
 
 
-def get_datasets(prepared_data: pandas.DataFrame, params: Optional[Mapping[str, Any]] = None,
+def get_datasets(prepared_data: pandas.DataFrame,
+                 datasets_config: Optional[Mapping[str, Any]] = None,
                  processes_number: int = multiprocessing.cpu_count(),
                  ) -> Tuple[pandas.DataFrame, pandas.DataFrame]:
     """
@@ -196,7 +201,7 @@ def get_datasets(prepared_data: pandas.DataFrame, params: Optional[Mapping[str, 
     3. Return results.
     :param prepared_data: Dataframe of correct splitted identifiers. Must contain columns \
                           Columns.Split, Columns.Frequency and Columns.Token.
-    :param params: Parameters for creating train and test datasets, options:
+    :param datasets_config: Parameters for creating train and test datasets, options:
                    train_size: Train dataset size.
                    test_size: Test dataset size.
                    typo_probability: Probability with which a token gets to be corrupted.
@@ -207,26 +212,29 @@ def get_datasets(prepared_data: pandas.DataFrame, params: Optional[Mapping[str, 
     :param processes_number: Number of processes for multiprocessing.
     :return: Train and test datasets.
     """
-    if params is None:
-        params = {}
-    params = merge_dicts(defaults_for_datasets, params)
+    if datasets_config is None:
+        datasets_config = {}
+    datasets_config = merge_dicts(defaults_for_datasets, datasets_config)
     # With replace=True we get the real examples distribution, but there's a small
     # probability of having the same examples of misspellings in train and test datasets
     # (it IS small because a big number of random typos can be made in a single word)
     data = prepared_data[[len(x) > 1 for x in prepared_data[Columns.Token]]].sample(
-        params["train_size"] + params["test_size"], weights=Columns.Frequency, replace=True)
+        datasets_config["train_size"] + datasets_config["test_size"], weights=Columns.Frequency,
+        replace=True)
     train, test = train_test_split(data[[Columns.Token, Columns.Split]],
-                                   test_size=params["test_size"])
+                                   test_size=datasets_config["test_size"])
     train.index = range(len(train))
     test.index = range(len(test))
-    train = corrupt_tokens_in_df(train, params["typo_probability"], params["add_typo_probability"],
+    train = corrupt_tokens_in_df(train, datasets_config["typo_probability"],
+                                 datasets_config["add_typo_probability"],
                                  processes_number)
-    test = corrupt_tokens_in_df(test, params["typo_probability"], params["add_typo_probability"],
+    test = corrupt_tokens_in_df(test, datasets_config["typo_probability"],
+                                datasets_config["add_typo_probability"],
                                 processes_number)
-    if params["test_path"] is not None:
-        test.to_csv(params["test_path"])
-    if params["train_path"] is not None:
-        train.to_csv(params["train_path"])
+    if datasets_config["test_path"] is not None:
+        test.to_csv(datasets_config["test_path"])
+    if datasets_config["train_path"] is not None:
+        train.to_csv(datasets_config["train_path"])
     return train, test
 
 
@@ -257,10 +265,10 @@ def train_and_evaluate(train_data: pandas.DataFrame, test_data: pandas.DataFrame
     return model
 
 
-def train_from_scratch(prepare_params: Optional[Mapping[str, Any]] = None,
-                       pretrained_fasttext: Optional[str] = None,
-                       fasttext_params: Optional[Mapping[str, Any]] = None,
-                       datasets_params: Optional[Mapping[str, Any]] = None,
+def train_from_scratch(preparation_config: Optional[Mapping[str, Any]] = None,
+                       fasttext_path: Optional[str] = None,
+                       fasttext_config: Optional[Mapping[str, Any]] = None,
+                       datasets_config: Optional[Mapping[str, Any]] = None,
                        save_model_path: Optional[str] = None,
                        processes_number: int = multiprocessing.cpu_count()) -> TyposCorrector:
     """
@@ -270,31 +278,34 @@ def train_from_scratch(prepare_params: Optional[Mapping[str, Any]] = None,
     2. Construct train and test datasets, for more info check :func:`get_train_test`.
     3. Train and evaluate TyposCorrector model, for more info check :func:`train_and_evaluate`.
     4. Return result.
-    :param prepare_params: Parameters for data preparation, for more info check \
+    :param preparation_config: Parameters for data preparation, for more info check \
                            :func:`prepare_data`.
-    :param pretrained_fasttext: Path to the pretrained fasttext model. If specified correctly, \
-                                new fasttext model will not be trained.
-    :param fasttext_params: Parameters for training fasttext model, for more info check \
+    :param fasttext_path: Path to the pretrained fasttext model. If not specified correctly, \
+                          new fasttext model will not be trained.
+    :param fasttext_config: Parameters for training fasttext model, for more info check \
                             :func:`train_fasttext`.
-    :param datasets_params: Parameters for train and test dataset generation, for more info check \
+    :param datasets_config: Parameters for train and test dataset generation, for more info check \
                             :func:`get_datasets`.
     :param save_model_path: Path to save the trained model to (.asdf).
     :param processes_number: Number of processes for multiprocessing.
     :return: Trained TyposCorrector model.
     """
-    prepared_data = prepare_data(prepare_params)
-    if pretrained_fasttext is None or not os.path.exists(pretrained_fasttext):
-        train_fasttext(prepared_data, fasttext_params)
-        pretrained_fasttext = defaults_for_fasttext["fasttext_path"]
-        pretrained_fasttext = (fasttext_params.get("fasttext_path", pretrained_fasttext)
-                               if fasttext_params is not None else pretrained_fasttext)
-    train_data, test_data = get_datasets(prepared_data, datasets_params)
+    if preparation_config is None:
+        preparation_config = {}
+    preparation_config = merge_dicts(defaults_for_preparation, preparation_config)
+    prepared_data = prepare_data(preparation_config)
+    if fasttext_path is None or not os.path.exists(fasttext_path):
+        train_fasttext(prepared_data, fasttext_config)
+        fasttext_path = defaults_for_fasttext["fasttext_path"]
+        fasttext_path = (fasttext_config.get("fasttext_path", fasttext_path)
+                         if fasttext_config is not None else fasttext_path)
+    train_data, test_data = get_datasets(prepared_data, datasets_config)
     model = train_and_evaluate(train_data, test_data,
-                               os.path.join(prepare_params["data_dir"],
-                                            prepare_params["vocabulary_filename"]),
-                               os.path.join(prepare_params["data_dir"],
-                                            prepare_params["frequencies_filename"]),
-                               pretrained_fasttext, processes_number)
+                               os.path.join(preparation_config["data_dir"],
+                                            preparation_config["vocabulary_filename"]),
+                               os.path.join(preparation_config["data_dir"],
+                                            preparation_config["frequencies_filename"]),
+                               fasttext_path, processes_number)
     if save_model_path is not None:
         model.save(save_model_path, series=0.0)
     return model
