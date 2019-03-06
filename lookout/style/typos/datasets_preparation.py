@@ -161,7 +161,8 @@ def train_fasttext(data: pandas.DataFrame, params: Optional[Mapping[str, Any]] =
                    size: Number of identifiers to pick from the given data to train fasttext on.
                    corrupt: Value indicating whether to make random artificial typos in \
                             the training data. Identifiers are corrupted with `typo_probability`.
-                   typo_probability: Probability with which a token is corrupted, used if `corrupt=True`.
+                   typo_probability: Probability with which a token is corrupted, used \
+                                     if `corrupt=True`.
                    add_typo_probability: Probability with which another corruption happens in a \
                                   corrupted token, used if `corrupt=True`.
                    fasttext_path: Path where to store the trained fasttext model.
