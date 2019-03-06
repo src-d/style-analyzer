@@ -11,6 +11,7 @@ from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
 from lookout.style.common import merge_dicts
+from lookout.style.typos.corrector import TyposCorrector
 from lookout.style.typos.corruption import corrupt_tokens_in_df
 from lookout.style.typos.preprocessing import filter_splits, print_frequencies
 from lookout.style.typos.utils import Columns, flatten_df_by_column
@@ -184,3 +185,30 @@ def train_fasttext(data: pandas.DataFrame, params: Optional[Mapping[str, Any]] =
         model = fastText.train_unsupervised(ids_file.name, minCount=1, epoch=10,
                                             dim=params["dim"], bucket=params["bucket"])
     model.save_model(params["fasttext_path"])
+
+
+def train_and_evaluate(train_data: pandas.DataFrame, test_data: pandas.DataFrame,
+                       vocabulary_path: str, frequencies_path: str, fasttext_path: str,
+                       threads_number: int = 8) -> TyposCorrector:
+    """
+    Create and train TyposCorrector model on the given data.
+
+    :param train_data: Dataframe which contains columns Columns.Token, Columns.Split and \
+                       Columns.CorrectToken.
+    :param test_data: Dataframe which contains columns Columns.Token, Columns.Split and \
+                      Columns.CorrectToken.
+    :param vocabulary_path: Path to a file with vocabulary.
+    :param frequencies_path: Path to a file with tokens' frequencies.
+    :param fasttext_path: Path to a FastText model dump.
+    :param threads_number: Number of threads for multiprocessing.
+    :return: Trained model.
+    """
+    model = TyposCorrector()
+    model.initialize_ranker()
+    model.initialize_generator(vocabulary_file=vocabulary_path,
+                               frequencies_file=frequencies_path,
+                               embeddings_file=fasttext_path)
+    model.threads_number = threads_number
+    model.train(train_data)
+    model.evaluate(test_data)
+    return model

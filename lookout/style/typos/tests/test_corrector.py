@@ -44,6 +44,8 @@ class TyposCorrectorTest(unittest.TestCase):
         self.assertSetEqual(set(suggestions.keys()), set(custom_data.index))
         suggestions_by_batches = self.corrector.suggest_by_batches(custom_data)
         self.assertSetEqual(set(suggestions_by_batches.keys()), set(custom_data.index))
+        self.corrector.evaluate(custom_data)
+        self.assertEqual(len(self.corrector.metrics), 4)
 
     def test_corrector_on_file(self):
         self.corrector.train_on_file(join(TEST_DATA_PATH, "test_data.csv.xz"))
