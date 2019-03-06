@@ -805,4 +805,9 @@ class FeatureExtractor:
             parent = self._find_parent(j, file_vnodes, file_parents, closest_left_node_id)
             if parent is None:
                 parent = uast
+            assert parent.start_position.offset <= vn.start.offset and \
+                vn.end.offset <= parent.end_position.offset, \
+                "Wrong parent of j=%d node=%s. " \
+                "parent.start_position.offset=%s, parent.start_position.offset=%s" % (
+                    j, repr(vn), parent.start_position.offset, parent.end_position.offset)
             vnode_parents[id(vn)] = parent

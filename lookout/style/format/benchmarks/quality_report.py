@@ -81,7 +81,7 @@ class RestartReport(ValueError):
 
 def measure_quality(repository: str, from_commit: str, to_commit: str, port: int,
                     config: dict, bblfsh: Optional[str], vnodes_expected_number: Optional[int],
-                    restarts: int=3) -> QualityReport:
+                    restarts: int=1) -> QualityReport:
     """
     Generate `QualityReport` for a repository. If it fails it returns empty reports.
 

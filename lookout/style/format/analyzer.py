@@ -285,6 +285,8 @@ class FormatAnalyzer(Analyzer):
                 .filter_by_support(config["support_threshold"])
             for file in filter_files(head_files, rules.origin_config["line_length_limit"],
                                      rules.origin_config["overall_size_limit"], log=log):
+                if file.path != 'test/specs/__helpers.js':
+                    continue
                 processed_files_counter[lang] += 1
                 try:
                     prev_file = base_files_by_lang[lang][file.path]
