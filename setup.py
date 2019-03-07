@@ -49,6 +49,7 @@ setup(
         "tabulate>=0.8.0,<2.0",
         "python-igraph>=0.7.0,<2.0",
         "srcd_smart_open==1.9.0",
+        "sortedcontainers>=2.1.0,<3.0",  # TODO(zurk): move to lookout-sdk-ml
     ],
     extras_require={
         "tf": tf_requires,

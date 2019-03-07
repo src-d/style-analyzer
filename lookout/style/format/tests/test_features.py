@@ -11,6 +11,7 @@ from lookout.core.api.service_data_pb2 import File
 import numpy
 
 from lookout.style.format.analyzer import FormatAnalyzer
+from lookout.style.format.annotations.annotated_data import AnnotatedData
 from lookout.style.format.classes import CLASS_INDEX, CLASSES, CLS_NEWLINE, CLS_NOOP, \
     CLS_SINGLE_QUOTE, CLS_SPACE, CLS_SPACE_DEC, CLS_SPACE_INC
 from lookout.style.format.feature_extractor import FeatureExtractor
@@ -27,21 +28,25 @@ class FeaturesTests(unittest.TestCase):
             cls.contents = fin.read()
         with lzma.open(str(base / "benchmark.uast.xz")) as fin:
             cls.uast = bblfsh.Node.FromString(fin.read())
+        cls.file = File(uast=cls.uast, content=bytes(cls.contents, "utf-8"),
+                        language="javascript", path="test")
 
     def setUp(self):
         config = FormatAnalyzer._load_config(get_config())
+        self.annotated_file = AnnotatedData.from_file(self.file)
         self.final_config = config["train"]["javascript"]
         self.extractor = FeatureExtractor(language="javascript",
                                           **self.final_config["feature_extractor"])
 
     def test_parse_file_exact_match(self):
-        test_js_code_filepath = Path(__file__).parent / "for_parse_test.js.xz"
-        with lzma.open(str(test_js_code_filepath), mode="rt") as f:
+        test_js_code_filepath = str(Path(__file__).parent / "for_parse_test.js.xz")
+        with lzma.open(test_js_code_filepath, mode="rb") as f:
             code = f.read()
         uast = bblfsh.BblfshClient("0.0.0.0:9432").parse(
-            filename="", language="javascript", contents=code.encode()).uast
-        nodes, parents = self.extractor._parse_file(code, uast, test_js_code_filepath)
-        self.assertEqual("".join(n.value for n in nodes), code)
+            filename="", language="javascript", contents=code).uast
+        file = File(uast=uast, content=code, language="javascript", path="")
+        nodes, parents = self.extractor._parse_file(AnnotatedData.from_file(file))
+        self.assertEqual("".join(n.value for n in nodes), code.decode())
 
     def test_extract_features_exact_match(self):
         file = File(content=bytes(self.contents, "utf-8"),
@@ -51,14 +56,15 @@ class FeaturesTests(unittest.TestCase):
         self.assertEqual("".join(vnode.value for vnode in vnodes), self.contents)
 
     def test_parse_file_comment_after_regexp(self):
-        code = "x = // comment\n/<regexp>/;"
+        code = b"x = // comment\n/<regexp>/;"
         uast = bblfsh.BblfshClient("0.0.0.0:9432").parse(
-            filename="", language="javascript", contents=code.encode()).uast
-        nodes, parents = self.extractor._parse_file(code, uast, "")
-        self.assertEqual("".join(n.value for n in nodes), code)
+            filename="", language="javascript", contents=code).uast
+        file = File(uast=uast, content=code, language="javascript", path="")
+        nodes, parents = self.extractor._parse_file(AnnotatedData.from_file(file))
+        self.assertEqual("".join(n.value for n in nodes), code.decode())
 
     def test_parse_file(self):
-        nodes, parents = self.extractor._parse_file(self.contents, self.uast, "test_file")
+        nodes, parents = self.extractor._parse_file(self.annotated_file)
         text = []
         offset = line = col = 0
         for n in nodes:
@@ -77,7 +83,8 @@ class FeaturesTests(unittest.TestCase):
 
     def test_parse_file_with_trailing_space(self):
         contents = self.contents + " "
-        nodes, parents = self.extractor._parse_file(contents, self.uast, "test_file")
+        file = File(content=contents.encode(), uast=self.uast, language="javascript", path="test")
+        nodes, parents = self.extractor._parse_file(AnnotatedData.from_file(file))
         offset, line, col = nodes[-1].end
         self.assertEqual(len(contents), offset)
         # Space token always ends on the same line
@@ -85,7 +92,7 @@ class FeaturesTests(unittest.TestCase):
         self.assertEqual("".join(n.value for n in nodes), contents)
 
     def test_classify_vnodes(self):
-        nodes, _ = self.extractor._parse_file(self.contents, self.uast, "test_file")
+        nodes, _ = self.extractor._parse_file(self.annotated_file)
         nodes = list(self.extractor._classify_vnodes(nodes, "test_file"))
         text = "".join(n.value for n in nodes)
         self.assertEqual(text, self.contents)
@@ -111,7 +118,8 @@ class FeaturesTests(unittest.TestCase):
 
     def test_classify_vnodes_with_trailing_space(self):
         contents = self.contents + " "
-        nodes, _ = self.extractor._parse_file(contents, self.uast, "test_file")
+        file = File(content=contents.encode(), uast=self.uast, language="javascript", path="test")
+        nodes, _ = self.extractor._parse_file(AnnotatedData.from_file(file))
         nodes = list(self.extractor._classify_vnodes(nodes, "test_file"))
         text = "".join(n.value for n in nodes)
         self.assertEqual(text, contents)
@@ -213,7 +221,7 @@ class FeaturesTests(unittest.TestCase):
         self.assertLess(len(y1), len(y2))
 
     def test_noop_vnodes(self):
-        vnodes, parents = self.extractor._parse_file(self.contents, self.uast, "test_file")
+        vnodes, parents = self.extractor._parse_file(self.annotated_file)
         vnodes = self.extractor._classify_vnodes(vnodes, "test_file")
         vnodes = self.extractor._merge_classes_to_composite_labels(
             vnodes, "test_file", index_labels=True)

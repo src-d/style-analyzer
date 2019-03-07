@@ -10,4 +10,5 @@ xgboost==0.72.1
 tabulate==0.8.2
 python-igraph==0.7.1.post6
 srcd_smart_open==1.9.0
+sortedcontainers==2.1.0  # TODO(zurk): move to lookout sdk ml
 git+https://github.com/facebookresearch/fastText@51e6738d734286251b6ad02e4fdbbcfe5b679382

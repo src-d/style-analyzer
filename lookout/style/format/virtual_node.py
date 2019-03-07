@@ -3,6 +3,8 @@ from typing import Callable, Iterable, Mapping, NamedTuple, Optional, Set, Tuple
 
 import bblfsh
 
+from lookout.style.format.annotations.annotations import Annotation, RawTokenAnnotation, \
+    UASTNodeAnnotation
 from lookout.style.format.classes import CLASS_REPRESENTATIONS, EMPTY_CLS
 
 
@@ -103,32 +105,32 @@ class VirtualNode:
         return lines is None or bool(lines.intersection(range(self.start.line, self.end.line + 1)))
 
     @staticmethod
-    def from_node(node: bblfsh.Node, file: str, path: str,
+    def from_node(node: bblfsh.Node, file: str,
                   token_unwrappers: Mapping[str, Callable[[str], Tuple[str, str]]],
-                  ) -> Iterable["VirtualNode"]:
+                  ) -> Iterable[Annotation]:
         """
         Initialize the VirtualNode from a UAST node. Takes into account prefixes and suffixes.
 
         :param node: UAST node.
         :param file: File contents.
-        :param path: File path.
         :param token_unwrappers: Mapping from bblfsh internal types to functions to unwrap tokens.
         :return: New VirtualNode-s.
         """
+        # TODO(zurk): Move out from this class
         outer_token = file[node.start_position.offset:node.end_position.offset]
         if not node.token:
             if outer_token == "''" or outer_token == '""':
-                start = Position.from_bblfsh_position(node.start_position)
-                middle = Position(offset=start.offset + 1, line=start.line, col=start.col + 1)
-                end = Position.from_bblfsh_position(node.end_position)
-                yield VirtualNode(outer_token[0], start, middle, path=path)
-                yield VirtualNode("", middle, middle, node=node, path=path)
-                yield VirtualNode(outer_token[1], middle, end, path=path)
-                return
-            yield VirtualNode(outer_token,
-                              Position.from_bblfsh_position(node.start_position),
-                              Position.from_bblfsh_position(node.end_position),
-                              node=node, path=path)
+                middle = node.start_position.offset + 1
+                yield RawTokenAnnotation(node.start_position.offset, middle)
+                # In the future we can use only yield UASTNodeAnnotation.from_node(node)
+                uast_annotation = UASTNodeAnnotation(middle, middle, node)
+                yield RawTokenAnnotation(middle, middle, uast_annotation)
+                yield uast_annotation
+                yield RawTokenAnnotation(middle, node.end_position.offset)
+            else:
+                uast_annotation = UASTNodeAnnotation.from_node(node)
+                yield RawTokenAnnotation(
+                    node.start_position.offset, node.end_position.offset, uast_annotation)
             return
         node_token = node.token
         if node.internal_type in token_unwrappers:
@@ -142,33 +144,13 @@ class VirtualNode:
                 node.end_position.line, node.end_position.col))
         start_pos = node.start_position.offset + start_offset
         if start_offset:
-            yield VirtualNode(outer_token[:start_offset],
-                              Position(offset=node.start_position.offset,
-                                       line=node.start_position.line,
-                                       col=node.start_position.col),
-                              Position(offset=start_pos,
-                                       line=node.start_position.line,
-                                       col=node.start_position.col + start_offset),
-                              path=path)
-        end_offset = start_offset + len(node_token)
+            yield RawTokenAnnotation(node.start_position.offset, start_pos)
         end_pos = start_pos + len(node_token)
-        yield VirtualNode(node_token,
-                          Position(offset=start_pos,
-                                   line=node.start_position.line,
-                                   col=node.start_position.col + start_offset),
-                          Position(offset=end_pos,
-                                   line=node.end_position.line,
-                                   col=node.start_position.col + end_offset),
-                          node=node, path=path)
+        uast_annotation = UASTNodeAnnotation(start_pos, end_pos, node)
+        yield RawTokenAnnotation(start_pos, end_pos, uast_annotation)
+        yield uast_annotation
         if end_pos < node.end_position.offset:
-            yield VirtualNode(outer_token[end_offset:],
-                              Position(offset=end_pos,
-                                       line=node.end_position.line,
-                                       col=node.start_position.col + end_offset),
-                              Position(offset=node.end_position.offset,
-                                       line=node.end_position.line,
-                                       col=node.end_position.col),
-                              path=path)
+            yield RawTokenAnnotation(end_pos, node.end_position.offset)
 
 
 AnyNode = Union[VirtualNode, bblfsh.Node]
