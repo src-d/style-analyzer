@@ -6,6 +6,7 @@ import unittest
 from lookout.core import slogging
 
 from lookout.style.format.benchmarks.quality_report_noisy import quality_report_noisy
+from lookout.style.format.tests.test_analyzer import get_config
 from lookout.style.format.tests.test_quality_report import Capturing
 
 
@@ -23,14 +24,15 @@ class RobustnessTests(unittest.TestCase):
     @unittest.skipIf(sys.version_info.minor == 5, "Python 3.5 is not yet supported by difflib")
     def test_quality_report_noisy(self):
         slogging.setup("DEBUG", False)
-        with Capturing() as output:
+        with Capturing() as output, tempfile.TemporaryDirectory() as dir_output:
             try:
                 quality_report_noisy(bblfsh=self.bblfsh,
                                      language=self.language,
                                      confidence_threshold=0.8,
                                      support_threshold=20,
                                      precision_threshold=0.95,
-                                     dir_output=tempfile.tempdir,
+                                     dir_output=dir_output,
+                                     config=get_config(),
                                      repos=REPOSITORIES)
             except SystemExit:
                 self.skipTest("Matplotlib is required to run this test")

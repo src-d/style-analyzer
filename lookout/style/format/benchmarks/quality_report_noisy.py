@@ -8,7 +8,7 @@ import os
 import subprocess
 import sys
 import tempfile
-from typing import Iterable, List, Mapping, NamedTuple, Optional, Set, Tuple
+from typing import Iterable, List, Mapping, NamedTuple, Optional, Set, Tuple, Union
 
 from bblfsh import BblfshClient
 import jinja2
@@ -19,7 +19,6 @@ from yaml import safe_load
 
 from lookout.style.format.analyzer import FormatAnalyzer
 from lookout.style.format.benchmarks.general_report import FakeDataService
-from lookout.style.format.config import DEFAULT_CONFIG
 from lookout.style.format.feature_extractor import FeatureExtractor
 from lookout.style.format.model import FormatModel
 from lookout.style.format.rules import Rules
@@ -37,7 +36,7 @@ Misprediction = NamedTuple("Misprediction", [("y", numpy.ndarray), ("pred", nump
 
 
 def train(training_dir: str, ref: ReferencePointer, output_path: str, language: str, bblfsh: str,
-          config: Optional[str], log: Optional[logging.Logger] = None) -> FormatModel:
+          config: Optional[Union[str, dict]], log: Optional[logging.Logger] = None) -> FormatModel:
     """
     Train a FormatModel for debugging purposes.
 
@@ -46,23 +45,26 @@ def train(training_dir: str, ref: ReferencePointer, output_path: str, language: 
     :param output_path: Path to the model to write.
     :param language: Language to filter on.
     :param bblfsh: Address of the babelfish server.
-    :param config: Path to a YAML config to use during the training.
+    :param config: Path to a YAML config to use during the training or \
+                   json-like object with a config.
     :param log: logger used to report during training.
     :return: Trained FormatNodel.
     """
     bblfsh_client = BblfshClient(bblfsh)
     if config is not None:
-        with open(config) as fh:
-            config = safe_load(fh)
+        if isinstance(config, str):
+            with open(config) as fh:
+                config = safe_load(fh)
     else:
-        config = DEFAULT_CONFIG
+        config = {}
+    config = FormatAnalyzer._load_config(config)
     filepaths = glob.glob(os.path.join(training_dir, "**", "*.js"), recursive=True)
     model = FormatAnalyzer.train(ref, config, FakeDataService(
         bblfsh_client=bblfsh_client,
         files=parse_files(
             filepaths=filepaths,
-            line_length_limit=config["train"]["language_defaults"]["line_length_limit"],
-            overall_size_limit=config["train"]["language_defaults"]["overall_size_limit"],
+            line_length_limit=config["train"][language]["line_length_limit"],
+            overall_size_limit=config["train"][language]["overall_size_limit"],
             client=bblfsh_client,
             language=language,
             log=log),
@@ -299,7 +301,7 @@ def plot_curve(repositories: Iterable[str], prediction_rates: Mapping[str, numpy
 
 def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float,
                          support_threshold: int, precision_threshold: float, dir_output: str,
-                         repos: Optional[str] = None) -> None:
+                         config: Optional[dict] = None, repos: Optional[str] = None) -> None:
     """
     Generate a quality report on the artificial noisy dataset including evaluation curves.
 
@@ -311,6 +313,7 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
            Limit drawn as a red horizontal line on the figure.
     :param dir_output: Path to the output directory where to store the quality report in Markdown \
            and the precision-recall curve in png format.
+    :param config: FormatAnalyzer config to use. Default one is used if not set.
     :param repos: Input list of urls to the repositories to analyze. \
            Should be strings separated by newlines. If it is None, \
            we use the string defined at the beginning of the file.
@@ -350,7 +353,7 @@ def quality_report_noisy(bblfsh: str, language: str, confidence_threshold: float
                 ref = ReferencePointer(repo_path, "HEAD", clean_commit)
                 model_path = os.path.join(git_dir, "model.asdf")
                 format_model = train(training_dir=git_dir, ref=ref, output_path=model_path,
-                                     language=language, bblfsh=bblfsh, config=None, log=log)
+                                     language=language, bblfsh=bblfsh, config=config, log=log)
                 rules = format_model[language]
 
                 # extract the raw data and the diff from the repositories

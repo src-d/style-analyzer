@@ -64,6 +64,17 @@ def add_rules_thresholds(my_parser: ArgumentParser):
                            help="Support threshold to filter relevant rules.")
 
 
+def add_config_arg(my_parser: ArgumentParser) -> None:
+    """
+    Add analyzer config argument.
+
+    :param my_parser: Parser to add the arguments to.
+    """
+    my_parser.add_argument(
+        "--config", type=json.loads, default="{}",
+        help="Config for analyzer in json format.")
+
+
 def dump_rule_entry(model, hash):
     """Command-line entry for "tool rule"."""
     model = FormatModel().load(model)
@@ -112,6 +123,7 @@ def create_parser() -> ArgumentParser:
     quality_report_parser = add_parser("quality-report",
                                        "Generate quality report on a given data.")
     quality_report_parser.set_defaults(handler=generate_quality_report)
+    add_config_arg(quality_report_parser)
     quality_report_parser.add_argument(
         "-i", "--input", required=True,
         help="csv file with repositories to make report. Should contain url, to and from columns.")
@@ -125,9 +137,6 @@ def create_parser() -> ArgumentParser:
     quality_report_parser.add_argument(
         "-b", "--bblfsh", help="Bblfsh address to use.")
     quality_report_parser.add_argument(
-        "--config", type=json.loads, default="{}",
-        help="Config for analyzer in json format.")
-    quality_report_parser.add_argument(
         "--database", default=None, help="sqlite3 database path to store the models."
                                          "Temporary file is used if not set.")
     quality_report_parser.add_argument(
@@ -138,6 +147,7 @@ def create_parser() -> ArgumentParser:
     quality_report_noisy_parser = add_parser("quality-report-noisy", "Quality report on the "
                                                                      "artificial noisy dataset")
     quality_report_noisy_parser.set_defaults(handler=quality_report_noisy)
+    add_config_arg(quality_report_noisy_parser)
     add_bblfsh_arg(quality_report_noisy_parser)
     add_rules_thresholds(quality_report_noisy_parser)
     quality_report_noisy_parser.add_argument(
@@ -191,6 +201,7 @@ def create_parser() -> ArgumentParser:
     eval_smoke_parser = add_parser("eval-smoke-dataset",
                                    "Evaluate on the dataset with different styles.")
     eval_smoke_parser.set_defaults(handler=evaluate_smoke_entry)
+    add_config_arg(eval_smoke_parser)
     eval_smoke_parser.add_argument(
         "inputpath", type=str,
         help="Path to the directory where the generated dataset is stored. "
@@ -201,9 +212,6 @@ def create_parser() -> ArgumentParser:
     eval_smoke_parser.add_argument(
         "--bblfsh",
         help="Babelfish server's address.")
-    eval_smoke_parser.add_argument(
-        "--config", type=json.loads, default="{}",
-        help="JSON config for FormatAnalyzer.")
     eval_smoke_parser.add_argument(
         "--database", type=str, default=None,
         help="Path to the sqlite3 database with trained models metadata. "
