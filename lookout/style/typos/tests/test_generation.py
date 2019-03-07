@@ -59,7 +59,7 @@ class GeneratorTest(unittest.TestCase):
                             neighbors=3, edit_candidates=3, max_distance=3, radius=3)
 
         data = pandas.read_csv(str(TEST_DATA_PATH / "test_data.csv.xz"),
-                               index_col=0).infer_objects()
+                               index_col=0, keep_default_na=False)
         custom_data = pandas.DataFrame([[["get", "tokens", "num"], "tokens", "tokens"],
                                         [["gwt", "tokens"], "gwt", "get"],
                                         [["get", "tokem"], "tokem", "token"]],

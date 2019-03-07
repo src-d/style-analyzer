@@ -71,7 +71,7 @@ def add_context_info(data: pandas.DataFrame) -> pandas.DataFrame:
     Split context of identifier on before and after part and return new dataframe with the info.
 
     :param data: DataFrame, containing column Columns.Token. \
-                 Column Columns.Split will be used for creating context info if present.
+                 Column Columns.Split will be used for creating context info.
     :return: New dataframe with added columns Columns.Before and Columns.After, \
              containing lists of corresponding contexts tokens.
     """
@@ -80,29 +80,18 @@ def add_context_info(data: pandas.DataFrame) -> pandas.DataFrame:
         return result_data
 
     tokens = list(result_data[Columns.Token])
-
-    if Columns.Split in result_data.columns:
-        token_split = list(result_data[Columns.Split])
-        before = []
-        after = []
-
-        for row_number in range(len(result_data)):
-            if Columns.Split in result_data.columns:
-                split = token_split[row_number]
-                if isinstance(split, str):
-                    split = split.split()
-                index = split.index(tokens[row_number])
-                before.append(" ".join(split[:index]))
-                after.append(" ".join(split[index + 1:]))
-
-    else:
-        before = [[] for _ in range(len(result_data))]
-        after = [[] for _ in range(len(result_data))]
+    token_split = list(result_data[Columns.Split])
+    before = []
+    after = []
+    for row_number in range(len(result_data)):
+        split_list = token_split[row_number].split()
+        index = split_list.index(tokens[row_number])
+        before.append(" ".join(split_list[:index]))
+        after.append(" ".join(split_list[index + 1:]))
 
     result_data.loc[:, Columns.Before] = before
     result_data.loc[:, Columns.After] = after
-
-    return result_data.infer_objects()
+    return result_data
 
 
 def rank_candidates(candidates: pandas.DataFrame, pred_probs: List[float],

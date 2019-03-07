@@ -60,7 +60,7 @@ class PreparationTest(unittest.TestCase):
 class DatasetsTest(unittest.TestCase):
     def test_get_datasets(self):
         prepared = pandas.read_csv(str(TEST_DATA_DIR / "prepared_data.csv.xz"),
-                                   index_col=0)
+                                   index_col=0, keep_default_na=False)
         train, test = get_datasets(prepared, train_size=1000, test_size=100,
                                    typo_probability=0.5, add_typo_probability=0.5)
         self.assertTrue({Columns.Token, Columns.CorrectToken, Columns.Split,
@@ -75,7 +75,7 @@ class DatasetsTest(unittest.TestCase):
 class FasttextTest(unittest.TestCase):
     def test_get_fasttext_model(self):
         data = pandas.read_csv(str(TEST_DATA_DIR / "prepared_data.csv.xz"),
-                               index_col=0)
+                               index_col=0, keep_default_na=False)
         with tempfile.TemporaryDirectory(prefix="lookout_typos_fasttext_") as temp_dir:
             params = {"size": 100, "fasttext_path": os.path.join(temp_dir, "ft.bin"), "dim": 5}
             train_fasttext(data, params)
@@ -85,7 +85,8 @@ class FasttextTest(unittest.TestCase):
 
 class TrainingTest(unittest.TestCase):
     def test_train_and_evaluate(self):
-        data = pandas.read_csv(str(TEST_DATA_DIR / "test_data.csv.xz"), index_col=0)
+        data = pandas.read_csv(str(TEST_DATA_DIR / "test_data.csv.xz"), index_col=0,
+                               keep_default_na=False)
         vocabulary_file = str(TEST_DATA_DIR / "test_frequencies.csv.xz")
         model = train_and_evaluate(data, data, vocabulary_file, vocabulary_file,
                                    str(TEST_DATA_DIR / "test_ft.bin"))
