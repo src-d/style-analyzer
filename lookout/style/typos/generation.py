@@ -286,9 +286,13 @@ class CandidatesGenerator(Model):
 
     def _generate_tree(self) -> dict:
         tree = self.__dict__.copy()
-        for key in vars(Model()):
-            if key not in {"NAME", "VENDOR", "DESCRIPTION", "LICENSE"}:
-                del tree[key]
+
+        class DummyModel(Model):
+            NAME = "dummy"
+            VENDOR = "dummy"
+            DESCRIPTION = "dummy"
+        for key in vars(DummyModel()):
+            del tree[key]
         freqkeys = [""] * len(self.frequencies)
         freqvals = numpy.zeros(len(self.frequencies), dtype=numpy.uint32)
         for i, (key, val) in enumerate(sorted(self.frequencies.items())):

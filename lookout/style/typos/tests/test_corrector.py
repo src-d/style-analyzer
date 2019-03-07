@@ -34,9 +34,9 @@ class TyposCorrectorTest(unittest.TestCase):
         self.corrector.threads_number = 1
 
     def test_corrector_on_df(self):
-        custom_data = pandas.DataFrame([[["get", "tokens", "num"], "get", "get"],
-                                        [["gwt", "tokens"], "gwt", "get"],
-                                        [["get", "tokem"], "tokem", "token"]],
+        custom_data = pandas.DataFrame([["get tokens num", "get", "get"],
+                                        ["gwt tokens", "gwt", "get"],
+                                        ["get tokem", "tokem", "token"]],
                                        columns=[Columns.Split, Columns.Token,
                                                 Columns.CorrectToken])
         self.corrector.train(self.data)
