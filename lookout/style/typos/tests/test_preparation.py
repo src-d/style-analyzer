@@ -22,6 +22,7 @@ class PreparationTest(unittest.TestCase):
                 "dataset_url": "https://docs.google.com/uc?export=download&"
                                "id=1htVU1UR0gSmopVbvU6_Oc-4iD0cw1ldo",
                 "input_path": None,
+                "raw_data_filename": "raw_test_data.csv.xz",
                 "vocabulary_size": 10,
                 "frequencies_size": 20,
                 "vocabulary_filename": "vocabulary.csv",
