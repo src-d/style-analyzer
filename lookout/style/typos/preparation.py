@@ -1,11 +1,11 @@
 from copy import deepcopy
 import os
 import pathlib
+import sys
 import tempfile
 from typing import Any, Mapping, Optional, Tuple
 import urllib.request
 
-import fastText
 import pandas
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
@@ -171,6 +171,12 @@ def train_fasttext(data: pandas.DataFrame, params: Optional[Mapping[str, Any]] =
                    bucket: Number of hash buckets to keep in the fasttext model: \
                            the less there are, the more compact the model gets.
     """
+    try:
+        import fastText
+    except ImportError:
+        sys.exit("Please install fastText."
+                 "Run `pip3 install git+https://github.com/facebookresearch/fastText"
+                 "@51e6738d734286251b6ad02e4fdbbcfe5b679382`")
     if params is None:
         params = {}
     params = merge_dicts(defaults_for_fasttext, params)

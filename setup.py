@@ -49,7 +49,6 @@ setup(
         "tabulate>=0.8.0,<2.0",
         "python-igraph>=0.7.0,<2.0",
         "srcd_smart_open==1.9.0",
-        "fastText @ git+https://github.com/facebookresearch/fastText",
     ],
     extras_require={
         "tf": tf_requires,
