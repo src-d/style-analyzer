@@ -7,7 +7,7 @@ from gensim.models import FastText
 import pandas
 
 from lookout.style.typos.preparation import (get_datasets, prepare_data, train_and_evaluate,
-                                             train_fasttext)
+                                             train_fasttext, train_from_scratch)
 from lookout.style.typos.utils import Columns, read_frequencies, read_vocabulary
 
 
@@ -61,8 +61,15 @@ class DatasetsTest(unittest.TestCase):
     def test_get_datasets(self):
         prepared = pandas.read_csv(str(TEST_DATA_DIR / "prepared_data.csv.xz"),
                                    index_col=0, keep_default_na=False)
-        train, test = get_datasets(prepared, train_size=1000, test_size=100,
-                                   typo_probability=0.5, add_typo_probability=0.05)
+        params = {
+            "train_size": 1000,
+            "test_size": 100,
+            "typo_probability": 0.5,
+            "add_typo_probability": 0.05,
+            "train_path": None,
+            "test_path": None,
+        }
+        train, test = get_datasets(prepared, params)
         self.assertTrue({Columns.Token, Columns.CorrectToken, Columns.Split,
                          Columns.CorrectSplit}.issubset(set(train.columns)))
         corrupted = sum(train[Columns.Token] != train[Columns.CorrectToken])
@@ -92,6 +99,40 @@ class TrainingTest(unittest.TestCase):
                                    str(TEST_DATA_DIR / "test_ft.bin"))
         suggestions = model.suggest_on_file(str(TEST_DATA_DIR / "test_data.csv.xz"))
         self.assertSetEqual(set(suggestions.keys()), set(data.index))
+
+    def test_train_from_scratch(self):
+        with tempfile.TemporaryDirectory(prefix="lookout_typos_prepare_load_") as temp_dir:
+            prepare_params = {
+                "data_dir": temp_dir,
+                "dataset_url": "https://docs.google.com/uc?export=download&"
+                               "id=1htVU1UR0gSmopVbvU6_Oc-4iD0cw1ldo",
+                "input_path": None,
+                "raw_data_filename": "raw_test_data.csv.xz",
+                "vocabulary_size": 10,
+                "frequencies_size": 20,
+                "vocabulary_filename": "vocabulary.csv",
+                "frequencies_filename": "frequencies.csv",
+            }
+            fasttext_params = {
+                "size": 100,
+                "fasttext_path": os.path.join(temp_dir, "ft.bin"),
+                "dim": 5,
+            }
+            datasets_params = {
+                "train_size": 1000,
+                "test_size": 100,
+                "typo_probability": 0.5,
+                "add_typo_probability": 0.05,
+                "train_path": None,
+                "test_path": None,
+            }
+            model = train_from_scratch(prepare_params=prepare_params,
+                                       fasttext_params=fasttext_params,
+                                       datasets_params=datasets_params)
+        test_data = pandas.read_csv(str(TEST_DATA_DIR / "test_data.csv.xz"), index_col=0,
+                                    keep_default_na=False)
+        suggestions = model.suggest(test_data)
+        self.assertSetEqual(set(suggestions.keys()), set(test_data.index))
 
 
 if __name__ == "__main__":
