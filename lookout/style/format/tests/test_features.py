@@ -8,12 +8,17 @@ import unittest
 
 import bblfsh
 from lookout.core.analyzer import UnicodeFile
+from lookout.core.bytes_to_unicode_converter import BytesToUnicodeConverter
+from lookout.sdk.service_data_pb2 import File
 import numpy
 
 from lookout.style.format.analyzer import FormatAnalyzer
+from lookout.style.format.annotations.annotated_data import AnnotationManager
+from lookout.style.format.annotations.annotations import AtomicTokenAnnotation, ClassAnnotation, \
+    LabelAnnotation, RawTokenAnnotation, TokenAnnotation, UASTAnnotation
 from lookout.style.format.classes import CLASS_INDEX, CLASSES, CLS_NEWLINE, CLS_NOOP, \
     CLS_SINGLE_QUOTE, CLS_SPACE, CLS_SPACE_DEC, CLS_SPACE_INC
-from lookout.style.format.feature_extractor import FeatureExtractor
+from lookout.style.format.feature_extractor import FeatureExtractor, raw_file_to_vnodes_and_parents
 from lookout.style.format.tests.test_analyzer import get_config
 from lookout.style.format.virtual_node import Position, VirtualNode
 
@@ -27,21 +32,33 @@ class FeaturesTests(unittest.TestCase):
             cls.contents = fin.read()
         with lzma.open(str(base / "benchmark.uast.xz")) as fin:
             cls.uast = bblfsh.Node.FromString(fin.read())
+        cls.file = BytesToUnicodeConverter.convert_file(
+            File(uast=cls.uast, content=bytes(cls.contents, "utf-8"),
+                 language="javascript", path="test"))
 
     def setUp(self):
         config = FormatAnalyzer._load_config(get_config())
+        self.annotated_file = AnnotationManager.from_file(self.file)
         self.final_config = config["train"]["javascript"]
         self.extractor = FeatureExtractor(language="javascript",
                                           **self.final_config["feature_extractor"])
+        self.annotated_file = AnnotationManager.from_file(self.file)
 
     def test_parse_file_exact_match(self):
-        test_js_code_filepath = Path(__file__).parent / "for_parse_test.js.xz"
-        with lzma.open(str(test_js_code_filepath), mode="rt") as f:
+        test_js_code_filepath = str(Path(__file__).parent / "for_parse_test.js.xz")
+        with lzma.open(test_js_code_filepath, mode="rb") as f:
             code = f.read()
         uast = bblfsh.BblfshClient("0.0.0.0:9432").parse(
-            filename="", language="javascript", contents=code.encode()).uast
-        nodes, parents = self.extractor._parse_file(code, uast, test_js_code_filepath)
-        self.assertEqual("".join(n.value for n in nodes), code)
+            filename="", language="javascript", contents=code).uast
+        file = BytesToUnicodeConverter.convert_file(
+            File(uast=uast, content=code, language="javascript", path=""))
+        annotated_file = AnnotationManager.from_file(file)
+        self.extractor._parse_file(annotated_file)
+        nodes, _ = raw_file_to_vnodes_and_parents(annotated_file)
+        self.assertEqual("".join(n.value for n in nodes), code.decode())
+        self.assertEqual("".join(annotated_file[token.span]
+                                 for token in annotated_file.iter_annotation(RawTokenAnnotation)),
+                         code.decode())
 
     def test_extract_features_exact_match(self):
         file = UnicodeFile(content=self.contents,
@@ -51,16 +68,23 @@ class FeaturesTests(unittest.TestCase):
         self.assertEqual("".join(vnode.value for vnode in vnodes), self.contents)
 
     def test_parse_file_comment_after_regexp(self):
-        code = "x = // comment\n/<regexp>/;"
+        code = b"x = // comment\n/<regexp>/;"
         uast = bblfsh.BblfshClient("0.0.0.0:9432").parse(
-            filename="", language="javascript", contents=code.encode()).uast
-        nodes, parents = self.extractor._parse_file(code, uast, "")
-        self.assertEqual("".join(n.value for n in nodes), code)
+            filename="", language="javascript", contents=code).uast
+        file = BytesToUnicodeConverter.convert_file(
+            File(uast=uast, content=code, language="javascript", path=""))
+        annotated_file = AnnotationManager.from_file(file)
+        self.extractor._parse_file(annotated_file)
+        self.assertEqual("".join(annotated_file[token.span] for token in
+                                 annotated_file.iter_annotation(RawTokenAnnotation)),
+                         code.decode())
 
     def test_parse_file(self):
-        nodes, parents = self.extractor._parse_file(self.contents, self.uast, "test_file")
+        self.extractor._parse_file(self.annotated_file)
         text = []
         offset = line = col = 0
+        nodes, _ = raw_file_to_vnodes_and_parents(self.annotated_file)
+        parents = self.annotated_file.get(UASTAnnotation).parents
         for n in nodes:
             if line == n.start.line - 1:
                 line += 1
@@ -77,7 +101,11 @@ class FeaturesTests(unittest.TestCase):
 
     def test_parse_file_with_trailing_space(self):
         contents = self.contents + " "
-        nodes, parents = self.extractor._parse_file(contents, self.uast, "test_file")
+        file = BytesToUnicodeConverter.convert_file(
+            File(content=contents.encode(), uast=self.uast, language="javascript", path="test"))
+        annotated_data = AnnotationManager.from_file(file)
+        self.extractor._parse_file(annotated_data)
+        nodes, _ = raw_file_to_vnodes_and_parents(annotated_data)
         offset, line, col = nodes[-1].end
         self.assertEqual(len(contents), offset)
         # Space token always ends on the same line
@@ -85,23 +113,21 @@ class FeaturesTests(unittest.TestCase):
         self.assertEqual("".join(n.value for n in nodes), contents)
 
     def test_classify_vnodes(self):
-        nodes, _ = self.extractor._parse_file(self.contents, self.uast, "test_file")
-        nodes = list(self.extractor._classify_vnodes(nodes, "test_file"))
-        text = "".join(n.value for n in nodes)
+        self.extractor._parse_file(self.annotated_file)
+        self.extractor._classify_vnodes(self.annotated_file)
+        text = "".join(self.annotated_file[token.span] for token in
+                       self.annotated_file.iter_annotation(AtomicTokenAnnotation))
         self.assertEqual(text, self.contents)
         cls_counts = Counter()
-        offset = line = col = 0
-        for n in nodes:
-            if line == n.start.line - 1:
-                line += 1
-                col = 1
-            self.assertEqual((offset, line, col), n.start, n.value)
-            if n.y is not None:
-                cls_counts.update(map(CLASSES.__getitem__, n.y))
-            offset, line, col = n.end
-        self.assertEqual(len(self.contents), offset)
-        # New line ends on the next line
-        self.assertEqual(len(self.contents.splitlines()) + 1, line)
+        old_stop = 0
+        for annotations in self.annotated_file.iter_annotations(AtomicTokenAnnotation,
+                                                                ClassAnnotation):
+            self.assertEqual(old_stop, annotations.start)
+            if ClassAnnotation in annotations:
+                cls_counts.update(map(CLASSES.__getitem__,
+                                      annotations[ClassAnnotation].cls))
+            old_stop = annotations.stop
+        self.assertEqual(len(self.contents), old_stop)
         self.assertEqual(cls_counts[CLS_SPACE_INC], cls_counts[CLS_SPACE_DEC])
         self.assertGreater(cls_counts[CLS_SPACE_INC], 0)
         self.assertGreater(cls_counts[CLS_SPACE], 0)
@@ -111,23 +137,24 @@ class FeaturesTests(unittest.TestCase):
 
     def test_classify_vnodes_with_trailing_space(self):
         contents = self.contents + " "
-        nodes, _ = self.extractor._parse_file(contents, self.uast, "test_file")
-        nodes = list(self.extractor._classify_vnodes(nodes, "test_file"))
-        text = "".join(n.value for n in nodes)
+        file = BytesToUnicodeConverter.convert_file(
+            File(content=contents.encode(), uast=self.uast, language="javascript", path="test"))
+        annotated_file = AnnotationManager.from_file(file)
+        self.extractor._parse_file(annotated_file)
+        self.extractor._classify_vnodes(annotated_file)
+        text = "".join(annotated_file[token.span] for token in
+                       annotated_file.iter_annotation(AtomicTokenAnnotation))
         self.assertEqual(text, contents)
         cls_counts = Counter()
-        offset = line = col = 0
-        for n in nodes:
-            if line == n.start.line - 1:
-                line += 1
-                col = 1
-            self.assertEqual((offset, line, col), n.start, n.value)
-            if n.y is not None:
-                cls_counts.update(map(CLASSES.__getitem__, n.y))
-            offset, line, col = n.end
-        self.assertEqual(len(contents), offset)
-        # Space token always ends on the same line
-        self.assertEqual(len(contents.splitlines()), line)
+        old_stop = 0
+        for annotations in annotated_file.iter_annotations(AtomicTokenAnnotation,
+                                                           ClassAnnotation):
+            self.assertEqual(old_stop, annotations.start)
+            if ClassAnnotation in annotations:
+                cls_counts.update(map(CLASSES.__getitem__,
+                                      annotations[ClassAnnotation].cls))
+            old_stop = annotations.stop
+        self.assertEqual(len(contents), old_stop)
         self.assertEqual(cls_counts[CLS_SPACE_INC], cls_counts[CLS_SPACE_DEC] + 1)
         self.assertGreater(cls_counts[CLS_SPACE_INC], 0)
         self.assertGreater(cls_counts[CLS_SPACE], 0)
@@ -214,17 +241,19 @@ class FeaturesTests(unittest.TestCase):
         self.assertLess(len(y1), len(y2))
 
     def test_noop_vnodes(self):
-        vnodes, parents = self.extractor._parse_file(self.contents, self.uast, "test_file")
-        vnodes = self.extractor._classify_vnodes(vnodes, "test_file")
-        vnodes = self.extractor._merge_classes_to_composite_labels(
-            vnodes, "test_file", index_labels=True)
-        vnodes = self.extractor._add_noops(list(vnodes), "test_file", index_labels=True)
-        for vnode1, vnode2, vnode3 in zip(vnodes,
-                                          islice(vnodes, 1, None),
-                                          islice(vnodes, 2, None)):
-            if vnode1.y is not None or vnode3.y is not None:
-                self.assertNotIn(CLASS_INDEX[CLS_NOOP], vnode2.y if vnode2.y else set(),
-                                 "\n".join(map(repr, [vnode1, vnode2, vnode3])))
+        self.extractor._parse_file(self.annotated_file)
+        self.extractor._classify_vnodes(self.annotated_file)
+        self.extractor._merge_classes_to_composite_labels(self.annotated_file)
+        self.extractor._add_noops(self.annotated_file)
+        annotations = list(self.annotated_file.iter_annotations(TokenAnnotation, LabelAnnotation))
+        for ann1, ann2, ann3 in zip(annotations,
+                                    islice(annotations, 1, None),
+                                    islice(annotations, 2, None)):
+            if LabelAnnotation in ann1 or LabelAnnotation in ann3:
+                self.assertNotIn(
+                    CLASS_INDEX[CLS_NOOP],
+                    ann2[LabelAnnotation].label if LabelAnnotation in ann2 else set(),
+                    "\n".join(map(repr, [ann1, ann2, ann3])))
 
 
 if __name__ == "__main__":

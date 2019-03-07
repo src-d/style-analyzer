@@ -50,6 +50,7 @@ setup(
         "python-igraph>=0.7.0,<2.0",
         "smart-open==1.8.1",
         "joblib>=0.13.2,<1.0",
+        "sortedcontainers>=2.1.0,<3.0",  # TODO(zurk): move to lookout-sdk-ml
     ],
     extras_require={
         "tf": tf_requires,

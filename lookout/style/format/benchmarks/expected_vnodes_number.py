@@ -73,7 +73,7 @@ def get_vnodes_number(repository: str, from_commit: str, to_commit: str,
         with tempfile.TemporaryDirectory(prefix="top-repos-quality-repos-") as tmpdirname:
             git_dir = ensure_repo(repository, tmpdirname)
             try:
-                context.push(fr=from_commit, to=to_commit, git_dir=git_dir, log_level="warning",
+                context.push(fr=from_commit, to=to_commit, git_dir=git_dir, log_level="info",
                              bblfsh=bblfsh)
             except subprocess.CalledProcessError as e:
                 # Force stop expected

@@ -81,3 +81,20 @@ def get_classification_report(y_pred: numpy.ndarray, y_true: numpy.ndarray,
             "report_full": report_full,
             "confusion_matrix": confusion_matrix,
             "target_names": target_names}
+
+
+def get_uast_parents(uast: "bblfsh.Node") -> Dict[int, "bblfsh.Node"]:
+    """
+    Create a mapping from id of the node in the UAST to its parent Node.
+
+    :param uast: UAST to get parents mapping for.
+    :return: Parents mapping.
+    """
+    parents = {}
+    queue = [uast]
+    while queue:
+        node = queue.pop()
+        for child in node.children:
+            parents[id(child)] = node
+        queue.extend(node.children)
+    return parents
