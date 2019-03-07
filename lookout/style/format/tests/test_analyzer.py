@@ -43,6 +43,7 @@ def get_config():
                 },
                 "random_state": 42,
                 "lines_ratio_train_trigger": 0.8,
+                "overall_size_limit": 2 * 10 ** 4,
             },
         },
         "analyze": {
