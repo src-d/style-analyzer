@@ -6,7 +6,6 @@ import unittest
 from gensim.models import FastText
 import pandas
 
-from lookout.style.format.tests import long_test
 from lookout.style.typos.preparation import (get_datasets, prepare_data, train_and_evaluate,
                                              train_fasttext)
 from lookout.style.typos.utils import Columns, read_frequencies, read_vocabulary
@@ -16,7 +15,6 @@ TEST_DATA_DIR = pathlib.Path(__file__).parent
 
 
 class PreparationTest(unittest.TestCase):
-    @long_test
     def test_prepare_data_with_load(self):
         with tempfile.TemporaryDirectory(prefix="lookout_typos_prepare_load_") as temp_dir:
             params = {
@@ -74,7 +72,6 @@ class DatasetsTest(unittest.TestCase):
 
 
 class FasttextTest(unittest.TestCase):
-    @long_test
     def test_get_fasttext_model(self):
         data = pandas.read_csv(str(TEST_DATA_DIR / "prepared_data.csv.xz"),
                                index_col=0)
