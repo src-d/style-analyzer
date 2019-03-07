@@ -98,7 +98,10 @@ def prepare_data(params: Optional[Mapping[str, Any]] = None) -> pandas.DataFrame
         raw_data_path = os.path.join(params["data_dir"], params["raw_data_filename"])
         _download_url(params["dataset_url"], raw_data_path)
 
-    data = pandas.read_csv(raw_data_path, index_col=0)
+    try:
+        data = pandas.read_csv(raw_data_path, index_col=0)
+    except UnicodeDecodeError:
+        data = pandas.read_csv(raw_data_path, compression="xz", index_col=0)
     if params["frequency_column"] not in data.columns:
         data[Columns.Frequency] = 1
     else:
