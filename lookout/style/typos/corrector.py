@@ -97,7 +97,8 @@ class TyposCorrector(Model):
                                  neighbors_number, edit_candidates, max_distance, radius)
 
     def train(self, data: pandas.DataFrame, candidates:  Optional[str] = None,
-              save_candidates_file: Optional[str] = None) -> None:
+              save_candidates_file: Optional[str] = None, start_pool_size: int = 64,
+              chunksize: int = 256) -> None:
         """
         Train corrector on tokens from the given dataset.
 
@@ -105,10 +106,12 @@ class TyposCorrector(Model):
                      and Columns.Split.
         :param candidates: A .csv.xz dump of a dataframe with precalculated candidates.
         :param save_candidates_file: Path to file where to save the candidates (.csv.xz).
+        :param start_pool_size: Length of data, starting from which multiprocessing is desired.
+        :param chunksize: Max size of a chunk for one thread during multiprocessing.
         """
         if candidates is None:
             candidates = self.generator.generate_candidates(
-                data, self.threads_number, save_candidates_file)
+                data, self.threads_number, save_candidates_file, start_pool_size, chunksize)
         else:
             candidates = pandas.read_csv(candidates, index_col=0, keep_default_na=False)
         self.ranker.fit(data[Columns.CorrectToken], get_candidates_metadata(candidates),
@@ -129,7 +132,8 @@ class TyposCorrector(Model):
 
     def suggest(self, data: pandas.DataFrame, candidates:  Optional[str] = None,
                 save_candidates_file: Optional[str] = None, n_candidates: int = 3,
-                return_all: bool = True) -> Dict[int, List[Tuple[str, float]]]:
+                return_all: bool = True, start_pool_size: int = 64,
+                chunksize: int = 256) -> Dict[int, List[Tuple[str, float]]]:
         """
         Suggest corrections for the tokens from the given dataset.
 
@@ -138,12 +142,14 @@ class TyposCorrector(Model):
         :param save_candidates_file: Path to file to save candidates to (.csv.xz).
         :param n_candidates: Number of most probable candidates to return.
         :param return_all: False to return suggestions only for corrected tokens.
+        :param start_pool_size: Length of data, starting from which multiprocessing is desired.
+        :param chunksize: Max size of a chunk for one thread during multiprocessing.
         :return: Dictionary `{id : [(candidate, correctness_proba), ...]}`, candidates are sorted \
                  by correctness probability in a descending order.
         """
         if candidates is None:
             candidates = self.generator.generate_candidates(
-                data, self.threads_number, save_candidates_file)
+                data, self.threads_number, save_candidates_file, start_pool_size, chunksize)
         else:
             candidates = pandas.read_csv(candidates, index_col=0, keep_default_na=False)
         return self.ranker.rank(get_candidates_metadata(candidates),
@@ -169,6 +175,7 @@ class TyposCorrector(Model):
 
     def suggest_by_batches(self, data: pandas.DataFrame, n_candidates: int = 3,
                            return_all: bool = True, batch_size: int = 2048,
+                           start_pool_size: int = 64, chunksize: int = 256,
                            ) -> Dict[int, List[Tuple[str, float]]]:
         """
         Suggest corrections for the tokens from the given dataset by batches. \
@@ -178,14 +185,16 @@ class TyposCorrector(Model):
         :param n_candidates: Number of most probable candidates to return.
         :param return_all: False to return suggestions only for corrected tokens.
         :param batch_size: Batch size.
-
+        :param start_pool_size: Length of data, starting from which multiprocessing is desired.
+        :param chunksize: Max size of a chunk for one thread during multiprocessing.
         :return: Dictionary `{id : [(candidate, correctness_proba), ...]}`, candidates are sorted \
                  by correctness probability in a descending order.
         """
         all_suggestions = []
         for i in tqdm(range(0, len(data), batch_size)):
             suggestions = self.suggest(data.iloc[i:i + batch_size, :], n_candidates=n_candidates,
-                                       return_all=return_all)
+                                       return_all=return_all, start_pool_size=start_pool_size,
+                                       chunksize=chunksize)
             all_suggestions.append(suggestions.items())
         return dict(chain.from_iterable(all_suggestions))
 

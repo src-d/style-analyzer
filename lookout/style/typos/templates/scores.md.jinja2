@@ -6,10 +6,9 @@
             {% do scores.__setitem__("Top %i score %s" % (k, mode.value), get_scores(data, suggestions, mode, k)) %}
         {% endfor %}
 {% endfor %}
-Top 3 score on_corrected
 |        Score type        | Accuracy  | Precision |  Recall   | F1-score  |
 |-------------------------:|:----------|:----------|:----------|:----------|
-{% for mode in scores %}
+{% for mode in sorted(scores.keys()) %}
 | {{ "%24s" % mode}} | {% for metric in ["accuracy", "precision", "recall", "f1"] %} {{ "  %.3f " % scores[mode][metric] }} | {% endfor %}
 
 {% endfor %}

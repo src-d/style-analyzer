@@ -93,7 +93,7 @@ class CandidatesGenerator(Model):
 
     def generate_candidates(self, data: pandas.DataFrame, threads_number: int,
                             save_candidates_file: Optional[str] = None,
-                            start_pool_size: int = 64) -> pandas.DataFrame:
+                            start_pool_size: int = 64, chunksize: int = 256) -> pandas.DataFrame:
         """
         Generate candidates for typos inside data.
 
@@ -101,6 +101,7 @@ class CandidatesGenerator(Model):
         :param threads_number: Number of threads for multiprocessing.
         :param save_candidates_file: File to save candidates to.
         :param start_pool_size: Length of data, starting from which multiprocessing is desired.
+        :param chunksize: Max size of a chunk for one thread during multiprocessing.
         :return: DataFrame containing candidates for corrections \
                  and features for their ranking for each typo.
         """
@@ -111,7 +112,7 @@ class CandidatesGenerator(Model):
             with Pool(min(threads_number, len(typos))) as pool:
                 candidates = list(tqdm(pool.imap(
                     self._lookup_corrections_for_token, typos,
-                    chunksize=min(512, 1 + len(typos) // threads_number)),
+                    chunksize=min(chunksize, 1 + len(typos) // threads_number)),
                                        total=len(typos)))
         else:
             candidates = [self._lookup_corrections_for_token(t) for t in typos]
