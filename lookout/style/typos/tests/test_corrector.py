@@ -17,7 +17,7 @@ class TyposCorrectorTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.data = pandas.read_csv(join(TEST_DATA_PATH, "test_data.csv.xz"),
-                                   index_col=0).infer_objects()
+                                   index_col=0, keep_default_na=False)
         cls.custom_data = pandas.DataFrame([["get tokens num", "get", "get"],
                                             ["gwt tokens", "gwt", "get"],
                                             ["get tokem", "tokem", "token"]],
@@ -34,9 +34,9 @@ class TyposCorrectorTest(unittest.TestCase):
         self.corrector.threads_number = 1
 
     def test_corrector_on_df(self):
-        custom_data = pandas.DataFrame([[["get", "tokens", "num"], "get", "get"],
-                                        [["gwt", "tokens"], "gwt", "get"],
-                                        [["get", "tokem"], "tokem", "token"]],
+        custom_data = pandas.DataFrame([["get tokens num", "get", "get"],
+                                        ["gwt tokens", "gwt", "get"],
+                                        ["get tokem", "tokem", "token"]],
                                        columns=[Columns.Split, Columns.Token,
                                                 Columns.CorrectToken])
         self.corrector.train(self.data)
