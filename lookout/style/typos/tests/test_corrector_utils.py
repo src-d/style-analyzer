@@ -35,11 +35,11 @@ class DataTransformationsTest(unittest.TestCase):
                                                  ["use class", "class"]],
                                                 columns=[Columns.Split, Columns.Token])
         cls.flat_data = pandas.read_csv(join(TEST_DATA_PATH, "test_flatten_data.csv.xz"),
-                                        index_col=0).infer_objects()
+                                        index_col=0, keep_default_na=False)
 
     def test_flatten_data(self):
         raw_data = pandas.read_csv(join(TEST_DATA_PATH, "raw_test_data.csv.xz"),
-                                   index_col=0).infer_objects()
+                                   index_col=0, keep_default_na=False)
         assert_frame_equal(flatten_df_by_column(raw_data, Columns.Split, Columns.Token, str.split),
                            self.flat_data)
         assert_frame_equal(flatten_df_by_column(self.custom_data, Columns.Split, Columns.Token,
@@ -47,7 +47,7 @@ class DataTransformationsTest(unittest.TestCase):
 
     def test_add_context_info(self):
         context_added = pandas.read_csv(join(TEST_DATA_PATH, "test_add_context_info.csv.xz"),
-                                        index_col=0).fillna("")
+                                        index_col=0, keep_default_na=False).fillna("")
         assert_frame_equal(add_context_info(self.flat_data), context_added)
         added_context_custom = pandas.DataFrame(
             [["get tokens num", "get", "", "tokens num"],
@@ -63,7 +63,7 @@ class RankCandidatesTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.data = pandas.read_csv(join(TEST_DATA_PATH, "test_data.csv.xz"),
-                                   index_col=0).infer_objects()
+                                   index_col=0, keep_default_na=False)
         with open(join(TEST_DATA_PATH, "test_data_candidates_suggestions.pickle"), "br") as f:
             cls.suggestions = pickle.load(f)
 
@@ -92,7 +92,7 @@ class RankCandidatesTest(unittest.TestCase):
 
     def test_rank_candidates(self):
         candidates = pandas.read_csv(join(TEST_DATA_PATH, "test_data_candidates.csv.xz"),
-                                     index_col=0).infer_objects()
+                                     index_col=0, keep_default_na=False)
         proba = numpy.load(join(TEST_DATA_PATH, "test_data_candidates_proba.pickle"))
         self.assertDictEqual(rank_candidates(candidates, proba, n_candidates=3), self.suggestions)
 
@@ -106,7 +106,7 @@ class RankCandidatesTest(unittest.TestCase):
     def test_suggestions_to_df(self):
         suggestions_df = pandas.read_csv(join(TEST_DATA_PATH,
                                          "test_data_candidates_suggestions_df.csv.xz"),
-                                         index_col=0).infer_objects()
+                                         index_col=0, keep_default_na=False)
         suggestions_df.suggestions = pandas.eval(suggestions_df.suggestions)
         assert_frame_equal(suggestions_to_df(self.data, self.suggestions), suggestions_df)
 
@@ -125,7 +125,7 @@ class RankCandidatesTest(unittest.TestCase):
     def test_suggestions_to_flat_df(self):
         suggestions_flat_df = pandas.read_csv(join(TEST_DATA_PATH,
                                               "test_data_candidates_suggestions_flat_df.csv.xz"),
-                                              index_col=0).infer_objects()
+                                              index_col=0, keep_default_na=False)
         assert_frame_equal(suggestions_to_flat_df(self.data, self.suggestions),
                            suggestions_flat_df)
 
