@@ -281,10 +281,14 @@ class CandidatesGenerator(Model):
             return cosine(first_vec, second_vec)
         return 1.0
 
-    def _max_cos(self, typo_vec: numpy.ndarray, context: str) -> float:
-        return max([self._cos(typo_vec, self._vec(token)) for token in context.split()])
+    def _min_cos(self, typo_vec: numpy.ndarray, context: str) -> float:
+        if not len(context.split()):
+            return 1.0
+        return min([2.0] + [self._cos(typo_vec, self._vec(token)) for token in context.split()])
 
     def _avg_cos(self, typo_vec: numpy.ndarray, context: str) -> float:
+        if not len(context.split()):
+            return 1.0
         return self._max_cos(typo_vec, context) / len(context.split())
 
     def _closest(self, item: Union[numpy.ndarray, str], quantity: int) -> List[str]:
