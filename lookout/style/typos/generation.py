@@ -57,6 +57,7 @@ class CandidatesGenerator(Model):
         self.radius = self.DEFAULT_RADIUS
         self.tokens = []
         self.frequencies = {}
+        self.min_freq = 0
 
     def construct(self, vocabulary_file: str, frequencies_file: str, embeddings_file: str,
                   neighbors: int = DEFAULT_NEIGHBORS_NUMBER,
@@ -90,6 +91,7 @@ class CandidatesGenerator(Model):
         self.radius = radius
         self.tokens = read_vocabulary(vocabulary_file)
         self.frequencies = read_frequencies(frequencies_file)
+        self.min_freq = min(self.frequencies.values())
 
     def generate_candidates(self, data: pandas.DataFrame, threads_number: int,
                             start_pool_size: int, chunksize: int,
@@ -210,7 +212,8 @@ class CandidatesGenerator(Model):
 
         candidate_tokens = {candidate for candidate in candidate_tokens
                             if candidate in self.tokens}
-        candidate_tokens.add(typo_info.typo)
+        if len(candidate_tokens) == 0:
+            candidate_tokens.add(typo_info.typo)
         return candidate_tokens
 
     def _generate_features(self, typo_info: TypoInfo, dist: int, typo_vec: numpy.ndarray,
@@ -229,9 +232,10 @@ class CandidatesGenerator(Model):
                  edit distance between the tokens, \
                  embeddings of the tokens and contexts.
         """
+        context = "%s %s" % (typo_info.before, typo_info.after)
         before_vec = self._compound_vec(typo_info.before)
         after_vec = self._compound_vec(typo_info.after)
-        context_vec = self._compound_vec("%s %s" % (typo_info.before, typo_info.after))
+        context_vec = self._compound_vec(context)
         return Features(typo_info.index, typo_info.typo, candidate, numpy.concatenate((
             (
                 self._freq(typo_info.typo),
@@ -243,6 +247,18 @@ class CandidatesGenerator(Model):
                 self._cos(candidate_vec, before_vec),
                 self._cos(candidate_vec, after_vec),
                 self._cos(candidate_vec, context_vec),
+                self._avg_cos(typo_vec, typo_info.before),
+                self._avg_cos(typo_vec, typo_info.after),
+                self._avg_cos(typo_vec, context),
+                self._avg_cos(candidate_vec, typo_info.before),
+                self._avg_cos(candidate_vec, typo_info.after),
+                self._avg_cos(candidate_vec, context),
+                self._max_cos(typo_vec, typo_info.before),
+                self._max_cos(typo_vec, typo_info.after),
+                self._max_cos(typo_vec, context),
+                self._max_cos(candidate_vec, typo_info.before),
+                self._max_cos(candidate_vec, typo_info.after),
+                self._max_cos(candidate_vec, context),
                 self._cos(typo_vec, candidate_vec),
                 dist,
             ),
@@ -257,13 +273,19 @@ class CandidatesGenerator(Model):
         return self.wv[token]
 
     def _freq(self, token: str) -> float:
-        return float(self.frequencies.get(token, 0))
+        return float(self.frequencies.get(token, self.min_freq))
 
     @staticmethod
     def _cos(first_vec: numpy.ndarray, second_vec: numpy.ndarray) -> float:
         if numpy.linalg.norm(first_vec) * numpy.linalg.norm(second_vec) != 0:
             return cosine(first_vec, second_vec)
         return 1.0
+
+    def _max_cos(self, typo_vec: numpy.ndarray, context: str) -> float:
+        return max([self._cos(typo_vec, self._vec(token)) for token in context.split()])
+
+    def _avg_cos(self, typo_vec: numpy.ndarray, context: str) -> float:
+        return self._max_cos(typo_vec, context) / len(context.split())
 
     def _closest(self, item: Union[numpy.ndarray, str], quantity: int) -> List[str]:
         return [token for token, _ in self.wv.most_similar([item], topn=quantity)]
