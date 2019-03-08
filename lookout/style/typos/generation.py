@@ -41,27 +41,17 @@ class CandidatesGenerator(Model):
     DESCRIPTION = "Model that generates candidates to fix typos."
     LICENSE = DEFAULT_LICENSE
     NO_COMPRESSION = ("/wv/vectors/",)
-    DEFAULT_RADIUS = 3
-    DEFAULT_MAX_DISTANCE = 2
-    DEFAULT_NEIGHBORS_NUMBER = 0
-    DEFAULT_EDIT_DISTANCE = 20
 
     def __init__(self, **kwargs):
         """Initialize a new instance of CandidatesGenerator."""
         super().__init__(**kwargs)
         self.checker = None
         self.wv = None
-        self.neighbors_number = self.DEFAULT_NEIGHBORS_NUMBER
-        self.edit_candidates_number = self.DEFAULT_EDIT_DISTANCE
-        self.max_distance = self.DEFAULT_MAX_DISTANCE
-        self.radius = self.DEFAULT_RADIUS
         self.tokens = []
         self.frequencies = {}
 
     def construct(self, vocabulary_file: str, frequencies_file: str, embeddings_file: str,
-                  neighbors: int = DEFAULT_NEIGHBORS_NUMBER,
-                  edit_candidates: int = DEFAULT_EDIT_DISTANCE,
-                  max_distance: int = DEFAULT_MAX_DISTANCE, radius: int = DEFAULT_RADIUS,
+                  neighbors: int, edit_candidates: int, max_distance: int, radius: int,
                   max_corrected_length: int = 12) -> None:
         """
         Construct correction candidates generator.
@@ -92,8 +82,8 @@ class CandidatesGenerator(Model):
         self.frequencies = read_frequencies(frequencies_file)
 
     def generate_candidates(self, data: pandas.DataFrame, threads_number: int,
-                            save_candidates_file: Optional[str] = None,
-                            start_pool_size: int = 64) -> pandas.DataFrame:
+                            start_pool_size: int, chunksize: int,
+                            save_candidates_file: Optional[str] = None) -> pandas.DataFrame:
         """
         Generate candidates for typos inside data.
 
@@ -101,19 +91,18 @@ class CandidatesGenerator(Model):
         :param threads_number: Number of threads for multiprocessing.
         :param save_candidates_file: File to save candidates to.
         :param start_pool_size: Length of data, starting from which multiprocessing is desired.
+        :param chunksize: Max size of a chunk for one thread during multiprocessing.
         :return: DataFrame containing candidates for corrections \
                  and features for their ranking for each typo.
         """
         data = add_context_info(data)
-        typos = [TypoInfo(index, data.loc[index, Columns.Token],
-                          data.loc[index, Columns.Before],
-                          data.loc[index, Columns.After])
-                 for i, index in enumerate(data.index)]
+        typos = [TypoInfo(index, token, before, after) for index, token, before, after in
+                 zip(data.index, data[Columns.Token], data[Columns.Before], data[Columns.After])]
         if len(typos) > start_pool_size and threads_number > 1:
             with Pool(min(threads_number, len(typos))) as pool:
                 candidates = list(tqdm(pool.imap(
                     self._lookup_corrections_for_token, typos,
-                    chunksize=min(256, 1 + len(typos) // threads_number)),
+                    chunksize=min(chunksize, 1 + len(typos) // threads_number)),
                                        total=len(typos)))
         else:
             candidates = [self._lookup_corrections_for_token(t) for t in typos]
@@ -277,16 +266,18 @@ class CandidatesGenerator(Model):
     def _compound_vec(self, text: str) -> numpy.ndarray:
         split = text.split()
         compound_vec = numpy.zeros(self.wv["a"].shape)
-        if len(split) == 0:
-            return compound_vec
-        else:
-            for token in split:
-                compound_vec += self.wv[token]
+        for token in split:
+            compound_vec += self.wv[token]
         return compound_vec
 
     def _generate_tree(self) -> dict:
         tree = self.__dict__.copy()
-        for key in vars(Model()):
+
+        class DummyModel(Model):
+            NAME = "dummy"
+            VENDOR = "dummy"
+            DESCRIPTION = "dummy"
+        for key in vars(DummyModel()):
             del tree[key]
         freqkeys = [""] * len(self.frequencies)
         freqvals = numpy.zeros(len(self.frequencies), dtype=numpy.uint32)
