@@ -199,7 +199,6 @@ class CandidatesGenerator(Model):
                 candidate_tokens.append(suggestion.term)
                 edit_candidates_count += 1
         if self.neighbors_number > 0:
-            print("Getting neighbors")
             typo_neighbors = self._closest(self._vec(typo_info.typo), self.neighbors_number)
             candidate_tokens.extend(typo_neighbors)
 
