@@ -111,7 +111,7 @@ class CandidatesGenerator(Model):
             with Pool(min(threads_number, len(typos))) as pool:
                 candidates = list(tqdm(pool.imap(
                     self._lookup_corrections_for_token, typos,
-                    chunksize=min(256, 1 + len(typos) // threads_number)),
+                    chunksize=min(512, 1 + len(typos) // threads_number)),
                                        total=len(typos)))
         else:
             candidates = [self._lookup_corrections_for_token(t) for t in typos]
