@@ -39,6 +39,8 @@ class TyposCorrector(Model):
                            "alpha": 1,
                            "eval_metric": ["error"],
                            "nthread": 0}
+    default_start_pool_size = 64
+    default_chunksize = 256
 
     def __init__(self, **kwargs):
         """
@@ -97,8 +99,9 @@ class TyposCorrector(Model):
                                  neighbors_number, edit_candidates, max_distance, radius)
 
     def train(self, data: pandas.DataFrame, candidates:  Optional[str] = None,
-              save_candidates_file: Optional[str] = None, start_pool_size: int = 64,
-              chunksize: int = 256) -> None:
+              save_candidates_file: Optional[str] = None,
+              start_pool_size: int = default_start_pool_size,
+              chunksize: int = default_chunksize) -> None:
         """
         Train corrector on tokens from the given dataset.
 
@@ -111,14 +114,16 @@ class TyposCorrector(Model):
         """
         if candidates is None:
             candidates = self.generator.generate_candidates(
-                data, self.threads_number, save_candidates_file, start_pool_size, chunksize)
+                data, self.threads_number, start_pool_size, chunksize, save_candidates_file)
         else:
             candidates = pandas.read_csv(candidates, index_col=0, keep_default_na=False)
         self.ranker.fit(data[Columns.CorrectToken], get_candidates_metadata(candidates),
                         get_candidates_features(candidates))
 
     def train_on_file(self, data_file: str, candidates:  Optional[str] = None,
-                      save_candidates_file: Optional[str] = None) -> None:
+                      save_candidates_file: Optional[str] = None,
+                      start_pool_size: int = default_start_pool_size,
+                      chunksize: int = default_chunksize) -> None:
         """
         Train corrector on tokens from the given file.
 
@@ -126,14 +131,16 @@ class TyposCorrector(Model):
                           Columns.CorrectToken and Columns.Split.
         :param candidates: A .csv.xz dump of a dataframe with precalculated candidates.
         :param save_candidates_file: Path to file where to save the candidates (.csv.xz).
+        :param start_pool_size: Length of data, starting from which multiprocessing is desired.
+        :param chunksize: Max size of a chunk for one thread during multiprocessing.
         """
         self.train(pandas.read_csv(data_file, index_col=0, keep_default_na=False), candidates,
-                   save_candidates_file)
+                   save_candidates_file, start_pool_size, chunksize)
 
     def suggest(self, data: pandas.DataFrame, candidates:  Optional[str] = None,
                 save_candidates_file: Optional[str] = None, n_candidates: int = 3,
-                return_all: bool = True, start_pool_size: int = 64,
-                chunksize: int = 256) -> Dict[int, List[Tuple[str, float]]]:
+                return_all: bool = True, start_pool_size: int = default_start_pool_size,
+                chunksize: int = default_chunksize) -> Dict[int, List[Tuple[str, float]]]:
         """
         Suggest corrections for the tokens from the given dataset.
 
@@ -149,7 +156,7 @@ class TyposCorrector(Model):
         """
         if candidates is None:
             candidates = self.generator.generate_candidates(
-                data, self.threads_number, save_candidates_file, start_pool_size, chunksize)
+                data, self.threads_number, start_pool_size, chunksize, save_candidates_file)
         else:
             candidates = pandas.read_csv(candidates, index_col=0, keep_default_na=False)
         return self.ranker.rank(get_candidates_metadata(candidates),
@@ -157,7 +164,8 @@ class TyposCorrector(Model):
 
     def suggest_on_file(self, data_file: str, candidates:  Optional[str] = None,
                         save_candidates_file: Optional[str] = None, n_candidates: int = 3,
-                        return_all: bool = True) -> Dict[int, List[Tuple[str, float]]]:
+                        return_all: bool = True, start_pool_size: int = default_start_pool_size,
+                        chunksize: int = default_chunksize) -> Dict[int, List[Tuple[str, float]]]:
         """
         Suggest corrections for the tokens from the given file.
 
@@ -167,15 +175,19 @@ class TyposCorrector(Model):
         :param save_candidates_file: Path to file to save candidates to (.csv.xz).
         :param n_candidates: Number of most probable candidates to return.
         :param return_all: False to return suggestions only for corrected tokens.
+        :param start_pool_size: Length of data, starting from which multiprocessing is desired.
+        :param chunksize: Max size of a chunk for one thread during multiprocessing.
         :return: Dictionary `{id : [(candidate, correctness_proba), ...]}`, candidates are sorted \
                  by correctness probability in a descending order.
         """
         return self.suggest(pandas.read_csv(data_file, index_col=0, keep_default_na=False),
-                            candidates, save_candidates_file, n_candidates, return_all)
+                            candidates, save_candidates_file, n_candidates, return_all,
+                            start_pool_size, chunksize)
 
     def suggest_by_batches(self, data: pandas.DataFrame, n_candidates: int = 3,
                            return_all: bool = True, batch_size: int = 2048,
-                           start_pool_size: int = 64, chunksize: int = 256,
+                           start_pool_size: int = default_start_pool_size,
+                           chunksize: int = default_chunksize,
                            ) -> Dict[int, List[Tuple[str, float]]]:
         """
         Suggest corrections for the tokens from the given dataset by batches. \
@@ -198,15 +210,19 @@ class TyposCorrector(Model):
             all_suggestions.append(suggestions.items())
         return dict(chain.from_iterable(all_suggestions))
 
-    def evaluate(self, test_data: pandas.DataFrame) -> None:
+    def evaluate(self, test_data: pandas.DataFrame, start_pool_size: int = default_start_pool_size,
+                 chunksize: int = default_chunksize,) -> None:
         """
         Evaluate the corrector on the given test dataset.
 
         Save the result metrics to the model metadata and print it to the standard output.
         :param test_data: DataFrame which contains column Columns.Token, \
                           column Columns.Split is optional, but used when present
+        :param start_pool_size: Length of data, starting from which multiprocessing is desired.
+        :param chunksize: Max size of a chunk for one thread during multiprocessing.
         """
-        suggestions = self.suggest(test_data)
+        suggestions = self.suggest(test_data, start_pool_size=start_pool_size,
+                                   chunksize=chunksize)
         self.metrics = get_scores(test_data, suggestions)
         print(generate_report(test_data, suggestions))
 

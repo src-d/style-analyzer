@@ -92,8 +92,8 @@ class CandidatesGenerator(Model):
         self.frequencies = read_frequencies(frequencies_file)
 
     def generate_candidates(self, data: pandas.DataFrame, threads_number: int,
-                            save_candidates_file: Optional[str] = None,
-                            start_pool_size: int = 64, chunksize: int = 256) -> pandas.DataFrame:
+                            start_pool_size: int, chunksize: int,
+                            save_candidates_file: Optional[str] = None) -> pandas.DataFrame:
         """
         Generate candidates for typos inside data.
 
@@ -210,8 +210,7 @@ class CandidatesGenerator(Model):
 
         candidate_tokens = {candidate for candidate in candidate_tokens
                             if candidate in self.tokens}
-        if not len(candidate_tokens):
-            candidate_tokens.add(typo_info.typo)
+        candidate_tokens.add(typo_info.typo)
         return candidate_tokens
 
     def _generate_features(self, typo_info: TypoInfo, dist: int, typo_vec: numpy.ndarray,

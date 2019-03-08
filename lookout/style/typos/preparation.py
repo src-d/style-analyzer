@@ -98,7 +98,7 @@ def prepare_data(params: Optional[Mapping[str, Any]] = None) -> pandas.DataFrame
         raw_data_path = os.path.join(params["data_dir"], params["raw_data_filename"])
         _download_url(params["dataset_url"], raw_data_path)
 
-    data = pandas.read_csv(raw_data_path, index_col=0)
+    data = pandas.read_csv(raw_data_path, index_col=0, keep_default_na=False)
     if params["frequency_column"] not in data.columns:
         data[Columns.Frequency] = 1
     else:
@@ -124,6 +124,7 @@ def prepare_data(params: Optional[Mapping[str, Any]] = None) -> pandas.DataFrame
     # Leave only splits that contain tokens from vocabulary
     prepared_data = filter_splits(flat_data, vocabulary_tokens)[[Columns.Frequency, Columns.Split,
                                                                  Columns.Token]]
+    prepared_data.index = range(len(prepared_data))
     return prepared_data
 
 
