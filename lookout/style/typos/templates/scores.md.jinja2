@@ -8,7 +8,7 @@
 {% endfor %}
 |        Score type        | Accuracy  | Precision |  Recall   | F1-score  |
 |-------------------------:|:----------|:----------|:----------|:----------|
-{% for mode in sorted(scores.keys()) %}
+{% for mode in scores|dictsort %}
 | {{ "%24s" % mode}} | {% for metric in ["accuracy", "precision", "recall", "f1"] %} {{ "  %.3f " % scores[mode][metric] }} | {% endfor %}
 
 {% endfor %}

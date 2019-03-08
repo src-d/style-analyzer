@@ -199,6 +199,7 @@ class CandidatesGenerator(Model):
                 candidate_tokens.append(suggestion.term)
                 edit_candidates_count += 1
         if self.neighbors_number > 0:
+            print("Getting neighbors")
             typo_neighbors = self._closest(self._vec(typo_info.typo), self.neighbors_number)
             candidate_tokens.extend(typo_neighbors)
 
@@ -276,11 +277,8 @@ class CandidatesGenerator(Model):
     def _compound_vec(self, text: str) -> numpy.ndarray:
         split = text.split()
         compound_vec = numpy.zeros(self.wv["a"].shape)
-        if len(split) == 0:
-            return compound_vec
-        else:
-            for token in split:
-                compound_vec += self.wv[token]
+        for token in split:
+            compound_vec += self.wv[token]
         return compound_vec
 
     def _generate_tree(self) -> dict:
