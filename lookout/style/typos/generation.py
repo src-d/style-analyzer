@@ -253,12 +253,12 @@ class CandidatesGenerator(Model):
                 self._avg_cos(candidate_vec, typo_info.before),
                 self._avg_cos(candidate_vec, typo_info.after),
                 self._avg_cos(candidate_vec, context),
-                self._max_cos(typo_vec, typo_info.before),
-                self._max_cos(typo_vec, typo_info.after),
-                self._max_cos(typo_vec, context),
-                self._max_cos(candidate_vec, typo_info.before),
-                self._max_cos(candidate_vec, typo_info.after),
-                self._max_cos(candidate_vec, context),
+                self._min_cos(typo_vec, typo_info.before),
+                self._min_cos(typo_vec, typo_info.after),
+                self._min_cos(typo_vec, context),
+                self._min_cos(candidate_vec, typo_info.before),
+                self._min_cos(candidate_vec, typo_info.after),
+                self._min_cos(candidate_vec, context),
                 self._cos(typo_vec, candidate_vec),
                 dist,
             ),
@@ -289,7 +289,8 @@ class CandidatesGenerator(Model):
     def _avg_cos(self, typo_vec: numpy.ndarray, context: str) -> float:
         if not len(context.split()):
             return 1.0
-        return self._max_cos(typo_vec, context) / len(context.split())
+        return sum([self._cos(typo_vec, self._vec(token)) for token in
+                    context.split()]) / len(context.split())
 
     def _closest(self, item: Union[numpy.ndarray, str], quantity: int) -> List[str]:
         return [token for token, _ in self.wv.most_similar([item], topn=quantity)]
