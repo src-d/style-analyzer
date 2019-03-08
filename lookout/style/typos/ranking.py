@@ -62,7 +62,7 @@ class CandidatesRanker(Model):
         """
         Train booster on the given data.
 
-        :param identifiers: Series containing column right corrections and indexed in \
+        :param identifiers: Series containing column Columns.CorrectToken and indexed in \
                             correspondence with typos from which candidates were generated.
         :param candidates: DataFrame containing information about candidates for correction. \
                            Columns are [Columns.Id, Columns.Token, Columns.Candidate].

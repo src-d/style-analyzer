@@ -150,7 +150,10 @@ def get_datasets(prepared_data: pandas.DataFrame, train_size: int = 50000,
     # (it IS small because a big number of random typos can be made in a single word)
     data = prepared_data.sample(train_size + test_size, weights=Columns.Frequency, replace=True)
     data = corrupt_tokens_in_df(data, typo_probability, add_typo_probability)
-    return train_test_split(data, test_size=test_size)
+    train, test = train_test_split(data, test_size=test_size)
+    train.index = range(len(train))
+    test.index = range(len(test))
+    return train, test
 
 
 def train_fasttext(data: pandas.DataFrame, params: Optional[Mapping[str, Any]] = None) -> None:
