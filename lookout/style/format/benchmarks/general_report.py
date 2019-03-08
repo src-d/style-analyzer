@@ -5,7 +5,8 @@ from itertools import chain
 import json
 import logging
 import os
-from typing import Any, Dict, Iterable, List, Mapping, NamedTuple, Optional, Sequence, Type, Union
+from typing import Any, Dict, Iterable, List, Mapping, NamedTuple, Optional, Sequence, Tuple, \
+    Type, Union
 
 from bblfsh import BblfshClient
 from lookout.core.analyzer import ReferencePointer
@@ -117,7 +118,7 @@ class FakeDataService:
 
 def analyze_files(analyzer_type: Type[FormatAnalyzer], config: dict, model_path: str,
                   language: str, bblfsh: str, input_pattern: str, log: logging.Logger,
-                  ) -> List[FileFix]:
+                  ) -> List[Comment]:
     """Run the model, record the fixes for each file and return them."""
     class FakePointer:
         def to_pb(self):
@@ -216,28 +217,21 @@ class ReportAnalyzer(FormatAnalyzerSpy):
     default_config = merge_dicts(FormatAnalyzer.default_config,
                                  {"aggregate": False})
 
-    def generate_train_report(self, fixes: Iterable[FileFix]) -> str:
+    @classmethod
+    def get_report_names(cls) -> Tuple[str, ...]:
         """
-        Generate report on the train dataset.
+        Get all available report names.
 
-        :param fixes: fixes with all required information for report generation.
-        :return: Report.
+        :return: List of report names.
         """
         raise NotImplementedError()
 
-    def generate_model_report(self) -> str:
+    def generate_reports(self, fixes: Iterable[FileFix]) -> Dict[str, str]:
         """
-        Generate report about the trained model.
+        General function to generate reports.
 
-        :return: Report.
-        """
-        return ""
-
-    def generate_test_report(self) -> str:
-        """
-        Generate report on the test dataset.
-
-        :return: Report.
+        :param fixes: List of fixes per file or for all files if config["aggregate"] is True.
+        :return: Dictionary with report names as keys and report string as values.
         """
         raise NotImplementedError()
 
@@ -254,29 +248,21 @@ class ReportAnalyzer(FormatAnalyzerSpy):
         :param data: Contains "files" - the list of changes in the pointed state.
         :return: List of comments.
         """
+        def convert_fixes_to_report_comments(fixes: List[FileFix], filepath: str):
+            for report in self.generate_reports(fixes=fixes).values():
+                yield generate_comment(filename=filepath, line=0, confidence=100, text=report)
+
         comments = []
-        fixes = []
-        for fix in self.run(ptr_from, data_service):
-            filepath = fix.head_file.path
-            if fix.error:
-                continue
-            if self.config["aggregate"]:
-                fixes.append(fix)
-            else:
-                report = self.generate_train_report(fixes=[fix])
-                comments.append(generate_comment(
-                    filename=filepath, line=0, confidence=100, text=report))
-        if self.config["aggregate"]:
-            report = self.generate_train_report(fixes=fixes)
-            comments.append(generate_comment(
-                filename="", line=0, confidence=100, text=report))
-        comments.append(generate_comment(
-            filename="", line=0, confidence=100, text=self.generate_model_report()))
-        try:
-            comments.append(generate_comment(
-                filename="", line=0, confidence=100, text=self.generate_test_report()))
-        except ValueError:
-            pass
+        if not self.config["aggregate"]:
+            for fix in self.run(ptr_from, data_service):
+                filepath = fix.head_file.path
+                if fix.error:
+                    continue
+                comments.extend(convert_fixes_to_report_comments([fix], filepath))
+        else:
+            comments.extend(
+                convert_fixes_to_report_comments(
+                    [fix for fix in self.run(ptr_from, data_service) if not fix.error], ""))
         return comments
 
 
@@ -315,6 +301,34 @@ class QualityReportAnalyzer(ReportAnalyzer):
                                  {"max_files": 10,
                                   "train": {"language_defaults": {"test_dataset_ratio": 0.2}},
                                   })
+
+    @classmethod
+    def get_report_names(cls) -> Tuple[str, str, str]:
+        """
+        Get all available report names.
+
+        :return: Tuple with report names.
+        """
+        return "model", "train", "test"
+
+    def generate_reports(self, fixes: Iterable[FileFix]) -> Dict[str, str]:
+        """
+        Generate model train and test reports.
+
+        Model report generated only if config["aggregate"] is True.
+
+        :param fixes: List of fixes per file or for all files if config["aggregate"] is True.
+        :return: Ordered dictionary with report names as keys and report string as values.
+        """
+        reports = OrderedDict()  # to keep reports order.
+        if self.config["aggregate"]:
+            reports["model"] = self.generate_model_report()
+        try:
+            reports["train"] = self.generate_train_report(fixes)
+        except ValueError as e:
+            self._log.warning("Train report generation failed. %s", e.args[0])
+        reports["test"] = self.generate_test_report()
+        return reports
 
     def generate_model_report(self) -> str:
         """
