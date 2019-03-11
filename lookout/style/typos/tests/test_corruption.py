@@ -19,7 +19,7 @@ class CorruptionTest(unittest.TestCase):
                 self.assertEqual(dist_calculator.compare(corrupted, 1), 1)
                 self.assertEqual(len(corrupted), len(token) + distance)
         for _ in range(10):
-            corrupted, _ = _rand_typo((token, token), 1.0, 0.0)
+            corrupted, _ = _rand_typo((token, token, 1), 0.0)
             self.assertEqual(dist_calculator.compare(corrupted, 1), 1)
 
     def test_corrupt_tokens_in_df(self):
