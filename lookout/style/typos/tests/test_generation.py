@@ -67,11 +67,12 @@ class GeneratorTest(unittest.TestCase):
                                                 Columns.CorrectToken])
         for test_data in [data, custom_data]:
             candidates = generator.generate_candidates(test_data, threads_number=1,
-                                                       start_pool_size=len(test_data) + 1)
+                                                       start_pool_size=len(test_data) + 1,
+                                                       chunksize=1)
             self.assertFalse(candidates.isnull().values.any())
-            self.assertSequenceEqual(set(candidates[Columns.Id].values), set(test_data.index))
-            self.assertSequenceEqual(set(candidates[Columns.Token].values),
-                                     set(test_data[Columns.Token].values))
+            self.assertSetEqual(set(candidates[Columns.Id].values), set(test_data.index))
+            self.assertSetEqual(set(candidates[Columns.Token].values),
+                                set(test_data[Columns.Token].values))
 
 
 if __name__ == "__main__":
