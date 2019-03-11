@@ -98,7 +98,7 @@ def prepare_data(params: Optional[Mapping[str, Any]] = None) -> pandas.DataFrame
         raw_data_path = os.path.join(params["data_dir"], params["raw_data_filename"])
         _download_url(params["dataset_url"], raw_data_path)
 
-    data = pandas.read_csv(raw_data_path, index_col=0)
+    data = pandas.read_csv(raw_data_path, index_col=0, keep_default_na=False)
     if params["frequency_column"] not in data.columns:
         data[Columns.Frequency] = 1
     else:
@@ -124,6 +124,7 @@ def prepare_data(params: Optional[Mapping[str, Any]] = None) -> pandas.DataFrame
     # Leave only splits that contain tokens from vocabulary
     prepared_data = filter_splits(flat_data, vocabulary_tokens)[[Columns.Frequency, Columns.Split,
                                                                  Columns.Token]]
+    prepared_data.index = range(len(prepared_data))
     return prepared_data
 
 
@@ -148,9 +149,14 @@ def get_datasets(prepared_data: pandas.DataFrame, train_size: int = 50000,
     # With replace=True we get the real examples distribution, but there's a small
     # probability of having the same examples of misspellings in train and test datasets
     # (it IS small because a big number of random typos can be made in a single word)
-    data = prepared_data.sample(train_size + test_size, weights=Columns.Frequency, replace=True)
-    data = corrupt_tokens_in_df(data, typo_probability, add_typo_probability)
-    return train_test_split(data, test_size=test_size)
+    data = prepared_data[[len(x) > 1 for x in prepared_data[Columns.Token]]].sample(
+        train_size + test_size, weights=Columns.Frequency, replace=True)
+    train, test = train_test_split(data[[Columns.Token, Columns.Split]], test_size=test_size)
+    train.index = range(len(train))
+    test.index = range(len(test))
+    train = corrupt_tokens_in_df(train, typo_probability, add_typo_probability)
+    test = corrupt_tokens_in_df(test, typo_probability, add_typo_probability)
+    return train, test
 
 
 def train_fasttext(data: pandas.DataFrame, params: Optional[Mapping[str, Any]] = None) -> None:
@@ -180,7 +186,8 @@ def train_fasttext(data: pandas.DataFrame, params: Optional[Mapping[str, Any]] =
     if params is None:
         params = {}
     params = merge_dicts(defaults_for_fasttext, params)
-    train_data = data.sample(params["size"], weights=Columns.Frequency, replace=True)
+    train_data = data[[len(str(x).split()) > 2 for x in data[Columns.Split]]].sample(
+        params["size"], weights=Columns.Frequency, replace=True)
     if params["corrupt"]:
         train_data = corrupt_tokens_in_df(train_data, params["typo_probability"],
                                           params["add_typo_probability"])

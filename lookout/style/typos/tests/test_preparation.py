@@ -62,11 +62,11 @@ class DatasetsTest(unittest.TestCase):
         prepared = pandas.read_csv(str(TEST_DATA_DIR / "prepared_data.csv.xz"),
                                    index_col=0, keep_default_na=False)
         train, test = get_datasets(prepared, train_size=1000, test_size=100,
-                                   typo_probability=0.5, add_typo_probability=0.5)
+                                   typo_probability=0.5, add_typo_probability=0.05)
         self.assertTrue({Columns.Token, Columns.CorrectToken, Columns.Split,
                          Columns.CorrectSplit}.issubset(set(train.columns)))
         corrupted = sum(train[Columns.Token] != train[Columns.CorrectToken])
-        self.assertAlmostEqual(corrupted, 500, delta=50)
+        self.assertEqual(corrupted, 500)
         self.assertEqual(len(train), 1000)
         self.assertEqual(len(test), 100)
         print(len(set(train[Columns.Token]).intersection(set(test[Columns.Token]))))
