@@ -1,3 +1,4 @@
+import multiprocessing
 import os
 import pathlib
 import sys
@@ -33,13 +34,13 @@ defaults_for_preparation = {
 }
 
 defaults_for_fasttext = {
-    "size": 100000000,
-    "corrupt": True,
-    "typo_probability": 0.2,
-    "add_typo_probability": 0.005,
-    "fasttext_path": str(DATA_DIR / "emb.bin"),
-    "dim": 8,
-    "bucket": 200000,
+    "size": 100000000,  # Number of identifiers to pick to train fasttext on
+    "corrupt": True,  # Whether to corrupt some of the identifiers with artificial typos
+    "typo_probability": 0.2,  # Which portion of picked identifiers should contain a typoed token
+    "add_typo_probability": 0.005,  # Which portion of corrupted tokens should contain >1 mistake
+    "fasttext_path": str(DATA_DIR / "fasttext.bin"),  # Where to store trained fasttext model
+    "dim": 8,  # Number of dimensions of embeddings
+    "bucket": 200000,  # Number of hash buckets in the model
 }
 
 defaults_for_datasets = {
@@ -91,11 +92,12 @@ def prepare_data(params: Optional[Mapping[str, Any]] = None) -> pandas.DataFrame
                                      This information will be used by corrector as features for \
                                      these tokens when they will be checked. If not specified, \
                                      frequencies for all present tokens will be saved.
-                   raw_data_filename: Name of .csv file in data_dir to put raw dataset in case of \
-                                      loading from drive.
-                   vocabulary_filename: Name of .csv file in data_dir to save vocabulary to.
-                   frequencies_filename: Name of .csv file in data_dir to save frequencies to.
-                   prepared_filename: Name of .csv file in data_dir to save prepared filename to.
+                   raw_data_filename: Name of the .csv file in data_dir to put raw dataset \
+                                      in case of loading from drive.
+                   vocabulary_filename: Name of the .csv file in data_dir to save vocabulary to.
+                   frequencies_filename: Name of the .csv file in data_dir to save frequencies to.
+                   prepared_filename: Name of the .csv file in data_dir to save prepared \
+                                      dataset to.
     :return: Dataset baked for training the typos correction.
     """
     if params is None:
@@ -184,7 +186,8 @@ def train_fasttext(data: pandas.DataFrame, params: Optional[Mapping[str, Any]] =
 
 
 def get_datasets(prepared_data: pandas.DataFrame, params: Optional[Mapping[str, Any]] = None,
-                 threads_number: int = 16) -> Tuple[pandas.DataFrame, pandas.DataFrame]:
+                 threads_number: int = multiprocessing.cpu_count(),
+                 ) -> Tuple[pandas.DataFrame, pandas.DataFrame]:
     """
     Create the train and the test datasets of typos.
 
@@ -199,8 +202,8 @@ def get_datasets(prepared_data: pandas.DataFrame, params: Optional[Mapping[str, 
                    typo_probability: Probability with which a token gets to be corrupted.
                    add_typo_probability: Probability with which one more corruption happens to a \
                                          corrupted token.
-                   train_path: Path to .csv file where to save the train dataset.
-                   test_path: Path to .csv file where to save the test dataset.
+                   train_path: Path to the .csv file where to save the train dataset.
+                   test_path: Path to the .csv file where to save the test dataset.
     :param threads_number: Number of threads for multiprocessing.
     :return: Train and test datasets.
     """
@@ -229,7 +232,7 @@ def get_datasets(prepared_data: pandas.DataFrame, params: Optional[Mapping[str, 
 
 def train_and_evaluate(train_data: pandas.DataFrame, test_data: pandas.DataFrame,
                        vocabulary_path: str, frequencies_path: str, fasttext_path: str,
-                       threads_number: int = 16) -> TyposCorrector:
+                       threads_number: int = multiprocessing.cpu_count()) -> TyposCorrector:
     """
     Create and train TyposCorrector model on the given data.
 
@@ -259,7 +262,7 @@ def train_from_scratch(prepare_params: Optional[Mapping[str, Any]] = None,
                        fasttext_params: Optional[Mapping[str, Any]] = None,
                        datasets_params: Optional[Mapping[str, Any]] = None,
                        save_model_path: Optional[str] = None,
-                       threads_number: int = 16) -> TyposCorrector:
+                       threads_number: int = multiprocessing.cpu_count()) -> TyposCorrector:
     """
     Train TyposCorrector on raw data.
 
