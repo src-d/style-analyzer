@@ -83,28 +83,28 @@ class CandidatesGenerator(Model):
         self.frequencies = read_frequencies(frequencies_file)
         self.min_freq = min(self.frequencies.values())
 
-    def generate_candidates(self, data: pandas.DataFrame, threads_number: int,
+    def generate_candidates(self, data: pandas.DataFrame, processes_number: int,
                             start_pool_size: int, chunksize: int,
                             save_candidates_file: Optional[str] = None) -> pandas.DataFrame:
         """
         Generate candidates for typos inside data.
 
         :param data: DataFrame which contains column Columns.Token.
-        :param threads_number: Number of threads for multiprocessing.
+        :param processes_number: Number of processes for multiprocessing.
         :param save_candidates_file: File to save candidates to.
         :param start_pool_size: Length of data, starting from which multiprocessing is desired.
-        :param chunksize: Max size of a chunk for one thread during multiprocessing.
+        :param chunksize: Max size of a chunk for one process during multiprocessing.
         :return: DataFrame containing candidates for corrections \
                  and features for their ranking for each typo.
         """
         data = add_context_info(data)
         typos = [TypoInfo(index, token, before, after) for index, token, before, after in
                  zip(data.index, data[Columns.Token], data[Columns.Before], data[Columns.After])]
-        if len(typos) > start_pool_size and threads_number > 1:
-            with Pool(min(threads_number, len(typos))) as pool:
+        if len(typos) > start_pool_size and processes_number > 1:
+            with Pool(min(processes_number, len(typos))) as pool:
                 candidates = list(tqdm(pool.imap(
                     self._lookup_corrections_for_token, typos,
-                    chunksize=min(chunksize, 1 + len(typos) // threads_number)),
+                    chunksize=min(chunksize, 1 + len(typos) // processes_number)),
                                        total=len(typos)))
         else:
             candidates = [self._lookup_corrections_for_token(t) for t in typos]

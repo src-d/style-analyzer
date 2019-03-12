@@ -53,14 +53,14 @@ class TyposCorrector(Model):
         self.ranker = CandidatesRanker()
 
     @property
-    def threads_number(self) -> int:
-        """Return the number of threads for multiprocessing used to train and to predict."""
+    def processes_number(self) -> int:
+        """Return the number of processes for multiprocessing used to train and to predict."""
         return self.ranker.boost_param["nthread"]
 
-    @threads_number.setter
-    def threads_number(self, threads_number: int):
-        """Set the number of threads for multiprocessing used to train and to predict."""
-        self.ranker.boost_param["nthread"] = threads_number
+    @processes_number.setter
+    def processes_number(self, processes_number: int):
+        """Set the number of processes for multiprocessing used to train and to predict."""
+        self.ranker.boost_param["nthread"] = processes_number
 
     def initialize_ranker(self, boost_params: Optional[dict] = None,
                           train_rounds: int = DEFAULT_TRAIN_ROUNDS,
@@ -110,11 +110,11 @@ class TyposCorrector(Model):
         :param candidates: A .csv.xz dump of a dataframe with precalculated candidates.
         :param save_candidates_file: Path to file where to save the candidates (.csv.xz).
         :param start_pool_size: Length of data, starting from which multiprocessing is desired.
-        :param chunksize: Max size of a chunk for one thread during multiprocessing.
+        :param chunksize: Max size of a chunk for one process during multiprocessing.
         """
         if candidates is None:
             candidates = self.generator.generate_candidates(
-                data, self.threads_number, start_pool_size, chunksize, save_candidates_file)
+                data, self.processes_number, start_pool_size, chunksize, save_candidates_file)
         else:
             candidates = pandas.read_csv(candidates, index_col=0, keep_default_na=False)
         self.ranker.fit(data[Columns.CorrectToken], get_candidates_metadata(candidates),
@@ -132,7 +132,7 @@ class TyposCorrector(Model):
         :param candidates: A .csv.xz dump of a dataframe with precalculated candidates.
         :param save_candidates_file: Path to file where to save the candidates (.csv.xz).
         :param start_pool_size: Length of data, starting from which multiprocessing is desired.
-        :param chunksize: Max size of a chunk for one thread during multiprocessing.
+        :param chunksize: Max size of a chunk for one process during multiprocessing.
         """
         self.train(pandas.read_csv(data_file, index_col=0, keep_default_na=False), candidates,
                    save_candidates_file, start_pool_size, chunksize)
@@ -150,13 +150,13 @@ class TyposCorrector(Model):
         :param n_candidates: Number of most probable candidates to return.
         :param return_all: False to return suggestions only for corrected tokens.
         :param start_pool_size: Length of data, starting from which multiprocessing is desired.
-        :param chunksize: Max size of a chunk for one thread during multiprocessing.
+        :param chunksize: Max size of a chunk for one process during multiprocessing.
         :return: Dictionary `{id : [(candidate, correctness_proba), ...]}`, candidates are sorted \
                  by correctness probability in a descending order.
         """
         if candidates is None:
             candidates = self.generator.generate_candidates(
-                data, self.threads_number, start_pool_size, chunksize, save_candidates_file)
+                data, self.processes_number, start_pool_size, chunksize, save_candidates_file)
         else:
             candidates = pandas.read_csv(candidates, index_col=0, keep_default_na=False)
         return self.ranker.rank(get_candidates_metadata(candidates),
@@ -176,7 +176,7 @@ class TyposCorrector(Model):
         :param n_candidates: Number of most probable candidates to return.
         :param return_all: False to return suggestions only for corrected tokens.
         :param start_pool_size: Length of data, starting from which multiprocessing is desired.
-        :param chunksize: Max size of a chunk for one thread during multiprocessing.
+        :param chunksize: Max size of a chunk for one process during multiprocessing.
         :return: Dictionary `{id : [(candidate, correctness_proba), ...]}`, candidates are sorted \
                  by correctness probability in a descending order.
         """
@@ -198,7 +198,7 @@ class TyposCorrector(Model):
         :param return_all: False to return suggestions only for corrected tokens.
         :param batch_size: Batch size.
         :param start_pool_size: Length of data, starting from which multiprocessing is desired.
-        :param chunksize: Max size of a chunk for one thread during multiprocessing.
+        :param chunksize: Max size of a chunk for one process during multiprocessing.
         :return: Dictionary `{id : [(candidate, correctness_proba), ...]}`, candidates are sorted \
                  by correctness probability in a descending order.
         """
@@ -219,7 +219,7 @@ class TyposCorrector(Model):
         :param test_data: DataFrame which contains column Columns.Token, \
                           column Columns.Split is optional, but used when present
         :param start_pool_size: Length of data, starting from which multiprocessing is desired.
-        :param chunksize: Max size of a chunk for one thread during multiprocessing.
+        :param chunksize: Max size of a chunk for one process during multiprocessing.
         """
         suggestions = self.suggest(test_data, start_pool_size=start_pool_size,
                                    chunksize=chunksize)
