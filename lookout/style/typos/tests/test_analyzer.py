@@ -1,7 +1,7 @@
 import logging
 import lzma
 from pathlib import Path
-from typing import Iterable, NamedTuple, Optional
+from typing import NamedTuple
 import unittest
 
 import bblfsh
@@ -9,22 +9,20 @@ from lookout.core.analyzer import DummyAnalyzerModel, ReferencePointer
 from lookout.core.api.service_data_pb2 import File
 import pandas
 
+from lookout.style.format.benchmarks.general_report import FakeDataService
 from lookout.style.typos.analyzer import IdTyposAnalyzer
 from lookout.style.typos.utils import Columns
 
 Change = NamedTuple("Change", [("base", File), ("head", File)])
+MODEL_PATH = str(Path(__file__).parent / "test_corrector.asdf")
 
 
-class FakeDataStub:
-    def __init__(self, files: Optional[Iterable[File]], changes: Optional[Iterable[Change]]):
-        self.files = files
-        self.changes = changes
-
-    def GetFiles(self, _):
-        return self.files
-
-    def GetChanges(self, _):
-        return self.changes
+class FakeFile:
+    def __init__(self, path, content, uast, language):
+        self.path = path
+        self.content = content
+        self.uast = uast
+        self.language = language
 
 
 class AnalyzerTests(unittest.TestCase):
@@ -34,30 +32,37 @@ class AnalyzerTests(unittest.TestCase):
         logging.getLogger("IdTyposAnalyzer").setLevel(logging.DEBUG)
         base = Path(__file__).parent
         # str() is needed for Python 3.5
-        client = bblfsh.BblfshClient("0.0.0.0:9432")
-        with lzma.open(str(base / "test_base_file.py.xz")) as fin:
-            uast = client.parse("test_base_file.py", contents=fin.read()).uast
-            cls.base_files = [File(path="test_base_file.py", content=fin.read(), uast=uast,
-                                   language="Python")]
-        with lzma.open(str(base / "test_head_file.py.xz")) as fin:
-            uast = client.parse("test_head_file.py", contents=fin.read()).uast
-            cls.head_files = [File(path="test_head_file.py", content=fin.read(), uast=uast,
-                                   language="Python")]
+        cls.bblfsh_client = bblfsh.BblfshClient("0.0.0.0:9432")
+        with lzma.open(str(base / "test_base_file.js.xz")) as fin:
+            uast = cls.bblfsh_client.parse("test_base_file.js", contents=fin.read()).uast
+            fin.seek(0)
+            cls.base_files = [FakeFile(path="test_base_file.js", content=fin.read(), uast=uast,
+                                       language="Javascript")]
+        with lzma.open(str(base / "test_head_file.js.xz")) as fin:
+            uast = cls.bblfsh_client.parse("test_head_file.js", contents=fin.read()).uast
+            fin.seek(0)
+            cls.head_files = [FakeFile(path="test_head_file.js", content=fin.read(), uast=uast,
+                                       language="Javascript")]
         cls.ptr = ReferencePointer("someurl", "someref", "somecommit")
 
-    @unittest.skip
+    @classmethod
+    def tearDownClass(cls):
+        cls.bblfsh_client._channel.close()
+
     def test_train(self):
-        datastub = FakeDataStub(files=self.base_files, changes=None)
-        model = IdTyposAnalyzer.train(self.ptr, {}, datastub)
+        dataservice = FakeDataService(
+            self.bblfsh_client, files=self.base_files, changes=[])
+        model = IdTyposAnalyzer.train(self.ptr, {}, dataservice)
         self.assertIsInstance(model, DummyAnalyzerModel)
 
-    @unittest.skip
     def test_analyze(self):
-        datastub = FakeDataStub(files=self.base_files,
-                                changes=[Change(base=self.base_files[0], head=self.head_files[0])])
-        model = IdTyposAnalyzer.train(self.ptr, {}, datastub)
-        analyzer = IdTyposAnalyzer(model, self.ptr.url, {})
-        comments = analyzer.analyze(self.ptr, self.ptr, datastub)
+        dataservice = FakeDataService(
+            self.bblfsh_client, files=self.base_files,
+            changes=[Change(base=self.base_files[0], head=self.head_files[0])])
+        model = IdTyposAnalyzer.train(self.ptr, {}, dataservice)
+        analyzer = IdTyposAnalyzer(model, self.ptr.url, config=dict(
+                model=MODEL_PATH, confidence_threshold=0.0, n_candidates=3))
+        comments = analyzer.analyze(self.ptr, self.ptr, dataservice)
         self.assertGreater(len(comments), 0)
 
     def test_reconstruct_identifier(self):
@@ -121,14 +126,12 @@ class AnalyzerTests(unittest.TestCase):
                                                        identifier=identifier)
 
 
-@unittest.skip("sample_corrector.asdf needs to be generated")
 class AnalyzerPayloadTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.checker = IdTyposAnalyzer(
             DummyAnalyzerModel(), "", config=dict(
-                model=str(Path(__file__).parent / "sample_corrector.asdf"),
-                confidence_threshold=0.2, n_candidates=3))
+                model=MODEL_PATH, confidence_threshold=0.2, n_candidates=3))
         cls.identifiers = ["get", "gpt_tokeb"]
         cls.test_df = pandas.DataFrame(
             [[0, "get", "get"], [1, "gpt tokeb", "gpt"], [1, "gpt tokeb", "tokeb"]],

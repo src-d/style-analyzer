@@ -128,6 +128,8 @@ class IdTyposAnalyzer(Analyzer):
                                    node.token and node.token not in old_identifiers]
                 if not new_identifiers:
                     continue
+                self._log.debug("Found %d new identifiers, first one: %s" %
+                                (len(new_identifiers), new_identifiers[0].token))
                 suggestions = self.check_identifiers([n.token for n in new_identifiers])
                 for index in suggestions.keys():
                     corrections = suggestions[index]
