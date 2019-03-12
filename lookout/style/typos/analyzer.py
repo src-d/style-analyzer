@@ -22,7 +22,8 @@ class IdTyposAnalyzer(Analyzer):
     """
 
     log = logging.getLogger("IdTyposAnalyzer")
-    model_type = None
+    model_type = DummyAnalyzerModel
+    name = "lookout.style.typos"
     version = 1
     description = "Corrector of typos in source code identifiers."
     corrector_manager = TyposCorrectorManager()
@@ -31,6 +32,7 @@ class IdTyposAnalyzer(Analyzer):
     DEFAULT_N_CANDIDATES = 3
     DEFAULT_CONFIDENCE_THRESHOLD = 0.1
     INDEX_COLUMN = "index"
+    OVERALL_SIZE_LIMIT = 5 << 20
 
     def __init__(self, model: AnalyzerModel, url: str, config: Mapping[str, Any]):
         """
@@ -45,7 +47,8 @@ class IdTyposAnalyzer(Analyzer):
         self.n_candidates = config.get("n_candidates", self.DEFAULT_N_CANDIDATES)
         self.confidence_threshold = config.get(
             "confidence_threshold", self.DEFAULT_CONFIDENCE_THRESHOLD)
-        self.parser = self.init_token_parser()
+        self.overall_size_limit = config.get("overall_size_limit", self.OVERALL_SIZE_LIMIT)
+        self.parser = self.create_token_parser()
 
     @staticmethod
     def create_token_parser() -> TokenParser:
@@ -79,7 +82,8 @@ class IdTyposAnalyzer(Analyzer):
         head_files_by_lang = files_by_language(c.head for c in changes)
         line_length = self.config.get("line_length_limit", self.DEFAULT_LINE_LENGTH_LIMIT)
         for lang, head_files in head_files_by_lang.items():
-            for file in filter_files(head_files, line_length, log):
+            for file in filter_files(files=head_files, line_length_limit=line_length, log=log,
+                                     overall_size_limit=self.overall_size_limit):
                 try:
                     prev_file = base_files_by_lang[lang][file.path]
                 except KeyError:
@@ -213,7 +217,7 @@ class IdTyposAnalyzer(Analyzer):
         :return: Dictionary of filtered suggestions grouped by checked token's index in test_df.
         """
         filtered_suggestions = {}
-        tokens = test_df.typo
+        tokens = test_df[Columns.Token]
         for index, candidates in suggestions.items():
             filtered_candidates = []
             for candidate in candidates:
