@@ -186,7 +186,7 @@ def train_fasttext(data: pandas.DataFrame, params: Optional[Mapping[str, Any]] =
 
 
 def get_datasets(prepared_data: pandas.DataFrame, params: Optional[Mapping[str, Any]] = None,
-                 threads_number: int = multiprocessing.cpu_count(),
+                 processes_number: int = multiprocessing.cpu_count(),
                  ) -> Tuple[pandas.DataFrame, pandas.DataFrame]:
     """
     Create the train and the test datasets of typos.
@@ -204,7 +204,7 @@ def get_datasets(prepared_data: pandas.DataFrame, params: Optional[Mapping[str, 
                                          corrupted token.
                    train_path: Path to the .csv file where to save the train dataset.
                    test_path: Path to the .csv file where to save the test dataset.
-    :param threads_number: Number of threads for multiprocessing.
+    :param processes_number: Number of processes for multiprocessing.
     :return: Train and test datasets.
     """
     if params is None:
@@ -220,9 +220,9 @@ def get_datasets(prepared_data: pandas.DataFrame, params: Optional[Mapping[str, 
     train.index = range(len(train))
     test.index = range(len(test))
     train = corrupt_tokens_in_df(train, params["typo_probability"], params["add_typo_probability"],
-                                 threads_number)
+                                 processes_number)
     test = corrupt_tokens_in_df(test, params["typo_probability"], params["add_typo_probability"],
-                                threads_number)
+                                processes_number)
     if params["test_path"] is not None:
         test.to_csv(params["test_path"])
     if params["train_path"] is not None:
@@ -232,7 +232,7 @@ def get_datasets(prepared_data: pandas.DataFrame, params: Optional[Mapping[str, 
 
 def train_and_evaluate(train_data: pandas.DataFrame, test_data: pandas.DataFrame,
                        vocabulary_path: str, frequencies_path: str, fasttext_path: str,
-                       threads_number: int = multiprocessing.cpu_count()) -> TyposCorrector:
+                       processes_number: int = multiprocessing.cpu_count()) -> TyposCorrector:
     """
     Create and train TyposCorrector model on the given data.
 
@@ -243,7 +243,7 @@ def train_and_evaluate(train_data: pandas.DataFrame, test_data: pandas.DataFrame
     :param vocabulary_path: Path to a file with vocabulary.
     :param frequencies_path: Path to a file with tokens' frequencies.
     :param fasttext_path: Path to a FastText model dump.
-    :param threads_number: Number of threads for multiprocessing.
+    :param processes_number: Number of processes for multiprocessing.
     :return: Trained model.
     """
     model = TyposCorrector()
@@ -251,7 +251,7 @@ def train_and_evaluate(train_data: pandas.DataFrame, test_data: pandas.DataFrame
     model.initialize_generator(vocabulary_file=vocabulary_path,
                                frequencies_file=frequencies_path,
                                embeddings_file=fasttext_path)
-    model.threads_number = threads_number
+    model.processes_number = processes_number
     model.train(train_data)
     model.evaluate(test_data)
     return model
@@ -262,7 +262,7 @@ def train_from_scratch(prepare_params: Optional[Mapping[str, Any]] = None,
                        fasttext_params: Optional[Mapping[str, Any]] = None,
                        datasets_params: Optional[Mapping[str, Any]] = None,
                        save_model_path: Optional[str] = None,
-                       threads_number: int = multiprocessing.cpu_count()) -> TyposCorrector:
+                       processes_number: int = multiprocessing.cpu_count()) -> TyposCorrector:
     """
     Train TyposCorrector on raw data.
 
@@ -279,7 +279,7 @@ def train_from_scratch(prepare_params: Optional[Mapping[str, Any]] = None,
     :param datasets_params: Parameters for train and test dataset generation, for more info check \
                             :func:`get_datasets`.
     :param save_model_path: Path to save the trained model to (.asdf).
-    :param threads_number: Number of threads for multiprocessing.
+    :param processes_number: Number of processes for multiprocessing.
     :return: Trained TyposCorrector model.
     """
     prepared_data = prepare_data(prepare_params)
@@ -294,7 +294,7 @@ def train_from_scratch(prepare_params: Optional[Mapping[str, Any]] = None,
                                             prepare_params["vocabulary_filename"]),
                                os.path.join(prepare_params["data_dir"],
                                             prepare_params["frequencies_filename"]),
-                               pretrained_fasttext, threads_number)
+                               pretrained_fasttext, processes_number)
     if save_model_path is not None:
         model.save(save_model_path, series=0.0)
     return model

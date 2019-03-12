@@ -29,7 +29,7 @@ class CorruptionTest(unittest.TestCase):
                                  ["put tok", "put"],
                                  ["put tok", "tok"],
                                  ["put", "put"]], columns=[Columns.Split, Columns.Token])
-        corrupted = corrupt_tokens_in_df(data, 0.5, 0.1, threads_number=1)
+        corrupted = corrupt_tokens_in_df(data, 0.5, 0.1, processes_number=1)
         self.assertSetEqual(set(corrupted.columns), {Columns.Split, Columns.Token,
                                                      Columns.CorrectToken, Columns.CorrectSplit})
         self.assertListEqual(list(corrupted[Columns.CorrectSplit]), list(data[Columns.Split]))

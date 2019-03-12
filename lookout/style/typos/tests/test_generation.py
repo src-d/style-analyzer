@@ -66,7 +66,7 @@ class GeneratorTest(unittest.TestCase):
                                        columns=[Columns.Split, Columns.Token,
                                                 Columns.CorrectToken])
         for test_data in [data, custom_data]:
-            candidates = generator.generate_candidates(test_data, threads_number=1,
+            candidates = generator.generate_candidates(test_data, processes_number=1,
                                                        start_pool_size=len(test_data) + 1,
                                                        chunksize=1)
             self.assertFalse(candidates.isnull().values.any())

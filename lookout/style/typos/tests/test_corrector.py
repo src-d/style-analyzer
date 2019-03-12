@@ -27,11 +27,11 @@ class TyposCorrectorTest(unittest.TestCase):
         cls.corrector.initialize_generator(VOCABULARY_FILE, VOCABULARY_FILE, FASTTEXT_DUMP_FILE)
         cls.corrector.train(cls.data)
 
-    def test_threads_number_setter(self):
-        # Use unlikely number of threads for test
-        self.corrector.threads_number = 5
-        self.assertEqual(self.corrector.threads_number, 5)
-        self.corrector.threads_number = 1
+    def test_processes_number_setter(self):
+        # Use unlikely number of processes for test
+        self.corrector.processes_number = 5
+        self.assertEqual(self.corrector.processes_number, 5)
+        self.corrector.processes_number = 1
 
     def test_corrector_on_df(self):
         custom_data = pandas.DataFrame([["get tokens num", "get", "get"],

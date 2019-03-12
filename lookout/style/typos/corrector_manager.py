@@ -25,7 +25,7 @@ class TyposCorrectorManager:
         """
         obj = self.correctors.get(source)
         if obj is None:
-            obj = TyposCorrector(threads_number=1).load(source)
+            obj = TyposCorrector(processes_number=1).load(source)
             self.correctors[source] = obj
         return obj
 

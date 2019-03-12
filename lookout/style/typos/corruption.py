@@ -81,7 +81,7 @@ def _rand_typo(token_split: Tuple[str, str, bool], add_typo_probability: float) 
 
 
 def corrupt_tokens_in_df(data: pandas.DataFrame, typo_probability: float,
-                         add_typo_probability: float, threads_number: int = 16,
+                         add_typo_probability: float, processes_number: int = 16,
                          log_level: int = logging.DEBUG,
                          ) -> pandas.DataFrame:
     """
@@ -94,7 +94,7 @@ def corrupt_tokens_in_df(data: pandas.DataFrame, typo_probability: float,
     :param typo_probability: Probability with which a token gets to be corrupted.
     :param add_typo_probability: Probability with which one more corruption happens to a \
                                  corrupted token.
-    :param threads_number: Number of threads for multiprocessing
+    :param processes_number: Number of processes for multiprocessing
     :param log_level: Level of logging.
     :return: New dataframe with added columns Columns.CorrectToken and Columns.CorrectSplit, \
              which contain tokens and corresponding splits from the `data`. Columns.Token and \
@@ -110,10 +110,10 @@ def corrupt_tokens_in_df(data: pandas.DataFrame, typo_probability: float,
             return tqdm(x, total=len(tokens_splits))
         else:
             return x
-    with Pool(threads_number) as pool:
+    with Pool(processes_number) as pool:
         typoed_tokens_splits = list(_wrap(pool.imap(
             partial(_rand_typo, add_typo_probability=add_typo_probability), tokens_splits,
-            chunksize=min(8192, 1 + len(tokens_splits) // threads_number))))
+            chunksize=min(8192, 1 + len(tokens_splits) // processes_number))))
     result = data.copy()
     result[Columns.Token] = [x[0] for x in typoed_tokens_splits]
     result[Columns.Split] = [x[1] for x in typoed_tokens_splits]
