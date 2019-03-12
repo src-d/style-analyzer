@@ -60,6 +60,66 @@ class AnalyzerTests(unittest.TestCase):
         comments = analyzer.analyze(self.ptr, self.ptr, datastub)
         self.assertGreater(len(comments), 0)
 
+    def test_reconstruct_identifier(self):
+        tokens = [
+            ("UpperCamelCase", "UpperComelCase", ["upper", "camel", "case"]),
+            ("camelCase", "comelCase", ["camel", "case"]),
+            ("FRAPScase", "FRAPScase", ["fraps", "case"]),
+            ("SQLThing", "SQLThing", ["sqlt", "hing"]),
+            ("_Astra", "_Ostra", ["astra"]),
+            ("CAPS_CONST", "COPS_CONST", ["caps", "const"]),
+            ("_something_SILLY_", "_something_SIILLY_", ["something", "silly"]),
+            ("blink182", "blunk182", ["blink"]),
+            ("FooBar100500Bingo", "FuBar100500Bingo", ["foo", "bar", "bingo"]),
+            ("Man45var", "Men45var", ["man", "var"]),
+            ("method_name", "metod_name", ["method", "name"]),
+            ("Method_Name", "Metod_Name", ["method", "name"]),
+            ("101dalms", "101dolms", ["dalms"]),
+            ("101_dalms", "101_dolms", ["dalms"]),
+            ("101_DalmsBug", "101_DolmsBug", ["dalms", "bug"]),
+            ("101_Dalms45Bug7", "101_Dolms45Bug7", ["dalms", "bug"]),
+            ("wdSize", "pwdSize", ["wd", "size"]),
+            ("Glint", "Glunt", ["glint"]),
+            ("foo_BAR", "fu_BAR", ["foo", "bar"]),
+            ("sourced.ml.algorithms.uast_ids_to_bag", "source.ml.algorithmos.uast_ids_to_bags",
+             ["sourced", "ml", "algorithms",
+              "uast", "ids", "to", "bag"]),
+            ("WORSTnameYOUcanIMAGINE", "WORSTnomeYOUcanIMGINE",
+             ["worst", "name", "you", "can", "imagine"]),
+            ("SmallIdsToFoOo", "SmallestIdsToFoOo", ["small", "ids", "to", "fo", "oo"]),
+            ("SmallIdFooo", "SmallestIdFooo", ["small", "id", "fooo"]),
+            ("ONE_M0re_.__badId.example", "ONE_M0ree_.__badId.exomple",
+             ["one", "m", "re", "bad", "id", "example"]),
+            ("never_use_Such__varsableNames", "never_use_Such__varsablezzNameszz",
+             ["never", "use", "such", "varsable", "names"]),
+            ("a.b.c.d", "a.b.ce.de", ["a", "b", "c", "d"]),
+            ("A.b.Cd.E", "A.be.Cde.Ee", ["a", "b", "cd", "e"]),
+            ("looong_sh_loooong_sh", "looongzz_shzz_loooongzz_shzz",
+             ["looong", "sh", "loooong", "sh"]),
+            ("sh_sh_sh_sh", "ch_ch_ch_ch", ["sh", "sh", "sh", "sh"]),
+            ("loooong_loooong_loooong", "laoong_loaong_looang", ["loooong", "loooong", "loooong"]),
+        ]
+
+        parser = IdTyposAnalyzer.create_token_parser()
+
+        for correct, corrupted, correct_tokens in tokens:
+            self.assertEqual(correct,
+                             IdTyposAnalyzer.reconstruct_identifier(parser,
+                                                                    pred_tokens=correct_tokens,
+                                                                    identifier=corrupted))
+
+    def test_reconstruct_identifier_fail(self):
+        tokens = [
+            ("UpperCamelCase", ["upper", "camel", "case", "fail"]),
+        ]
+
+        parser = IdTyposAnalyzer.create_token_parser()
+
+        for identifier, splitted_tokens in tokens:
+            with self.assertRaises(AssertionError):
+                IdTyposAnalyzer.reconstruct_identifier(parser, pred_tokens=splitted_tokens,
+                                                       identifier=identifier)
+
 
 @unittest.skip("sample_corrector.asdf needs to be generated")
 class AnalyzerPayloadTest(unittest.TestCase):

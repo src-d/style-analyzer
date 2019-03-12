@@ -45,7 +45,16 @@ class IdTyposAnalyzer(Analyzer):
         self.n_candidates = config.get("n_candidates", self.DEFAULT_N_CANDIDATES)
         self.confidence_threshold = config.get(
             "confidence_threshold", self.DEFAULT_CONFIDENCE_THRESHOLD)
-        self.parser = TokenParser(stem_threshold=40, single_shot=True)
+        self.parser = self.init_token_parser()
+
+    @staticmethod
+    def create_token_parser() -> TokenParser:
+        """
+        Create instance of TokenParser that should be used by IdTyposAnalyzer.
+
+        :return: TokenParser.
+        """
+        return TokenParser(stem_threshold=1000, single_shot=True, min_split_length=1)
 
     @with_changed_uasts_and_contents
     def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
@@ -107,6 +116,52 @@ class IdTyposAnalyzer(Analyzer):
                         comments.append(comment)
         return comments
 
+    @staticmethod
+    def reconstruct_identifier(tokenizer: TokenParser, pred_tokens: List[str], identifier: str) \
+            -> str:
+        """
+        Reconstruct identifier given predicted tokens and initial identifier.
+
+        :param tokenizer: tokenizer - instance of TokenParser.
+        :param pred_tokens: list of predicted tokens.
+        :param identifier: identifier.
+        :return: reconstructed identifier based on predicted tokens.
+        """
+        identifier_l = identifier.lower()
+        # setup required parameters
+        assert tokenizer._single_shot, "TokenParser should be initialized with " \
+                                       "`single_shot=True` for IdTyposAnalyzer"
+        # sanity checking
+        initial_tokens = list(tokenizer.split(identifier))
+        err = "Number of predicted tokens (%s) not equal to the number of tokens in the " \
+              "identifier (%s) for identifier '%s', predicted_tokens '%s', tokens in identifier " \
+              "'%s'"
+        assert len(initial_tokens) == len(pred_tokens), \
+            err % (len(initial_tokens), len(pred_tokens), identifier, pred_tokens, initial_tokens)
+        # reconstruction
+        res = []
+        prev_end = 0
+        for token, pred_token in zip(initial_tokens, pred_tokens):
+            curr = identifier_l.find(token, prev_end)
+            assert curr != -1, "TokenParser is broken, the subtoken `%s` was not found in the " \
+                               "identifier  `%s`" % (token, identifier)
+            if curr != prev_end:
+                # delimiter found
+                res.append(identifier[prev_end:curr])
+            if identifier[curr:curr + len(token)].isupper():
+                # upper case
+                res.append(pred_token.upper())
+            elif identifier[curr:curr + len(token)][0].isupper():
+                # capitalized
+                res.append(pred_token[0].upper() + pred_token[1:])
+            else:
+                res.append(pred_token)
+            prev_end = curr + len(token)
+        if prev_end != len(identifier):
+            # suffix
+            res.append(identifier[prev_end:])
+        return "".join(res)
+
     @classmethod
     @with_uasts_and_contents
     def train(cls, ptr: ReferencePointer, config: dict, data_service: DataService,
@@ -142,7 +197,7 @@ class IdTyposAnalyzer(Analyzer):
         grouped_suggestions = defaultdict(dict)
         for index, row in df.iterrows():
             if index in suggestions.keys():
-                grouped_suggestions[row[self.INDEX_COLUMN]][row[Columns.Token]] =\
+                grouped_suggestions[row[self.INDEX_COLUMN]][row[Columns.Token]] = \
                     suggestions[index]
         return grouped_suggestions
 
