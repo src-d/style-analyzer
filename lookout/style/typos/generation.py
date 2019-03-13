@@ -347,7 +347,7 @@ class CandidatesGenerator(Model):
         for key, val in self.checker._words.items():
             wordvals[delstrs_map[key]] = val
         tree["checker"]["_words"] = wordvals
-        tree["tokens"] = merge_strings(list(self.tokens))
+        tree["tokens"] = merge_strings(sorted(self.tokens))
         vocab_strings = [""] * len(self.wv.vocab)
         vocab_counts = numpy.zeros(len(vocab_strings), dtype=numpy.uint32)
         for key, val in self.wv.vocab.items():
