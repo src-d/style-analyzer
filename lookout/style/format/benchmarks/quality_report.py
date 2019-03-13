@@ -321,7 +321,7 @@ def generate_quality_report(input: str, output: str, force: bool, bblfsh: str, c
                          now + left if left is not None else None, " " * 11,
                          "=" * 80,
                          )
-                path_tmpl = os.path.join(output, get_repo_name(row["url"])) + ".%s_report.md"
+                path_tmpl = os.path.join(output, get_repo_name(row["url"])) + "-%s_report.md"
                 try:
                     if force or not any(os.path.exists(path_tmpl % name)
                                         for name in QualityReportAnalyzer.get_report_names()):
@@ -334,6 +334,7 @@ def generate_quality_report(input: str, output: str, force: bool, bblfsh: str, c
                         for report_name in report:
                             with open(path_tmpl % report_name, "w", encoding="utf-8") as f:
                                 f.write(report[report_name])
+                        reports.append((row["url"], report))
                     else:
                         report = {}
                         log.info("Found existing reports for %s in %s", row["url"], output)
@@ -354,6 +355,6 @@ def generate_quality_report(input: str, output: str, force: bool, bblfsh: str, c
         for report_name in ("train", "test"):
             summary = _generate_report_summary(reports, report_name)
             log.info("\n%s\n%s", report_name, summary)
-            summary_loc = os.path.join(output, "summary-%s.md" % report_name)
+            summary_loc = os.path.join(output, "summary-%s_report.md" % report_name)
             with open(summary_loc, "w", encoding="utf-8") as f:
                 f.write(summary)
