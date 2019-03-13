@@ -59,12 +59,15 @@ report-smoke: $(SMOKE_REPORT_DIR)
 		2>&1 | tee $(SMOKE_REPORT_DIR)/dataset_logs.txt
 	python3 -m lookout.style.format eval-smoke-dataset $(SMOKE_REPORT_DIR)/dataset \
 		$(SMOKE_REPORT_DIR)/report 2>&1 | tee $(SMOKE_REPORT_DIR)/report_logs.txt
+	xz -k $(NOISY_REPORT_DIR)/logs.txt
 report-noisy: $(NOISY_REPORT_DIR)
 	python3 -m lookout.style.format quality-report-noisy --retrain -o $(NOISY_REPORT_DIR) \
 		2>&1 | tee $(NOISY_REPORT_DIR)/logs.txt
+	xz -k $(NOISY_REPORT_DIR)/logs.txt
 report-quality: $(QUALITY_REPORT_DIR)
 	python3 -m lookout.style.format quality-report -o $(QUALITY_REPORT_DIR) \
 		-i $(QUALITY_REPORT_REPOS_WITH_VNODE) 2>&1 | tee $(QUALITY_REPORT_DIR)/logs.txt
+	xz -k $(QUALITY_REPORT_DIR)/logs.txt
 report-compare:
 	python3 -m lookout.style.format compare-quality \
 		--base $(REPORTS_DIR)/$(BASE_REPORT_VERSION)/quality/summary-train_report.md \
@@ -79,4 +82,4 @@ expected-vnodes-number:
 	python3 -m lookout.style.format calc-expected-vnodes-number -i $(QUALITY_REPORT_REPOS) \
 		-o $(QUALITY_REPORT_REPOS_WITH_VNODE)
 
-.PHONY: check docker-test bblfsh-start report-smoke report-noisy report-quality report-release expected-support
+.PHONY: check docker-test bblfsh-start report-smoke report-noisy report-quality report-release expected-vnodes-number
