@@ -74,6 +74,15 @@ class GeneratorTest(unittest.TestCase):
             self.assertSetEqual(set(candidates[Columns.Token].values),
                                 set(test_data[Columns.Token].values))
 
+    def test_expand_vocabulary(self):
+        generator = CandidatesGenerator()
+        generator.construct(VOCABULARY_FILE, VOCABULARY_FILE, FASTTEXT_DUMP_FILE,
+                            neighbors=3, edit_candidates=3, max_distance=3, radius=3)
+        additional_tokens = {"a", "aaa", "123", "get", "341"}
+        vocabulary = generator.tokens
+        generator.expand_vocabulary(additional_tokens)
+        self.assertSetEqual(generator.tokens, vocabulary.union(additional_tokens))
+
 
 if __name__ == "__main__":
     unittest.main()
