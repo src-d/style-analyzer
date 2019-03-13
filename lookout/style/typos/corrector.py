@@ -1,6 +1,6 @@
 """Typo correction model."""
 from itertools import chain
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 from modelforge import Model
 import pandas
@@ -97,6 +97,14 @@ class TyposCorrector(Model):
         """
         self.generator.construct(vocabulary_file, frequencies_file, embeddings_file,
                                  neighbors_number, edit_candidates, max_distance, radius)
+
+    def expand_vocabulary(self, additional_tokens: Set[str]) -> None:
+        """
+        Add given tokens to the model's vocabulary.
+
+        :param additional_tokens: Set of tokens to add to the vocabulary.
+        """
+        self.generator.expand_vocabulary(additional_tokens)
 
     def train(self, data: pandas.DataFrame, candidates:  Optional[str] = None,
               save_candidates_file: Optional[str] = None,

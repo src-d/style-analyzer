@@ -52,6 +52,12 @@ class TyposCorrectorTest(unittest.TestCase):
         suggestions = self.corrector.suggest_on_file(join(TEST_DATA_PATH, "test_data.csv.xz"))
         self.assertSetEqual(set(suggestions.keys()), set(self.data.index))
 
+    def test_expand_vocabulary(self):
+        additional_tokens = {"a", "aaa", "123", "get", "341"}
+        vocabulary = self.corrector.generator.tokens
+        self.corrector.expand_vocabulary(additional_tokens)
+        self.assertSetEqual(self.corrector.generator.tokens, vocabulary.union(additional_tokens))
+
     @unittest.skip("CandidatesGenerator.__eq__ needs refactoring. Test is currently flaky.")
     def test_save_load(self):
         self.corrector.train(self.data)

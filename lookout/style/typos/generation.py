@@ -47,7 +47,7 @@ class CandidatesGenerator(Model):
         super().__init__(**kwargs)
         self.checker = None
         self.wv = None
-        self.tokens = []
+        self.tokens = set()
         self.frequencies = {}
         self.min_freq = 0
 
@@ -79,9 +79,17 @@ class CandidatesGenerator(Model):
         self.edit_candidates_number = edit_candidates
         self.max_distance = max_distance
         self.radius = radius
-        self.tokens = read_vocabulary(vocabulary_file)
+        self.tokens = set(read_vocabulary(vocabulary_file))
         self.frequencies = read_frequencies(frequencies_file)
         self.min_freq = min(self.frequencies.values())
+
+    def expand_vocabulary(self, additional_tokens: Set[str]) -> None:
+        """
+        Add given tokens to the generator's vocabulary.
+
+        :param additional_tokens: Set of tokens to add to the vocabulary.
+        """
+        self.tokens = self.tokens.union(additional_tokens)
 
     def generate_candidates(self, data: pandas.DataFrame, processes_number: int,
                             start_pool_size: int, chunksize: int,
@@ -339,7 +347,7 @@ class CandidatesGenerator(Model):
         for key, val in self.checker._words.items():
             wordvals[delstrs_map[key]] = val
         tree["checker"]["_words"] = wordvals
-        tree["tokens"] = merge_strings(self.tokens)
+        tree["tokens"] = merge_strings(list(self.tokens))
         vocab_strings = [""] * len(self.wv.vocab)
         vocab_counts = numpy.zeros(len(vocab_strings), dtype=numpy.uint32)
         for key, val in self.wv.vocab.items():
@@ -362,7 +370,7 @@ class CandidatesGenerator(Model):
 
     def _load_tree(self, tree: dict) -> None:
         self.__dict__.update(tree)
-        self.tokens = split_strings(self.tokens)
+        self.tokens = set(split_strings(self.tokens))
         self.frequencies = {
             w: self.frequencies["vals"][i]
             for i, w in enumerate(split_strings(self.frequencies["keys"]))}
