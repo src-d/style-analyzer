@@ -17,7 +17,7 @@ TEST_DATA_DIR = pathlib.Path(__file__).parent
 class PreparationTest(unittest.TestCase):
     def test_prepare_data_with_load(self):
         with tempfile.TemporaryDirectory(prefix="lookout_typos_prepare_load_") as temp_dir:
-            params = {
+            config = {
                 "data_dir": temp_dir,
                 "dataset_url": "https://docs.google.com/uc?export=download&"
                                "id=1htVU1UR0gSmopVbvU6_Oc-4iD0cw1ldo",
@@ -28,18 +28,18 @@ class PreparationTest(unittest.TestCase):
                 "vocabulary_filename": "vocabulary.csv",
                 "frequencies_filename": "frequencies.csv",
             }
-            data = prepare_data(params)
-            vocabulary = read_vocabulary(os.path.join(temp_dir, params["vocabulary_filename"]))
-            self.assertEqual(len(vocabulary), params["vocabulary_size"])
+            data = prepare_data(config)
+            vocabulary = read_vocabulary(os.path.join(temp_dir, config["vocabulary_filename"]))
+            self.assertEqual(len(vocabulary), config["vocabulary_size"])
             self.assertTrue(set(data[Columns.Token]).issubset(set(vocabulary)))
-            frequencies = read_frequencies(os.path.join(temp_dir, params["frequencies_filename"]))
-            self.assertEqual(len(frequencies), params["frequencies_size"])
+            frequencies = read_frequencies(os.path.join(temp_dir, config["frequencies_filename"]))
+            self.assertEqual(len(frequencies), config["frequencies_size"])
             self.assertTrue(set(vocabulary).issubset(set(frequencies.keys())))
             self.assertTrue({Columns.Token, Columns.Split}.issubset(data.columns))
 
     def test_prepare_data_from_file(self):
         with tempfile.TemporaryDirectory(prefix="lookout_typos_prepare_local_") as temp_dir:
-            params = {
+            config = {
                 "data_dir": temp_dir,
                 "input_path": str(TEST_DATA_DIR / "raw_test_data.csv.xz"),
                 "vocabulary_size": 10,
@@ -47,12 +47,12 @@ class PreparationTest(unittest.TestCase):
                 "vocabulary_filename": "vocabulary.csv",
                 "frequencies_filename": "frequencies.csv",
             }
-            data = prepare_data(params)
-            vocabulary = read_vocabulary(os.path.join(temp_dir, params["vocabulary_filename"]))
-            self.assertEqual(len(vocabulary), params["vocabulary_size"])
+            data = prepare_data(config)
+            vocabulary = read_vocabulary(os.path.join(temp_dir, config["vocabulary_filename"]))
+            self.assertEqual(len(vocabulary), config["vocabulary_size"])
             self.assertTrue(set(data[Columns.Token]).issubset(set(vocabulary)))
-            frequencies = read_frequencies(os.path.join(temp_dir, params["frequencies_filename"]))
-            self.assertEqual(len(frequencies), params["frequencies_size"])
+            frequencies = read_frequencies(os.path.join(temp_dir, config["frequencies_filename"]))
+            self.assertEqual(len(frequencies), config["frequencies_size"])
             self.assertTrue(set(vocabulary).issubset(set(frequencies.keys())))
             self.assertTrue({Columns.Token, Columns.Split}.issubset(data.columns))
 
@@ -61,7 +61,7 @@ class DatasetsTest(unittest.TestCase):
     def test_get_datasets(self):
         prepared = pandas.read_csv(str(TEST_DATA_DIR / "prepared_data.csv.xz"),
                                    index_col=0, keep_default_na=False)
-        params = {
+        config = {
             "train_size": 1000,
             "test_size": 100,
             "typo_probability": 0.5,
@@ -69,7 +69,7 @@ class DatasetsTest(unittest.TestCase):
             "train_path": None,
             "test_path": None,
         }
-        train, test = get_datasets(prepared, params)
+        train, test = get_datasets(prepared, config)
         self.assertTrue({Columns.Token, Columns.CorrectToken, Columns.Split,
                          Columns.CorrectSplit}.issubset(set(train.columns)))
         corrupted = sum(train[Columns.Token] != train[Columns.CorrectToken])
@@ -84,9 +84,9 @@ class FasttextTest(unittest.TestCase):
         data = pandas.read_csv(str(TEST_DATA_DIR / "prepared_data.csv.xz"),
                                index_col=0, keep_default_na=False)
         with tempfile.TemporaryDirectory(prefix="lookout_typos_fasttext_") as temp_dir:
-            params = {"size": 100, "fasttext_path": os.path.join(temp_dir, "ft.bin"), "dim": 5}
-            train_fasttext(data, params)
-            model = FastText.load_fasttext_format(params["fasttext_path"])
+            config = {"size": 100, "path": os.path.join(temp_dir, "ft.bin"), "dim": 5}
+            train_fasttext(data, config)
+            model = FastText.load_fasttext_format(config["path"])
             self.assertTupleEqual(model.wv["get"].shape, (5,))
 
 
@@ -102,33 +102,34 @@ class TrainingTest(unittest.TestCase):
 
     def test_train_from_scratch(self):
         with tempfile.TemporaryDirectory(prefix="lookout_typos_prepare_load_") as temp_dir:
-            prepare_params = {
-                "data_dir": temp_dir,
-                "dataset_url": "https://docs.google.com/uc?export=download&"
-                               "id=1htVU1UR0gSmopVbvU6_Oc-4iD0cw1ldo",
-                "input_path": None,
-                "raw_data_filename": "raw_test_data.csv.xz",
-                "vocabulary_size": 10,
-                "frequencies_size": 20,
-                "vocabulary_filename": "vocabulary.csv",
-                "frequencies_filename": "frequencies.csv",
+            config = {
+                "preparation": {
+                    "data_dir": temp_dir,
+                    "dataset_url": "https://docs.google.com/uc?export=download&"
+                                   "id=1htVU1UR0gSmopVbvU6_Oc-4iD0cw1ldo",
+                    "input_path": None,
+                    "raw_data_filename": "raw_test_data.csv.xz",
+                    "vocabulary_size": 10,
+                    "frequencies_size": 20,
+                    "vocabulary_filename": "vocabulary.csv",
+                    "frequencies_filename": "frequencies.csv",
+                },
+                "fasttext": {
+                    "size": 100,
+                    "path": os.path.join(temp_dir, "ft.bin"),
+                    "dim": 5,
+                },
+                "datasets": {
+                    "train_size": 1000,
+                    "test_size": 100,
+                    "typo_probability": 0.5,
+                    "add_typo_probability": 0.05,
+                    "train_path": None,
+                    "test_path": None,
+                },
+                "corrector_path": None,
             }
-            fasttext_params = {
-                "size": 100,
-                "fasttext_path": os.path.join(temp_dir, "ft.bin"),
-                "dim": 5,
-            }
-            datasets_params = {
-                "train_size": 1000,
-                "test_size": 100,
-                "typo_probability": 0.5,
-                "add_typo_probability": 0.05,
-                "train_path": None,
-                "test_path": None,
-            }
-            model = train_from_scratch(prepare_params=prepare_params,
-                                       fasttext_params=fasttext_params,
-                                       datasets_params=datasets_params)
+            model = train_from_scratch(config)
         test_data = pandas.read_csv(str(TEST_DATA_DIR / "test_data.csv.xz"), index_col=0,
                                     keep_default_na=False)
         suggestions = model.suggest(test_data)
