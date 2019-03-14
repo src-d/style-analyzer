@@ -17,7 +17,7 @@ class ScoreMode(Enum):
     `ScoreMode.detection`: Typo is detected right: token is corrected when and only when \
                            it is not typo-ed.
     `ScoreMode.correction`: Correctly spelled tokens should not be corrected. Typo-ed tokens \
-                            should  contain the right correction among first k suggestions.
+                            should contain the right correction among first k suggestions.
     `ScoreMode.on_corrected`: Same as `correction`, but only the tokens, corrected by \
                               the suggestions, are taken into account.
     """
@@ -37,7 +37,7 @@ def get_scores(data: pandas.DataFrame, suggestions: Dict[int, List[Tuple[str, fl
     `ScoreMode.detection`: Typo is detected right: token is corrected when and only when \
                            it is not typo-ed.
     `ScoreMode.correction`: Correctly spelled tokens should not be corrected. Typo-ed tokens \
-                            should  contain the right correction among first k suggestions.
+                            should contain the right correction among first k suggestions.
     `ScoreMode.on_corrected`: Same as `correction`, but only the tokens, corrected by \
                               the suggestions, are taken into account.
     :param data: DataFrame which is indexed by Columns.Id and has columns Column.Token and \

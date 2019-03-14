@@ -1,9 +1,10 @@
 from functools import partial
 import logging
 from multiprocessing import Pool
+import os
 import random
 import string
-from typing import NamedTuple, Tuple
+from typing import NamedTuple, Optional, Tuple
 
 import numpy
 import pandas
@@ -81,7 +82,7 @@ def _rand_typo(token_split: Tuple[str, str, bool], add_typo_probability: float) 
 
 
 def corrupt_tokens_in_df(data: pandas.DataFrame, typo_probability: float,
-                         add_typo_probability: float, processes_number: int = 16,
+                         add_typo_probability: float, processes_number: Optional[int] = None,
                          log_level: int = logging.DEBUG,
                          ) -> pandas.DataFrame:
     """
@@ -94,12 +95,14 @@ def corrupt_tokens_in_df(data: pandas.DataFrame, typo_probability: float,
     :param typo_probability: Probability with which a token gets to be corrupted.
     :param add_typo_probability: Probability with which one more corruption happens to a \
                                  corrupted token.
-    :param processes_number: Number of processes for multiprocessing
+    :param processes_number: Number of processes for multiprocessing. \
+                             If not set the number of CPUs in the system is used.
     :param log_level: Level of logging.
     :return: New dataframe with added columns Columns.CorrectToken and Columns.CorrectSplit, \
              which contain tokens and corresponding splits from the `data`. Columns.Token and \
              Columns.Split now contain partially corrupted tokens and corresponding splits.
     """
+    processes_number = processes_number if processes_number is not None else os.cpu_count()
     corrupt = numpy.zeros(len(data))
     corrupt[numpy.random.choice(len(data), int(typo_probability * len(data)), replace=False)] = 1
     tokens_splits = list(zip(data[Columns.Token].astype(str), data[Columns.Split].astype(str),
