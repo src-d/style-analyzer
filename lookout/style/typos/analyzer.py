@@ -144,7 +144,7 @@ class IdTyposAnalyzer(Analyzer):
         for token, pred_token in zip(initial_tokens, pred_tokens):
             curr = identifier_l.find(token, prev_end)
             assert curr != -1, "TokenParser is broken, the subtoken `%s` was not found in the " \
-                               "identifier  `%s`" % (token, identifier)
+                               "identifier `%s`" % (token, identifier)
             if curr != prev_end:
                 # delimiter found
                 res.append(identifier[prev_end:curr])

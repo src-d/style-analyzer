@@ -139,7 +139,7 @@ def create_parser() -> ArgumentParser:
     # One command to rule them all
     ########################################
     train_from_scratch_parser = add_parser(
-        "train-from-scratch", "Create and train TyposCorrector  model on the given data.")
+        "train-from-scratch", "Create and train TyposCorrector model on the given data.")
     train_from_scratch_parser.set_defaults(handler=train_from_scratch)
     add_config_arg(train_from_scratch_parser)
 

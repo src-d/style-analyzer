@@ -75,21 +75,21 @@ def prepare_data(config: Optional[Mapping[str, Any]] = None) -> pandas.DataFrame
     1. Derive vocabulary for typos correction which is a set of tokens, which is considered
        correctly spelled. All typos corrections will belong to the vocabulary.
        It is a set of most frequent tokens (based on given statistics).
-    2. Save vocabulary and statistics for given amount of most frequent tokens for future use.
+    2. Save vocabulary and statistics for a given amount of most frequent tokens for future use.
     3. Filter raw data, leaving identifiers, containing only tokens from the vocabulary.
        The result is a dataset of tokens which will be considered correct. It will be used
        for creating artificial misspelling cases for training and testing the corrector model.
     4. Save prepared dataset, if needed.
     :param config: Dictionary with parameters for data preparation. Used fields are:
                    data_dir: Directory to put all derived data to.
-                   drive_dataset_id: ID of google drive document, where raw dataset is stored.
+                   drive_dataset_id: ID of google drive document, where a raw dataset is stored.
                    input_path: Path to a .csv dump of input dataframe. Should contain \
                                column Columns.Split. If None or file doesn't exist,
-                               the dataset will be loaded from drive.
-                   frequency_column: Name of column with identifiers frequencies. If not \
+                               the dataset will be loaded from Google drive.
+                   frequency_column: Name of the column with identifiers frequencies. If not \
                                      specified, every split is considered to have frequency 1.
                    vocabulary_size: Number of most frequent tokens to take as a vocabulary.
-                   frequencies_size: Number of most frequent tokens to save  frequencies info for.\
+                   frequencies_size: Number of most frequent tokens to save frequencies info for. \
                                      This information will be used by corrector as features for \
                                      these tokens when they will be checked. If not specified, \
                                      frequencies for all present tokens will be saved.
@@ -137,14 +137,13 @@ def prepare_data(config: Optional[Mapping[str, Any]] = None) -> pandas.DataFrame
     # Leave only splits that contain tokens from vocabulary
     prepared_data = filter_splits(flat_data, vocabulary_tokens)[[Columns.Frequency, Columns.Split,
                                                                  Columns.Token]]
-    prepared_data.index = range(len(prepared_data))
+    prepared_data.reset_index(drop=True, inplace=True)
     if config["prepared_filename"] is not None:
         prepared_data.to_csv(os.path.join(config["data_dir"], config["prepared_filename"]))
     return prepared_data
 
 
-def train_fasttext(data: pandas.DataFrame, config: Optional[Mapping[str, Any]] = None,
-                   ) -> None:
+def train_fasttext(data: pandas.DataFrame, config: Optional[Mapping[str, Any]] = None) -> None:
     """
     Train fasttext model on the given dataset of code identifiers.
 
@@ -153,10 +152,9 @@ def train_fasttext(data: pandas.DataFrame, config: Optional[Mapping[str, Any]] =
                    size: Number of identifiers to pick from the given data to train fasttext on.
                    corrupt: Value indicating whether to make random artificial typos in \
                             the training data. Identifiers are corrupted with `typo_probability`.
-                   typo_probability: Probability with which a token is corrupted, used \
-                                     if `corrupt=True`.
-                   add_typo_probability: Probability with which another corruption happens in a \
-                                  corrupted token, used if `corrupt=True`.
+                   typo_probability: Token corruption probability if `corrupt == True`.
+                   add_typo_probability: Probability of second corruption in a corrupted token. \
+                                         used if `corrupt == True`.
                    path: Path where to store the trained fasttext model.
                    dim: Number of dimensions for embeddings in the new model.
                    bucket: Number of hash buckets to keep in the fasttext model: \
@@ -201,9 +199,8 @@ def get_datasets(prepared_data: pandas.DataFrame,
     :param config: Parameters for creating train and test datasets, options:
                    train_size: Train dataset size.
                    test_size: Test dataset size.
-                   typo_probability: Probability with which a token gets to be corrupted.
-                   add_typo_probability: Probability with which one more corruption happens to a \
-                                         corrupted token.
+                   typo_probability: Probability of token corruption.
+                   add_typo_probability: Probability of second corruption for a corrupted token.
                    train_path: Path to the .csv file where to save the train dataset.
                    test_path: Path to the .csv file where to save the test dataset.
     :param processes_number: Number of processes for multiprocessing.
@@ -220,8 +217,8 @@ def get_datasets(prepared_data: pandas.DataFrame,
         replace=True)
     train, test = train_test_split(data[[Columns.Token, Columns.Split]],
                                    test_size=config["test_size"])
-    train.index = range(len(train))
-    test.index = range(len(test))
+    train.reset_index(drop=True, inplace=True)
+    test.reset_index(drop=True, inplace=True)
     train = corrupt_tokens_in_df(train, config["typo_probability"], config["add_typo_probability"],
                                  processes_number)
     test = corrupt_tokens_in_df(test, config["typo_probability"], config["add_typo_probability"],

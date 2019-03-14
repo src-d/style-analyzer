@@ -106,7 +106,7 @@ class TyposCorrector(Model):
         """
         self.generator.expand_vocabulary(additional_tokens)
 
-    def train(self, data: pandas.DataFrame, candidates:  Optional[str] = None,
+    def train(self, data: pandas.DataFrame, candidates: Optional[str] = None,
               save_candidates_file: Optional[str] = None,
               start_pool_size: int = DEFAULT_START_POOL_SIZE,
               chunksize: int = DEFAULT_CHUNKSIZE) -> None:
