@@ -12,6 +12,8 @@ from lookout.core.lib import extract_changed_nodes, files_by_language, filter_fi
 import pandas
 from sourced.ml.algorithms import TokenParser, uast2sequence
 
+
+from lookout.style.common import merge_dicts
 from lookout.style.typos.corrector_manager import TyposCorrectorManager
 from lookout.style.typos.utils import Columns, flatten_df_by_column
 
@@ -28,11 +30,14 @@ class IdTyposAnalyzer(Analyzer):
     description = "Corrector of typos in source code identifiers."
     corrector_manager = TyposCorrectorManager()
 
-    DEFAULT_LINE_LENGTH_LIMIT = 500
-    DEFAULT_N_CANDIDATES = 3
-    DEFAULT_CONFIDENCE_THRESHOLD = 0.1
-    INDEX_COLUMN = "index"
-    OVERALL_SIZE_LIMIT = 5 << 20
+    default_config = {
+        "line_length_limit": 500,
+        "n_candidates": 3,
+        "confidence_threshold": 0.1,
+        "overall_size_limit": 5 << 20,  # 5 MB
+        "model": None,
+        "index_column": "index",
+    }
 
     def __init__(self, model: AnalyzerModel, url: str, config: Mapping[str, Any]):
         """
@@ -43,11 +48,8 @@ class IdTyposAnalyzer(Analyzer):
         :param config: Configuration of the analyzer of unspecified structure.
         """
         super().__init__(model, url, config)
-        self.model = self.corrector_manager.get(config.get("model"))
-        self.n_candidates = config.get("n_candidates", self.DEFAULT_N_CANDIDATES)
-        self.confidence_threshold = config.get(
-            "confidence_threshold", self.DEFAULT_CONFIDENCE_THRESHOLD)
-        self.overall_size_limit = config.get("overall_size_limit", self.OVERALL_SIZE_LIMIT)
+        self.config = self._load_config(config)
+        self.model = self.corrector_manager.get(self.config["model"])
         self.parser = self.create_token_parser()
 
     @staticmethod
@@ -80,10 +82,10 @@ class IdTyposAnalyzer(Analyzer):
         changes = list(data["changes"])
         base_files_by_lang = files_by_language(c.base for c in changes)
         head_files_by_lang = files_by_language(c.head for c in changes)
-        line_length = self.config.get("line_length_limit", self.DEFAULT_LINE_LENGTH_LIMIT)
         for lang, head_files in head_files_by_lang.items():
-            for file in filter_files(files=head_files, line_length_limit=line_length, log=log,
-                                     overall_size_limit=self.overall_size_limit):
+            for file in filter_files(
+                    files=head_files, line_length_limit=self.config["line_length_limit"], log=log,
+                    overall_size_limit=self.config["overall_size_limit"]):
                 try:
                     prev_file = base_files_by_lang[lang][file.path]
                 except KeyError:
@@ -192,16 +194,17 @@ class IdTyposAnalyzer(Analyzer):
         :return: Dictionary of corrections grouped by ids of corresponding identifier \
                  in 'identifiers' and typoed tokens which have correction suggestions.
         """
-        df = pandas.DataFrame(columns=[self.INDEX_COLUMN, Columns.Split])
-        df[self.INDEX_COLUMN] = range(len(identifiers))
+        df = pandas.DataFrame(columns=[self.config["index_column"], Columns.Split])
+        df[self.config["index_column"]] = range(len(identifiers))
         df[Columns.Split] = [" ".join(self.parser.split(i)) for i in identifiers]
         df = flatten_df_by_column(df, Columns.Split, Columns.Token, str.split)
-        suggestions = self.model.suggest(df, n_candidates=self.n_candidates, return_all=False)
+        suggestions = self.model.suggest(df, n_candidates=self.config["n_candidates"],
+                                         return_all=False)
         suggestions = self.filter_suggestions(df, suggestions)
         grouped_suggestions = defaultdict(dict)
         for index, row in df.iterrows():
             if index in suggestions.keys():
-                grouped_suggestions[row[self.INDEX_COLUMN]][row[Columns.Token]] = \
+                grouped_suggestions[row[self.config["index_column"]]][row[Columns.Token]] = \
                     suggestions[index]
         return grouped_suggestions
 
@@ -221,9 +224,20 @@ class IdTyposAnalyzer(Analyzer):
         for index, candidates in suggestions.items():
             filtered_candidates = []
             for candidate in candidates:
-                if candidate[0] == tokens[index] or candidate[1] < self.confidence_threshold:
+                if candidate[0] == tokens[index] or \
+                        candidate[1] < self.config["confidence_threshold"]:
                     break
                 filtered_candidates.append(candidate)
             if filtered_candidates:
                 filtered_suggestions[index] = filtered_candidates
         return filtered_suggestions
+
+    @classmethod
+    def _load_config(cls, config: Mapping[str, Any]) -> Mapping[str, Any]:
+        """
+        Merge provided config with the default values.
+
+        :param config: User-defined config.
+        :return: Full config.
+        """
+        return merge_dicts(cls.default_config, config)

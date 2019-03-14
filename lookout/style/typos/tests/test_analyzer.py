@@ -132,7 +132,7 @@ class AnalyzerPayloadTest(unittest.TestCase):
         cls.identifiers = ["get", "gpt_tokeb"]
         cls.test_df = pandas.DataFrame(
             [[0, "get", "get"], [1, "gpt tokeb", "gpt"], [1, "gpt tokeb", "tokeb"]],
-            columns=[IdTyposAnalyzer.INDEX_COLUMN, Columns.Split, Columns.Token])
+            columns=[IdTyposAnalyzer.default_config["index_column"], Columns.Split, Columns.Token])
         cls.suggestions = {1: [("get", 0.9),
                                ("gpt", 0.3)],
                            2: [("token", 0.98),
