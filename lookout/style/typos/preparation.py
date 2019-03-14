@@ -105,6 +105,7 @@ def prepare_data(config: Optional[Mapping[str, Any]] = None) -> pandas.DataFrame
         config = {}
     config = merge_dicts(DEFAULT_CONFIG["preparation"], config)
 
+    os.makedirs(config["data_dir"], exist_ok=True)
     raw_data_path = config["input_path"]
     if raw_data_path is None or not os.path.exists(raw_data_path):
         raw_data_path = os.path.join(config["data_dir"],
