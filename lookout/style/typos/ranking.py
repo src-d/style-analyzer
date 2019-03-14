@@ -1,4 +1,5 @@
 """Ranking typo correction candidates using a GBT."""
+import logging
 import multiprocessing
 from typing import Dict, List, Optional, Tuple
 
@@ -16,6 +17,8 @@ class CandidatesRanker(Model):
     Rank typos correcting candidates based on given features. \
     XGBoost classifier is used.
     """
+
+    _log = logging.getLogger("CandidatesRanker")
 
     NAME = "candidates_ranks"
     VENDOR = "source{d}"
@@ -69,6 +72,10 @@ class CandidatesRanker(Model):
         :param features: Matrix of features for candidates.
         :param val_part: Part of data used for validation.
         """
+        self._log.info("fitting has started")
+        self._log.info("identifiers shape %s", identifiers.shape)
+        self._log.info("candidates shape %s", candidates.shape)
+        self._log.info("features shape %s", features.shape)
         labels = self._create_labels(identifiers, candidates)
         edge = int(features.shape[0] * (1 - val_part))
         data_train = xgb.DMatrix(features[:edge, :], label=labels[:edge])
@@ -78,6 +85,7 @@ class CandidatesRanker(Model):
         evallist = [(data_train, "train"), (data_val, "validation")]
         self.bst = xgb.train(self.boost_param, data_train, self.train_rounds, evallist,
                              early_stopping_rounds=self.early_stopping, verbose_eval=False)
+        self._log.debug("successfully fitted")
 
     def rank(self, candidates: pandas.DataFrame, features: numpy.ndarray, n_candidates: int = 3,
              return_all: bool = True) -> Dict[int, List[Tuple[str, float]]]:

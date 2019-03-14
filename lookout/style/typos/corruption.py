@@ -103,6 +103,10 @@ def corrupt_tokens_in_df(data: pandas.DataFrame, typo_probability: float,
              Columns.Split now contain partially corrupted tokens and corresponding splits.
     """
     processes_number = processes_number if processes_number is not None else os.cpu_count()
+    log = logging.getLogger("corrupt_tokens")
+    log.debug("input data shape is %s typo_probability=%.3f "
+              "add_typo_probability=%.3f processes_number=%d", data.shape, typo_probability,
+              add_typo_probability, processes_number)
     corrupt = numpy.zeros(len(data))
     corrupt[numpy.random.choice(len(data), int(typo_probability * len(data)), replace=False)] = 1
     tokens_splits = list(zip(data[Columns.Token].astype(str), data[Columns.Split].astype(str),

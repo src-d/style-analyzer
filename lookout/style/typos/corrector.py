@@ -1,5 +1,6 @@
 """Typo correction model."""
 from itertools import chain
+import logging
 from typing import Dict, List, Optional, Set, Tuple
 
 from modelforge import Model
@@ -18,6 +19,8 @@ class TyposCorrector(Model):
     """
     Model for correcting typos in tokens inside identifiers.
     """
+
+    _log = logging.getLogger("TyposCorrector")
 
     NAME = "typos_correction"
     VENDOR = "source{d}"
@@ -75,6 +78,7 @@ class TyposCorrector(Model):
         """
         boost_params = boost_params or self.DEFAULT_BOOST_PARAM
         self.ranker.construct(boost_params, train_rounds, early_stopping)
+        self._log.debug("%s is initialized", repr(self.ranker))
 
     def initialize_generator(self, vocabulary_file: str, frequencies_file: str,
                              embeddings_file: Optional[str] = None,
@@ -97,6 +101,7 @@ class TyposCorrector(Model):
         """
         self.generator.construct(vocabulary_file, frequencies_file, embeddings_file,
                                  neighbors_number, edit_candidates, max_distance, radius)
+        self._log.debug("%s is initialized", repr(self.generator))
 
     def expand_vocabulary(self, additional_tokens: Set[str]) -> None:
         """
@@ -120,11 +125,14 @@ class TyposCorrector(Model):
         :param start_pool_size: Length of data, starting from which multiprocessing is desired.
         :param chunksize: Max size of a chunk for one process during multiprocessing.
         """
+        self._log.info("train input shape: %s", data.shape)
         if candidates is None:
+            self._log.info("candidates were not provided and will be generated")
             candidates = self.generator.generate_candidates(
                 data, self.processes_number, start_pool_size, chunksize, save_candidates_file)
         else:
             candidates = pandas.read_csv(candidates, index_col=0, keep_default_na=False)
+            self._log.info("loaded candidates from %s", candidates)
         self.ranker.fit(data[Columns.CorrectToken], get_candidates_metadata(candidates),
                         get_candidates_features(candidates))
 
@@ -229,10 +237,11 @@ class TyposCorrector(Model):
         :param start_pool_size: Length of data, starting from which multiprocessing is desired.
         :param chunksize: Max size of a chunk for one process during multiprocessing.
         """
+        self._log.info("evaluate on test data with shape %s", test_data.shape)
         suggestions = self.suggest(test_data, start_pool_size=start_pool_size,
                                    chunksize=chunksize)
         self.metrics = get_scores(test_data, suggestions)
-        print(generate_report(test_data, suggestions))
+        self._log.info("evaluation report:\n%s", generate_report(test_data, suggestions))
 
     def __eq__(self, other: "TyposCorrector") -> bool:
         return self.generator == other.generator and self.ranker == other.ranker
