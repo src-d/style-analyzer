@@ -5,7 +5,8 @@ from itertools import chain
 import logging
 from pprint import pformat
 import random
-from typing import Any, Iterator, List, Mapping, MutableMapping, NamedTuple, Sequence, Tuple
+from typing import Any, Iterable, Iterator, List, Mapping, MutableMapping, NamedTuple, Sequence, \
+    Tuple
 import warnings
 
 import bblfsh  # noqa: F401
@@ -86,7 +87,7 @@ class FormatAnalyzer(Analyzer):
 
     @with_changed_uasts_and_contents
     def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
-                data_service: DataService, changes: Iterator[Change], **data) -> List[Comment]:
+                data_service: DataService, changes: Iterable[Change], **data) -> List[Comment]:
         """
         Analyze a set of changes from one revision to another.
 
@@ -162,7 +163,7 @@ class FormatAnalyzer(Analyzer):
     @classmethod
     @with_uasts_and_contents
     def train(cls, ptr: ReferencePointer, config: Mapping[str, Any], data_service: DataService,
-              files: Iterator[File], **data) -> FormatModel:
+              files: Iterable[File], **data) -> FormatModel:
         """
         Train a model given the files available.
 
