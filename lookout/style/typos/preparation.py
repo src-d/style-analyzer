@@ -1,6 +1,8 @@
+import logging
 import multiprocessing
 import os
 import pathlib
+from pprint import pformat
 import sys
 import tempfile
 from typing import Any, Mapping, Optional, Tuple
@@ -101,6 +103,7 @@ def prepare_data(config: Optional[Mapping[str, Any]] = None) -> pandas.DataFrame
                                       dataset to.
     :return: Dataset baked for training the typos correction.
     """
+    log = logging.getLogger("prepare_data")
     if config is None:
         config = {}
     config = merge_dicts(DEFAULT_CONFIG["preparation"], config)
@@ -109,37 +112,51 @@ def prepare_data(config: Optional[Mapping[str, Any]] = None) -> pandas.DataFrame
     if raw_data_path is None or not os.path.exists(raw_data_path):
         raw_data_path = os.path.join(config["data_dir"],
                                      config["raw_data_filename"])
+        log.warning("raw dataset was not found, downloading from %s to %s",
+                    config["dataset_url"], raw_data_path)
         _download_url(config["dataset_url"], raw_data_path)
 
     data = pandas.read_csv(raw_data_path, index_col=0, keep_default_na=False)
+    log.debug("raw dataset shape: %s", data.shape)
     if config["frequency_column"] not in data.columns:
+        log.info("frequency column is not found. Set all frequencies to 1")
         data[Columns.Frequency] = 1
     else:
+        log.info("frequency column `%s` is found", config["frequency_column"])
         data = data.rename(columns={config["frequency_column"]: Columns.Frequency})
 
     # Expand dataframe by splits (repeat rows for every token in splits)
     data[Columns.Split] = data[Columns.Split].astype(str)
+    log.debug("expand data by splits")
     flat_data = flatten_df_by_column(data, Columns.Split, Columns.Token,
                                      apply_function=lambda x: x.split())
+    log.debug("expanded data shape %s", flat_data.shape)
 
-    # Collect statistics for tokens
+    log.info("collect statistics for tokens")
     stats = flat_data[[Columns.Frequency, Columns.Token]].groupby([Columns.Token]).sum()
     stats = stats.sort_values(by=Columns.Frequency, ascending=False)
 
-    # Derive new vocabulary for future use
+    log.info("derive the new vocabulary")
     frequencies_tokens = set(stats.index[:(config["frequencies_size"] or len(stats))])
+    log.info("tokens with frequencies data size: %d", len(frequencies_tokens))
     vocabulary_tokens = set(stats.index[:config["vocabulary_size"]])
-    print_frequencies(vocabulary_tokens, stats, os.path.join(
-        config["data_dir"], config["vocabulary_filename"]))
-    print_frequencies(frequencies_tokens, stats, os.path.join(
-        config["data_dir"], config["frequencies_filename"]))
+    log.info("vocabulary size: %d", len(vocabulary_tokens))
+    vocabulary_tokens_filepath = os.path.join(config["data_dir"], config["vocabulary_filename"])
+    print_frequencies(vocabulary_tokens, stats, vocabulary_tokens_filepath)
+    log.info("vocabulary saved to %s", vocabulary_tokens_filepath)
+    frequencies_tokens_filepath = os.path.join(config["data_dir"], config["frequencies_filename"])
+    print_frequencies(frequencies_tokens, stats, frequencies_tokens_filepath)
+    log.info("tokens with frequencies data are saved to %s", frequencies_tokens_filepath)
 
     # Leave only splits that contain tokens from vocabulary
     prepared_data = filter_splits(flat_data, vocabulary_tokens)[[Columns.Frequency, Columns.Split,
                                                                  Columns.Token]]
     prepared_data.reset_index(drop=True, inplace=True)
+    log.info("final dataset shape: %s", prepared_data.shape)
     if config["prepared_filename"] is not None:
-        prepared_data.to_csv(os.path.join(config["data_dir"], config["prepared_filename"]))
+        prepared_data_filepath = os.path.join(config["data_dir"], config["prepared_filename"])
+        prepared_data.to_csv(prepared_data_filepath)
+        log.info("final dataset is saved to %s", prepared_data_filepath)
     return prepared_data
 
 
@@ -166,6 +183,7 @@ def train_fasttext(data: pandas.DataFrame, config: Optional[Mapping[str, Any]] =
         sys.exit("Please install fastText."
                  "Run `pip3 install git+https://github.com/facebookresearch/fastText"
                  "@51e6738d734286251b6ad02e4fdbbcfe5b679382`")
+    log = logging.getLogger("train_fasttext")
     if config is None:
         config = {}
     config = merge_dicts(DEFAULT_CONFIG["fasttext"], config)
@@ -178,10 +196,12 @@ def train_fasttext(data: pandas.DataFrame, config: Optional[Mapping[str, Any]] =
         with open(ids_file.name, "w") as f:
             for token_split in train_data[Columns.Split]:
                 f.write(token_split + "\n")
+        log.info("Training fasttext model...")
         model = fastText.train_unsupervised(ids_file.name, minCount=1, epoch=10,
                                             dim=config["dim"],
                                             bucket=config["bucket"])
     model.save_model(config["path"])
+    log.info("fasttext model is saved to %s", config["path"])
 
 
 def get_datasets(prepared_data: pandas.DataFrame,
@@ -206,6 +226,7 @@ def get_datasets(prepared_data: pandas.DataFrame,
     :param processes_number: Number of processes for multiprocessing.
     :return: Train and test datasets.
     """
+    log = logging.getLogger("get_datasets")
     if config is None:
         config = {}
     config = merge_dicts(DEFAULT_CONFIG["datasets"], config)
@@ -219,14 +240,18 @@ def get_datasets(prepared_data: pandas.DataFrame,
                                    test_size=config["test_size"])
     train.reset_index(drop=True, inplace=True)
     test.reset_index(drop=True, inplace=True)
+    log.info("train dataset shape: %s", train.shape)
+    log.info("test dataset shape: %s", test.shape)
     train = corrupt_tokens_in_df(train, config["typo_probability"], config["add_typo_probability"],
                                  processes_number)
     test = corrupt_tokens_in_df(test, config["typo_probability"], config["add_typo_probability"],
                                 processes_number)
     if config["test_path"] is not None:
         test.to_csv(config["test_path"])
+        log.info("test dataset is saved to %s", config["test_path"])
     if config["train_path"] is not None:
         train.to_csv(config["train_path"])
+        log.info("train dataset is saved to %s", config["train_path"])
     return train, test
 
 
@@ -269,11 +294,14 @@ def train_from_scratch(config: Optional[Mapping[str, Any]] = None) -> TyposCorre
     :param config: Parameters for data preparation and corrector training.
     :return: Trained TyposCorrector model.
     """
+    log = logging.getLogger("train_from_scratch")
     if config is None:
         config = {}
     config = merge_dicts(DEFAULT_CONFIG, config)
+    log.info("effective config:\n%s", pformat(config, width=120, compact=True))
     prepared_data = prepare_data(config["preparation"])
     if config["fasttext"]["path"] is None or not os.path.exists(config["fasttext"]["path"]):
+        log.info("fasttext model is not found and will be trained")
         train_fasttext(prepared_data, config["fasttext"])
     train_data, test_data = get_datasets(prepared_data, config["datasets"])
     model = train_and_evaluate(train_data, test_data,
@@ -284,4 +312,5 @@ def train_from_scratch(config: Optional[Mapping[str, Any]] = None) -> TyposCorre
                                config["fasttext"]["path"], config["processes_number"])
     if config["corrector_path"] is not None:
         model.save(config["corrector_path"], series=0.0)
+        log.info("corrector model is saved to %s", config["corrector_path"])
     return model
