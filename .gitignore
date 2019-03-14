@@ -3,6 +3,7 @@
 
 # Temporary reports
 lookout/style/format/benchmarks/reports/untagged/
+lookout/style/typos/data/
 
 .idea
 # Byte-compiled / optimized / DLL files
