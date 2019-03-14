@@ -80,7 +80,7 @@ def create_parser() -> ArgumentParser:
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatterNoNone)
 
     # General options
-    slogging.add_logging_args(parser)
+    slogging.add_logging_args(parser, erase_args=True)
     subparsers = parser.add_subparsers(help="Commands")
 
     def add_parser(name, help):
@@ -154,8 +154,6 @@ def main() -> Any:
     """Entry point of the utility."""
     parser = create_parser()
     args = parser.parse_args()
-    for log_arg in ("log_level", "log_structured", "log_config"):
-        delattr(args, log_arg)
     try:
         handler = args.handler
         delattr(args, "handler")
