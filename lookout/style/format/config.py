@@ -72,7 +72,6 @@ DEFAULT_CONFIG = {
             "report_parse_failures": False,
             "uast_break_check": True,
         },
-        "comment_template": os.path.join(os.path.join(os.path.dirname(__file__), "templates"),
-                                         "comment.jinja2"),
+        "comment_template": os.path.join(os.path.dirname(__file__), "templates", "comment.jinja2"),
     },
 }
