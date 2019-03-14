@@ -17,6 +17,12 @@ Columns = NamedTuple(
     "candidate", "features", "proba", "suggestions", "freq")
 
 
+Candidate = NamedTuple("Candidate", (
+    ("token", str),         # Token with fixed typo
+    ("confidence", float),  # Model confidence for the correction
+))
+
+
 def read_frequencies(file: str) -> Dict[str, int]:
     """
     Read token frequencies from the file.
