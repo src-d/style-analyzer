@@ -1,7 +1,7 @@
 """Ranking typo correction candidates using a GBT."""
 import logging
 import multiprocessing
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 from modelforge import Model
 import numpy
@@ -9,7 +9,7 @@ import pandas
 from sourced.ml.models.license import DEFAULT_LICENSE
 import xgboost as xgb
 
-from lookout.style.typos.utils import Columns, rank_candidates
+from lookout.style.typos.utils import Candidate, Columns, rank_candidates
 
 
 class CandidatesRanker(Model):
@@ -88,7 +88,7 @@ class CandidatesRanker(Model):
         self._log.debug("successfully fitted")
 
     def rank(self, candidates: pandas.DataFrame, features: numpy.ndarray, n_candidates: int = 3,
-             return_all: bool = True) -> Dict[int, List[Tuple[str, float]]]:
+             return_all: bool = True) -> Dict[int, List[Candidate]]:
         """
         Assign the correctness probability value for each of the candidates.
 

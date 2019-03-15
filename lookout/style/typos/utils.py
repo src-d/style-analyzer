@@ -1,7 +1,7 @@
 """Various glue functions to work with the input dataset and the output from FastText."""
 import csv
 from itertools import chain
-from typing import Dict, List, NamedTuple, Optional, Set, Tuple
+from typing import Dict, Iterable, List, NamedTuple, Optional, Set, Tuple
 
 import numpy
 import pandas
@@ -122,9 +122,9 @@ def add_context_info(data: pandas.DataFrame) -> pandas.DataFrame:
     return result_data
 
 
-def rank_candidates(candidates: pandas.DataFrame, pred_probs: List[float],
+def rank_candidates(candidates: pandas.DataFrame, pred_probs: Iterable[float],
                     n_candidates: Optional[int] = None, return_all: bool = True,
-                    ) -> Dict[int, List[Tuple[str, float]]]:
+                    ) -> Dict[int, List[Candidate]]:
     """
     Rank candidates for tokens' correction based on the correctness probabilities.
 
@@ -134,18 +134,18 @@ def rank_candidates(candidates: pandas.DataFrame, pred_probs: List[float],
     :param n_candidates: Number of most probably correct candidates to return for each typo.
     :param return_all: False to return corrections only for tokens corrected in the \
                        first candidate.
-    :return: Dictionary `{id : [(candidate, correctness_proba), ...]}`, candidates are sorted \
+    :return: Dictionary `{id : [Candidate, ...]}`, candidates are sorted \
              by correct_prob in a descending order.
     """
     suggestions = {}
     corrections = []
     for i in range(len(pred_probs)):
         index = candidates.loc[i, Columns.Id]
-        corrections.append((candidates.loc[i, Columns.Candidate], pred_probs[i]))
+        corrections.append(Candidate(candidates.loc[i, Columns.Candidate], pred_probs[i]))
         if i < len(pred_probs) - 1 and candidates.loc[i + 1, Columns.Id] == index:
             continue
 
-        corrections = list(sorted(corrections, key=lambda x: -x[1]))
+        corrections = list(sorted(corrections, key=lambda x: -x.confidence))
         typo = candidates.loc[i, Columns.Token]
         if corrections[0][0] != typo:
             suggestions[index] = (corrections if n_candidates is None
@@ -157,7 +157,7 @@ def rank_candidates(candidates: pandas.DataFrame, pred_probs: List[float],
     return suggestions
 
 
-def suggestions_to_df(data: pandas.DataFrame, suggestions: Dict[int, List[Tuple[str, float]]],
+def suggestions_to_df(data: pandas.DataFrame, suggestions: Dict[int, List[Candidate]],
                       ) -> pandas.DataFrame:
     """
     Convert suggestions from dictionary to pandas.DataFrame.
@@ -166,8 +166,9 @@ def suggestions_to_df(data: pandas.DataFrame, suggestions: Dict[int, List[Tuple[
     :param suggestions: Dictionary of suggestions, keys correspond with data.index.
     :return: DataFrame with columns Columns.Token, Columns.Suggestions, indexed by data.index.
     """
-    suggestions_array = [[index, data.loc[index, Columns.Token], corrections]
-                         for index, corrections in suggestions.items()]
+    suggestions_array = [
+        [index, data.loc[index, Columns.Token], [tuple(c) for c in corrections]]
+        for index, corrections in suggestions.items()]
     return pandas.DataFrame(suggestions_array,
                             columns=[Columns.Id, Columns.Token, Columns.Suggestions],
                             index=data.index).infer_objects()

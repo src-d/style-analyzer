@@ -9,7 +9,11 @@ import pandas
 from pandas.util.testing import assert_frame_equal
 
 from lookout.style.typos.utils import (
+<<<<<<< HEAD
     add_context_info, Columns, filter_splits, flatten_df_by_column, print_frequencies,
+=======
+    add_context_info, Candidate, Columns, flatten_df_by_column,
+>>>>>>> Use Candidate class in corrector suggestions logic
     rank_candidates, read_frequencies, read_vocabulary, suggestions_to_df, suggestions_to_flat_df)
 
 
@@ -95,6 +99,8 @@ class RankCandidatesTest(unittest.TestCase):
                                    index_col=0, keep_default_na=False)
         with open(join(TEST_DATA_PATH, "test_data_candidates_suggestions.pickle"), "br") as f:
             cls.suggestions = pickle.load(f)
+            cls.suggestions = {i: [Candidate(*c) for c in candidates]
+                               for i, candidates in cls.suggestions.items()}
 
         cls.custom_data = pandas.DataFrame([["get tokens num", "get"],
                                             ["gwt tokens", "gwt"],
@@ -108,12 +114,12 @@ class RankCandidatesTest(unittest.TestCase):
                                                   [2, "tokem", "token"]],
                                                  columns=[Columns.Id, Columns.Token,
                                                           Columns.Candidate])
-        cls.custom_suggestions = {0: [("get", 1.0)],
-                                  1: [("get", 0.9),
-                                      ("gpt", 0.05)],
-                                  2: [("token", 0.98),
-                                      ("taken", 0.3),
-                                      ("tokem", 0.01)]}
+        cls.custom_suggestions = {0: [Candidate("get", 1.0)],
+                                  1: [Candidate("get", 0.9),
+                                      Candidate("gpt", 0.05)],
+                                  2: [Candidate("token", 0.98),
+                                      Candidate("taken", 0.3),
+                                      Candidate("tokem", 0.01)]}
         cls.custom_filtered_suggestions = {1: [("get", 0.9),
                                                ("gpt", 0.05)],
                                            2: [("token", 0.98),
