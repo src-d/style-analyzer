@@ -1,5 +1,7 @@
 """Annotations for style-analyzer."""
-from typing import Dict, FrozenSet, Optional, Tuple
+from typing import FrozenSet, Optional, Tuple
+
+from lookout.style.format.utils import get_uast_parents
 
 
 class Annotation:
@@ -58,11 +60,25 @@ class UASTNodeAnnotation(Annotation):
         return UASTNodeAnnotation(node.start_position.offset, node.end_position.offset, node)
 
 
-# Should be removed when overlapping annotations of one type are allowed.
 class UASTAnnotation(UASTNodeAnnotation):
     """Full UAST of the file annotation."""
 
+    def __init__(self, start: int, stop: int, uast: "bblfsh.Node"):
+        """
+        Create new UASTAnnotation instance.
+
+        Parents mapping for the tree is built during init.
+
+        :param start: Annotation start.
+        :param stop: Annotation end.
+        :param uast: UAST.
+        """
+        super().__init__(start, stop, uast)
+        self._parents = get_uast_parents(uast)
+
     uast = property(lambda self: self._node)
+
+    parents = property(lambda self: self._parents)
 
 
 class TokenAnnotation(Annotation):
@@ -152,21 +168,6 @@ class AtomicTargetAnnotation(TargetAnnotation):
     def to_target_annotation(self) -> TargetAnnotation:
         """Convert annotation to TargetAnnotation."""
         return TargetAnnotation(self.start, self.stop, self._target)
-
-
-class UASTParentsAnnotation(Annotation):
-    """
-    Annotation to store uast parents dict.
-
-    Should be removed as soon as UAST provide parents itself.
-    """
-
-    def __init__(self, start: int, stop: int, parents: Dict[int, "bblfsh.Node"]):
-        """Init."""
-        super().__init__(start, stop)
-        self._parents = parents
-
-    parents = property(lambda self: self._parents)
 
 
 class AccumulatedIndentationAnnotation(Annotation):

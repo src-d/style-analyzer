@@ -15,7 +15,7 @@ from sklearn.feature_selection import SelectKBest, VarianceThreshold
 
 from lookout.style.format.annotations.annotated_data import AnnotatedData
 from lookout.style.format.annotations.annotations import PathAnnotation, RawTokenAnnotation, \
-    UASTAnnotation, UASTParentsAnnotation
+    UASTAnnotation
 from lookout.style.format.classes import (
     CLASS_INDEX, CLASS_PRINTABLES, CLASS_REPRESENTATIONS, CLS_DOUBLE_QUOTE, CLS_NOOP,
     CLS_SINGLE_QUOTE, CLS_SPACE, CLS_SPACE_DEC, CLS_SPACE_INC, CLS_TAB, CLS_TAB_DEC, CLS_TAB_INC,
@@ -725,19 +725,15 @@ class FeatureExtractor:
 
         # walk the tree: collect nodes with assigned tokens and build the parents map
         node_tokens = []
-        parents = {}
         queue = [file.get(UASTAnnotation).uast]
         while queue:
             node = queue.pop()
             if node.internal_type in self.node_fixtures:
-                node = self.node_fixtures[node.internal_type](node)
-            for child in node.children:
-                parents[id(child)] = node
+                self.node_fixtures[node.internal_type](node)
             queue.extend(node.children)
             if (node.token or node.start_position and node.end_position
                     and node.start_position != node.end_position and not node.children):
                 node_tokens.append(node)
-        file.add(UASTParentsAnnotation(0, len(file), parents))
         node_tokens.sort(key=lambda n: n.start_position.offset)
         sentinel = bblfsh.Node()
         sentinel.start_position.offset = len(contents)
@@ -845,4 +841,4 @@ def raw_file_to_vnodes_and_parents(file: AnnotatedData) -> Tuple[List["VirtualNo
             y=None,
         )
         vnodes.append(vnode)
-    return vnodes, file.get(UASTParentsAnnotation).parents
+    return vnodes, file.get(UASTAnnotation).parents
