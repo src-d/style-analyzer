@@ -6,7 +6,7 @@ import pandas
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 
 from lookout.style.common import load_jinja2_template
-from lookout.style.typos.utils import Columns
+from lookout.style.typos.utils import Columns, TEMPLATE_DIR
 
 
 @unique
@@ -71,6 +71,5 @@ def get_scores(data: pandas.DataFrame, suggestions: Dict[int, List[Tuple[str, fl
 def generate_report(data: pandas.DataFrame, suggestions: Dict[int, List[Tuple[str, float]]],
                     ) -> str:
     """Print scores for suggestions in an easy readable way."""
-    template = load_jinja2_template(
-        os.path.join(os.path.dirname(__file__), "templates", "scores.md.jinja2"))
+    template = load_jinja2_template(os.path.join(TEMPLATE_DIR, "scores.md.jinja2"))
     return template.render(ScoreMode=ScoreMode, get_scores=get_scores, **locals())
