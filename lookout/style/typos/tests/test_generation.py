@@ -40,24 +40,24 @@ class CandidatesSplitTest(unittest.TestCase):
 
 
 class GeneratorTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.config = {"neighbors_number": 3, "edit_dist_number": 3, "max_distance": 3}
+        cls.generator = CandidatesGenerator()
+        cls.generator.construct(VOCABULARY_FILE, VOCABULARY_FILE, FASTTEXT_DUMP_FILE,
+                                cls.config)
+
     @unittest.skip("CandidatesGenerator.__eq__ needs refactoring. Test is currently flaky.")
     def test_save_load(self):
-        generator = CandidatesGenerator()
-        generator.construct(VOCABULARY_FILE, VOCABULARY_FILE, FASTTEXT_DUMP_FILE,
-                            neighbors=3, edit_candidates=3, max_distance=3, radius=3)
         with io.BytesIO() as buffer:
-            generator.save(buffer)
+            self.generator.save(buffer)
             print(buffer.tell())
             buffer.seek(0)
             generator2 = CandidatesGenerator().load(buffer)
 
-        self.assertTrue(generator == generator2)
+        self.assertTrue(self.generator == generator2)
 
     def test_generate_candidates(self):
-        generator = CandidatesGenerator()
-        generator.construct(VOCABULARY_FILE, VOCABULARY_FILE, FASTTEXT_DUMP_FILE,
-                            neighbors=3, edit_candidates=3, max_distance=3, radius=3)
-
         data = pandas.read_csv(str(TEST_DATA_PATH / "test_data.csv.xz"),
                                index_col=0, keep_default_na=False)
         custom_data = pandas.DataFrame([["get tokens num", "tokens", "tokens"],
@@ -66,9 +66,8 @@ class GeneratorTest(unittest.TestCase):
                                        columns=[Columns.Split, Columns.Token,
                                                 Columns.CorrectToken])
         for test_data in [data, custom_data]:
-            candidates = generator.generate_candidates(test_data, processes_number=1,
-                                                       start_pool_size=len(test_data) + 1,
-                                                       chunksize=1)
+            candidates = self.generator.generate_candidates(
+                test_data, processes_number=1)
             self.assertFalse(candidates.isnull().values.any())
             self.assertSetEqual(set(candidates[Columns.Id].values), set(test_data.index))
             self.assertSetEqual(set(candidates[Columns.Token].values),
@@ -76,8 +75,7 @@ class GeneratorTest(unittest.TestCase):
 
     def test_expand_vocabulary(self):
         generator = CandidatesGenerator()
-        generator.construct(VOCABULARY_FILE, VOCABULARY_FILE, FASTTEXT_DUMP_FILE,
-                            neighbors=3, edit_candidates=3, max_distance=3, radius=3)
+        generator.construct(VOCABULARY_FILE, VOCABULARY_FILE, FASTTEXT_DUMP_FILE, self.config)
         additional_tokens = {"a", "aaa", "123", "get", "341"}
         vocabulary = generator.tokens
         generator.expand_vocabulary(additional_tokens)

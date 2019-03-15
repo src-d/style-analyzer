@@ -60,11 +60,13 @@ def cli_get_datasets(data_path: str, config: Mapping[str, Any]) -> None:
 
 
 def cli_train_corrector(train: str, test: str, vocabulary_path: str,
-                        frequencies_path: str, fasttext_path: str, corrector_path: str) -> None:
+                        frequencies_path: str, fasttext_path: str, corrector_path: str,
+                        config: Mapping[str, Any]) -> None:
     """Entry point for `train_and_evaluate`."""
     train = pandas.read_csv(train, index_col=0, keep_default_na=False)
     test = pandas.read_csv(test, index_col=0, keep_default_na=False)
-    model = train_and_evaluate(train, test, vocabulary_path, frequencies_path, fasttext_path)
+    model = train_and_evaluate(train, test, vocabulary_path, frequencies_path, fasttext_path,
+                               config.get("generation", {}), config.get("ranking", {}))
     model.save(corrector_path, series=0.0)
 
 
@@ -133,6 +135,7 @@ def create_parser() -> ArgumentParser:
         default=DEFAULT_CONFIG["fasttext"]["path"],
         help="Path to a FastText model's dump (.bin).",
     )
+    add_config_arg(train_parser)
     add_corrector_path_arg(train_parser)
 
     ########################################
