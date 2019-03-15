@@ -56,7 +56,10 @@ class VirtualNode:
         self.value = value
         assert start.line >= 1 and start.col >= 1, "start line and column are 1-based like UASTs"
         assert end.line >= 1 and end.col >= 1, "end line and column are 1-based like UASTs"
-        assert y is None or set(y) <= EMPTY_CLS or start.offset < end.offset, "illegal empty node"
+        assert y is None or set(y) <= EMPTY_CLS or start.offset < end.offset, \
+            "illegal empty node y=%s, start.offset=%d, end.offset=%d" % (str(y), start.offset, end.offset)
+        if is_accumulated_indentation and y is not None:
+            print("aaa")
         assert not is_accumulated_indentation or y is None, "y can not be set for accumulated " \
                                                             "indentation node."
         self.start = start
@@ -85,7 +88,8 @@ class VirtualNode:
                 and self.end == other.end
                 and self.node == other.node
                 and self.y == other.y
-                and self.path == other.path)
+                and self.path == other.path
+                and self.is_accumulated_indentation == other.is_accumulated_indentation)
 
     def copy(self) -> "VirtualNode":
         """Produce a full clone of the node."""

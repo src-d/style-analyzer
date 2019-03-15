@@ -1,7 +1,7 @@
 """Feature extraction module."""
 from collections import defaultdict, OrderedDict
 import importlib
-from itertools import chain, islice, zip_longest
+from itertools import chain, zip_longest
 import logging
 from operator import itemgetter
 from typing import (Dict, Iterable, List, Mapping, Optional, Sequence, Set, Tuple, Union)
@@ -14,7 +14,9 @@ from sklearn.exceptions import NotFittedError
 from sklearn.feature_selection import SelectKBest, VarianceThreshold
 
 from lookout.style.format.annotations.annotated_data import AnnotatedData
-from lookout.style.format.annotations.annotations import PathAnnotation, RawTokenAnnotation, \
+from lookout.style.format.annotations.annotations import AccumulatedIndentationAnnotation, \
+    AtomicTargetAnnotation, AtomicTokenAnnotation, LinesToCheckAnnotation, PathAnnotation, \
+    RawTokenAnnotation, TargetAnnotation, TokenAnnotation, TokenParentAnnotation, \
     UASTAnnotation
 from lookout.style.format.classes import (
     CLASS_INDEX, CLASS_PRINTABLES, CLASS_REPRESENTATIONS, CLS_DOUBLE_QUOTE, CLS_NOOP,
@@ -192,7 +194,8 @@ class FeatureExtractor:
                  the corresponding `VirtualNode`-s and the parents mapping \
                  or None in case no features were extracted.
         """
-        parsed_files, node_parents, vnode_parents = self._parse_vnodes(files, lines)
+        files = self._parse_vnodes(files, lines)
+        parsed_files, node_parents, vnode_parents = to_vnodes_format(files)
         xy = self._convert_files_to_xy(parsed_files)
         if xy is None:
             return None
@@ -302,20 +305,15 @@ class FeatureExtractor:
         self._feature_count = sum(self._feature_group_counts.values())
 
     def _parse_vnodes(self, files: Iterable[File], lines: Optional[List[List[int]]] = None,
-                      ) -> Tuple[List[Tuple[List[VirtualNode], Dict[int, bblfsh.Node], Set[int]]],
-                                 Dict[int, bblfsh.Node],
-                                 Dict[int, bblfsh.Node]]:
-        node_parents = {}
-        vnode_parents = {}
+                      ) -> List[AnnotatedData]:
         parsed_files = []
-        index_labels = not self.labels_to_class_sequences
         for i, file in enumerate(files):
             path = file.path
-            uast = file.uast
             file = AnnotatedData.from_file(file)
+            if lines is not None and lines[i] is not None:
+                file.add(LinesToCheckAnnotation(0, len(file), frozenset(lines[i])))
             try:
-                # Should be self._parse_file(content, file)
-                file_vnodes, file_parents = self._parse_file(file)
+                self._parse_file(file)
             except AssertionError as e:
                 self._log.warning("could not parse file %s with error '%s', skipping", path, e)
                 if self.debug_parsing:
@@ -323,18 +321,14 @@ class FeatureExtractor:
                     traceback.print_exc()
                     input("Press Enter to continue…")
                 continue
-            file_vnodes_iterator = self._classify_vnodes(file_vnodes, path)
-            file_vnodes_iterator = self._merge_classes_to_composite_labels(
-                file_vnodes_iterator, path, index_labels=index_labels)
-            file_vnodes = self._add_noops(list(file_vnodes_iterator), path,
-                                          index_labels=index_labels)
-            file_lines = set(lines[i]) if lines is not None and lines[i] is not None else None
-            parsed_files.append((file_vnodes, file_parents, file_lines))
-            node_parents.update(file_parents)
-            self._fill_vnode_parents(file_parents, file_vnodes, uast, vnode_parents)
-        vnodes_parsed_number = sum(len(vn) for vn, _, _ in parsed_files)
+            self._classify_vnodes(file)
+            self._merge_classes_to_composite_labels(file)
+            self._add_noops(file)
+            parsed_files.append(file)
+            self._fill_vnode_parents(file)
+        vnodes_parsed_number = sum(file.count(TokenAnnotation) for file in parsed_files)
         self._log.debug("Parsed %d vnodes", vnodes_parsed_number)
-        return parsed_files, node_parents, vnode_parents
+        return parsed_files
 
     def _convert_files_to_xy(
             self, parsed_files: List[Tuple[List[VirtualNode], Dict[int, bblfsh.Node], Set[int]]],
@@ -406,7 +400,7 @@ class FeatureExtractor:
             neighbours[FeatureGroup.node][0].append(vnode)
 
             # Current node's parents
-            parent = (self._find_parent(i, vnodes, parents, closest_left_node_id)
+            parent = (self._find_parent_old(i, vnodes, parents, closest_left_node_id)
                       if self.parents_depth else None)
             parents_list = []
             if parent:
@@ -451,116 +445,103 @@ class FeatureExtractor:
                 sibling_indices_list.append(left_sibling_indices + right_sibling_indices)
         return neighbours, sibling_indices_list if return_sibling_indices else None
 
-    def _classify_vnodes(self, nodes: Iterable[VirtualNode], path: str) -> Iterable[VirtualNode]:
+    def _classify_vnodes(self, file: AnnotatedData) -> None:
         """
+        TODO(zurk) fix doc and rename.
+
         Fill "y" attribute in the VirtualNode-s extracted from _parse_file().
 
         It is the index of the corresponding class to predict. We detect indentation changes so
         several whitespace nodes are merged together.
 
-        :param nodes: sequence of VirtualNodes.
-        :param path: path to file.
+        :param file: annotated data.
         :return: new list of VirtualNodes, the size is different from the original.
         """
         indentation = []
-        for node in nodes:
-            if node.node is not None:
-                yield node
+        for token in file.iter_annotation(RawTokenAnnotation):
+            token_value = file[token.range]
+            if token.has_node:
+                file.add(token.to_atomic_token_annotation())
                 continue
-            if not node.value.isspace():
-                if node.value == "'":
-                    node.y = (CLASS_INDEX[CLS_SINGLE_QUOTE],)
-                elif node.value == '"':
-                    node.y = (CLASS_INDEX[CLS_DOUBLE_QUOTE],)
-                yield node
+            if not token_value.isspace():
+                if token_value == "'":
+                    file.add(AtomicTargetAnnotation(*token.range,
+                                                    (CLASS_INDEX[CLS_SINGLE_QUOTE],)))
+                elif token_value == '"':
+                    file.add(AtomicTargetAnnotation(*token.range,
+                                                    (CLASS_INDEX[CLS_DOUBLE_QUOTE],)))
+                file.add(token.to_atomic_token_annotation())
                 continue
-            lines = node.value.splitlines(keepends=True)
+            lines = token_value.splitlines(keepends=True)
             if lines[-1].splitlines()[0] != lines[-1]:
                 # We add last line as empty one to mimic .split("\n") behaviour
                 lines.append("")
             if len(lines) == 1:
                 # only tabs and spaces are possible
-                for i, char in enumerate(node.value):
+                for i, char in enumerate(token_value):
                     if char == "\t":
                         cls = (CLASS_INDEX[CLS_TAB],)
                     else:
                         cls = (CLASS_INDEX[CLS_SPACE],)
-                    offset, lineno, col = node.start
-                    yield VirtualNode(
-                        char,
-                        Position(offset + i, lineno, col + i),
-                        Position(offset + i + 1, lineno, col + i + 1),
-                        y=cls, path=path)
+                    offset = token.start
+                    file.add(AtomicTargetAnnotation(offset + i, offset + i + 1, cls))
+                    file.add(AtomicTokenAnnotation(offset + i, offset + i + 1))
                 continue
             line_offset = 0
             traling_chars = lines[0].splitlines()[0]
             if traling_chars:
                 # node contains trailing whitespaces from the previous line
                 assert set(traling_chars) <= {" ", "\t"}
-                y = [CLASS_INDEX[CLS_SPACE if yi == " " else CLS_TAB] for yi in traling_chars]
-                yield VirtualNode(
-                    traling_chars,
-                    node.start,
-                    Position(node.start.offset + len(traling_chars), node.start.line,
-                             node.start.col + len(traling_chars)),
-                    y=tuple(y), path=path)
+                file.add(AtomicTargetAnnotation(
+                    token.start, token.start + len(traling_chars), tuple(
+                        CLASS_INDEX[CLS_SPACE if yi == " " else CLS_TAB] for yi in traling_chars)))
+                file.add(AtomicTokenAnnotation(token.start, token.start + len(traling_chars)))
+
                 lines[0] = lines[0][len(traling_chars):]
                 line_offset += len(traling_chars)
 
-            for i, line in enumerate(lines[:-1]):
+            for line in lines[:-1]:
                 # `line` ends with \r\n, we prepend \r to the newline node
-                start_offset = node.start.offset + line_offset
-                start_col = node.start.col + line_offset if i == 0 else 1
-                lineno = node.start.line + i
-                yield VirtualNode(
-                    line,
-                    Position(start_offset, lineno, start_col),
-                    Position(start_offset + len(line), lineno + 1, 1),
-                    y=(NEWLINE_INDEX,), path=path)
+                start_offset = token.start + line_offset
+                file.add(AtomicTargetAnnotation(start_offset, start_offset + len(line),
+                                                (NEWLINE_INDEX,)))
+                file.add(AtomicTokenAnnotation(start_offset, start_offset + len(line)))
                 line_offset += len(line)
             line = lines[-1].splitlines()[0] if lines[-1] else ""
             my_indent = list(line)
-            offset, lineno, col = node.end
+            offset = token.stop
             offset -= len(line)
-            col -= len(line)
             try:
                 for ws in indentation:
                     my_indent.remove(ws)
             except ValueError:
                 if my_indent:
                     # mixed tabs and spaces, do not classify
-                    yield VirtualNode(
-                        line,
-                        Position(offset, lineno, col),
-                        node.end, path=path)
+                    file.add(AtomicTokenAnnotation(offset, token.stop))
                     continue
                 # indentation decreases
                 if indentation[:len(line)]:
-                    yield VirtualNode(
-                        "".join(indentation[:len(line)]),
-                        Position(offset, lineno, col),
-                        node.end, is_accumulated_indentation=True, path=path)
+                    file.add(AtomicTokenAnnotation(offset, token.stop))
+                    file.add(AccumulatedIndentationAnnotation(offset, token.stop))
+                dec_class = []
                 for char in indentation[len(line):]:
                     if char == "\t":
-                        cls = (CLASS_INDEX[CLS_TAB_DEC],)
+                        cls = CLASS_INDEX[CLS_TAB_DEC]
                     else:
-                        cls = (CLASS_INDEX[CLS_SPACE_DEC],)
-                    yield VirtualNode(
-                        "",
-                        node.end,
-                        node.end,
-                        y=cls, path=path)
+                        cls = CLASS_INDEX[CLS_SPACE_DEC]
+                    dec_class.append(cls)
+
+                file.add(AtomicTokenAnnotation(token.stop, token.stop))
+                # It is not possible to have multiple zero-length intervals so we can only add it
+                # with joined class
+                file.add(AtomicTargetAnnotation(token.stop, token.stop, tuple(dec_class)))
                 indentation = indentation[:len(line)]
             else:
                 # indentation is stable or increases
                 if indentation:
-                    yield VirtualNode(
-                        "".join(indentation),
-                        Position(offset, lineno, col),
-                        Position(offset + len(indentation), lineno, col + len(indentation)),
-                        is_accumulated_indentation=True, path=path)
+                    file.add(AtomicTokenAnnotation(offset, offset + len(indentation)))
+                    file.add(AccumulatedIndentationAnnotation(offset, offset + len(indentation)))
                 offset += len(indentation)
-                col += len(indentation)
                 for char in my_indent:
                     indentation.append(char)
                 for i, char in enumerate(my_indent):
@@ -568,93 +549,127 @@ class FeatureExtractor:
                         cls = (CLASS_INDEX[CLS_TAB_INC],)
                     else:
                         cls = (CLASS_INDEX[CLS_SPACE_INC],)
-                    yield VirtualNode(
-                        char,
-                        Position(offset + i, lineno, col + i),
-                        Position(offset + i + 1, lineno, col + i + 1),
-                        y=cls, path=path)
+                    file.add(AtomicTokenAnnotation(offset + i, offset + i + 1))
+                    file.add(AtomicTargetAnnotation(offset + i, offset + i + 1, cls))
                 offset += len(my_indent)
-                col += len(my_indent)
 
-    def _merge_classes_to_composite_labels(
-            self, vnodes: Iterable[VirtualNode], path: str, index_labels: bool = False,
-            ) -> Iterable[VirtualNode]:
+    def _merge_classes_to_composite_labels(self, file: AnnotatedData) -> None:
         """
+        TODO(zurk) fix doc and rename.
+
         Pack successive predictable nodes into single "composite" labels.
 
-        :param vnodes: Iterable of `VirtualNode`-s to process.
-        :param path: Path to the file from which we are currently extracting features.
-        :param index_labels: Whether to index labels to define output classes or not.
+        :param file: annotated data.
         :yield: The sequence of `VirtualNode`-s which is identical to the input but \
                 the successive Y-nodes are merged together.
         """
-        def _class_seq_to_vnodes(value, start, end, current_class_seq, path):
+        def _class_seq_to_annotations(start, stop, current_class_seq):
             if NEWLINE_INDEX not in current_class_seq or \
                     current_class_seq[0] == NEWLINE_INDEX:
                 # if there are no trailing whitespaces or tabs
-                yield VirtualNode(value=value, start=start, end=end,
-                                  y=tuple(current_class_seq), path=path)
+                yield TokenAnnotation(start, stop)
+                yield TargetAnnotation(start, stop, tuple(current_class_seq))
             else:
                 index = current_class_seq.index(NEWLINE_INDEX)
-                middle = Position(start.offset + index, start.line, start.col + index)
-                yield VirtualNode(value=value[:index], start=start, end=middle,
-                                  y=tuple(current_class_seq[:index]), path=path)
-                yield VirtualNode(value=value[index:], start=middle, end=end,
-                                  y=tuple(current_class_seq[index:]), path=path)
+                middle = start + index
+                yield TokenAnnotation(start, middle)
+                yield TokenAnnotation(middle, stop)
+                yield TargetAnnotation(start, middle, tuple(current_class_seq[:index]))
+                yield TargetAnnotation(middle, stop, tuple(current_class_seq[index:]))
 
-        start, end, value, current_class_seq = None, None, "", []
-        for vnode in vnodes:
-            if vnode.y is None and not vnode.is_accumulated_indentation or (
-                vnode.y is not None and vnode.y[0] in QUOTES_INDEX
-            ):
+        start, stop, current_class_seq = None, None, []
+
+        for annotations in file.iter_annotations(
+                (AtomicTokenAnnotation, AtomicTargetAnnotation, AccumulatedIndentationAnnotation)):
+            has_target = AtomicTargetAnnotation in annotations
+            acc_indent = AccumulatedIndentationAnnotation in annotations
+            if (not has_target and not acc_indent or (
+                    has_target and annotations[AtomicTargetAnnotation].target[0] in QUOTES_INDEX)):
                 if current_class_seq:
-                    yield from _class_seq_to_vnodes(value, start, end, current_class_seq, path)
-                    start, end, value, current_class_seq = None, None, "", []
-                yield vnode
+                    file.update(_class_seq_to_annotations(start, stop, current_class_seq))
+                    start, stop, current_class_seq = None, None, []
+                file.add(annotations[AtomicTokenAnnotation].to_token_annotation())
+                if AtomicTargetAnnotation in annotations:
+                    file.add(annotations[AtomicTargetAnnotation].to_target_annotation())
             else:
                 if not current_class_seq:
-                    start = vnode.start
-                end = vnode.end
-                value += vnode.value
-                if not vnode.is_accumulated_indentation:
-                    current_class_seq.extend(vnode.y)
+                    start = annotations.start
+                stop = annotations.stop
+                if not acc_indent:
+                    current_class_seq.extend(annotations[AtomicTargetAnnotation].target)
         if current_class_seq:
-            assert value
-            yield from _class_seq_to_vnodes(value, start, end, current_class_seq, path)
+            file.update(_class_seq_to_annotations(start, stop, current_class_seq))
 
-    def _add_noops(self, vnodes: Sequence[VirtualNode], path: str, index_labels: bool = False,
-                   ) -> List[VirtualNode]:
+    def _add_noops(self, file: AnnotatedData) -> None:
         """
+        TODO(zurk) fix doc and rename.
+
         Add CLS_NOOP nodes in between tokens without labeled nodes to allow for insertions.
 
-        :param vnodes: The sequence of `VirtualNode`-s to augment with noop nodes.
-        :param path: path to file.
-        :param index_labels: Whether to index labels to define output classes or not.
+        :param file: annotated data.
         :return: The augmented `VirtualNode`-s sequence.
         """
-        augmented_vnodes = []
-        noop_label = (CLASS_INDEX[CLS_NOOP],)
-        if not len(vnodes):
-            return augmented_vnodes
-        if vnodes[0].y is None:
-            augmented_vnodes.append(VirtualNode(value="", start=Position(0, 1, 1),
-                                                end=Position(0, 1, 1), y=noop_label, path=path))
-        for vnode, next_vnode in zip(vnodes, islice(vnodes, 1, None)):
-            augmented_vnodes.append(vnode)
-            if vnode.y is None and next_vnode.y is None:
-                augmented_vnodes.append(VirtualNode(value="", start=vnode.end, end=vnode.end,
-                                                    y=noop_label, path=path))
-        augmented_vnodes.append(next_vnode)
-        if augmented_vnodes[-1].y is None:
-            augmented_vnodes.append(VirtualNode(value="", start=vnodes[-1].end, end=vnodes[-1].end,
-                                                y=noop_label, path=path))
-        return augmented_vnodes
+        noop_target = (CLASS_INDEX[CLS_NOOP],)
+        if not len(file):
+            return
+
+        prev_annotations = None
+        for i, annotations in enumerate(
+                file.iter_annotations((TokenAnnotation, TargetAnnotation))):
+            if i == 0:
+                if TargetAnnotation not in annotations:
+                    file.add(TokenAnnotation(0, 0))
+                    file.add(TargetAnnotation(0, 0, noop_target))
+            else:
+                if TargetAnnotation not in prev_annotations and \
+                        TargetAnnotation not in annotations:
+                    file.add(TokenAnnotation(annotations.start, annotations.start))
+                    file.add(TargetAnnotation(annotations.start, annotations.start, noop_target))
+            prev_annotations = annotations
+
+        if TargetAnnotation not in annotations:
+            file.add(TokenAnnotation(annotations.stop, annotations.stop))
+            file.add(TargetAnnotation(annotations.stop, annotations.stop, noop_target))
 
     @staticmethod
-    def _find_parent(vnode_index: int, vnodes: Sequence[VirtualNode],
-                     parents: Mapping[int, bblfsh.Node], closest_left_node_id: int,
+    def _find_parent(search_start_offset: int, file: AnnotatedData, closest_left_node_id: int,
                      ) -> Optional[bblfsh.Node]:
         """
+        TODO(zurk) fix doc and rename.
+
+        Compute vnode parent as the LCA of the closest left and right babelfish nodes.
+
+        :param search_start_offset: position of the current node
+        :param file: Annotated code.
+        :param closest_left_node_id: bblfsh node of the closest parent already gone through.
+        :return: The bblfsh.Node of the found parent or None if no parent was found.
+        """
+        left_ancestors = set()
+        current_left_ancestor_id = closest_left_node_id
+        parents = file.get(UASTAnnotation).parents
+        while current_left_ancestor_id in parents:
+            left_ancestors.add(id(parents[current_left_ancestor_id]))
+            current_left_ancestor_id = id(parents[current_left_ancestor_id])
+
+        for future_vnode in file.iter_annotation(TokenAnnotation, search_start_offset):
+            if future_vnode.has_node:
+                break
+        else:
+            return None
+        current_right_ancestor_id = id(future_vnode.node)
+        while current_right_ancestor_id in parents:
+            if id(parents[current_right_ancestor_id]) in left_ancestors:
+                return parents[current_right_ancestor_id]
+            current_right_ancestor_id = id(parents[current_right_ancestor_id])
+        return None
+
+    @staticmethod
+    def _find_parent_old(vnode_index: int, vnodes: Sequence[VirtualNode],
+                         parents: Mapping[int, bblfsh.Node], closest_left_node_id: int,
+                         ) -> Optional[bblfsh.Node]:
+        """
+        TODO(zurk): merge with _find_parent().
+
         Compute vnode parent as the LCA of the closest left and right babelfish nodes.
 
         :param vnode_index: the index of the current node
@@ -693,7 +708,7 @@ class FeatureExtractor:
         quote_classes = set([CLASS_INDEX[CLS_DOUBLE_QUOTE], CLASS_INDEX[CLS_SINGLE_QUOTE]])
         return not (quote_classes & set(vnode.y) and quote_classes & set(sibling.y))
 
-    def _parse_file(self, file: AnnotatedData) -> Tuple[List[VirtualNode], Dict[int, bblfsh.Node]]:
+    def _parse_file(self, file: AnnotatedData) -> None:
         """
         Annotate a file with a RawTokenAnnotation and build a mapping from UAST Node to parent.
 
@@ -764,9 +779,6 @@ class FeatureExtractor:
             file.update(uast_node_annot)
             pos = node.end_position.offset
 
-        # backward
-        return raw_file_to_vnodes_and_parents(file)
-
     def _compute_labels_mappings(self, vnodes: Iterable[VirtualNode]) -> None:
         """
         Calculate the label to class sequence and class sequence to label mappings.
@@ -792,17 +804,28 @@ class FeatureExtractor:
                         len(support) - len(self.labels_to_class_sequences), len(support),
                         self.cutoff_label_support)
 
-    def _fill_vnode_parents(self, file_parents: Mapping[int, bblfsh.Node],
-                            file_vnodes: List[VirtualNode], uast: bblfsh.Node,
-                            vnode_parents: Mapping[int, bblfsh.Node]):
+    def _fill_vnode_parents(self, file: AnnotatedData):
         closest_left_node_id = None
-        for j, vn in enumerate(file_vnodes):
-            if vn.node:
-                closest_left_node_id = id(vn.node)
-            parent = self._find_parent(j, file_vnodes, file_parents, closest_left_node_id)
+        uast = file.get(UASTAnnotation).uast
+        for annotation in file.iter_annotation(TokenAnnotation):
+            if annotation.has_node:
+                closest_left_node_id = id(annotation.node)
+            parent = self._find_parent(annotation.stop, file, closest_left_node_id)
             if parent is None:
                 parent = uast
-            vnode_parents[id(vn)] = parent
+            file.add(TokenParentAnnotation(*annotation.range, parent))
+
+
+def _to_position(raw_lines_data, _lines_start_offset, offset):
+    line_num = numpy.argmax(_lines_start_offset > offset) - 1
+    col = offset - _lines_start_offset[line_num]
+    line = raw_lines_data[line_num]
+    if len(line) == col:
+        if line.splitlines()[0] != line:
+            # ends with newline
+            line_num += 1
+            col = 0
+    return Position(offset, line_num + 1, col + 1)
 
 
 def raw_file_to_vnodes_and_parents(file: AnnotatedData) -> Tuple[List["VirtualNode"],
@@ -812,17 +835,6 @@ def raw_file_to_vnodes_and_parents(file: AnnotatedData) -> Tuple[List["VirtualNo
 
     For backward capability.
     """
-    def _to_position(raw_lines_data, _lines_start_offset, offset):
-        line_num = numpy.argmax(_lines_start_offset > offset) - 1
-        col = offset - _lines_start_offset[line_num]
-        line = raw_lines_data[line_num]
-        if len(line) == col:
-            if line.splitlines()[0] != line:
-                # ends with newline
-                line_num += 1
-                col = 0
-        return Position(offset, line_num + 1, col + 1)
-
     vnodes = []
     vnode_annotations = [RawTokenAnnotation]
     path = file.get(PathAnnotation).path
@@ -842,3 +854,59 @@ def raw_file_to_vnodes_and_parents(file: AnnotatedData) -> Tuple[List["VirtualNo
         )
         vnodes.append(vnode)
     return vnodes, file.get(UASTAnnotation).parents
+
+
+def file_to_vnodes_and_parents(file: AnnotatedData) -> Tuple[List["VirtualNode"],
+                                                             Dict[int, bblfsh.Node]]:
+    """
+    Convert AnnotatedData class to Sequence of vnodes.
+
+    For backward capability.
+    """
+    vnodes = []
+    vnode_annotations = [TokenAnnotation, TargetAnnotation, TokenParentAnnotation]
+    path = file.get(PathAnnotation).path
+    raw_lines_data = file.content.splitlines(keepends=True)
+    line_lens = [0] + [len(d) for d in raw_lines_data]
+    line_lens[-1] += 1
+    _line_start_offsets = numpy.array(line_lens).cumsum()
+    vnode_parents = {}
+    for value, annotations in file.iter_items(vnode_annotations):
+        vnode = VirtualNode(
+            value,
+            _to_position(raw_lines_data, _line_start_offsets, annotations.start),
+            _to_position(raw_lines_data, _line_start_offsets, annotations.stop),
+            is_accumulated_indentation=False,
+            path=path,
+            node=annotations[TokenAnnotation].node,
+            y=annotations[TargetAnnotation].target if TargetAnnotation in annotations else None,
+        )
+        vnodes.append(vnode)
+        vnode_parents[id(vnode)] = annotations[TokenParentAnnotation].parent if TokenParentAnnotation in annotations else None
+    return vnodes, vnode_parents
+
+
+def to_vnodes_format(files: Sequence[AnnotatedData],
+                     ) -> Tuple[List[Tuple[List[VirtualNode], Dict[int, bblfsh.Node], Set[int]]],
+                                Dict[int, bblfsh.Node],
+                                Dict[int, bblfsh.Node]]:
+    """
+    Convert AnnotatedData classes to the depricated output format of _parse_vnodes().
+
+    For backward capability.
+    """
+    vnode_parents = {}
+    node_parents = {}
+    vnodes = []
+    for file in files:
+        file_vnodes, file_vnode_parents = file_to_vnodes_and_parents(file)
+        file_node_parents = file.get(UASTAnnotation).parents
+        try:
+            file_lines = set(file.get(LinesToCheckAnnotation).lines)
+        except Exception:
+            file_lines = None
+        vnodes.append((file_vnodes, file_node_parents, file_lines))
+        vnode_parents.update(file_vnode_parents)
+        node_parents.update(file_node_parents)
+
+    return vnodes, node_parents, vnode_parents
