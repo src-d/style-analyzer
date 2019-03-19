@@ -1,7 +1,7 @@
 """Various glue functions to work with the input dataset and the output from FastText."""
 import csv
 from itertools import chain
-from typing import Dict, List, NamedTuple, Optional, Tuple
+from typing import Dict, List, NamedTuple, Optional, Set, Tuple
 
 import numpy
 import pandas
@@ -21,6 +21,31 @@ Candidate = NamedTuple("Candidate", (
     ("token", str),         # Token with fixed typo
     ("confidence", float),  # Model confidence for the correction
 ))
+
+
+def filter_splits(data: pandas.DataFrame, tokens: Set[str]) -> pandas.DataFrame:
+    """
+    Leave rows in a dataframe whose splits' tokens all belong to some vocabulary.
+
+    :param data: Dataframe which contains column Columns.Split.
+    :param tokens: Set of tokens (reference vocabulary).
+    :return: Filtered dataframe.
+    """
+    return data[[set(x.split()).issubset(tokens) for x in data[Columns.Split]]]
+
+
+def print_frequencies(frequencies: Dict[str, int], path: str) -> None:
+    """
+    Print frequencies of tokens to a file.
+
+    Frequencies info is obtained from id_stats dataframe.
+    :param frequencies: Dictionary of tokens' frequencies.
+    :param path: Path to a .csv file to print frequencies to.
+    """
+    with smart_open(path, "w") as f:
+        writer = csv.writer(f)
+        for line in sorted(frequencies.items(), key=lambda x: -x[1]):
+            writer.writerow(line)
 
 
 def read_frequencies(file: str) -> Dict[str, int]:

@@ -15,8 +15,8 @@ from tqdm import tqdm
 from lookout.style.common import merge_dicts
 from lookout.style.typos.corrector import TyposCorrector
 from lookout.style.typos.corruption import corrupt_tokens_in_df
-from lookout.style.typos.preprocessing import filter_splits, print_frequencies
-from lookout.style.typos.utils import Columns, flatten_df_by_column
+from lookout.style.typos.utils import Columns, filter_splits, flatten_df_by_column, \
+    print_frequencies
 
 
 DATA_DIR = pathlib.Path(__file__).parent / "data"
@@ -135,23 +135,23 @@ def prepare_data(config: Optional[Mapping[str, Any]] = None) -> pandas.DataFrame
 
     log.info("collect statistics for tokens")
     stats = flat_data[[Columns.Frequency, Columns.Token]].groupby([Columns.Token]).sum()
-    stats = stats.sort_values(by=Columns.Frequency, ascending=False)
+    stats = stats.sort_values(by=Columns.Frequency, ascending=False)[Columns.Frequency]
 
     log.info("derive the new vocabulary")
-    frequencies_tokens = set(stats.index[:(config["frequencies_size"] or len(stats))])
-    log.info("tokens with frequencies data size: %d", len(frequencies_tokens))
-    vocabulary_tokens = set(stats.index[:config["vocabulary_size"]])
-    log.info("vocabulary size: %d", len(vocabulary_tokens))
-    vocabulary_tokens_filepath = os.path.join(config["data_dir"], config["vocabulary_filename"])
-    print_frequencies(vocabulary_tokens, stats, vocabulary_tokens_filepath)
-    log.info("vocabulary saved to %s", vocabulary_tokens_filepath)
-    frequencies_tokens_filepath = os.path.join(config["data_dir"], config["frequencies_filename"])
-    print_frequencies(frequencies_tokens, stats, frequencies_tokens_filepath)
-    log.info("tokens with frequencies data are saved to %s", frequencies_tokens_filepath)
+    frequencies = stats.iloc[:(config["frequencies_size"] or len(stats))].to_dict()
+    log.info("tokens with frequencies data size: %d", len(frequencies))
+    vocabulary = stats.iloc[:config["vocabulary_size"]].to_dict()
+    log.info("vocabulary size: %d", len(vocabulary))
+    vocabulary_filepath = os.path.join(config["data_dir"], config["vocabulary_filename"])
+    print_frequencies(vocabulary, vocabulary_filepath)
+    log.info("vocabulary saved to %s", vocabulary_filepath)
+    frequencies_filepath = os.path.join(config["data_dir"], config["frequencies_filename"])
+    print_frequencies(frequencies, frequencies_filepath)
+    log.info("tokens with frequencies data are saved to %s", frequencies_filepath)
 
     # Leave only splits that contain tokens from vocabulary
-    prepared_data = filter_splits(flat_data, vocabulary_tokens)[[Columns.Frequency, Columns.Split,
-                                                                 Columns.Token]]
+    prepared_data = filter_splits(flat_data, set(vocabulary.keys()))[
+        [Columns.Frequency, Columns.Split, Columns.Token]]
     prepared_data.reset_index(drop=True, inplace=True)
     log.info("final dataset shape: %s", prepared_data.shape)
     if config["prepared_filename"] is not None:
