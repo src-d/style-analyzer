@@ -9,11 +9,7 @@ import pandas
 from pandas.util.testing import assert_frame_equal
 
 from lookout.style.typos.utils import (
-<<<<<<< HEAD
-    add_context_info, Columns, filter_splits, flatten_df_by_column, print_frequencies,
-=======
-    add_context_info, Candidate, Columns, flatten_df_by_column,
->>>>>>> Use Candidate class in corrector suggestions logic
+    add_context_info, Candidate, Columns, filter_splits, flatten_df_by_column, print_frequencies,
     rank_candidates, read_frequencies, read_vocabulary, suggestions_to_df, suggestions_to_flat_df)
 
 
