@@ -134,7 +134,7 @@ class IdTyposAnalyzer(Analyzer):
                         yield TypoFix(
                             head_file=file,
                             token=new_identifiers[index].token,
-                            candidates=[Candidate(*c[:2]) for c in corrections[token]],
+                            candidates=corrections[token],
                             line_number=new_identifiers[index].start_position.line,
                         )
 

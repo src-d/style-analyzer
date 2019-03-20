@@ -1,7 +1,7 @@
 """Typo correction model."""
 from itertools import chain
 import logging
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set
 
 from modelforge import Model
 import pandas
@@ -12,7 +12,7 @@ from lookout.style.typos.generation import (CandidatesGenerator, get_candidates_
                                             get_candidates_metadata)
 from lookout.style.typos.metrics import generate_report, get_scores
 from lookout.style.typos.ranking import CandidatesRanker
-from lookout.style.typos.utils import Columns
+from lookout.style.typos.utils import Candidate, Columns
 
 
 class TyposCorrector(Model):
@@ -156,7 +156,7 @@ class TyposCorrector(Model):
     def suggest(self, data: pandas.DataFrame, candidates:  Optional[str] = None,
                 save_candidates_file: Optional[str] = None, n_candidates: int = 3,
                 return_all: bool = True, start_pool_size: int = DEFAULT_START_POOL_SIZE,
-                chunksize: int = DEFAULT_CHUNKSIZE) -> Dict[int, List[Tuple[str, float]]]:
+                chunksize: int = DEFAULT_CHUNKSIZE) -> Dict[int, List[Candidate]]:
         """
         Suggest corrections for the tokens from the given dataset.
 
@@ -181,7 +181,7 @@ class TyposCorrector(Model):
     def suggest_on_file(self, data_file: str, candidates:  Optional[str] = None,
                         save_candidates_file: Optional[str] = None, n_candidates: int = 3,
                         return_all: bool = True, start_pool_size: int = DEFAULT_START_POOL_SIZE,
-                        chunksize: int = DEFAULT_CHUNKSIZE) -> Dict[int, List[Tuple[str, float]]]:
+                        chunksize: int = DEFAULT_CHUNKSIZE) -> Dict[int, List[Candidate]]:
         """
         Suggest corrections for the tokens from the given file.
 
@@ -204,7 +204,7 @@ class TyposCorrector(Model):
                            return_all: bool = True, batch_size: int = 2048,
                            start_pool_size: int = DEFAULT_START_POOL_SIZE,
                            chunksize: int = DEFAULT_CHUNKSIZE,
-                           ) -> Dict[int, List[Tuple[str, float]]]:
+                           ) -> Dict[int, List[Candidate]]:
         """
         Suggest corrections for the tokens from the given dataset by batches. \
         Does not support precalculated candidates.

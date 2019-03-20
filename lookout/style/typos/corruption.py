@@ -4,19 +4,14 @@ from multiprocessing import Pool
 import os
 import random
 import string
-from typing import NamedTuple, Optional, Tuple
+from typing import Optional, Tuple
 
 import numpy
 import pandas
 from tqdm import tqdm
 
-Columns = NamedTuple(
-    "Columns",
-    [("Token", str), ("CorrectToken", str), ("Split", str), ("CorrectSplit", str), ("After", str),
-     ("Before", str), ("Id", str), ("Candidate", str), ("Features", str), ("Probability", str),
-     ("Suggestions", str), ("Frequency", str)])(
-    "token", "correct_token", "token_split", "correct_token_split", "after", "before", "id",
-    "candidate", "features", "proba", "suggestions", "freq")
+from lookout.style.typos.utils import Columns
+
 
 letters = list(string.ascii_lowercase)
 
