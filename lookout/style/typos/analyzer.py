@@ -43,7 +43,7 @@ class IdTyposAnalyzer(Analyzer):
         "n_candidates": 3,
         "confidence_threshold": 0.1,
         "overall_size_limit": 5 << 20,  # 5 MB
-        "model": None,
+        "model": "d798e898-c6b2-4e39-809f-f502571584e8",
         "index_column": "index",
     }
 
