@@ -138,7 +138,8 @@ class AnalyzerPayloadTest(unittest.TestCase):
                            2: [("token", 0.98),
                                ("taken", 0.3),
                                ("tokem", 0.01)]}
-        cls.filtered_suggestions = {1: [("get", 0.9)],
+        cls.filtered_suggestions = {1: [("get", 0.9),
+                                        ("gpt", 0.3)],
                                     2: [("token", 0.98),
                                         ("taken", 0.3)]}
 
