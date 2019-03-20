@@ -7,7 +7,7 @@ from typing import Sequence, Tuple
 import unittest
 
 import bblfsh
-from lookout.core.api.service_data_pb2 import File
+from lookout.core.analyzer import UnicodeFile
 import numpy
 
 from lookout.style.format.analyzer import FormatAnalyzer
@@ -44,8 +44,8 @@ class FeaturesTests(unittest.TestCase):
         self.assertEqual("".join(n.value for n in nodes), code)
 
     def test_extract_features_exact_match(self):
-        file = File(content=bytes(self.contents, "utf-8"),
-                    uast=self.uast)
+        file = UnicodeFile(content=self.contents,
+                           uast=self.uast, path="test.js", language="javascript")
         files = [file]
         X, y, (vnodes_y, vnodes, _, _) = self.extractor.extract_features(files)
         self.assertEqual("".join(vnode.value for vnode in vnodes), self.contents)
@@ -146,8 +146,8 @@ class FeaturesTests(unittest.TestCase):
         self.assertEqual(self.extractor.class_sequences_to_labels, {(1,): 0})
 
     def test_extract_features(self):
-        file = File(content=bytes(self.contents, "utf-8"),
-                    uast=self.uast)
+        file = UnicodeFile(content=self.contents,
+                           uast=self.uast, path="test.js", language="javascript")
         files = [file, file]
 
         res = self.extractor.extract_features(files)
@@ -174,8 +174,8 @@ class FeaturesTests(unittest.TestCase):
                          "columns %s are unset" % ", ".join(map(str, unset_columns)))
 
     def test_extract_features_all_lines(self):
-        file = File(content=bytes(self.contents, "utf-8"),
-                    uast=self.uast)
+        file = UnicodeFile(content=self.contents, uast=self.uast, path="test.js",
+                           language="javascript")
         files = [file, file]
 
         self.check_X_y(*self.extractor.extract_features(
@@ -189,7 +189,8 @@ class FeaturesTests(unittest.TestCase):
         def get_class_sequences_from_code(code: str) -> Sequence[Tuple[int, ...]]:
             uast = client.parse(filename="", language="javascript", contents=code.encode()).uast
             extractor = FeatureExtractor(language="javascript", **config)
-            result = extractor.extract_features([File(content=code.encode(), uast=uast, path="")])
+            result = extractor.extract_features([UnicodeFile(content=code, uast=uast, path="",
+                                                             language="javascript")])
             if result is None:
                 self.fail("Could not parse test code.")
             _, _, (vnodes_y, _, _, _) = result
@@ -198,8 +199,8 @@ class FeaturesTests(unittest.TestCase):
                          get_class_sequences_from_code("var a = 'a';"))
 
     def test_extract_features_some_lines(self):
-        file = File(content=bytes(self.contents, "utf-8"),
-                    uast=self.uast)
+        file = UnicodeFile(content=self.contents,
+                           uast=self.uast, path="test.js", language="javascript")
         files = [file]
 
         X1_csr, y1, (vn1_y, vn1, vn1_parents, n1_parents) = self.extractor.extract_features(

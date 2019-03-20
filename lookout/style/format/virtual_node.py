@@ -116,15 +116,16 @@ class VirtualNode:
         :return: New VirtualNode-s.
         """
         outer_token = file[node.start_position.offset:node.end_position.offset]
+        if outer_token == "''" or outer_token == '""':
+            assert node.token == "" or node.token == "''" or node.token == '""'
+            start = Position.from_bblfsh_position(node.start_position)
+            middle = Position(offset=start.offset + 1, line=start.line, col=start.col + 1)
+            end = Position.from_bblfsh_position(node.end_position)
+            yield VirtualNode(outer_token[0], start, middle, path=path)
+            yield VirtualNode("", middle, middle, node=node, path=path)
+            yield VirtualNode(outer_token[1], middle, end, path=path)
+            return
         if not node.token:
-            if outer_token == "''" or outer_token == '""':
-                start = Position.from_bblfsh_position(node.start_position)
-                middle = Position(offset=start.offset + 1, line=start.line, col=start.col + 1)
-                end = Position.from_bblfsh_position(node.end_position)
-                yield VirtualNode(outer_token[0], start, middle, path=path)
-                yield VirtualNode("", middle, middle, node=node, path=path)
-                yield VirtualNode(outer_token[1], middle, end, path=path)
-                return
             yield VirtualNode(outer_token,
                               Position.from_bblfsh_position(node.start_position),
                               Position.from_bblfsh_position(node.end_position),

@@ -3,7 +3,7 @@ from typing import FrozenSet, Mapping, Optional, Sequence, Tuple
 import unittest
 
 import bblfsh
-from lookout.core.api.service_data_pb2 import File
+from lookout.core.analyzer import UnicodeFile
 from lookout.core.data_requests import parse_uast
 from lookout.core.slogging import setup as slogging_setup
 import numpy
@@ -54,10 +54,11 @@ class PostprocessingTests(unittest.TestCase):
     def edit_and_test(self, code: str, modifs: Mapping[int, Sequence[str]], *,
                       quote_indices: Optional[Tuple[int, ...]] = None,
                       bad_indices: Optional[FrozenSet[int]] = None) -> None:
-        uast, errors = parse_uast(self.stub, code, filename="", language=self.language)
+        uast, errors = parse_uast(self.stub, code, filename="", language=self.language,
+                                  unicode=True)
         if errors:
             self.fail("Could not parse the testing code.")
-        file = File(content=code.encode(), uast=uast, path="test_file")
+        file = UnicodeFile(content=code, uast=uast, path="test_file", language="javascript")
         X, y, (vnodes_y, vnodes, vnode_parents, node_parents) = self.fe.extract_features([file])
         y_pred = y.copy()
         rule_winners = numpy.zeros(y.shape)
@@ -97,10 +98,12 @@ class PostprocessingTests(unittest.TestCase):
         ]
         files = []
         for i, (code, _) in enumerate(data):
-            uast, errors = parse_uast(self.stub, code, filename="", language=self.language)
+            uast, errors = parse_uast(self.stub, code, filename="", language=self.language,
+                                      unicode=True)
             if errors:
                 self.fail("Could not parse the testing code.")
-            files.append(File(content=code.encode(), uast=uast, path="test_file_%d" % i))
+            files.append(UnicodeFile(content=code, uast=uast, path="test_file_%d" % i,
+                                     language="javascript"))
         X, y, (vnodes_y, vnodes, vnode_parents, node_parents) = self.fe.extract_features(files)
         y_pred = y.copy()
         rule_winners = numpy.zeros(y.shape)

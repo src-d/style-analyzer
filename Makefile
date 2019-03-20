@@ -39,7 +39,7 @@ bblfsh-start:
 	docker run -d --rm --name style_analyzer_bblfshd --privileged -p 9432\:9432 \
 		bblfsh/bblfshd\:v2.11.0 --log-level DEBUG
 	docker exec style_analyzer_bblfshd bblfshctl driver install \
-		javascript docker://bblfsh/javascript-driver\:v1.2.0
+		javascript docker://bblfsh/javascript-driver\:v2.7.1
 
 REPORTS_DIR ?= $(current_dir)/lookout/style/format/benchmarks/reports
 REPORT_VERSION ?= untagged
@@ -65,8 +65,8 @@ report-noisy: $(NOISY_REPORT_DIR)
 		2>&1 | tee $(NOISY_REPORT_DIR)/logs.txt
 	xz -k $(NOISY_REPORT_DIR)/logs.txt
 report-quality: $(QUALITY_REPORT_DIR)
-	python3 -m lookout.style.format quality-report -o $(QUALITY_REPORT_DIR) \
-		-i $(QUALITY_REPORT_REPOS_WITH_VNODE) 2>&1 | tee $(QUALITY_REPORT_DIR)/logs.txt
+	python3 -m lookout.style.format --log-level DEBUG quality-report -o $(QUALITY_REPORT_DIR) \
+		-i $(QUALITY_REPORT_REPOS) 2>&1 | tee $(QUALITY_REPORT_DIR)/logs.txt
 	xz -k $(QUALITY_REPORT_DIR)/logs.txt
 report-compare:
 	python3 -m lookout.style.format compare-quality \

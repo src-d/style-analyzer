@@ -255,7 +255,7 @@ class SmokeEvalFormatAnalyzer(FormatAnalyzer):
                     f.write(code)
                 writer.writerow(report_line)
 
-    @with_changed_uasts_and_contents
+    @with_changed_uasts_and_contents(unicode=True)
     def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
                 data_service: DataService, **data) -> List[Comment]:
         """
@@ -273,8 +273,8 @@ class SmokeEvalFormatAnalyzer(FormatAnalyzer):
             filepath = file_fix.head_file.path
             if file_fix.error:
                 continue
-            bad_style_code = file_fix.head_file.content.decode("utf-8", "replace")
-            correct_style_code = file_fix.base_file.content.decode("utf-8", "replace")
+            bad_style_code = file_fix.head_file.content
+            correct_style_code = file_fix.base_file.content
             row = {
                 "repo": self.model.ptr.url.split("/")[-1],
                 "style": self.config["style_name"],

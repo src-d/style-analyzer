@@ -3,7 +3,7 @@ from pathlib import Path
 import unittest
 
 import bblfsh
-from lookout.core.api.service_data_pb2 import File
+from lookout.core.analyzer import UnicodeFile
 from sklearn import model_selection, tree
 
 from lookout.style.format.analyzer import FormatAnalyzer
@@ -21,8 +21,7 @@ class RulesIntegrationTests(unittest.TestCase):
             contents = fin.read()
         with lzma.open(str(base / "benchmark.uast.xz")) as fin:
             uast = bblfsh.Node.FromString(fin.read())
-        file = File(content=bytes(contents, "utf-8"),
-                    uast=uast)
+        file = UnicodeFile(content=contents, uast=uast, path="", language="javascript")
         cls.files = [file]
         config = FormatAnalyzer._load_config(get_config())["train"]
         cls.extractor = FeatureExtractor(

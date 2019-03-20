@@ -307,7 +307,7 @@ class FeatureExtractor:
         parsed_files = []
         index_labels = not self.labels_to_class_sequences
         for i, file in enumerate(files):
-            contents = file.content.decode("utf-8", "replace")
+            contents = file.content
             uast = file.uast
             try:
                 file_vnodes, file_parents = self._parse_file(contents, uast, file.path)

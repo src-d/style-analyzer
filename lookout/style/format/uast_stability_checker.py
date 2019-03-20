@@ -69,7 +69,7 @@ class UASTStabilityChecker:
             descendants.append(current_ancestor)
             start, end = (current_ancestor.start_position.offset,
                           current_ancestor.end_position.offset)
-            uast, errors = parse_uast(stub, content[start:end], filename="",
+            uast, errors = parse_uast(stub, content[start:end], filename="", unicode=True,
                                       language=self._feature_extractor.language)
             if not errors:
                 result = uast, start, end
@@ -92,7 +92,7 @@ class UASTStabilityChecker:
         # TODO(vmarkovtsev): Apply ML to not parse all the parents.
         self._parsing_cache = {}
         unsafe_preds = []
-        file_content = file.content.decode("utf-8", "replace")
+        file_content = file.content
         vnodes_i = 0
         changes = numpy.where((y_pred != -1) & (y != y_pred))[0]
         start_offset_to_vnodes = {}
@@ -121,11 +121,13 @@ class UASTStabilityChecker:
                 content_before = file_content[vnode1.start.offset:vnode3.end.offset]
                 content_after = (self._feature_extractor.label_to_str(y_pred[i]) + vnode2.value +
                                  self._feature_extractor.label_to_str(y_pred[i + 1]))
-                parsed_before, errors = parse_uast(stub, content_before, filename="",
-                                                   language=self._feature_extractor.language)
+                parsed_before, errors = parse_uast(
+                    stub, content_before, filename="", unicode=True,
+                    language=self._feature_extractor.language)
                 if not errors:
-                    parsed_after, errors = parse_uast(stub, content_after, filename="",
-                                                      language=self._feature_extractor.language)
+                    parsed_after, errors = parse_uast(
+                        stub, content_after, filename="", unicode=True,
+                        language=self._feature_extractor.language)
                     if not self.check_uasts_equivalent(parsed_before, parsed_after):
                         unsafe_preds.append(i)
                         unsafe_preds.append(i + 1)  # Second quote
@@ -149,7 +151,8 @@ class UASTStabilityChecker:
                 unsafe_preds.append(i)
                 continue
             parent_after, errors_after = parse_uast(
-                stub, content_after, filename="", language=self._feature_extractor.language)
+                stub, content_after, filename="", language=self._feature_extractor.language,
+                unicode=True)
             if errors_after:
                 unsafe_preds.append(i)
                 continue
