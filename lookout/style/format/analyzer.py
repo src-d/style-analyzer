@@ -574,5 +574,5 @@ class FormatAnalyzer(Analyzer):
                 language + import_module("lookout.style.format.langs.%s" % language).__version__])
             return True
         except UnsatisfiedDriverVersionError as e:
-            log.warning("language %s was skipped, Babelfish driver is incompatible: %s", e)
+            log.error("language %s was skipped, Babelfish driver is incompatible: %s", e)
             return False
