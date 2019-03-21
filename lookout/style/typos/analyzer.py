@@ -259,10 +259,11 @@ class IdTyposAnalyzer(Analyzer):
         for index, candidates in suggestions.items():
             filtered_candidates = []
             for candidate in candidates:
-                if candidate[0] == tokens[index] or \
-                        candidate[1] < self.config["confidence_threshold"]:
+                if candidate[1] < self.config["confidence_threshold"]:
                     break
                 filtered_candidates.append(candidate)
+                if candidate[0] == tokens[index]:
+                    break
             if filtered_candidates:
                 filtered_suggestions[index] = filtered_candidates
         return filtered_suggestions

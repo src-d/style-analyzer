@@ -210,8 +210,7 @@ class CandidatesGenerator(Model):
 
         candidate_tokens = {candidate for candidate in candidate_tokens
                             if candidate in self.tokens}
-        if not len(candidate_tokens):
-            candidate_tokens.add(typo_info.typo)
+        candidate_tokens.add(typo_info.typo)
         return candidate_tokens
 
     def _generate_features(self, typo_info: TypoInfo, dist: int, typo_vec: numpy.ndarray,
@@ -259,6 +258,7 @@ class CandidatesGenerator(Model):
                 self._min_cos(candidate_vec, context),
                 self._cos(typo_vec, candidate_vec),
                 dist,
+                int(candidate in self.tokens),
             ),
             before_vec,
             after_vec,
