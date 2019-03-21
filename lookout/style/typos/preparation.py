@@ -11,7 +11,7 @@ from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
 from lookout.style.common import merge_dicts
-from lookout.style.typos.config import DEFAULT_CONFIG
+from lookout.style.typos.config import DEFAULT_CORRECTOR_CONFIG
 from lookout.style.typos.corrector import TyposCorrector
 from lookout.style.typos.corruption import corrupt_tokens_in_df
 from lookout.style.typos.utils import Columns, filter_splits, flatten_df_by_column, \
@@ -68,7 +68,7 @@ def prepare_data(config: Optional[Mapping[str, Any]] = None) -> pandas.DataFrame
     log = logging.getLogger("prepare_data")
     if config is None:
         config = {}
-    config = merge_dicts(DEFAULT_CONFIG["preparation"], config)
+    config = merge_dicts(DEFAULT_CORRECTOR_CONFIG["preparation"], config)
 
     os.makedirs(config["data_dir"], exist_ok=True)
     raw_data_path = config["input_path"]
@@ -149,7 +149,7 @@ def train_fasttext(data: pandas.DataFrame, config: Optional[Mapping[str, Any]] =
     log = logging.getLogger("train_fasttext")
     if config is None:
         config = {}
-    config = merge_dicts(DEFAULT_CONFIG["fasttext"], config)
+    config = merge_dicts(DEFAULT_CORRECTOR_CONFIG["fasttext"], config)
     train_data = data[[len(str(x).split()) > 2 for x in data[Columns.Split]]].sample(
         config["size"], weights=Columns.Frequency, replace=True)
     if config["corrupt"]:
@@ -169,7 +169,7 @@ def train_fasttext(data: pandas.DataFrame, config: Optional[Mapping[str, Any]] =
 
 def get_datasets(prepared_data: pandas.DataFrame,
                  config: Optional[Mapping[str, Any]] = None,
-                 processes_number: int = DEFAULT_CONFIG["processes_number"],
+                 processes_number: int = DEFAULT_CORRECTOR_CONFIG["processes_number"],
                  ) -> Tuple[pandas.DataFrame, pandas.DataFrame]:
     """
     Create the train and the test datasets of typos.
@@ -192,7 +192,7 @@ def get_datasets(prepared_data: pandas.DataFrame,
     log = logging.getLogger("get_datasets")
     if config is None:
         config = {}
-    config = merge_dicts(DEFAULT_CONFIG["datasets"], config)
+    config = merge_dicts(DEFAULT_CORRECTOR_CONFIG["datasets"], config)
     # With replace=True we get the real examples distribution, but there's a small
     # probability of having the same examples of misspellings in train and test datasets
     # (it IS small because a big number of random typos can be made in a single word)
@@ -222,7 +222,7 @@ def train_and_evaluate(train_data: pandas.DataFrame, test_data: pandas.DataFrame
                        vocabulary_path: str, frequencies_path: str, fasttext_path: str,
                        generation_config: Optional[Mapping[str, Any]] = None,
                        ranking_config: Optional[Mapping[str, Any]] = None,
-                       processes_number: int = DEFAULT_CONFIG["processes_number"],
+                       processes_number: int = DEFAULT_CORRECTOR_CONFIG["processes_number"],
                        ) -> TyposCorrector:
     """
     Create and train TyposCorrector model on the given data.
@@ -263,7 +263,7 @@ def train_from_scratch(config: Optional[Mapping[str, Any]] = None) -> TyposCorre
     log = logging.getLogger("train_from_scratch")
     if config is None:
         config = {}
-    config = merge_dicts(DEFAULT_CONFIG, config)
+    config = merge_dicts(DEFAULT_CORRECTOR_CONFIG, config)
     log.info("effective config:\n%s", pformat(config, width=120, compact=True))
     prepared_data = prepare_data(config["preparation"])
     if config["fasttext"]["path"] is None or not os.path.exists(config["fasttext"]["path"]):

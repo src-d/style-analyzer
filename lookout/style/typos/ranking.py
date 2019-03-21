@@ -9,7 +9,7 @@ from sourced.ml.models.license import DEFAULT_LICENSE
 import xgboost as xgb
 
 from lookout.style.common import merge_dicts
-from lookout.style.typos.config import DEFAULT_CONFIG
+from lookout.style.typos.config import DEFAULT_CORRECTOR_CONFIG
 from lookout.style.typos.utils import Candidate, Columns, rank_candidates
 
 
@@ -51,7 +51,7 @@ class CandidatesRanker(Model):
         """
         if config is None:
             config = {}
-        self.config = merge_dicts(DEFAULT_CONFIG["ranking"], config)
+        self.config = merge_dicts(DEFAULT_CORRECTOR_CONFIG["ranking"], config)
 
     def fit(self, identifiers: pandas.Series, candidates: pandas.DataFrame,
             features: numpy.ndarray, val_part: float = 0.1) -> None:

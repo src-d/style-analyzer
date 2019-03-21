@@ -107,7 +107,7 @@ class TyposCorrector(Model):
                                         desired.
                        chunksize: Max size of a chunk for one process during multiprocessing.
         """
-        self.ranker.set_config(config)
+        self.generator.set_config(config)
         self._log.debug("%s is initialized", repr(self.ranker))
 
     def expand_vocabulary(self, additional_tokens: Set[str]) -> None:

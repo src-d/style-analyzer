@@ -3,7 +3,7 @@ import pathlib
 
 
 DEFAULT_DATA_DIR = pathlib.Path(__file__).parent / "data"
-DEFAULT_CONFIG = {
+DEFAULT_CORRECTOR_CONFIG = {
     "preparation": {
         "data_dir": str(DEFAULT_DATA_DIR),
         "input_path": str(DEFAULT_DATA_DIR / "raw_data.csv"),
@@ -46,16 +46,18 @@ DEFAULT_CONFIG = {
     "ranking": {
         "train_rounds": 4000,
         "early_stopping": 200,
-        "boost_param": {"max_depth": 6,
-                         "eta": 0.03,
-                         "min_child_weight": 2,
-                         "silent": 1,
-                         "objective": "binary:logistic",
-                         "subsample": 0.5,
-                         "colsample_bytree": 0.5,
-                         "alpha": 1,
-                         "eval_metric": ["error"],
-                         "nthread": multiprocessing.cpu_count()},
+        "boost_param": {
+            "max_depth": 6,
+            "eta": 0.03,
+            "min_child_weight": 2,
+            "silent": 1,
+            "objective": "binary:logistic",
+            "subsample": 0.5,
+            "colsample_bytree": 0.5,
+            "alpha": 1,
+            "eval_metric": ["error"],
+            "nthread": multiprocessing.cpu_count(),
+        },
     },
     "processes_number": multiprocessing.cpu_count(),
     "corrector_path": str(DEFAULT_DATA_DIR / "corrector.asdf"),

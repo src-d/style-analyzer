@@ -13,7 +13,7 @@ from sourced.ml.models.license import DEFAULT_LICENSE
 from tqdm import tqdm
 
 from lookout.style.common import merge_dicts
-from lookout.style.typos.config import DEFAULT_CONFIG
+from lookout.style.typos.config import DEFAULT_CORRECTOR_CONFIG
 from lookout.style.typos.symspell import EditDistance, SymSpell
 from lookout.style.typos.utils import add_context_info, Columns, read_frequencies, read_vocabulary
 
@@ -107,7 +107,7 @@ class CandidatesGenerator(Model):
         """
         if config is None:
             config = {}
-        self.config = merge_dicts(DEFAULT_CONFIG["generation"], config)
+        self.config = merge_dicts(DEFAULT_CORRECTOR_CONFIG["generation"], config)
 
     def expand_vocabulary(self, additional_tokens: Set[str]) -> None:
         """
