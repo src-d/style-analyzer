@@ -4,6 +4,8 @@ to be used globally.
 """
 from typing import Iterable
 
+import modelforge.backends
+
 from lookout.style.typos.corrector import TyposCorrector
 
 
@@ -25,7 +27,7 @@ class TyposCorrectorManager:
         """
         obj = self.correctors.get(source)
         if obj is None:
-            obj = TyposCorrector().load(source)
+            obj = TyposCorrector().load(source, backend=modelforge.backends.create_backend())
             obj.processes_number = 1
             self.correctors[source] = obj
         return obj
