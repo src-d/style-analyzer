@@ -34,14 +34,14 @@ class AnalyzerTests(unittest.TestCase):
         # str() is needed for Python 3.5
         cls.bblfsh_client = bblfsh.BblfshClient("0.0.0.0:9432")
         with lzma.open(str(base / "test_base_file.js.xz")) as fin:
-            uast = cls.bblfsh_client.parse("test_base_file.js", contents=fin.read()).uast
-            fin.seek(0)
-            cls.base_files = [FakeFile(path="test_base_file.js", content=fin.read(), uast=uast,
+            contents = fin.read()
+            uast = cls.bblfsh_client.parse("test_base_file.js", contents=contents).uast
+            cls.base_files = [FakeFile(path="test_base_file.js", content=contents, uast=uast,
                                        language="Javascript")]
         with lzma.open(str(base / "test_head_file.js.xz")) as fin:
-            uast = cls.bblfsh_client.parse("test_head_file.js", contents=fin.read()).uast
-            fin.seek(0)
-            cls.head_files = [FakeFile(path="test_head_file.js", content=fin.read(), uast=uast,
+            contents = fin.read()
+            uast = cls.bblfsh_client.parse("test_head_file.js", contents=contents).uast
+            cls.head_files = [FakeFile(path="test_head_file.js", content=contents, uast=uast,
                                        language="Javascript")]
         cls.ptr = ReferencePointer("someurl", "someref", "somecommit")
 
@@ -52,17 +52,17 @@ class AnalyzerTests(unittest.TestCase):
     def test_train(self):
         dataservice = FakeDataService(
             self.bblfsh_client, files=self.base_files, changes=[])
-        model = IdTyposAnalyzer.train(self.ptr, {}, dataservice)
+        model = IdTyposAnalyzer.train(ptr=self.ptr, config={}, data_service=dataservice)
         self.assertIsInstance(model, DummyAnalyzerModel)
 
     def test_analyze(self):
         dataservice = FakeDataService(
             self.bblfsh_client, files=self.base_files,
             changes=[Change(base=self.base_files[0], head=self.head_files[0])])
-        model = IdTyposAnalyzer.train(self.ptr, {}, dataservice)
-        analyzer = IdTyposAnalyzer(model, self.ptr.url, config=dict(
+        model = IdTyposAnalyzer.train(ptr=self.ptr, config={}, data_service=dataservice)
+        analyzer = IdTyposAnalyzer(model=model, url=self.ptr.url, config=dict(
                 model=MODEL_PATH, confidence_threshold=0.0, n_candidates=3))
-        comments = analyzer.analyze(self.ptr, self.ptr, dataservice)
+        comments = analyzer.analyze(ptr_from=self.ptr, ptr_to=self.ptr, data_service=dataservice)
         self.assertGreater(len(comments), 0)
 
     def test_reconstruct_identifier(self):
@@ -130,7 +130,7 @@ class AnalyzerPayloadTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.checker = IdTyposAnalyzer(
-            DummyAnalyzerModel(), "", config=dict(
+            model=DummyAnalyzerModel(), url="", config=dict(
                 model=MODEL_PATH, confidence_threshold=0.2, n_candidates=3))
         cls.identifiers = ["get", "gpt_tokeb"]
         cls.test_df = pandas.DataFrame(
