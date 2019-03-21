@@ -13,6 +13,7 @@ from typing import Iterable, List, Mapping, NamedTuple, Optional, Set, Tuple, Un
 from bblfsh import BblfshClient
 import jinja2
 from lookout.core.analyzer import ReferencePointer
+from lookout.core.bytes_to_unicode_converter import BytesToUnicodeConverter
 from lookout.core.lib import filter_files_by_path, parse_files
 import numpy
 from yaml import safe_load
@@ -131,7 +132,8 @@ def files2vnodes(filepaths: Iterable[str], feature_extractor: FeatureExtractor, 
                         line_length_limit=rules.origin_config["line_length_limit"],
                         overall_size_limit=rules.origin_config["overall_size_limit"],
                         client=client, language=feature_extractor.language)
-    _, _, (vnodes_y, _, _, _) = feature_extractor.extract_features(files)
+    _, _, (vnodes_y, _, _, _) = feature_extractor.extract_features(
+        map(BytesToUnicodeConverter.convert_file, files))
     return vnodes_y
 
 
@@ -151,6 +153,7 @@ def files2mispreds(filepaths: Iterable[str], feature_extractor: FeatureExtractor
                         line_length_limit=rules.origin_config["line_length_limit"],
                         overall_size_limit=rules.origin_config["overall_size_limit"],
                         client=client, language=feature_extractor.language)
+    files = list(map(BytesToUnicodeConverter.convert_file, files))
     X, y, (vnodes_y, vnodes, vnode_parents, node_parents) = feature_extractor \
         .extract_features(files)
     y_pred, rule_winners, _, grouped_quote_predictions = rules.predict(
