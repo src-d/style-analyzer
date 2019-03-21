@@ -7,7 +7,7 @@ from operator import itemgetter
 from typing import (Dict, Iterable, List, Mapping, Optional, Sequence, Set, Tuple, Union)
 
 import bblfsh
-from lookout.core.api.service_data_pb2 import File
+from lookout.core.analyzer import UnicodeFile
 import numpy
 from scipy.sparse import csr_matrix, hstack, vstack
 from sklearn.exceptions import NotFittedError
@@ -171,7 +171,8 @@ class FeatureExtractor:
             return self._feature_group_counts[feature_group]
         return self._feature_node_counts[feature_group][neighbour_index]
 
-    def extract_features(self, files: Iterable[File], lines: Optional[List[List[int]]] = None) \
+    def extract_features(self, files: Iterable[UnicodeFile],
+                         lines: Optional[List[List[int]]] = None) \
             -> Optional[Union[Tuple[csr_matrix, numpy.ndarray,
                                     Tuple[List[VirtualNode], List[VirtualNode],
                                           Dict[int, bblfsh.Node], Dict[int, bblfsh.Node]]],
@@ -298,7 +299,7 @@ class FeatureExtractor:
                                       for group, counts in self._feature_node_counts.items()}
         self._feature_count = sum(self._feature_group_counts.values())
 
-    def _parse_vnodes(self, files: Iterable[File], lines: Optional[List[List[int]]] = None,
+    def _parse_vnodes(self, files: Iterable[UnicodeFile], lines: Optional[List[List[int]]] = None,
                       ) -> Tuple[List[Tuple[List[VirtualNode], Dict[int, bblfsh.Node], Set[int]]],
                                  Dict[int, bblfsh.Node],
                                  Dict[int, bblfsh.Node]]:
@@ -307,7 +308,7 @@ class FeatureExtractor:
         parsed_files = []
         index_labels = not self.labels_to_class_sequences
         for i, file in enumerate(files):
-            contents = file.content.decode("utf-8", "replace")
+            contents = file.content
             uast = file.uast
             try:
                 file_vnodes, file_parents = self._parse_file(contents, uast, file.path)

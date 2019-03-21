@@ -17,7 +17,7 @@ class CodeGeneratorTests(unittest.TestCase):
                 return FakeRules()
 
         class FakeHeadFile:
-            content = b"<first code line>\n<second code line>\n<third code line>"
+            content = "<first code line>\n<second code line>\n<third code line>"
 
         def fake_partitial(func, *_, **__):
             if func == descriptions.describe_rule:

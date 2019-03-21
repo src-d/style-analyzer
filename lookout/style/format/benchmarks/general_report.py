@@ -172,11 +172,11 @@ class FormatAnalyzerSpy(FormatAnalyzer):
         :return: Generator of fixes for each file.
         """
         files_head = list(request_files(
-            data_service_head.get_data(), ptr_from, contents=True, uast=True))
+            data_service_head.get_data(), ptr_from, contents=True, uast=True, unicode=True))
 
         if data_service_base is not None:
             files_base = list(request_files(
-                data_service_base.get_data(), ptr_from, contents=True, uast=True))
+                data_service_base.get_data(), ptr_from, contents=True, uast=True, unicode=True))
         else:
             files_base = [File(path=f.path) for f in files_head]
         return self.generate_file_fixes(

@@ -8,7 +8,7 @@ import sys
 import unittest
 
 import bblfsh
-from lookout.core.api.service_data_pb2 import File
+from lookout.core.analyzer import UnicodeFile
 
 from lookout.style.common import merge_dicts
 from lookout.style.format.analyzer import FormatAnalyzer
@@ -47,7 +47,7 @@ class DescriptionsTests(unittest.TestCase):
             contents = fin.read()
         with lzma.open(str(base / "benchmark.uast.xz")) as fin:
             uast = bblfsh.Node.FromString(fin.read())
-        file = File(content=bytes(contents, "utf-8"), uast=uast)
+        file = UnicodeFile(content=contents, uast=uast, path="", language="")
         files = [file, file]
         cls.fe = FeatureExtractor(language="javascript",
                                   **config["javascript"]["feature_extractor"])

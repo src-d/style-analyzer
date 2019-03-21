@@ -60,6 +60,9 @@ class FakeUAST:
     def __init__(self):
         self.children = []
 
+    def SerializeToString(self):
+        return bblfsh.Node().SerializeToString()
+
 
 class FakeFile:
     def __init__(self, path, content, uast, language):

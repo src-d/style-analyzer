@@ -84,7 +84,7 @@ class FormatAnalyzer(Analyzer):
         with open(self.analyze_config["comment_template"], encoding="utf-8") as f:
             self.comment_template = Template(f.read(), trim_blocks=True, lstrip_blocks=True)
 
-    @with_changed_uasts_and_contents
+    @with_changed_uasts_and_contents(unicode=True)
     def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
                 data_service: DataService, changes: Iterator[Change], **data) -> List[Comment]:
         """
@@ -130,7 +130,7 @@ class FormatAnalyzer(Analyzer):
         """
         _log = logging.getLogger(cls.__name__)
         changes = list(request_changes(
-            data_service.get_data(), old_model.ptr, ptr, contents=True, uast=False))
+            data_service.get_data(), old_model.ptr, ptr, contents=True, uast=False, unicode=True))
         base_files_by_lang = files_by_language(c.base for c in changes)
         head_files_by_lang = files_by_language(c.head for c in changes)
         config = cls._load_config(config)
@@ -150,8 +150,8 @@ class FormatAnalyzer(Analyzer):
                 except KeyError:
                     changed_lines += head_lines
                 else:
-                    changed_lines += len(find_new_lines(prev_file, file))
-                    changed_lines += len(find_deleted_lines(prev_file, file))
+                    changed_lines += len(find_new_lines(prev_file.content, file.content))
+                    changed_lines += len(find_deleted_lines(prev_file.content, file.content))
             ratio = changed_lines / (overall_lines or 1)
             _log.debug("check %s ratio: %.3f", language, ratio)
             if ratio > lang_config["lines_ratio_train_trigger"]:
@@ -160,7 +160,7 @@ class FormatAnalyzer(Analyzer):
         return False
 
     @classmethod
-    @with_uasts_and_contents
+    @with_uasts_and_contents(unicode=True)
     def train(cls, ptr: ReferencePointer, config: Mapping[str, Any], data_service: DataService,
               files: Iterator[File], **data) -> FormatModel:
         """
@@ -293,8 +293,8 @@ class FormatAnalyzer(Analyzer):
                     lines = None
                 else:
                     lines = sorted(chain.from_iterable((
-                        find_new_lines(prev_file, file),
-                        find_deleted_lines(prev_file, file),
+                        find_new_lines(prev_file.content, file.content),
+                        find_deleted_lines(prev_file.content, file.content),
                     )))
                 log.debug("%s %s", file.path, lines)
                 fe = FeatureExtractor(language=lang, **rules.origin_config["feature_extractor"])
@@ -334,7 +334,7 @@ class FormatAnalyzer(Analyzer):
             hash_rule, feature_extractor=file_fix.feature_extractor)
         _describe_change = functools.partial(
             get_change_description, feature_extractor=file_fix.feature_extractor)
-        code_lines = file_fix.head_file.content.decode("utf-8", "replace").splitlines()
+        code_lines = file_fix.head_file.content.splitlines()
         line_fix = file_fix.line_fixes[fix_index]
         config = self.analyze_config[file_fix.language]
         return self.comment_template.render(

@@ -18,10 +18,10 @@ class FeaturesTests(unittest.TestCase):
         cls.extractor = FeatureExtractor(language="javascript",
                                          **config["javascript"]["feature_extractor"])
         test_js_code_filepath = Path(__file__).parent / "jquery.layout.js"
-        with open(str(test_js_code_filepath), mode="rb") as f:
+        with open(str(test_js_code_filepath), mode="r") as f:
             cls.code = f.read()
         cls.uast = bblfsh.BblfshClient("0.0.0.0:9432").parse(
-            filename="", language="javascript", contents=cls.code).uast
+            filename="", language="javascript", contents=cls.code.encode()).uast
         feature_extractor_output = cls.extractor.extract_features([FakeFile(
             path="test.py", content=cls.code, uast=cls.uast, language="JavaScript")])
         X, cls.y, (cls.vnodes_y, cls.vnodes, vnode_parents, node_parents) = \
@@ -31,7 +31,7 @@ class FeaturesTests(unittest.TestCase):
         file_content = "".join([node.value for node in self.vnodes])
         ok = True
         for n, (correct_line, line) in enumerate(zip(
-                self.code.decode("utf-8", "replace").splitlines(keepends=True),
+                self.code.splitlines(keepends=True),
                 file_content.splitlines(keepends=True))):
             if correct_line != line:
                 print("Lines %d are different" % (n + 1), file=sys.stderr)
@@ -42,8 +42,8 @@ class FeaturesTests(unittest.TestCase):
 
     def test_vnode_positions(self):
         code_generator = CodeGenerator(feature_extractor=self.extractor)
-        lines = self.code.decode("utf-8", "replace").splitlines()
-        lines.append("\r\n")
+        lines = self.code.splitlines()
+        lines.append("\n")
         ok = True
         for line_number, line in FormatAnalyzer._group_line_nodes(
                 self.y, self.y - 1, self.vnodes_y, self.vnodes, repeat(0)):

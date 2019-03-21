@@ -4,7 +4,7 @@ from pathlib import Path
 import unittest
 
 import bblfsh
-from lookout.core.api.service_data_pb2 import File
+from lookout.core.analyzer import UnicodeFile
 
 from lookout.style.format.analyzer import FormatAnalyzer
 import lookout.style.format.classes as cls
@@ -49,7 +49,7 @@ class GeneratorTestsMeta(type):
         feature_extractor = FeatureExtractor(language="javascript",
                                              label_composites=label_composites,
                                              **fe_config["feature_extractor"])
-        file = File(content=bytes(contents, "utf-8"), uast=uast)
+        file = UnicodeFile(content=contents, uast=uast, path="", language="")
         _, _, (vnodes_y, _, _, _) = feature_extractor.extract_features([file])
         offsets, y_pred, result = cases[case_name]
 
@@ -85,14 +85,14 @@ class CodeGeneratorTests(unittest.TestCase, metaclass=GeneratorTestsMeta):
         cls.feature_extractor = FeatureExtractor(language="javascript",
                                                  label_composites=label_composites,
                                                  **fe_config["feature_extractor"])
-        cls.file = File(content=bytes(contents, "utf-8"), uast=uast)
+        cls.file = UnicodeFile(content=contents, uast=uast, path="", language="")
         cls.X, cls.y, (cls.vnodes_y, cls.vnodes, cls.vnode_parents, cls.node_parents) = \
             cls.feature_extractor.extract_features([cls.file])
 
     def test_reproduction(self):
         code_generator = CodeGenerator(self.feature_extractor)
         generated_file = code_generator.generate(self.vnodes)
-        self.assertEqual(generated_file, self.file.content.decode("utf-8"))
+        self.assertEqual(generated_file, self.file.content)
 
     def test_generate_new_line(self):
         self.maxDiff = None
@@ -132,7 +132,7 @@ class CodeGeneratorTests(unittest.TestCase, metaclass=GeneratorTestsMeta):
             feature_extractor = FeatureExtractor(language="javascript",
                                                  label_composites=label_composites,
                                                  **fe_config["feature_extractor"])
-            file = File(content=bytes(contents, "utf-8"), uast=uast)
+            file = UnicodeFile(content=contents, uast=uast, path="", language="")
             X, y, (vnodes_y, vnodes, vnode_parents, node_parents) = \
                 feature_extractor.extract_features([file])
             y_cur = deepcopy(y)

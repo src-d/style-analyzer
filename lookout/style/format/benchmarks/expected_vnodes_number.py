@@ -40,7 +40,7 @@ def _restart_bblfshd(first_run: bool=False) -> str:
         name=bblfsh_name, ports={9432: port})
     log.info("Installing javascript driver")
     bblfsh = docker_client.containers.get("expected_vnodes_bblfshd")
-    bblfsh.exec_run("bblfshctl driver install javascript docker://bblfsh/javascript-driver:v1.2.0")
+    bblfsh.exec_run("bblfshctl driver install javascript docker://bblfsh/javascript-driver:v2.7.1")
     address = "localhost:%d" % port
     log.info("bblfshd available at %s" % address)
     return address

@@ -2,6 +2,7 @@ from pathlib import Path
 import unittest
 
 import bblfsh
+from lookout.core.bytes_to_unicode_converter import BytesToUnicodeConverter
 
 from lookout.style.format.analyzer import FormatAnalyzer
 from lookout.style.format.feature_extractor import FeatureExtractor
@@ -16,11 +17,14 @@ class FeaturesTests(unittest.TestCase):
 
     def test_positions(self):
         test_js_code_filepath = Path(__file__).parent / "browser-policy-content.js"
-        with open(str(test_js_code_filepath), mode="rt") as f:
+        with open(str(test_js_code_filepath), mode="rb") as f:
             code = f.read()
         uast = bblfsh.BblfshClient("0.0.0.0:9432").parse(
-            filename="", language="javascript", contents=code.encode()).uast
-        nodes, parents = self.extractor._parse_file(code, uast, test_js_code_filepath)
+            filename="", language="javascript", contents=code).uast
+        converter = BytesToUnicodeConverter(code)
+        code_uni = converter.convert_content()
+        uast_uni = converter.convert_uast(uast)
+        nodes, parents = self.extractor._parse_file(code_uni, uast_uni, test_js_code_filepath)
         for index, (node1, node2) in enumerate(zip(nodes, nodes[1:])):
             self.assertLessEqual(node1.start.line, node2.start.line,
                                  "Start line position decrease for %d, %d nodes" % (

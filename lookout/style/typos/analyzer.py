@@ -69,7 +69,7 @@ class IdTyposAnalyzer(Analyzer):
         """
         return TokenParser(stem_threshold=1000, single_shot=True, min_split_length=1)
 
-    @with_changed_uasts_and_contents
+    @with_changed_uasts_and_contents(unicode=False)
     def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
                 data_service: DataService, changes: Iterable[Change], **data) -> List[Comment]:
         """
@@ -114,7 +114,8 @@ class IdTyposAnalyzer(Analyzer):
                     lines = []
                     old_identifiers = set()
                 else:
-                    lines = find_new_lines(prev_file, file)
+                    lines = find_new_lines(prev_file.content.decode("utf-8", "replace"),
+                                           file.content.decode("utf-8", "replace"))
                     old_identifiers = {
                         node.token for node in uast2sequence(prev_file.uast)
                         if bblfsh.role_id("IDENTIFIER") in node.roles
@@ -204,7 +205,7 @@ class IdTyposAnalyzer(Analyzer):
         return "".join(res)
 
     @classmethod
-    @with_uasts_and_contents
+    @with_uasts_and_contents(unicode=False)
     def train(cls, ptr: ReferencePointer, config: dict, data_service: DataService,
               **data) -> AnalyzerModel:
         """
