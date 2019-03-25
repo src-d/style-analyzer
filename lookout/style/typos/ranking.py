@@ -31,9 +31,9 @@ class CandidatesRanker(Model):
         Initialize a new instance of CandidatesRanker class.
 
         :param config: Ranking configuration, options:
-                       train_rounds: Number of training rounds.
-                       early_stopping: Early stopping parameter.
-                       boost_param: Boosting parameters.
+                       train_rounds: Number of training rounds (int).
+                       early_stopping: Early stopping parameter (int).
+                       boost_param: Boosting parameters (dict).
         :param kwargs: Extra keyword arguments which are consumed by Model.
         """
         super().__init__(**kwargs)
@@ -45,9 +45,9 @@ class CandidatesRanker(Model):
         Update ranking configuration.
 
         :param config: Ranking configuration, options:
-                       train_rounds: Number of training rounds.
-                       early_stopping: Early stopping parameter.
-                       boost_param: Boosting parameters.
+                       train_rounds: Number of training rounds (int).
+                       early_stopping: Early stopping parameter (int).
+                       boost_param: Boosting parameters (dict).
         """
         if config is None:
             config = {}

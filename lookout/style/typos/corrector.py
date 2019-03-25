@@ -32,9 +32,9 @@ class TyposCorrector(Model):
         Initialize a new instance of TyposCorrector class.
 
         :param ranking_config: Ranking configuration, options:
-                                train_rounds: Number of training rounds.
-                                early_stopping: Early stopping parameter.
-                                boost_param: Boosting parameters.
+                                train_rounds: Number of training rounds (int).
+                                early_stopping: Early stopping parameter (int).
+                                boost_param: Boosting parameters (dict).
         :param kwargs: Extra keyword arguments which are consumed by Model.
         """
         super().__init__(**kwargs)
@@ -62,17 +62,18 @@ class TyposCorrector(Model):
         :param embeddings_file: The path to the embeddings.
         :param config: Candidates generation configuration, options:
                        neighbors_number: Number of neighbors of context and typo embeddings \
-                                         to consider as candidates.
-                       edit_dist_number: Number of the most frequent tokens among tokens on \
+                                         to consider as candidates (int).
+                       edit_dist_number: Number of the most frequent tokens among tokens at \
                                          equal edit distance from the typo to consider as \
-                                         candidates.
-                       max_distance: Maximum edit distance for symspell lookup for candidates.
-                       radius: Maximum edit distance from typo allowed for candidates.
+                                         candidates (int).
+                       max_distance: Maximum edit distance for symspell lookup for candidates \
+                                    (int).
+                       radius: Maximum edit distance from typo allowed for candidates (int).
                        max_corrected_length: Maximum length of prefix in which symspell lookup \
-                                             for typos is conducted.
+                                             for typos is conducted (int).
                        start_pool_size: Length of data, starting from which multiprocessing is \
-                                        desired.
-                       chunksize: Max size of a chunk for one process during multiprocessing.
+                                        desired (int).
+                       chunksize: Max size of a chunk for one process during multiprocessing (int).
         """
         self.generator.construct(vocabulary_file, frequencies_file, embeddings_file, config)
         self._log.debug("%s is initialized", repr(self.generator))
@@ -82,9 +83,9 @@ class TyposCorrector(Model):
         Update the ranking config - see XGBoost docs for details.
 
         :param config: Ranking configuration, options:
-                       train_rounds: Number of training rounds.
-                       early_stopping: Early stopping parameter.
-                       boost_param: Boosting parameters.
+                       train_rounds: Number of training rounds (int).
+                       early_stopping: Early stopping parameter (int).
+                       boost_param: Boosting parameters (dict).
         """
         self.ranker.set_config(config)
         self._log.debug("%s is initialized", repr(self.ranker))
@@ -95,17 +96,18 @@ class TyposCorrector(Model):
 
         :param config: Candidates generation configuration, options:
                        neighbors_number: Number of neighbors of context and typo embeddings \
-                                         to consider as candidates.
-                       edit_dist_number: Number of the most frequent tokens among tokens on \
+                                         to consider as candidates (int).
+                       edit_dist_number: Number of the most frequent tokens among tokens at \
                                          equal edit distance from the typo to consider as \
-                                         candidates.
-                       max_distance: Maximum edit distance for symspell lookup for candidates.
-                       radius: Maximum edit distance from typo allowed for candidates.
+                                         candidates (int).
+                       max_distance: Maximum edit distance for symspell lookup for candidates \
+                                    (int).
+                       radius: Maximum edit distance from typo allowed for candidates (int).
                        max_corrected_length: Maximum length of prefix in which symspell lookup \
-                                             for typos is conducted.
+                                             for typos is conducted (int).
                        start_pool_size: Length of data, starting from which multiprocessing is \
-                                        desired.
-                       chunksize: Max size of a chunk for one process during multiprocessing.
+                                        desired (int).
+                       chunksize: Max size of a chunk for one process during multiprocessing (int).
         """
         self.generator.set_config(config)
         self._log.debug("%s is initialized", repr(self.ranker))

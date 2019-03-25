@@ -66,17 +66,18 @@ class CandidatesGenerator(Model):
         :param embeddings_file: Path to the dump of FastText model.
         :param config: Candidates generation configuration, options:
                        neighbors_number: Number of neighbors of context and typo embeddings \
-                                         to consider as candidates.
+                                         to consider as candidates (int).
                        edit_dist_number: Number of the most frequent tokens among tokens on \
                                          equal edit distance from the typo to consider as \
-                                         candidates.
-                       max_distance: Maximum edit distance for symspell lookup for candidates.
-                       radius: Maximum edit distance from typo allowed for candidates.
+                                         candidates (int).
+                       max_distance: Maximum edit distance for symspell lookup for candidates \
+                                    (int).
+                       radius: Maximum edit distance from typo allowed for candidates (int).
                        max_corrected_length: Maximum length of prefix in which symspell lookup \
-                                             for typos is conducted.
+                                             for typos is conducted (int).
                        start_pool_size: Length of data, starting from which multiprocessing is \
-                                        desired.
-                       chunksize: Max size of a chunk for one process during multiprocessing.
+                                        desired (int).
+                       chunksize: Max size of a chunk for one process during multiprocessing (int).
         """
         self.set_config(config)
         self.checker = SymSpell(max_dictionary_edit_distance=self.config["max_distance"],
@@ -93,17 +94,18 @@ class CandidatesGenerator(Model):
 
         :param config: Candidates generation configuration, options:
                        neighbors_number: Number of neighbors of context and typo embeddings \
-                                         to consider as candidates.
-                       edit_dist_number: Number of the most frequent tokens among tokens on \
+                                         to consider as candidates (int).
+                       edit_dist_number: Number of the most frequent tokens among tokens at \
                                          equal edit distance from the typo to consider as \
-                                         candidates.
-                       max_distance: Maximum edit distance for symspell lookup for candidates.
-                       radius: Maximum edit distance from typo allowed for candidates.
+                                         candidates (int).
+                       max_distance: Maximum edit distance for symspell lookup for candidates \
+                                    (int).
+                       radius: Maximum edit distance from typo allowed for candidates (int).
                        max_corrected_length: Maximum length of prefix in which symspell lookup \
-                                             for typos is conducted.
+                                             for typos is conducted (int).
                        start_pool_size: Length of data, starting from which multiprocessing is \
-                                        desired.
-                       chunksize: Max size of a chunk for one process during multiprocessing.
+                                        desired (int).
+                       chunksize: Max size of a chunk for one process during multiprocessing (int).
         """
         if config is None:
             config = {}
