@@ -151,7 +151,7 @@ def rank_candidates(candidates: pandas.DataFrame, pred_probs: Iterable[float],
             suggestions[index] = (corrections if n_candidates is None
                                   else corrections[:n_candidates])
         elif return_all:
-            suggestions[index] = [(typo, 1.0)]
+            suggestions[index] = [Candidate(typo, 1.0)]
         corrections = []
 
     return suggestions
