@@ -116,10 +116,10 @@ class RankCandidatesTest(unittest.TestCase):
                                   2: [Candidate("token", 0.98),
                                       Candidate("taken", 0.3),
                                       Candidate("tokem", 0.01)]}
-        cls.custom_filtered_suggestions = {1: [("get", 0.9),
-                                               ("gpt", 0.05)],
-                                           2: [("token", 0.98),
-                                               ("taken", 0.3)]}
+        cls.custom_filtered_suggestions = {1: [Candidate("get", 0.9),
+                                               Candidate("gpt", 0.05)],
+                                           2: [Candidate("token", 0.98),
+                                               Candidate("taken", 0.3)]}
 
     def test_rank_candidates(self):
         candidates = pandas.read_csv(join(TEST_DATA_PATH, "test_data_candidates.csv.xz"),
