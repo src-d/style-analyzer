@@ -34,6 +34,7 @@ class IdTyposAnalyzer(Analyzer):
     _log = logging.getLogger("IdTyposAnalyzer")
     model_type = DummyAnalyzerModel
     name = "lookout.style.typos"
+    vendor = "source{d}"
     version = 1
     description = "Corrector of typos in source code identifiers."
     corrector_manager = TyposCorrectorManager()
