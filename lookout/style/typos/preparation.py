@@ -1,7 +1,5 @@
 import logging
-import multiprocessing
 import os
-import pathlib
 from pprint import pformat
 import sys
 import tempfile
@@ -13,47 +11,11 @@ from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
 from lookout.style.common import merge_dicts
+from lookout.style.typos.config import DEFAULT_CORRECTOR_CONFIG
 from lookout.style.typos.corrector import TyposCorrector
 from lookout.style.typos.corruption import corrupt_tokens_in_df
 from lookout.style.typos.utils import Columns, filter_splits, flatten_df_by_column, \
     print_frequencies
-
-
-DATA_DIR = pathlib.Path(__file__).parent / "data"
-DEFAULT_CONFIG = {
-    "preparation": {
-        "data_dir": str(DATA_DIR),
-        "input_path": str(DATA_DIR / "raw_data.csv"),
-        "dataset_url": "https://docs.google.com/uc?export=download&"
-                       "id=1muNVWPe68XK8SFvqIv3V728NmkT46aTx",
-        "frequency_column": "num_occ",
-        "vocabulary_size": 10000,
-        "frequencies_size": None,
-        "raw_data_filename": "raw_data.csv",
-        "vocabulary_filename": "vocabulary.csv",
-        "frequencies_filename": "frequencies.csv",
-        "prepared_filename": "prepared.csv",
-    },
-    "fasttext": {
-        "size": 100000000,  # Number of identifiers to pick to train fasttext on
-        "corrupt": True,  # Whether to corrupt some of the identifiers with artificial typos
-        "typo_probability": 0.2,  # Which portion of picked identifiers contain a typoed token
-        "add_typo_probability": 0.005,  # Which portion of corrupted tokens contain >1 mistake
-        "path": str(DATA_DIR / "fasttext.bin"),  # Where to store trained fasttext model
-        "dim": 8,  # Number of dimensions of embeddings
-        "bucket": 200000,  # Number of hash buckets in the model
-    },
-    "datasets": {
-        "train_size": 50000,
-        "test_size": 10000,
-        "typo_probability": 0.5,
-        "add_typo_probability": 0.01,
-        "train_path": str(DATA_DIR / "train.csv"),
-        "test_path": str(DATA_DIR / "test.csv"),
-    },
-    "processes_number": multiprocessing.cpu_count(),
-    "corrector_path": str(DATA_DIR / "corrector.asdf"),
-}
 
 
 class _DownloadProgressBar(tqdm):
@@ -106,7 +68,7 @@ def prepare_data(config: Optional[Mapping[str, Any]] = None) -> pandas.DataFrame
     log = logging.getLogger("prepare_data")
     if config is None:
         config = {}
-    config = merge_dicts(DEFAULT_CONFIG["preparation"], config)
+    config = merge_dicts(DEFAULT_CORRECTOR_CONFIG["preparation"], config)
 
     os.makedirs(config["data_dir"], exist_ok=True)
     raw_data_path = config["input_path"]
@@ -187,7 +149,7 @@ def train_fasttext(data: pandas.DataFrame, config: Optional[Mapping[str, Any]] =
     log = logging.getLogger("train_fasttext")
     if config is None:
         config = {}
-    config = merge_dicts(DEFAULT_CONFIG["fasttext"], config)
+    config = merge_dicts(DEFAULT_CORRECTOR_CONFIG["fasttext"], config)
     train_data = data[[len(str(x).split()) > 2 for x in data[Columns.Split]]].sample(
         config["size"], weights=Columns.Frequency, replace=True)
     if config["corrupt"]:
@@ -207,7 +169,7 @@ def train_fasttext(data: pandas.DataFrame, config: Optional[Mapping[str, Any]] =
 
 def get_datasets(prepared_data: pandas.DataFrame,
                  config: Optional[Mapping[str, Any]] = None,
-                 processes_number: int = DEFAULT_CONFIG["processes_number"],
+                 processes_number: int = DEFAULT_CORRECTOR_CONFIG["processes_number"],
                  ) -> Tuple[pandas.DataFrame, pandas.DataFrame]:
     """
     Create the train and the test datasets of typos.
@@ -230,7 +192,7 @@ def get_datasets(prepared_data: pandas.DataFrame,
     log = logging.getLogger("get_datasets")
     if config is None:
         config = {}
-    config = merge_dicts(DEFAULT_CONFIG["datasets"], config)
+    config = merge_dicts(DEFAULT_CORRECTOR_CONFIG["datasets"], config)
     # With replace=True we get the real examples distribution, but there's a small
     # probability of having the same examples of misspellings in train and test datasets
     # (it IS small because a big number of random typos can be made in a single word)
@@ -258,7 +220,9 @@ def get_datasets(prepared_data: pandas.DataFrame,
 
 def train_and_evaluate(train_data: pandas.DataFrame, test_data: pandas.DataFrame,
                        vocabulary_path: str, frequencies_path: str, fasttext_path: str,
-                       processes_number: int = DEFAULT_CONFIG["processes_number"],
+                       generation_config: Optional[Mapping[str, Any]] = None,
+                       ranking_config: Optional[Mapping[str, Any]] = None,
+                       processes_number: int = DEFAULT_CORRECTOR_CONFIG["processes_number"],
                        ) -> TyposCorrector:
     """
     Create and train TyposCorrector model on the given data.
@@ -270,14 +234,15 @@ def train_and_evaluate(train_data: pandas.DataFrame, test_data: pandas.DataFrame
     :param vocabulary_path: Path to a file with vocabulary.
     :param frequencies_path: Path to a file with tokens' frequencies.
     :param fasttext_path: Path to a FastText model dump.
+    :param generation_config: Candidates generation configuration.
+    :param ranking_config: Ranking configuration.
     :param processes_number: Number of processes for multiprocessing.
     :return: Trained model.
     """
-    model = TyposCorrector()
-    model.initialize_ranker()
+    model = TyposCorrector(ranking_config)
     model.initialize_generator(vocabulary_file=vocabulary_path,
                                frequencies_file=frequencies_path,
-                               embeddings_file=fasttext_path)
+                               embeddings_file=fasttext_path, config=generation_config)
     model.processes_number = processes_number
     model.train(train_data)
     model.evaluate(test_data)
@@ -298,7 +263,7 @@ def train_from_scratch(config: Optional[Mapping[str, Any]] = None) -> TyposCorre
     log = logging.getLogger("train_from_scratch")
     if config is None:
         config = {}
-    config = merge_dicts(DEFAULT_CONFIG, config)
+    config = merge_dicts(DEFAULT_CORRECTOR_CONFIG, config)
     log.info("effective config:\n%s", pformat(config, width=120, compact=True))
     prepared_data = prepare_data(config["preparation"])
     if config["fasttext"]["path"] is None or not os.path.exists(config["fasttext"]["path"]):
@@ -310,7 +275,8 @@ def train_from_scratch(config: Optional[Mapping[str, Any]] = None) -> TyposCorre
                                             config["preparation"]["vocabulary_filename"]),
                                os.path.join(config["preparation"]["data_dir"],
                                             config["preparation"]["frequencies_filename"]),
-                               config["fasttext"]["path"], config["processes_number"])
+                               config["fasttext"]["path"], config["generation"],
+                               config["ranking"], config["processes_number"])
     if config["corrector_path"] is not None:
         model.save(config["corrector_path"], series=0.0)
         log.info("corrector model is saved to %s", config["corrector_path"])

@@ -1,7 +1,7 @@
 """Generation of the typo correction candidates. Contains features extraction and serialization."""
 from itertools import chain
 from multiprocessing import Pool
-from typing import List, NamedTuple, Optional, Set, Union
+from typing import Any, List, Mapping, NamedTuple, Optional, Set, Union
 
 from gensim.models import FastText
 from gensim.models.keyedvectors import FastTextKeyedVectors, Vocab
@@ -12,6 +12,8 @@ from scipy.spatial.distance import cosine
 from sourced.ml.models.license import DEFAULT_LICENSE
 from tqdm import tqdm
 
+from lookout.style.common import merge_dicts
+from lookout.style.typos.config import DEFAULT_CORRECTOR_CONFIG
 from lookout.style.typos.symspell import EditDistance, SymSpell
 from lookout.style.typos.utils import add_context_info, Columns, read_frequencies, read_vocabulary
 
@@ -52,36 +54,62 @@ class CandidatesGenerator(Model):
         self.min_freq = 0
 
     def construct(self, vocabulary_file: str, frequencies_file: str, embeddings_file: str,
-                  neighbors: int, edit_candidates: int, max_distance: int, radius: int,
-                  max_corrected_length: int = 12) -> None:
+                  config: Optional[Mapping[str, Any]] = None) -> None:
         """
         Construct correction candidates generator.
 
-        :param vocabulary_file: Text file used to generate vocabulary of correction candidates. \
-                                First token in every line split is added to the vocabulary.
-        :param frequencies_file: Path to the text file with frequencies. Each line must be two \
-                                 values separated with a whitespace: "token count".
+        :param vocabulary_file: Text file used to generate vocabulary of correction \
+                                candidates. First token in every line split is added \
+                                to the vocabulary.
+        :param frequencies_file: Path to the text file with frequencies. Each line must \
+                                 be two values separated with a whitespace: "token count".
         :param embeddings_file: Path to the dump of FastText model.
-        :param neighbors: Number of neighbors of context and typo embeddings \
-                          to consider as candidates.
-        :param edit_candidates: Number of the most frequent tokens among tokens on \
-                                equal edit distance from the typo to consider as candidates.
-        :param max_distance: Maximum edit distance for symspell lookup for candidates.
-        :param radius: Maximum edit distance from typo allowed for candidates.
-        :param max_corrected_length: Maximum length of prefix in which symspell lookup \
-                                     for typos is conducted
+        :param config: Candidates generation configuration, options:
+                       neighbors_number: Number of neighbors of context and typo embeddings \
+                                         to consider as candidates (int).
+                       edit_dist_number: Number of the most frequent tokens among tokens on \
+                                         equal edit distance from the typo to consider as \
+                                         candidates (int).
+                       max_distance: Maximum edit distance for symspell lookup for candidates \
+                                    (int).
+                       radius: Maximum edit distance from typo allowed for candidates (int).
+                       max_corrected_length: Maximum length of prefix in which symspell lookup \
+                                             for typos is conducted (int).
+                       start_pool_size: Length of data, starting from which multiprocessing is \
+                                        desired (int).
+                       chunksize: Max size of a chunk for one process during multiprocessing (int).
         """
-        self.checker = SymSpell(max_dictionary_edit_distance=max_distance,
-                                prefix_length=max_corrected_length)
+        self.set_config(config)
+        self.checker = SymSpell(max_dictionary_edit_distance=self.config["max_distance"],
+                                prefix_length=self.config["max_corrected_length"])
         self.checker.load_dictionary(vocabulary_file)
         self.wv = FastText.load_fasttext_format(embeddings_file).wv
-        self.neighbors_number = neighbors
-        self.edit_candidates_number = edit_candidates
-        self.max_distance = max_distance
-        self.radius = radius
         self.tokens = set(read_vocabulary(vocabulary_file))
         self.frequencies = read_frequencies(frequencies_file)
         self.min_freq = min(self.frequencies.values())
+
+    def set_config(self, config: Optional[Mapping[str, Any]] = None) -> None:
+        """
+        Update candidates generation config.
+
+        :param config: Candidates generation configuration, options:
+                       neighbors_number: Number of neighbors of context and typo embeddings \
+                                         to consider as candidates (int).
+                       edit_dist_number: Number of the most frequent tokens among tokens at \
+                                         equal edit distance from the typo to consider as \
+                                         candidates (int).
+                       max_distance: Maximum edit distance for symspell lookup for candidates \
+                                    (int).
+                       radius: Maximum edit distance from typo allowed for candidates (int).
+                       max_corrected_length: Maximum length of prefix in which symspell lookup \
+                                             for typos is conducted (int).
+                       start_pool_size: Length of data, starting from which multiprocessing is \
+                                        desired (int).
+                       chunksize: Max size of a chunk for one process during multiprocessing (int).
+        """
+        if config is None:
+            config = {}
+        self.config = merge_dicts(DEFAULT_CORRECTOR_CONFIG["generation"], config)
 
     def expand_vocabulary(self, additional_tokens: Set[str]) -> None:
         """
@@ -92,7 +120,6 @@ class CandidatesGenerator(Model):
         self.tokens = self.tokens.union(additional_tokens)
 
     def generate_candidates(self, data: pandas.DataFrame, processes_number: int,
-                            start_pool_size: int, chunksize: int,
                             save_candidates_file: Optional[str] = None) -> pandas.DataFrame:
         """
         Generate candidates for typos inside data.
@@ -100,19 +127,17 @@ class CandidatesGenerator(Model):
         :param data: DataFrame which contains column Columns.Token.
         :param processes_number: Number of processes for multiprocessing.
         :param save_candidates_file: File to save candidates to.
-        :param start_pool_size: Length of data, starting from which multiprocessing is desired.
-        :param chunksize: Max size of a chunk for one process during multiprocessing.
         :return: DataFrame containing candidates for corrections \
                  and features for their ranking for each typo.
         """
         data = add_context_info(data)
         typos = [TypoInfo(index, token, before, after) for index, token, before, after in
                  zip(data.index, data[Columns.Token], data[Columns.Before], data[Columns.After])]
-        if len(typos) > start_pool_size and processes_number > 1:
+        if len(typos) > self.config["start_pool_size"] and processes_number > 1:
             with Pool(min(processes_number, len(typos))) as pool:
                 candidates = list(tqdm(pool.imap(
                     self._lookup_corrections_for_token, typos,
-                    chunksize=min(chunksize, 1 + len(typos) // processes_number)),
+                    chunksize=min(self.config["chunksize"], 1 + len(typos) // processes_number)),
                                        total=len(typos)))
         else:
             candidates = [self._lookup_corrections_for_token(t) for t in typos]
@@ -129,10 +154,10 @@ class CandidatesGenerator(Model):
         """
         return "\n".join((
             "Vocabulary_size %d." % len(self.tokens),
-            "Neighbors number %d." % self.neighbors_number,
-            "Maximum distance for search %d." % self.max_distance,
-            "Maximum distance allowed %d." % self.radius,
-            "Token for distance %d." % self.edit_candidates_number,
+            "Neighbors number %d." % self.config["neighbors_number"],
+            "Maximum distance for search %d." % self.config["max_distance"],
+            "Maximum distance allowed %d." % self.config["radius"],
+            "Token for distance %d." % self.config["edit_dist_number"],
         ))
 
     def __eq__(self, other: "CandidatesGenerator") -> bool:
@@ -176,38 +201,35 @@ class CandidatesGenerator(Model):
         dist_calc = EditDistance(typo_info.typo, "damerau")
         for candidate in set(candidate_tokens):
             candidate_vec = self.wv[candidate]
-            dist = dist_calc.damerau_levenshtein_distance(candidate, self.radius)
-
+            dist = dist_calc.damerau_levenshtein_distance(candidate, self.config["radius"])
             if dist < 0:
                 continue
             candidates.append(self._generate_features(typo_info, dist, typo_vec,
                                                       candidate, candidate_vec))
-
         return candidates
 
     def _get_candidate_tokens(self, typo_info: TypoInfo) -> Set[str]:
         candidate_tokens = []
         last_dist = -1
         edit_candidates_count = 0
-        if self.edit_candidates_number > 0:
-            for suggestion in self.checker.lookup(typo_info.typo, 2, self.max_distance):
+        if self.config["edit_dist_number"] > 0:
+            for suggestion in self.checker.lookup(typo_info.typo, 2, self.config["max_distance"]):
                 if suggestion.distance != last_dist:
                     edit_candidates_count = 0
                     last_dist = suggestion.distance
-                if edit_candidates_count >= self.edit_candidates_number:
+                if edit_candidates_count >= self.config["edit_dist_number"]:
                     continue
                 candidate_tokens.append(suggestion.term)
                 edit_candidates_count += 1
-        if self.neighbors_number > 0:
-            typo_neighbors = self._closest(self._vec(typo_info.typo), self.neighbors_number)
+        if self.config["neighbors_number"] > 0:
+            typo_neighbors = self._closest(self._vec(typo_info.typo),
+                                           self.config["neighbors_number"])
             candidate_tokens.extend(typo_neighbors)
-
             if len(typo_info.before + typo_info.after) > 0:
                 context_neighbors = self._closest(
                     self._compound_vec("%s %s" % (typo_info.before, typo_info.after)),
-                    self.neighbors_number)
+                    self.config["neighbors_number"])
                 candidate_tokens.extend(context_neighbors)
-
         candidate_tokens = {candidate for candidate in candidate_tokens
                             if candidate in self.tokens}
         candidate_tokens.add(typo_info.typo)
@@ -374,7 +396,7 @@ class CandidatesGenerator(Model):
         self.frequencies = {
             w: self.frequencies["vals"][i]
             for i, w in enumerate(split_strings(self.frequencies["keys"]))}
-        self.checker = SymSpell(max_dictionary_edit_distance=self.max_distance)
+        self.checker = SymSpell(max_dictionary_edit_distance=self.config["max_distance"])
         self.checker.__dict__.update(tree["checker"])
         deletes = {}
         words = split_strings(self.checker._deletes["strings"])

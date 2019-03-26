@@ -1,7 +1,6 @@
 """Ranking typo correction candidates using a GBT."""
 import logging
-import multiprocessing
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Mapping, Optional
 
 from modelforge import Model
 import numpy
@@ -9,6 +8,8 @@ import pandas
 from sourced.ml.models.license import DEFAULT_LICENSE
 import xgboost as xgb
 
+from lookout.style.common import merge_dicts
+from lookout.style.typos.config import DEFAULT_CORRECTOR_CONFIG
 from lookout.style.typos.utils import Candidate, Columns, rank_candidates
 
 
@@ -24,41 +25,33 @@ class CandidatesRanker(Model):
     VENDOR = "source{d}"
     DESCRIPTION = "Model that ranks candidates according to their probability to fix the typo."
     LICENSE = DEFAULT_LICENSE
-    DEFAULT_TRAIN_ROUNDS = 4000
-    DEFAULT_EARLY_STOPPING = 200
-    DEFAULT_BOOST_PARAM = {"max_depth": 6,
-                           "eta": 0.03,
-                           "min_child_weight": 2,
-                           "silent": 1,
-                           "objective": "binary:logistic",
-                           "nthread": 16,
-                           "subsample": 0.5,
-                           "colsample_bytree": 0.5,
-                           "alpha": 1,
-                           "eval_metric": ["error"]}
 
-    def __init__(self, **kwargs):
-        """Initialize a new instance of CandidatesRanker class."""
+    def __init__(self, config: Optional[Mapping[str, Any]] = None, **kwargs):
+        """
+        Initialize a new instance of CandidatesRanker class.
+
+        :param config: Ranking configuration, options:
+                       train_rounds: Number of training rounds (int).
+                       early_stopping: Early stopping parameter (int).
+                       boost_param: Boosting parameters (dict).
+        :param kwargs: Extra keyword arguments which are consumed by Model.
+        """
         super().__init__(**kwargs)
-        self.train_rounds = self.DEFAULT_TRAIN_ROUNDS
-        self.early_stopping = self.DEFAULT_EARLY_STOPPING
-        self.boost_param = self.DEFAULT_BOOST_PARAM
+        self.set_config(config)
         self.bst = None  # type: xgb.Booster
 
-    def construct(self, boost_param: Optional[dict] = None,
-                  train_rounds: int = DEFAULT_TRAIN_ROUNDS,
-                  early_stopping: int = DEFAULT_EARLY_STOPPING) -> None:
+    def set_config(self, config: Optional[Mapping[str, Any]] = None) -> None:
         """
-        Assign the training parameters. See XGBoost docs for the details.
+        Update ranking configuration.
 
-        :param train_rounds: Number of training rounds.
-        :param early_stopping: Early stopping parameter.
-        :param boost_param: Boosting parameters. The actual default is DEFAULT_BOOST_PARAM.
+        :param config: Ranking configuration, options:
+                       train_rounds: Number of training rounds (int).
+                       early_stopping: Early stopping parameter (int).
+                       boost_param: Boosting parameters (dict).
         """
-        self.train_rounds = train_rounds
-        self.early_stopping = early_stopping
-        self.boost_param = boost_param or self.DEFAULT_BOOST_PARAM
-        self.boost_param["nthread"] = self.boost_param["nthread"] or multiprocessing.cpu_count()
+        if config is None:
+            config = {}
+        self.config = merge_dicts(DEFAULT_CORRECTOR_CONFIG["ranking"], config)
 
     def fit(self, identifiers: pandas.Series, candidates: pandas.DataFrame,
             features: numpy.ndarray, val_part: float = 0.1) -> None:
@@ -80,11 +73,12 @@ class CandidatesRanker(Model):
         edge = int(features.shape[0] * (1 - val_part))
         data_train = xgb.DMatrix(features[:edge, :], label=labels[:edge])
         data_val = xgb.DMatrix(features[edge:, :], label=labels[edge:])
-        self.boost_param["scale_pos_weight"] = float(
+        self.config["boost_param"]["scale_pos_weight"] = float(
             1.0 * (edge - numpy.sum(labels[:edge])) / numpy.sum(labels[:edge]))
         evallist = [(data_train, "train"), (data_val, "validation")]
-        self.bst = xgb.train(self.boost_param, data_train, self.train_rounds, evallist,
-                             early_stopping_rounds=self.early_stopping, verbose_eval=False)
+        self.bst = xgb.train(self.config["boost_param"], data_train, self.config["train_rounds"],
+                             evallist, early_stopping_rounds=self.config["early_stopping"],
+                             verbose_eval=False)
         self._log.debug("successfully fitted")
 
     def rank(self, candidates: pandas.DataFrame, features: numpy.ndarray, n_candidates: int = 3,
@@ -108,12 +102,11 @@ class CandidatesRanker(Model):
         """Describe the model for introspection."""
         return "Attributes: %s\nParameters: %s" % (
             sorted(self.bst.attributes().items()) if self.bst is not None else "<not trained>",
-            sorted(self.boost_param.items()))
+            sorted(self.config["boost_param"].items()))
 
     def __eq__(self, other: "CandidatesRanker") -> bool:
-        for k in ("train_rounds", "early_stopping", "boost_param"):
-            if getattr(self, k) != getattr(other, k):
-                return False
+        if self.config != other.config:
+            return False
         if (self.bst is None) != (other.bst is None):
             return False
         if self.bst is None:
@@ -130,14 +123,19 @@ class CandidatesRanker(Model):
         return numpy.array(labels)
 
     def _generate_tree(self) -> dict:
-        tree = {k: getattr(self, k) for k in ("train_rounds", "early_stopping", "boost_param")}
-        assert self.bst is not None
-        tree["bst"] = numpy.array(self.bst.save_raw())
-        tree["best_ntree_limit"] = self.bst.best_ntree_limit
+        tree = {"config": self.config}
+        if self.bst is None:
+            tree["bst"] = numpy.array([])
+        else:
+            tree["bst"] = numpy.array(self.bst.save_raw())
+            tree["best_ntree_limit"] = self.bst.best_ntree_limit
         return tree
 
     def _load_tree(self, tree: dict) -> None:
         self.__dict__.update(tree)
-        self.bst = xgb.Booster(model_file=tree["bst"].data)
-        self.bst.best_ntree_limit = self.best_ntree_limit
-        del self.best_ntree_limit
+        if self.bst.shape == (0,):
+            self.bst = None
+        else:
+            self.bst = xgb.Booster(model_file=tree["bst"].data)
+            self.bst.best_ntree_limit = self.best_ntree_limit
+            del self.best_ntree_limit

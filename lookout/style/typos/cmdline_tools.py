@@ -10,7 +10,7 @@ from lookout.core.cmdline import ArgumentDefaultsHelpFormatterNoNone
 from modelforge import slogging
 import pandas
 
-from lookout.style.typos.preparation import DEFAULT_CONFIG, get_datasets, prepare_data, \
+from lookout.style.typos.preparation import DEFAULT_CORRECTOR_CONFIG, get_datasets, prepare_data, \
     train_and_evaluate, train_fasttext, train_from_scratch
 
 
@@ -33,8 +33,8 @@ def add_data_path_arg(my_parser: ArgumentParser) -> None:
     """
     my_parser.add_argument(
         "--data-path", required=False, type=str,
-        default=os.path.join(DEFAULT_CONFIG["preparation"]["data_dir"],
-                             DEFAULT_CONFIG["preparation"]["prepared_filename"]),
+        default=os.path.join(DEFAULT_CORRECTOR_CONFIG["preparation"]["data_dir"],
+                             DEFAULT_CORRECTOR_CONFIG["preparation"]["prepared_filename"]),
         help=".csv dump of a Dataframe with columns Columns.Split and Columns.Frequency.")
 
 
@@ -45,7 +45,8 @@ def add_corrector_path_arg(my_parser: ArgumentParser) -> None:
     :param my_parser: Parser to add the argument to.
     """
     my_parser.add_argument(
-        "--corrector-path", required=False, type=str, default=DEFAULT_CONFIG["corrector_path"],
+        "--corrector-path", required=False, type=str,
+        default=DEFAULT_CORRECTOR_CONFIG["corrector_path"],
         help="Path to save the trained model to (.asdf).")
 
 
@@ -60,11 +61,13 @@ def cli_get_datasets(data_path: str, config: Mapping[str, Any]) -> None:
 
 
 def cli_train_corrector(train: str, test: str, vocabulary_path: str,
-                        frequencies_path: str, fasttext_path: str, corrector_path: str) -> None:
+                        frequencies_path: str, fasttext_path: str, corrector_path: str,
+                        config: Mapping[str, Any]) -> None:
     """Entry point for `train_and_evaluate`."""
     train = pandas.read_csv(train, index_col=0, keep_default_na=False)
     test = pandas.read_csv(test, index_col=0, keep_default_na=False)
-    model = train_and_evaluate(train, test, vocabulary_path, frequencies_path, fasttext_path)
+    model = train_and_evaluate(train, test, vocabulary_path, frequencies_path, fasttext_path,
+                               config.get("generation", {}), config.get("ranking", {}))
     model.save(corrector_path, series=0.0)
 
 
@@ -108,31 +111,32 @@ def create_parser() -> ArgumentParser:
     train_parser.set_defaults(handler=cli_train_corrector)
     train_parser.add_argument(
         "--train", required=False, type=str,
-        default=DEFAULT_CONFIG["datasets"]["train_path"],
+        default=DEFAULT_CORRECTOR_CONFIG["datasets"]["train_path"],
         help=".csv dump of a Dataframe with columns Columns.Split and Columns.Frequency.",
     )
     train_parser.add_argument(
         "--test", required=False, type=str,
-        default=DEFAULT_CONFIG["datasets"]["test_path"],
+        default=DEFAULT_CORRECTOR_CONFIG["datasets"]["test_path"],
         help=".csv dump of a Dataframe with columns Columns.Split and Columns.Frequency.",
     )
     train_parser.add_argument(
         "-v", "--vocabulary-path", required=False, type=str,
-        default=os.path.join(DEFAULT_CONFIG["preparation"]["data_dir"],
-                             DEFAULT_CONFIG["preparation"]["vocabulary_filename"]),
+        default=os.path.join(DEFAULT_CORRECTOR_CONFIG["preparation"]["data_dir"],
+                             DEFAULT_CORRECTOR_CONFIG["preparation"]["vocabulary_filename"]),
         help="Path to a .csv file with vocabulary.",
     )
     train_parser.add_argument(
         "-f", "--frequencies-path", required=False, type=str,
-        default=os.path.join(DEFAULT_CONFIG["preparation"]["data_dir"],
-                             DEFAULT_CONFIG["preparation"]["frequencies_filename"]),
+        default=os.path.join(DEFAULT_CORRECTOR_CONFIG["preparation"]["data_dir"],
+                             DEFAULT_CORRECTOR_CONFIG["preparation"]["frequencies_filename"]),
         help="Path to a .csv file with tokens' frequencies.",
     )
     train_parser.add_argument(
         "-e", "--fasttext-path", required=False, type=str,
-        default=DEFAULT_CONFIG["fasttext"]["path"],
+        default=DEFAULT_CORRECTOR_CONFIG["fasttext"]["path"],
         help="Path to a FastText model's dump (.bin).",
     )
+    add_config_arg(train_parser)
     add_corrector_path_arg(train_parser)
 
     ########################################
