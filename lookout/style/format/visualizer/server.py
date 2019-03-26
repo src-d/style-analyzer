@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Mapping, Sequence, Union
 from bblfsh import BblfshClient
 from flask import abort, Flask, jsonify, request, Response
 from flask_cors import CORS
-from lookout.core.api.service_data_pb2 import File
+from lookout.core.analyzer import UnicodeFile
 import numpy
 from scipy.sparse import csr_matrix
 from sklearn.exceptions import NotFittedError
@@ -102,7 +102,7 @@ def return_features() -> Response:
     if language not in model:
         raise NotFittedError()
     rules = model[language]
-    file = File(content=code.encode(), uast=res.uast, language="javascript")
+    file = UnicodeFile(content=code, uast=res.uast, language="javascript", path="path")
     config = rules.origin_config["feature_extractor"]
     config["return_sibling_indices"] = True
     fe = FeatureExtractor(language=language, **config)
