@@ -112,8 +112,6 @@ venv.bak/
 # mypy
 .mypy_cache/
 
-# Visualization models
-lookout/style/format/visualizer/models
 lookout/core/tests/server
 
 # CI
