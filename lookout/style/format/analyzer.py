@@ -1,6 +1,7 @@
 """Analyzer that detects bad formatting by learning on the existing code in the repository."""
 from collections import defaultdict
 import functools
+from importlib import import_module
 from itertools import chain
 import logging
 from pprint import pformat
@@ -14,7 +15,7 @@ from lookout.core.analyzer import Analyzer, ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2 import Change, File
 from lookout.core.data_requests import DataService, request_changes, \
-    with_changed_uasts_and_contents, with_uasts_and_contents
+    UnsatisfiedDriverVersionError, with_changed_uasts_and_contents, with_uasts_and_contents
 from lookout.core.lib import files_by_language, filter_files, find_deleted_lines, find_new_lines
 from lookout.core.metrics import submit_event
 import numpy
@@ -140,6 +141,8 @@ class FormatAnalyzer(Analyzer):
             except KeyError:
                 _log.warning("language %s is not supported, skipped", language)
                 continue
+            if not cls._check_language_version(language, data_service, _log):
+                continue
             overall_lines = changed_lines = 0
             for file in filter_files(head_files, lang_config["line_length_limit"],
                                      lang_config["overall_size_limit"], log=_log):
@@ -186,6 +189,8 @@ class FormatAnalyzer(Analyzer):
                 continue
             _log.info("effective train config for %s:\n%s", language,
                       pformat(lang_config, width=120, compact=True))
+            if not cls._check_language_version(language, data_service, _log):
+                continue
             random_state = lang_config["random_state"]
             files = filter_files(
                 files, lang_config["line_length_limit"], lang_config["overall_size_limit"],
@@ -278,6 +283,8 @@ class FormatAnalyzer(Analyzer):
             if lang not in self.model:
                 log.warning("skipped %d written in %s. Rules for %s do not exist in model",
                             len(head_files), lang, lang)
+                continue
+            if not self._check_language_version(lang, data_service, log):
                 continue
             rules = self.model[lang]
             config = self.analyze_config[lang]
@@ -553,3 +560,19 @@ class FormatAnalyzer(Analyzer):
                 raise ValueError("Config %s can not be merged with default values config: "
                                  "%s: %s" % (config, global_config, e)) from None
         return effective_config
+
+    @classmethod
+    def _check_language_version(cls, language: str, data_service: DataService,
+                                log: logging.Logger) -> bool:
+        """
+        Return the value indicating whether the Babelfish driver version for the specified \
+        language is supported.
+        """
+        language = language.lower()
+        try:
+            data_service.check_bblfsh_driver_versions([
+                language + import_module("lookout.style.format.langs.%s" % language).__version__])
+            return True
+        except UnsatisfiedDriverVersionError as e:
+            log.error("language %s was skipped, Babelfish driver is incompatible: %s", e)
+            return False

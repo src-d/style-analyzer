@@ -8,10 +8,11 @@ import os
 from typing import Any, Dict, Iterable, List, Mapping, NamedTuple, Optional, Sequence, Tuple, \
     Type, Union
 
-from bblfsh import BblfshClient
+import bblfsh
 from lookout.core.analyzer import ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2 import Change, File
+from lookout.core.api.service_data_pb2_grpc import DataStub
 from lookout.core.data_requests import DataService, request_files
 from lookout.core.lib import parse_files
 import numpy
@@ -100,24 +101,28 @@ class FakeStub:
 class FakeDataService:
     """Data service mock which returns the list of bound files and changes through FakeStub."""
 
-    def __init__(self, bblfsh_client: BblfshClient, files: Iterable[File],
+    def __init__(self, bblfsh_client: bblfsh.BblfshClient, files: Iterable[File],
                  changes: Iterable[Change]):
         """Initialize a new instance of FakeDataService."""
         self.bblfsh_client = bblfsh_client
         self.files = files
         self.changes = changes
 
-    def get_bblfsh(self):
+    def get_bblfsh(self) -> bblfsh.aliases.ProtocolServiceStub:
         """Return the Babelfish gRPC stub."""
         return self.bblfsh_client._stub
 
-    def get_data(self):
+    def get_data(self) -> DataStub:
         """Return the FakeStub to pretend that the server is running."""
         return FakeStub(self.files, self.changes)
 
+    def check_bblfsh_driver_versions(self, versions: Iterable[str]):
+        """Do not care about the versions here."""
+        pass
+
 
 def analyze_files(analyzer_type: Type[FormatAnalyzer], config: dict, model_path: str,
-                  language: str, bblfsh: str, input_pattern: str, log: logging.Logger,
+                  language: str, bblfsh_addr: str, input_pattern: str, log: logging.Logger,
                   ) -> List[Comment]:
     """Run the model, record the fixes for each file and return them."""
     class FakePointer:
@@ -128,7 +133,7 @@ def analyze_files(analyzer_type: Type[FormatAnalyzer], config: dict, model_path:
     if language not in model:
         raise NotFittedError()
     rules = model[language]
-    client = BblfshClient(bblfsh)
+    client = bblfsh.BblfshClient(bblfsh_addr)
     files = parse_files(filepaths=glob.glob(input_pattern, recursive=True),
                         line_length_limit=rules.origin_config["line_length_limit"],
                         overall_size_limit=rules.origin_config["overall_size_limit"],
@@ -141,13 +146,13 @@ def analyze_files(analyzer_type: Type[FormatAnalyzer], config: dict, model_path:
 
 
 @profile
-def print_reports(input_pattern: str, bblfsh: str, language: str, model_path: str,
+def print_reports(input_pattern: str, bblfsh_addr: str, language: str, model_path: str,
                   config: Union[str, dict] = "{}") -> None:
     """Print reports for a given model on a given dataset."""
     log = logging.getLogger("quality_report")
     config = config if isinstance(config, dict) else json.loads(config)
     for report in analyze_files(
-            QualityReportAnalyzer, config, model_path, language, bblfsh, input_pattern, log):
+            QualityReportAnalyzer, config, model_path, language, bblfsh_addr, input_pattern, log):
         print(report.text)
 
 

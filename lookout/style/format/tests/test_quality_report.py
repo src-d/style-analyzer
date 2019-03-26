@@ -77,7 +77,7 @@ class QualityReportTests(PretrainedModelTests):
         with tempfile.TemporaryDirectory() as folder:
             input_pattern = os.path.join(folder, "**", "*")
             with Capturing() as output:
-                print_reports(input_pattern=input_pattern, bblfsh=self.bblfsh,
+                print_reports(input_pattern=input_pattern, bblfsh_addr=self.bblfsh,
                               language=self.language, model_path=self.model_path, config=config)
             self.assertEqual(
                 output[:3], [
@@ -118,7 +118,7 @@ class QualityReportTests(PretrainedModelTests):
         q_report_header_test = "# Test report for javascript"
         input_pattern = os.path.join(self.jquery_dir, "**", "*")
         with Capturing() as output:
-            print_reports(input_pattern=input_pattern, bblfsh=self.bblfsh,
+            print_reports(input_pattern=input_pattern, bblfsh_addr=self.bblfsh,
                           language=self.language, model_path=self.model_path,
                           config={"analyze": {"language_defaults": {"uast_break_check": False}}})
         self.assertIn(q_report_header_train, output[0])
@@ -138,7 +138,7 @@ class QualityReportTests(PretrainedModelTests):
         input_pattern = os.path.join(self.jquery_dir, "**", "*")
         with Capturing() as output:
             print_reports(
-                input_pattern=input_pattern, bblfsh=self.bblfsh, language=self.language,
+                input_pattern=input_pattern, bblfsh_addr=self.bblfsh, language=self.language,
                 config={"analyze": {"language_defaults": {"uast_break_check": False}},
                         "aggregate": True},
                 model_path=self.model_path)
@@ -160,8 +160,9 @@ class QualityReportTests(PretrainedModelTests):
             with tempfile.NamedTemporaryFile() as empty_model:
                 with self.assertRaises(ValueError):
                     print_reports(
-                        input_pattern=input_pattern, bblfsh=self.bblfsh, language=self.language,
-                        model_path=empty_model, config={"uast_break_check": False})
+                        input_pattern=input_pattern, bblfsh_addr=self.bblfsh,
+                        language=self.language, model_path=empty_model,
+                        config={"uast_break_check": False})
 
     @long_test
     def test_train_review_analyzer_integration(self):
