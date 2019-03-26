@@ -64,6 +64,11 @@ class AnalyzerTests(unittest.TestCase):
                 model=MODEL_PATH, confidence_threshold=0.0, n_candidates=3))
         comments = analyzer.analyze(ptr_from=self.ptr, ptr_to=self.ptr, data_service=dataservice)
         self.assertGreater(len(comments), 0)
+        bad_names = ["nam", "print_tipe", "gett_lenght"]
+        good_names = ["name", "print_type", "get_length"]
+        for c in comments:
+            self.assertFalse(any(name in c.text.split(", fixes:")[0] for name in good_names))
+            self.assertTrue(any(name in c.text.split(", fixes:")[0] for name in bad_names))
 
     def test_reconstruct_identifier(self):
         tokens = [

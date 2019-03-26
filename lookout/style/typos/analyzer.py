@@ -160,14 +160,15 @@ class IdTyposAnalyzer(Analyzer):
                     identifier_candidates = [
                         Candidate(i, c) for i, c in zip(
                             sugg_identifiers, self._normalize_confidences(id_confidences),
-                        )
+                        ) if i != identifier
                     ]
-                    yield TypoFix(
-                        head_file=file,
-                        identifier=identifier,
-                        candidates=candidates,
-                        line_number=new_identifiers[index].start_position.line,
-                        identifier_candidates=identifier_candidates)
+                    if identifier_candidates:
+                        yield TypoFix(
+                            head_file=file,
+                            identifier=identifier,
+                            candidates=candidates,
+                            line_number=new_identifiers[index].start_position.line,
+                            identifier_candidates=identifier_candidates)
 
     def render_comment_text(self, typo_fix: TypoFix) -> str:
         """
