@@ -246,10 +246,6 @@ def main() -> Any:
     """Entry point of the utility."""
     parser = create_parser()
     args = parser.parse_args()
-    slogging.setup(args.log_level, args.log_structured, args.log_config)
-    delattr(args, "log_level")
-    delattr(args, "log_structured")
-    delattr(args, "log_config")
     try:
         handler = args.handler
         delattr(args, "handler")

@@ -9,7 +9,7 @@ RUN apt-get update && \
     cd style-analyzer && \
     pip3 install --no-cache-dir -r requirements.txt && \
     pip3 uninstall -y pyspark modelforge && \
-    pip3 install modelforge>=0.12 && \
+    pip3 install --no-warn-conflicts modelforge>=0.12 && \
     apt-get remove -y python3-dev libsnappy-dev gcc g++ make libxml2-dev zlib1g-dev && \
     apt-get remove -y .*-doc >/dev/null && \
     apt-get autoremove -y && \
