@@ -102,7 +102,6 @@ def create_parser() -> ArgumentParser:
 
     # General options
     slogging.add_logging_args(parser)
-
     subparsers = parser.add_subparsers(help="Commands")
 
     def add_parser(name, help):

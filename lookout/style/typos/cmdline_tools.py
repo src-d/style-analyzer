@@ -154,8 +154,6 @@ def main() -> Any:
     """Entry point of the utility."""
     parser = create_parser()
     args = parser.parse_args()
-    for log_arg in ("log_level", "log_structured", "log_config"):
-        delattr(args, log_arg)
     try:
         handler = args.handler
         delattr(args, "handler")
