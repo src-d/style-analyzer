@@ -34,6 +34,7 @@ class IdTyposAnalyzer(Analyzer):
     _log = logging.getLogger("IdTyposAnalyzer")
     model_type = DummyAnalyzerModel
     name = "lookout.style.typos"
+    vendor = "source{d}"
     version = 1
     description = "Corrector of typos in source code identifiers."
     corrector_manager = TyposCorrectorManager()
@@ -128,6 +129,8 @@ class IdTyposAnalyzer(Analyzer):
                                    node.token and node.token not in old_identifiers]
                 if not new_identifiers:
                     continue
+                self._log.debug("Found %d new identifiers, first one: %s" %
+                                (len(new_identifiers), new_identifiers[0].token))
                 suggestions = self.check_identifiers([n.token for n in new_identifiers])
                 for index in suggestions.keys():
                     corrections = suggestions[index]
