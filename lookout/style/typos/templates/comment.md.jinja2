@@ -1,0 +1,7 @@
+Possible typo in `{{ identifier }}`, fixes:
+{% for suggestion, confidence in zip(suggestions, confidences) %}
+Candidate #{{ loop.index }} with a confidence {{ (100 * confidence) | int }}%
+```suggestion
+{{ old_code_line.replace(identifier, suggestion) }}
+```
+{% endfor %}

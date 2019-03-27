@@ -1,6 +1,7 @@
 """Various glue functions to work with the input dataset and the output from FastText."""
 import csv
 from itertools import chain
+import os
 from typing import Dict, Iterable, List, NamedTuple, Optional, Set, Tuple
 
 import numpy
@@ -21,6 +22,8 @@ Candidate = NamedTuple("Candidate", (
     ("token", str),         # Token with fixed typo
     ("confidence", float),  # Model confidence for the correction
 ))
+
+TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), "templates")
 
 
 def filter_splits(data: pandas.DataFrame, tokens: Set[str]) -> pandas.DataFrame:

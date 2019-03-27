@@ -1,6 +1,8 @@
 """Identifier typos analyzer."""
 from collections import defaultdict
+import itertools
 import logging
+import os
 from typing import Any, Dict, Iterable, Iterator, List, Mapping, NamedTuple, Sequence, Tuple
 
 import bblfsh
@@ -10,19 +12,21 @@ from lookout.core.data_requests import DataService, \
     with_changed_uasts_and_contents, with_uasts_and_contents
 from lookout.core.lib import extract_changed_nodes, files_by_language, filter_files, find_new_lines
 from lookout.sdk.service_data_pb2 import Change, File
+import numpy
 import pandas
 from sourced.ml.algorithms import TokenParser, uast2sequence
 
-from lookout.style.common import merge_dicts
+from lookout.style.common import load_jinja2_template, merge_dicts
 from lookout.style.format.utils import generate_comment
 from lookout.style.typos.corrector_manager import TyposCorrectorManager
-from lookout.style.typos.utils import Candidate, Columns, flatten_df_by_column
+from lookout.style.typos.utils import Candidate, Columns, flatten_df_by_column, TEMPLATE_DIR
 
 TypoFix = NamedTuple("LineFix", (
     ("head_file", File),  # file from head revision
     ("line_number", int),  # line number for the comment
-    ("token", str),  # token where typo is found
-    ("candidates", List[Candidate]),  # Candidates for token fix
+    ("identifier", str),  # identifier where typo is found
+    ("candidates", Mapping[str, Iterable[Candidate]]),  # Candidates for token {token: candidates}
+    ("identifier_candidates", Iterable[Candidate]),  # Suggested identifiers
 ))
 
 
@@ -38,6 +42,7 @@ class IdTyposAnalyzer(Analyzer):
     version = 1
     description = "Corrector of typos in source code identifiers."
     corrector_manager = TyposCorrectorManager()
+    vendor = "source{d}"
 
     default_config = {
         "line_length_limit": 500,
@@ -46,6 +51,7 @@ class IdTyposAnalyzer(Analyzer):
         "overall_size_limit": 5 << 20,  # 5 MB
         "model": "245fae3a-2f87-4990-ab9a-c463393cfe51",
         "index_column": "index",
+        "comment_template": os.path.join(TEMPLATE_DIR, "comment.md.jinja2"),
     }
 
     def __init__(self, model: AnalyzerModel, url: str, config: Mapping[str, Any]):
@@ -60,6 +66,7 @@ class IdTyposAnalyzer(Analyzer):
         self.config = self._load_config(config)
         self.model = self.corrector_manager.get(self.config["model"])
         self.parser = self.create_token_parser()
+        self.comment_template = load_jinja2_template(self.config["comment_template"])
 
     @staticmethod
     def create_token_parser() -> TokenParser:
@@ -87,12 +94,18 @@ class IdTyposAnalyzer(Analyzer):
         :return: List of found review suggestions. Refer to \
                  lookout/core/server/sdk/service_analyzer.proto.
         """
-        return [generate_comment(
-            filename=typo_fix.head_file.path,
-            line=typo_fix.line_number,
-            text=self.render_comment_text(typo_fix),
-            confidence=self._get_comment_confidence(typo_fix.candidates))
-            for typo_fix in self.generate_typos_fixes(list(changes))]
+        comments = []
+        for typo_fix in self.generate_typos_fixes(list(changes)):
+            text = self.render_comment_text(typo_fix)
+            confidence = 1 - numpy.prod(
+                1 - numpy.fromiter((x.confidence for x in typo_fix.identifier_candidates),
+                                   dtype=numpy.float),
+            )
+
+            comments.append(generate_comment(text=text, confidence=int(100 * confidence),
+                                             filename=typo_fix.head_file.path,
+                                             line=typo_fix.line_number))
+        return comments
 
     def generate_typos_fixes(self, changes: Sequence[Change]) -> Iterator[TypoFix]:
         """
@@ -132,15 +145,30 @@ class IdTyposAnalyzer(Analyzer):
                 self._log.debug("Found %d new identifiers, first one: %s" %
                                 (len(new_identifiers), new_identifiers[0].token))
                 suggestions = self.check_identifiers([n.token for n in new_identifiers])
+                if not suggestions:
+                    continue
                 for index in suggestions.keys():
-                    corrections = suggestions[index]
-                    for token in corrections.keys():
+                    identifier = new_identifiers[index].token
+                    candidates = {token: [Candidate(*sugg) for sugg in suggestions[index][token]]
+                                  for token in suggestions[index]}
+                    sugg_identifiers, id_confidences = [], []
+                    for final_sugg, conf in self.generate_identifier_suggestions(
+                            candidates, identifier):
+                        sugg_identifiers.append(final_sugg)
+                        id_confidences.append(conf)
+
+                    identifier_candidates = [
+                        Candidate(i, c) for i, c in zip(
+                            sugg_identifiers, self._normalize_confidences(id_confidences),
+                        ) if i != identifier
+                    ]
+                    if identifier_candidates:
                         yield TypoFix(
                             head_file=file,
-                            token=new_identifiers[index].token,
-                            candidates=corrections[token],
+                            identifier=identifier,
+                            candidates=candidates,
                             line_number=new_identifiers[index].start_position.line,
-                        )
+                            identifier_candidates=identifier_candidates)
 
     def render_comment_text(self, typo_fix: TypoFix) -> str:
         """
@@ -149,17 +177,56 @@ class IdTyposAnalyzer(Analyzer):
         :param typo_fix: Information about typo fix required to render a comment text.
         :return: string with the generated comment.
         """
-        # TODO: move this logic to template. See FormatAnalyzer.render_comment_text()
-        corrections_line = ", ".join("%s (%d%%)" % (
-            c.token, int(c.confidence * 100)) for c in typo_fix.candidates)
-        return "Possible typo in \"%s\". Suggestions: %s" % (typo_fix.token, corrections_line)
+        file_lines = typo_fix.head_file.content.decode("utf-8", "replace").splitlines()
+        confidences = [candidate.confidence for candidate in typo_fix.identifier_candidates]
+        return self.comment_template.render(
+            identifier=typo_fix.identifier,
+            suggestions=[candidate.token for candidate in typo_fix.identifier_candidates],
+            old_code_line=file_lines[typo_fix.line_number - 1],
+            confidences=confidences,
+            zip=zip)
 
     @staticmethod
-    def _get_comment_confidence(suggestions: Sequence[Candidate]) -> int:
-        invert_confidence = 1
-        for suggestion in suggestions:
-            invert_confidence *= (1 - suggestion.confidence)
-        return int(100 * (1 - invert_confidence))
+    def _normalize_confidences(confidences: Sequence[float]):
+        s = sum(confidences)
+        return [conf / s for conf in confidences]
+
+    def generate_identifier_suggestions(self, suggestions: Mapping[str, Iterable[Candidate]],
+                                        identifier: str) \
+            -> Iterator[Tuple[str, float]]:
+        """
+        Generate suggestions for the identifier and compute the probability of suggestion.
+
+        :param suggestions: suggestions are a mapping from a token to the list of candidates.
+        :param identifier: initial identifier.
+        :return: a generator of tuples with a suggestion for the identifier and probability.
+        """
+        if not suggestions:
+            # do nothing in case of empty suggestions
+            return
+        token_candidates = []
+        # split identifier
+        initial_tokens = self.parser.split(identifier)
+
+        # prepare suggestions per initial token
+        for t in initial_tokens:
+            token_candidates.append(suggestions[t])
+
+        # sort candidates by resulting identifier probability
+        suggestion_candidates = list(reversed(sorted(itertools.product(*token_candidates),
+                                                     key=self._proba)))
+
+        for i in range(min(self.config["n_candidates"], len(suggestion_candidates))):
+            final_candidate = self.reconstruct_identifier(
+                tokenizer=self.parser,
+                pred_tokens=[c.token for c in suggestion_candidates[i]],
+                identifier=identifier,
+            )
+            yield final_candidate, self._proba(suggestion_candidates[i])
+
+    @staticmethod
+    def _proba(candidates: Iterable[Candidate]):
+        return numpy.prod([c.confidence for c in candidates])
 
     @staticmethod
     def reconstruct_identifier(tokenizer: TokenParser, pred_tokens: List[str], identifier: str) \
@@ -173,7 +240,7 @@ class IdTyposAnalyzer(Analyzer):
         :return: reconstructed identifier based on predicted tokens.
         """
         identifier_l = identifier.lower()
-        # setup required parameters
+        # check required parameters
         assert tokenizer._single_shot, "TokenParser should be initialized with " \
                                        "`single_shot=True` for IdTyposAnalyzer"
         # sanity checking
@@ -238,7 +305,7 @@ class IdTyposAnalyzer(Analyzer):
         df[Columns.Split] = [" ".join(self.parser.split(i)) for i in identifiers]
         df = flatten_df_by_column(df, Columns.Split, Columns.Token, str.split)
         suggestions = self.model.suggest(df, n_candidates=self.config["n_candidates"],
-                                         return_all=False)
+                                         return_all=True)
         suggestions = self.filter_suggestions(df, suggestions)
         grouped_suggestions = defaultdict(dict)
         for index, row in df.iterrows():
