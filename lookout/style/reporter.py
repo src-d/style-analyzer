@@ -14,45 +14,43 @@ class Reporter:
     """
     Base class to create performance reports for the analyzer.
 
-    To create a reporter for yours Analyzer you should inherit two classes.
-    1. Inherit SpyAnalyzer from Analyzer you want to estimate. SpyAnalyzer `analyze` function
-       should be overwritten to return all information you need for the next performance analysis
-       in the Comments with a JSON object. See `TyposAnalyzerSpy` as an example.
-    2. Inherit MyReporter from this Reporter class. It is expected that you have a dataset that
-       you feed to `Reprter.run()` method. After that dataset rows are passed to
-       `_trigger_review_event` to trigger Your analyzer analyze method and send a result to
-       `_generate_reports` method. If you need to summarize your reports or make a reduced report
-       override `_finalize` method.
+    To create a reporter for your Analyzer you should make two steps.
+    1. Inherit SpyAnalyzer from an Analyzer you want to evaluate. SpyAnalyzer's `analyze` \
+       function should be overridden to return all the information you need for the following \
+       evaluation of the `Comment`-s. Refer to `TyposAnalyzerSpy` as an example.
+    2. Inherit MyReporter from this Reporter class. Set created SpyAnalyzer to \
+       `inspected_analyzer_type` attribute. You should have a dataset that you feed to \
+       `Reporter.run()`. The dataset rows are passed to `_trigger_review_event` to trigger your \
+       analyzer's `analyze()`. The result is passed to `_generate_reports()`. If you need to \
+       summarize your reports, override `_finalize` method.
 
-       Note, that if you want to create several reports for the data
-       (like test, train reports for example) you should properly override both
-       `get_report_names()` and `_generate_reports()` functions.
+       If you want to create several reports (e.g. separate train and test reports) you should \
+       override both `get_report_names()` and `_generate_reports()`.
     """
 
     _log = logging.getLogger("Reporter")
 
-    # Reporter can work only with analyzers that provides json in output message.
     inspected_analyzer_type = None  # type: Type[Analyzer]
 
     def __init__(self, config: Optional[dict] = None, bblfsh: Optional[str] = None,
                  database: Optional[str] = None, fs: Optional[str] = None):
         """
-        Get new reporter instance.
+        Initialize a new `Reporter` instance.
 
-        If you want to use existing models and do not retrain them you should provide `database`
-        and 'fs' arguments.
+        You should provide `database` and `fs` in order to re-use existing models (no training).
 
-        :param config: Analyzer config to feed during push and review events. The analyzer uses \
+        :param config: Analyzer configuration for push and review events. The analyzer uses \
                        default config if not provided.
         :param bblfsh: Babelfish endpoint to use by lookout-sdk.
         :param database: Database endpoint to use to read and store information about models. \
-            Sqlite3 database in the temporary file is used if not provided.
+            Sqlite3 database in a temporary file is used if not provided.
         :param fs: Model repository file system root. Temporary directory is used if not provided.
         """
-        if not issubclass(self.inspected_analyzer_type, Analyzer):
+        if self.inspected_analyzer_type is None or \
+                not issubclass(self.inspected_analyzer_type, Analyzer):
             raise AttributeError(
-                "inspected_analyzer_type attribute should we set to Analyzer class in %s reporter,"
-                " got %s." % (type(self), type(self.inspected_analyzer_type)))
+                "inspected_analyzer_type attribute must be set to an Analyzer subclass in %s,"
+                " got %s." % (type(self), repr(self.inspected_analyzer_type)))
         self._config = config
         self._bblfsh = bblfsh
         self._database = database
@@ -88,17 +86,16 @@ class Reporter:
         """
         def _run(dataset) -> Iterator[Dict[str, str]]:
             for index, row in enumerate(dataset):
-                self._log.info("processing %d / %d (%s)", index, len(dataset), row)
+                self._log.info("processing %d / %d (%s)", index + 1, len(dataset), row)
                 try:
                     fixes = self._trigger_review_event(row)
                     reports = self._generate_reports(row, fixes)
                     reports.update(row)
                     yield reports
                 except Exception:
-                    self._log.exception("Failed to generate report %d / %d (%s)",
+                    self._log.exception("failed to generate report %d / %d (%s)",
                                         index, len(dataset), row)
 
-        self._log.info("processing %d entries", len(dataset))
         yield from self._finalize(_run(dataset))
 
     @classmethod
@@ -113,7 +110,7 @@ class Reporter:
     def _generate_reports(self, dataset_row: Dict[str, Any], fixes: Sequence[NamedTuple],
                           ) -> Dict[str, str]:
         """
-        Generate reports for the dataset row.
+        Generate reports for a dataset row.
 
         :param dataset_row: Dataset row which triggered the analyze method of the analyzer.
         :param fixes: List of data provided by the analyze method of spied analyzer.
@@ -123,22 +120,23 @@ class Reporter:
 
     def _trigger_review_event(self, dataset_row: Dict[str, Any]) -> Sequence[NamedTuple]:
         """
-        Trigger review event and convert provided comments to internal representation.
+        Trigger review event and convert provided comments to an internal representation.
 
-        It is required to call `Reporter._analyzer_context_manager.review()` in this function with
-        arguments you need and convert provided comments to a Sequence of NamedTuple-s for the
-        report generation.
+        It is required to call `Reporter._analyzer_context_manager.review()` in this function \
+        with arguments you need and convert provided comments to a Sequence of NamedTuple-s for \
+        the report generation.
 
-        :param dataset_row: Dataset row which triggers the analyze method of the analyzer.
+        :param dataset_row: Dataset row with information required to run \
+                            `analyzer_context_manager.review()`.
         :return: Sequence of data extracted from comments to generate report.
         """
         raise NotImplementedError()
 
     def _finalize(self, reports: Iterable[Dict[str, str]]) -> Iterator[Dict[str, str]]:
         """
-        Extend or Summarize generated reports if required.
+        Extend or summarize the generated reports.
 
-        Function provides reports as is by default.
+        The function does not change the reports by default.
 
         :param reports: Iterable with generated reports.
         :return: New finalized reports.

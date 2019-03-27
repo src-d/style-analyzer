@@ -6,9 +6,9 @@ import os
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Tuple
 
 
-from lookout.core.analyzer import ReferencePointer
+from lookout.core.analyzer import ReferencePointer, UnicodeChange
 from lookout.core.api.service_analyzer_pb2 import Comment
-from lookout.core.api.service_data_pb2 import Change, File
+from lookout.core.api.service_data_pb2 import File
 from lookout.core.data_requests import DataService, request_files
 import pandas
 
@@ -22,29 +22,31 @@ from lookout.style.typos.analyzer import TypoFix
 
 class TyposAnalyzerSpy(IdTyposAnalyzer):
     """
-    The Analyzer which returns fixes found by IdTyposAnalyzer for all file content as JSON \
-    structures.
+    The Analyzer which returns fixes found by IdTyposAnalyzer as JSON structures.
+
+    Note that all lines in the head revision (`ptr_to`) is analyzed, not only changed lines.
+    Thus the result does not depend on base revision (`ptr_from`).
     """
 
     def run(self, ptr: ReferencePointer, data_service: DataService) -> Iterable[TypoFix]:
         """
-        Run `generate_typos_fixes` for all lines and all files in ptr_from revision.
+        Run `generate_typos_fixes` for all lines and all files in `ptr_from` revision.
 
         :param ptr: Git repository state pointer to the revision that should be analyzed.
         :param data_service: Connection to the Lookout data retrieval service to get the files.
         :return: Generator of fixes for each file.
         """
         files = request_files(data_service.get_data(), ptr,
-                              contents=True, uast=True, unicode=False)
+                              contents=True, uast=True, unicode=True)
         return self.generate_typos_fixes([
-            Change(base=f, head=File(path=f.path, language=f.language)) for f in files])
+            UnicodeChange(head=f, base=File(path=f.path, language=f.language)) for f in files])
 
     def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
                 data_service: DataService, **data) -> List[Comment]:
         """
-        Return the list of `TypoFix`-es as Comments.
+        Extract the list of `TypoFix`-es as `Comment`-s.
 
-        `TypoFix`-es are generated with `run()` method.
+        `TypoFix`-es are generated in `run()`.
 
         :param ptr_from: The Git revision to analyze.
         :param ptr_to: Not used. ptr_from is used for both model training and analysis.
@@ -52,13 +54,13 @@ class TyposAnalyzerSpy(IdTyposAnalyzer):
                              UASTs, file contents, etc.
         :param data: Extra data passed into the method. Used by the decorators to simplify \
                      the data retrieval.
-        :return: List of Typo Fixes information in a JSON format required for further analysis.
+        :return: List of `Comment`-s with `TypoFix` in JSON format.
         """
         return [generate_comment(
-            filename=typo_fix.head_file.path,
+            filename=typo_fix.path,
             line=typo_fix.line_number,
             text=json.dumps(typo_fix._asdict()),
-            confidence=100) for typo_fix in self.run(ptr_from, data_service)]
+            confidence=100) for typo_fix in self.run(ptr_to, data_service)]
 
 
 class TypoCommitsReporter(Reporter):
@@ -71,7 +73,7 @@ class TypoCommitsReporter(Reporter):
     @classmethod
     def get_report_names(cls) -> Tuple[str, ...]:
         """
-        Get all available report names.
+        Get all the available report names.
 
         :return: Tuple with report names.
         """
@@ -80,7 +82,7 @@ class TypoCommitsReporter(Reporter):
     def _generate_reports(self, dataset_row: Dict[str, Any], fixes: Sequence[TypoFix],
                           ) -> Dict[str, str]:
         """
-        Generate reports for the dataset row.
+        Generate reports for a dataset row.
 
         :param dataset_row: Dataset row which triggered the analyze method of the analyzer.
         :param fixes: List of `TypoFix`-es provided by the `TyposAnalyzerSpy.analyze()` method.
@@ -93,7 +95,7 @@ class TypoCommitsReporter(Reporter):
     def generate_commit_dataset_report(self, dataset_row: Dict[str, Any],
                                        fixes: Sequence[TypoFix]) -> str:
         """
-        Generate commit dataset report for the dataset row.
+        Generate the report for a dataset row.
 
         :param dataset_row: Dataset row which triggered the analyze method of the analyzer.
         :param fixes: List of `TypoFix`-es provided by the `TyposAnalyzerSpy.analyze()` method.
@@ -116,23 +118,16 @@ class TypoCommitsReporter(Reporter):
         comments = self._analyzer_context_manager.review(
             dataset_row["commit"], "HEAD", git_dir=dataset_row["repo"], bblfsh=self._bblfsh,
             log_level="info", config_json=self._config)
-        typo_fixes = []
-        for comment in comments:
-            typo_fix_dict = json.loads(comment.text)
-            typo_fixes.append(TypoFix(head_file=typo_fix_dict["head_file"],
-                                      line_number=typo_fix_dict["line_number"],
-                                      candidates=typo_fix_dict["candidates"],
-                                      token=typo_fix_dict["token"]))
-        return typo_fixes
+        return [TypoFix(**json.loads(comment.text)) for comment in comments]
 
     def _finalize(self, reports: Iterable[Dict[str, str]]) -> Iterator[Dict[str, str]]:
         """
-        Summarize all individual reports to the final one.
+        Summarize all individual reports.
 
         :param reports: Reports generated by `TypoCommitsReporter.generate_commit_dataset_report()`
         :return: Summarized final report
         """
-        # TODO(zurk): Add a proper report
+        # TODO(zurk): Add a report template file with metric we want to calculate.
         sum_metric = self.get_metrics_billet()
         for report in reports:
             sum_metric += pandas.Series(json.loads(report)["report"])
@@ -141,17 +136,17 @@ class TypoCommitsReporter(Reporter):
     @staticmethod
     def get_metrics_billet() -> pandas.Series:
         """
-        Generate pandas series with TypoCommitsReporter metrics.
+        Generate pandas series with `TypoCommitsReporter`'s  metrics.
 
         `detection_` prefix relates metric to typo detection and `fix_` to a metrics for founded
         typos. Support is a number of analyzed identifiers.
         """
-        metrics = ((
+        metrics = (
             ("detection_true_positive", 0.0),
             ("detection_false_positive", 0.0),
             ("fix_accuracy", 0.0),
             ("support", 0.0),
-        ))
+        )
         index, defaults = zip(*metrics)
         return pandas.Series(data=defaults, index=index)
 
@@ -160,14 +155,15 @@ def generate_typos_report_entry(dataset: str, output: str, bblfsh: str, config: 
                                 database: Optional[str] = None, fs: Optional[str] = None,
                                 repos_cache: Optional[str] = None) -> None:
     """
-    Entry point for command line interface to generate typos quality report for the given data.
+    Entry point for the command line interface to generate typos quality report.
 
-    :param dataset: csv file with commits to make report. Should contain repo, commit, file, \
+    :param dataset: csv file with commits. Must contain repo, commit, file, \
                     line, wrong id and correct id columns.
-    :param output: Directory where to save report.
-    :param bblfsh: bblfsh address to use by lookout-sdk.
+    :param output: Directory where to save the report.
+    :param bblfsh: bblfsh address to use for `lookout-sdk`.
     :param config: config for IdTypoAnalyzer.
-    :param database: sqlite3 database path to store the models. Temporary file is used if not set.
+    :param database: sqlite3 database path to store the models. A temporary file is used if not \
+                     set.
     :param fs: Model repository file system root. Temporary directory is used if not set.
     :param repos_cache: Directory where to download repositories from the dataset. It is strongly \
                         recommended to set this parameter if there are more then 20 repositories \
@@ -176,9 +172,9 @@ def generate_typos_report_entry(dataset: str, output: str, bblfsh: str, config: 
     log = logging.getLogger("TyposReporter")
     os.makedirs(output, exist_ok=True)
     dataset = list(csv.DictReader(handle_input_arg(dataset)))
-    repositories = list(set(row["repo"] for row in dataset))
+    repositories = sorted(set(row["repo"] for row in dataset))
     log.info("Generate report for dataset with %d entries", len(dataset))
-    repositories_path = Cloner(repos_cache).clone_repositories(repositories)
+    repositories_path = Cloner(repos_cache).clone(repositories)
     local_dataset = []
     for entry in dataset:
         if entry["repo"] in repositories_path:
