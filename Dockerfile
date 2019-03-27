@@ -19,5 +19,7 @@ RUN apt-get update && \
 COPY . style-analyzer
 RUN cd style-analyzer && \
     pip3 install -e . && \
+    pip3 uninstall -y modelforge && \
+    pip3 install --no-warn-conflicts modelforge>=0.12 && \
     rm -rf /usr/local/lib/python3.6/dist-packages/pyspark/
 ENTRYPOINT ["analyzer"]
