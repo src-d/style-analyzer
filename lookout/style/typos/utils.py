@@ -144,7 +144,7 @@ def rank_candidates(candidates: pandas.DataFrame, pred_probs: Iterable[float],
     corrections = []
     for i in range(len(pred_probs)):
         index = candidates.loc[i, Columns.Id]
-        corrections.append(Candidate(candidates.loc[i, Columns.Candidate], pred_probs[i]))
+        corrections.append(Candidate(candidates.loc[i, Columns.Candidate], float(pred_probs[i])))
         if i < len(pred_probs) - 1 and candidates.loc[i + 1, Columns.Id] == index:
             continue
 

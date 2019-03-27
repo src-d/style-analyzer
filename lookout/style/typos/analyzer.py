@@ -6,12 +6,11 @@ import os
 from typing import Any, Dict, Iterable, Iterator, List, Mapping, NamedTuple, Sequence, Tuple
 
 import bblfsh
-from lookout.core.analyzer import Analyzer, AnalyzerModel, DummyAnalyzerModel, ReferencePointer
+from lookout.core.analyzer import Analyzer, AnalyzerModel, DummyAnalyzerModel, ReferencePointer, \
+    UnicodeChange
 from lookout.core.api.service_analyzer_pb2 import Comment
-from lookout.core.data_requests import DataService, \
-    with_changed_uasts_and_contents, with_uasts_and_contents
+from lookout.core.data_requests import DataService, with_changed_uasts_and_contents
 from lookout.core.lib import extract_changed_nodes, files_by_language, filter_files, find_new_lines
-from lookout.sdk.service_data_pb2 import Change, File
 import numpy
 import pandas
 from sourced.ml.algorithms import TokenParser, uast2sequence
@@ -21,12 +20,12 @@ from lookout.style.format.utils import generate_comment
 from lookout.style.typos.corrector_manager import TyposCorrectorManager
 from lookout.style.typos.utils import Candidate, Columns, flatten_df_by_column, TEMPLATE_DIR
 
-TypoFix = NamedTuple("LineFix", (
-    ("head_file", File),  # file from head revision
-    ("line_number", int),  # line number for the comment
-    ("identifier", str),  # identifier where typo is found
-    ("candidates", Mapping[str, Iterable[Candidate]]),  # Candidates for token {token: candidates}
-    ("identifier_candidates", Iterable[Candidate]),  # Suggested identifiers
+TypoFix = NamedTuple("TypoFix", (
+    ("content", str),                                         # file content from head revision
+    ("path", str),                                            # file path from head revision
+    ("line_number", int),                                     # line number for the comment
+    ("identifier", str),                                      # identifier where typo is found
+    ("candidates", Iterable[Candidate]),                      # suggested identifiers
 ))
 
 
@@ -42,7 +41,6 @@ class IdTyposAnalyzer(Analyzer):
     version = 1
     description = "Corrector of typos in source code identifiers."
     corrector_manager = TyposCorrectorManager()
-    vendor = "source{d}"
 
     default_config = {
         "line_length_limit": 500,
@@ -77,9 +75,10 @@ class IdTyposAnalyzer(Analyzer):
         """
         return TokenParser(stem_threshold=1000, single_shot=True, min_split_length=1)
 
-    @with_changed_uasts_and_contents(unicode=False)
+    @with_changed_uasts_and_contents(unicode=True)
     def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
-                data_service: DataService, changes: Iterable[Change], **data) -> List[Comment]:
+                data_service: DataService, changes: Iterable[UnicodeChange],
+                **data) -> List[Comment]:
         """
         Return the list of `Comment`-s - found typo corrections.
 
@@ -98,16 +97,16 @@ class IdTyposAnalyzer(Analyzer):
         for typo_fix in self.generate_typos_fixes(list(changes)):
             text = self.render_comment_text(typo_fix)
             confidence = 1 - numpy.prod(
-                1 - numpy.fromiter((x.confidence for x in typo_fix.identifier_candidates),
+                1 - numpy.fromiter((x.confidence for x in typo_fix.candidates),
                                    dtype=numpy.float),
             )
 
             comments.append(generate_comment(text=text, confidence=int(100 * confidence),
-                                             filename=typo_fix.head_file.path,
+                                             filename=typo_fix.path,
                                              line=typo_fix.line_number))
         return comments
 
-    def generate_typos_fixes(self, changes: Sequence[Change]) -> Iterator[TypoFix]:
+    def generate_typos_fixes(self, changes: Sequence[UnicodeChange]) -> Iterator[TypoFix]:
         """
         Generate all data about typo fix required for any type of further processing.
 
@@ -128,8 +127,7 @@ class IdTyposAnalyzer(Analyzer):
                     lines = []
                     old_identifiers = set()
                 else:
-                    lines = find_new_lines(prev_file.content.decode("utf-8", "replace"),
-                                           file.content.decode("utf-8", "replace"))
+                    lines = find_new_lines(prev_file.content, file.content)
                     old_identifiers = {
                         node.token for node in uast2sequence(prev_file.uast)
                         if bblfsh.role_id("IDENTIFIER") in node.roles
@@ -164,11 +162,11 @@ class IdTyposAnalyzer(Analyzer):
                     ]
                     if identifier_candidates:
                         yield TypoFix(
-                            head_file=file,
+                            content=file.content,
+                            path=file.path,
                             identifier=identifier,
-                            candidates=candidates,
                             line_number=new_identifiers[index].start_position.line,
-                            identifier_candidates=identifier_candidates)
+                            candidates=identifier_candidates)
 
     def render_comment_text(self, typo_fix: TypoFix) -> str:
         """
@@ -177,11 +175,11 @@ class IdTyposAnalyzer(Analyzer):
         :param typo_fix: Information about typo fix required to render a comment text.
         :return: string with the generated comment.
         """
-        file_lines = typo_fix.head_file.content.decode("utf-8", "replace").splitlines()
-        confidences = [candidate.confidence for candidate in typo_fix.identifier_candidates]
+        file_lines = typo_fix.content.splitlines()
+        confidences = [candidate.confidence for candidate in typo_fix.candidates]
         return self.comment_template.render(
             identifier=typo_fix.identifier,
-            suggestions=[candidate.token for candidate in typo_fix.identifier_candidates],
+            suggestions=[candidate.token for candidate in typo_fix.candidates],
             old_code_line=file_lines[typo_fix.line_number - 1],
             confidences=confidences,
             zip=zip)
@@ -226,7 +224,7 @@ class IdTyposAnalyzer(Analyzer):
 
     @staticmethod
     def _proba(candidates: Iterable[Candidate]):
-        return numpy.prod([c.confidence for c in candidates])
+        return float(numpy.prod([c.confidence for c in candidates]))
 
     @staticmethod
     def reconstruct_identifier(tokenizer: TokenParser, pred_tokens: List[str], identifier: str) \
@@ -275,8 +273,7 @@ class IdTyposAnalyzer(Analyzer):
         return "".join(res)
 
     @classmethod
-    @with_uasts_and_contents(unicode=False)
-    def train(cls, ptr: ReferencePointer, config: dict, data_service: DataService,
+    def train(cls, ptr: ReferencePointer, config: Mapping[str, Any], data_service: DataService,
               **data) -> AnalyzerModel:
         """
         Generate a new model on top of the specified source code.
