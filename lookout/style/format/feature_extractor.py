@@ -803,7 +803,8 @@ class FeatureExtractor:
         for j, vn in enumerate(file_vnodes):
             if vn.node:
                 closest_left_node_id = id(vn.node)
-            parent = self._find_parent(j, file_vnodes, file_parents, closest_left_node_id)
-            if parent is None:
-                parent = uast
-            vnode_parents[id(vn)] = parent
+                vnode_parents[id(vn)] = file_parents[id(vn.node)]
+            else:
+                parent = (self._find_parent(j, file_vnodes, file_parents, closest_left_node_id)
+                          or uast)
+                vnode_parents[id(vn)] = parent

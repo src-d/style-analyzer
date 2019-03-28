@@ -101,7 +101,7 @@ class UASTStabilityChecker:
             if vnode.start.offset not in start_offset_to_vnodes:
                 # NOOP always included
                 start_offset_to_vnodes[vnode.start.offset] = i
-        for i, vnode in enumerate(vnodes[::-1]):
+        for i, vnode in enumerate(vnodes[::-1], start=1):
             if vnode.end.offset not in end_offset_to_vnodes:
                 # NOOP always included that is why we have reverse order in this loop
                 end_offset_to_vnodes[vnode.end.offset] = len(vnodes) - i
@@ -141,7 +141,6 @@ class UASTStabilityChecker:
             vnode_start_index = start_offset_to_vnodes[start]
             vnode_end_index = end_offset_to_vnodes[end]
 
-            assert vnode_start_index <= vnodes_i < vnode_end_index
             try:
                 content_after = self._code_generator.generate_one_change(
                     vnodes[vnode_start_index:vnode_end_index],
