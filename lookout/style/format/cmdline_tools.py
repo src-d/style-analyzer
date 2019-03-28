@@ -248,6 +248,9 @@ def main() -> Any:
     try:
         handler = args.handler
         delattr(args, "handler")
+        delattr(args, "log_level")
+        delattr(args, "log_structured")
+        delattr(args, "log_config")
     except AttributeError:
         def print_usage(*args, **kwargs):
             parser.print_usage()
