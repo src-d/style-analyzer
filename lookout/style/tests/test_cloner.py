@@ -36,7 +36,7 @@ class ClonerTests(unittest.TestCase):
                 cloner.clone(
                     ["repo1", "repo2", "repo3", "existing_repo", "downloaded_repo", "failed repo"])
         expected_log = [
-            "start cloning 6 repositories",
+            "started cloning 6 repositories",
             "repo1 was cloned to",
             "repo2 was cloned to",
             "repo3 was cloned to",

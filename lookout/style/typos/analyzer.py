@@ -20,6 +20,8 @@ from lookout.style.format.utils import generate_comment
 from lookout.style.typos.corrector_manager import TyposCorrectorManager
 from lookout.style.typos.utils import Candidate, Columns, flatten_df_by_column, TEMPLATE_DIR
 
+# TODO(zurk): Split TypoFix to FileFixes and TypoFix. content, path and identifiers_number should
+# be in the FileFixes.
 TypoFix = NamedTuple("TypoFix", (
     ("content", str),                                         # file content from head revision
     ("path", str),                                            # file path from head revision
@@ -28,6 +30,9 @@ TypoFix = NamedTuple("TypoFix", (
     ("candidates", Iterable[Candidate]),                      # suggested identifiers
     ("identifiers_number", int),                              # Number of all analyzed identifiers
 ))
+
+IDENTIFIER = bblfsh.role_id("IDENTIFIER")
+IMPORT = bblfsh.role_id("IMPORT")
 
 
 class IdTyposAnalyzer(Analyzer):
@@ -172,9 +177,7 @@ class IdTyposAnalyzer(Analyzer):
     @staticmethod
     def _get_identifiers(uast, lines):
         return [node for node in extract_changed_nodes(uast, lines)
-                if (bblfsh.role_id("IDENTIFIER") in node.roles and
-                    bblfsh.role_id("IMPORT") not in node.roles and
-                    node.token)]
+                if (IDENTIFIER in node.roles and IMPORT not in node.roles and node.token)]
 
     def render_comment_text(self, typo_fix: TypoFix) -> str:
         """

@@ -141,7 +141,7 @@ class TypoCommitsReportTests(unittest.TestCase):
              "top3_fix_accuracy": 1.0},
         ]
         reporter = TypoCommitsReporter()
-        reporter._fails = {10: {"repo": "<Failed repo name>"}}
+        reporter._failures = {10: {"repo": "<Failed repo name>"}}
         final_report = list(reporter._finalize({"report": json.dumps(report)}
                                                for report in reports))
         self.assertEqual(len(final_report), 1)

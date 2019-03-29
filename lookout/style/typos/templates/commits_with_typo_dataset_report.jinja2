@@ -10,14 +10,14 @@
             tablefmt="pipe", headers=["metric", "value"], floatfmt=".3f",
             stralign="right", numalign="left") }}
 
-{%  if fails|length != 0 %}
+{% if failures|length != 0 %}
 Report generation failed for
-{% for row_index in fails %}
-{{ row_index }}. {{ fails[row_index]["repo"] }}
+{% for row_index in failures %}
+{{ row_index }}. {{ failures[row_index]["repo"] }}
 {% endfor %}
 {% endif %}
 
 ## Versions
 
 * Style-analyzer package version is {{ package_version }}
-* Commit is {{ commit if commit is not none else "N/A" }}
+* Commit is {{ commit }}

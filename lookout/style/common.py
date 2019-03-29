@@ -59,20 +59,22 @@ def load_jinja2_template(path: str) -> jinja2.Template:
 def huge_progress_bar(sequence: Sequence, log: logging.Logger, get_iter_name: Callable,
                       ) -> Iterator:
     """Create big multi-line progress bar with the logs."""
+    progress_bar_template = ("\n%s\n"
+                             "= %-76s =\n"
+                             "= %2d / %2d%s=\n"
+                             "= Now:  %-60s%s=\n"
+                             "= Left: %-40s%s=\n"
+                             "= Ends: %-60s%s=\n"
+                             "%s")
     start_time = datetime.now()
+    index = -1
     for index, item in enumerate(sequence):
         now = datetime.now()
         if index > 0:
             left = (len(sequence) - index) / index * (now - start_time)
         else:
             left = None
-        log.info("\n%s\n"
-                 "= %-76s =\n"
-                 "= %2d / %2d%s=\n"
-                 "= Now:  %-60s%s=\n"
-                 "= Left: %-40s%s=\n"
-                 "= Ends: %-60s%s=\n"
-                 "%s",
+        log.info(progress_bar_template,
                  "=" * 80,
                  get_iter_name(item),
                  index + 1, len(sequence), " " * 70,
@@ -82,3 +84,13 @@ def huge_progress_bar(sequence: Sequence, log: logging.Logger, get_iter_name: Ca
                  "=" * 80,
                  )
         yield item
+    now = datetime.now()
+    log.info(progress_bar_template,
+             "=" * 80,
+             "Done",
+             index + 1, len(sequence), " " * 70,
+             now, " " * 11,
+             0, " " * 31,
+             now, " " * 11,
+             "=" * 80,
+             )

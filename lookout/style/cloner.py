@@ -48,7 +48,7 @@ class Cloner:
         backup_level = urllib_logger.level
         urllib_logger.setLevel(logging.WARNING)  # Mute urllib3 logging
         try:
-            self._log.info("start cloning %d repositories", len(repositories))
+            self._log.info("started cloning %d repositories", len(repositories))
             repo_paths = ParallelWriteToLogs(
                 n_jobs=self._n_jobs, verbose=10, backend="multiprocessing")(
                 delayed(self._clone_repository)(repo, self._location) for repo in repositories)

@@ -61,7 +61,7 @@ class Reporter:
         self._bblfsh = bblfsh
         self._database = database
         self._fs = fs
-        self._fails = {}
+        self._failures = {}
 
     def __enter__(self) -> "Reporter":
         self._tmpdir = tempfile.mkdtemp("reporter-") \
@@ -91,7 +91,7 @@ class Reporter:
         :return: Iterator through generated reports. Each Generated report is extended with the \
                  corresponding row data from the dataset.
         """
-        self._fails = {}
+        self._failures = {}
 
         def _run(dataset) -> Iterator[Dict[str, str]]:
             for index, row in enumerate(huge_progress_bar(dataset, self._log, self._get_row_repr),
@@ -105,7 +105,7 @@ class Reporter:
                 except Exception:
                     self._log.exception("failed to generate report %d / %d (%s)",
                                         index, len(dataset), row)
-                    self._fails[index] = row
+                    self._failures[index] = row
 
         yield from self._finalize(_run(dataset))
 
@@ -166,7 +166,7 @@ class Reporter:
     def _get_commit():
         """Return current head commit hash if you run inside git repository."""
         if Reporter._get_package_version() != "local":
-            return "N/A"
+            return "0"*40
         clean_status = porcelain.GitStatus(
             staged={"delete": [], "add": [], "modify": []}, unstaged=[], untracked=[])
         repo_path = str(Path(__file__).parents[2])

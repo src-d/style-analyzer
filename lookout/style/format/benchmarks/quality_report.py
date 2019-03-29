@@ -5,7 +5,6 @@ import functools
 import json
 import logging
 import logging.handlers
-import lzma
 import os
 import subprocess
 import sys
@@ -15,6 +14,7 @@ from typing import Dict, Iterable, Iterator, Mapping, NamedTuple, Optional, Sequ
 from dulwich import porcelain
 from lookout.core.helpers.analyzer_context_manager import AnalyzerContextManager
 import numpy
+from smart_open import smart_open
 from tabulate import tabulate
 
 from lookout.style.common import huge_progress_bar, merge_dicts
@@ -221,8 +221,7 @@ def handle_input_arg(input_arg: str, log: Optional[logging.Logger] = None) -> It
         for line in sys.stdin:
             yield line
     else:
-        open_file = lzma.open if os.path.splitext(input_arg)[-1] == ".xz" else open
-        with open_file(input_arg) as f:
+        with smart_open(input_arg, "r") as f:
             for line in f:
                 yield line
 

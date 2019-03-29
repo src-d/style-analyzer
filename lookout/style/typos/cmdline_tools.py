@@ -155,8 +155,9 @@ def create_parser() -> ArgumentParser:
     add_config_arg(typo_commits_report_parser)
     typo_commits_report_parser.add_argument(
         "-i", "--dataset", required=True,
-        help="csv file with commits with typo. Must contain wrong_id, correct_id, file, line, "
-             "commit_fix, repo, commit_typo columns. It is possible to set the xz compressed file")
+        help="csv file with commits with typos. Must contain wrong_id, correct_id, file, line, "
+             "commit_fix, repo, commit_typo columns. It is possible to specify the xz compressed "
+             "file")
     typo_commits_report_parser.add_argument(
         "-o", "--output", required=True,
         help="Directory where to save results.")
@@ -171,8 +172,8 @@ def create_parser() -> ArgumentParser:
     typo_commits_report_parser.add_argument(
         "--repos-cache", default=None, required=False,
         help="Directory where to download repositories from the dataset. It is strongly \
-              recommended to set this parameter if there are more then 20 repositories \
-              required for report generation. Temporary directory is used if not set.")
+              recommended to set this parameter if there are more than 20 repositories \
+              in the dataset. Temporary directory is used if not set.")
 
     return parser
 
