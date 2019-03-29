@@ -6,6 +6,7 @@ import functools
 import json
 import logging
 import logging.handlers
+import lzma
 import os
 import subprocess
 import sys
@@ -221,7 +222,8 @@ def handle_input_arg(input_arg: str, log: Optional[logging.Logger] = None) -> It
         for line in sys.stdin:
             yield line
     else:
-        with open(input_arg) as f:
+        open_file = lzma.open if os.path.splitext(input_arg)[-1] == ".xz" else open
+        with open_file(input_arg) as f:
             for line in f:
                 yield line
 
