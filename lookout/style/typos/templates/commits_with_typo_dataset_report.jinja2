@@ -1,0 +1,23 @@
+# Report for the commits with typo dataset
+
+## Metrics
+
+{% set scores_to_show = ["detection_precision", "detection_recall",
+                         "detection_true_positive", "detection_false_positive",
+                         "detection_false_negatives",
+                         "fix_accuracy", "top3_fix_accuracy", "support", "review_time"] %}
+{{ tabulate(scores[scores_to_show].to_frame(),
+            tablefmt="pipe", headers=["metric", "value"], floatfmt=".3f",
+            stralign="right", numalign="left") }}
+
+{%  if fails|length != 0 %}
+Report generation failed for
+{% for row_index in fails %}
+{{ row_index }}. {{ fails[row_index]["repo"] }}
+{% endfor %}
+{% endif %}
+
+## Versions
+
+* Style-analyzer package version is {{ package_version }}
+* Commit is {{ commit if commit is not none else "N/A" }}

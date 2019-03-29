@@ -34,7 +34,7 @@ class Cloner:
         """
         os.makedirs(location, exist_ok=True)
         self._location = location
-        self._processes = n_jobs
+        self._n_jobs = n_jobs
 
     def clone(self, repositories: Sequence[str]) -> Dict[str, str]:
         """
@@ -44,12 +44,19 @@ class Cloner:
         :return: Mapping from the provided URLs to the file system paths of the successfully \
                  downloaded repositories.
         """
-        self._log.info("start cloning %d repositories", len(repositories))
-        repo_paths = ParallelWriteToLogs(n_jobs=-1, verbose=10, backend="multiprocessing")(
-            delayed(self._clone_repository)(repo, self._location) for repo in repositories)
-        repositories_dir = {repo: git_dir for repo, git_dir in repo_paths if git_dir}
-        self._log.info("successfully cloned %d/%d repositories",
-                       len(repositories_dir), len(repositories))
+        urllib_logger = logging.getLogger("urllib3.connectionpool")
+        backup_level = urllib_logger.level
+        urllib_logger.setLevel(logging.WARNING)  # Mute urllib3 logging
+        try:
+            self._log.info("start cloning %d repositories", len(repositories))
+            repo_paths = ParallelWriteToLogs(
+                n_jobs=self._n_jobs, verbose=10, backend="multiprocessing")(
+                delayed(self._clone_repository)(repo, self._location) for repo in repositories)
+            repositories_dir = {repo: git_dir for repo, git_dir in repo_paths if git_dir}
+            self._log.info("successfully cloned %d/%d repositories",
+                           len(repositories_dir), len(repositories))
+        finally:
+            urllib_logger.setLevel(backup_level)
         return repositories_dir
 
     @staticmethod
@@ -66,16 +73,16 @@ class Cloner:
     def _clone_repository(repository: str, repos_cache: str) -> Tuple[str, Optional[str]]:
         if os.path.exists(repository):
             Cloner._log.info("%s exists", repository)
-            return repository, repository
+            return repository, os.path.abspath(repository)
         git_dir = os.path.join(repos_cache, Cloner.get_repo_name(repository))
         if os.path.exists(git_dir):
             Cloner._log.info("%s was found at %s. Skipping", repository, git_dir)
-            return repository, git_dir
+            return repository, os.path.abspath(git_dir)
         try:
             with open(os.devnull, "wb") as devnull:
-                porcelain.clone(repository, git_dir, bare=True, errstream=devnull)
+                porcelain.clone(repository, git_dir, bare=False, errstream=devnull)
             Cloner._log.debug("%s was cloned to %s", repository, git_dir)
-            return repository, git_dir
+            return repository, os.path.abspath(git_dir)
         except Exception:
             Cloner._log.exception("failed to clone %s to %s", repository, git_dir)
             return repository, None

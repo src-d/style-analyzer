@@ -2,25 +2,29 @@
 import csv
 import json
 import logging
+from operator import itemgetter
 import os
+import time
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Tuple
-
 
 from lookout.core.analyzer import ReferencePointer, UnicodeChange
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2 import File
 from lookout.core.data_requests import DataService, request_files
 import pandas
+from tabulate import tabulate
 
 from lookout.style.cloner import Cloner
+from lookout.style.common import load_jinja2_template, merge_dicts
 from lookout.style.format.benchmarks.quality_report import handle_input_arg
 from lookout.style.format.utils import generate_comment
 from lookout.style.reporter import Reporter
 from lookout.style.typos import IdTyposAnalyzer
 from lookout.style.typos.analyzer import TypoFix
+from lookout.style.typos.utils import TEMPLATE_DIR
 
 
-class TyposAnalyzerSpy(IdTyposAnalyzer):
+class IdTyposAnalyzerSpy(IdTyposAnalyzer):
     """
     The Analyzer which returns fixes found by IdTyposAnalyzer as JSON structures.
 
@@ -36,10 +40,24 @@ class TyposAnalyzerSpy(IdTyposAnalyzer):
         :param data_service: Connection to the Lookout data retrieval service to get the files.
         :return: Generator of fixes for each file.
         """
-        files = request_files(data_service.get_data(), ptr,
-                              contents=True, uast=True, unicode=True)
-        return self.generate_typos_fixes([
-            UnicodeChange(head=f, base=File(path=f.path, language=f.language)) for f in files])
+        for file in request_files(data_service.get_data(), ptr, contents=True, uast=True,
+                                  unicode=False):
+            if file.path == self.config["filepath_to_analyze"]:
+                break
+        else:
+            raise ValueError("No such file %s in %s" % (self.config["filepath_to_analyze"], ptr))
+
+        typos_fixes = list(self.generate_typos_fixes([
+            UnicodeChange(head=file, base=File(path=file.path, language=file.language))]))
+        if typos_fixes:
+            return typos_fixes
+        identifiers_number = len(self._get_identifiers(file.uast, []))
+        if not identifiers_number:
+            raise ValueError("No identifiers for file %s in %s" % (
+                self.config["filepath_to_analyze"], ptr))
+        return [TypoFix(content=file.content.decode("utf-8", "replace"),
+                        path=file.path, line_number=0, identifier="", candidates=[],
+                        identifiers_number=identifiers_number)]
 
     def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
                 data_service: DataService, **data) -> List[Comment]:
@@ -68,7 +86,8 @@ class TypoCommitsReporter(Reporter):
     Report system for Typos Analyser.
     """
 
-    inspected_analyzer_type = IdTyposAnalyzer
+    inspected_analyzer_type = IdTyposAnalyzerSpy
+    report_template_path = os.path.join(TEMPLATE_DIR, "commits_with_typo_dataset_report.jinja2")
 
     @classmethod
     def get_report_names(cls) -> Tuple[str, ...]:
@@ -102,22 +121,41 @@ class TypoCommitsReporter(Reporter):
         :return: Dictionary with report names as keys and report string as values.
         """
         metrics = self.get_metrics_billet()
-
-        correct_fix = dataset_row["correct id"]
-        wrong_identifier = dataset_row["wrong id"]
+        metrics.review_time = self._review_time
+        if not fixes:
+            raise ValueError("Should be at least one fix.")
+        correct_fix = dataset_row["correct_id"]
+        wrong_identifier = dataset_row["wrong_id"]
         for fix in fixes:
+            if fix.identifier == "":
+                # no fixes where suggested
+                assert len(fixes) == 1
+                break
+            candidates = [candidate[0] for candidate in fix.candidates]
+            best_candidate = max(fix.candidates, key=itemgetter(1))
             if fix.identifier == wrong_identifier:
-                if correct_fix in fix.identifier_candidates:
+                if correct_fix in candidates:
                     metrics.detection_true_positive += 1
+                    metrics.top3_fix_accuracy += 1
+                if correct_fix == best_candidate:
                     metrics.fix_accuracy += 1
             else:
                 metrics.detection_false_positive += 1
+
+        metrics.support = fixes[0].identifiers_number
+        # Because there is one typo per commit
+        metrics.detection_false_negatives = 1 - metrics.detection_true_positive
         return json.dumps(metrics.to_dict())
 
     def _trigger_review_event(self, dataset_row: Dict[str, Any]) -> Sequence[TypoFix]:
+        config = merge_dicts(
+            self._config if self._config is not None else {},
+            {IdTyposAnalyzerSpy.name: {"filepath_to_analyze": dataset_row["file"]}})
+        start_time = time.perf_counter()
         comments = self._analyzer_context_manager.review(
-            dataset_row["commit"], "HEAD", git_dir=dataset_row["repo"], bblfsh=self._bblfsh,
-            log_level="info", config_json=self._config)
+            dataset_row["commit_typo"], "HEAD", git_dir=dataset_row["repo_path"],
+            bblfsh=self._bblfsh, log_level="info", config_json=config)
+        self._review_time = time.perf_counter() - start_time
         return [TypoFix(**json.loads(comment.text)) for comment in comments]
 
     def _finalize(self, reports: Iterable[Dict[str, str]]) -> Iterator[Dict[str, str]]:
@@ -127,11 +165,25 @@ class TypoCommitsReporter(Reporter):
         :param reports: Reports generated by `TypoCommitsReporter.generate_commit_dataset_report()`
         :return: Summarized final report
         """
-        # TODO(zurk): Add a report template file with metric we want to calculate.
-        sum_metric = self.get_metrics_billet()
+        scores = self.get_metrics_billet()
+        reports = list(reports)
         for report in reports:
-            sum_metric += pandas.Series(json.loads(report)["report"])
-        yield json.dumps(sum_metric.to_dict())
+            scores += pandas.Series(json.loads(report["report"]))
+        scores.detection_precision = scores.detection_true_positive / (
+            scores.detection_true_positive + scores.detection_false_positive)
+        scores.detection_recall = scores.detection_true_positive / (
+            scores.detection_true_positive + scores.detection_false_negatives
+        )
+        scores.fix_accuracy = scores.fix_accuracy / len(reports)
+        scores.top3_fix_accuracy = scores.top3_fix_accuracy / len(reports)
+        scores.review_time = scores.review_time / len(reports)
+
+        template = load_jinja2_template(self.report_template_path)
+        report = template.render(scores=scores, commit=self._get_commit(),
+                                 package_version=self._get_package_version(),
+                                 fails=self._fails, tabulate=tabulate)
+
+        yield {"report": report}
 
     @staticmethod
     def get_metrics_billet() -> pandas.Series:
@@ -144,8 +196,13 @@ class TypoCommitsReporter(Reporter):
         metrics = (
             ("detection_true_positive", 0.0),
             ("detection_false_positive", 0.0),
+            ("detection_false_negatives", 0.0),
+            ("detection_precision", 0.0),
+            ("detection_recall", 0.0),
+            ("top3_fix_accuracy", 0.0),
             ("fix_accuracy", 0.0),
             ("support", 0.0),
+            ("review_time", 0.0),
         )
         index, defaults = zip(*metrics)
         return pandas.Series(data=defaults, index=index)
@@ -157,8 +214,8 @@ def generate_typos_report_entry(dataset: str, output: str, bblfsh: str, config: 
     """
     Entry point for the command line interface to generate typos quality report.
 
-    :param dataset: csv file with commits. Must contain repo, commit, file, \
-                    line, wrong id and correct id columns.
+    :param dataset: csv file with commits. Must contain wrong_id, correct_id, file, line,
+                    commit_fix, repo, commit_typo.
     :param output: Directory where to save the report.
     :param bblfsh: bblfsh address to use for `lookout-sdk`.
     :param config: config for IdTypoAnalyzer.
@@ -173,17 +230,20 @@ def generate_typos_report_entry(dataset: str, output: str, bblfsh: str, config: 
     os.makedirs(output, exist_ok=True)
     dataset = list(csv.DictReader(handle_input_arg(dataset)))
     repositories = sorted(set(row["repo"] for row in dataset))
+
     log.info("Generate report for dataset with %d entries", len(dataset))
     repositories_path = Cloner(repos_cache).clone(repositories)
     local_dataset = []
     for entry in dataset:
         if entry["repo"] in repositories_path:
             local_dataset.append(dict(entry))
-            local_dataset[-1]["repo"] = repositories_path[entry["repo"]]
+            local_dataset[-1]["repo_path"] = repositories_path[entry["repo"]]
     with TypoCommitsReporter(config, bblfsh, database, fs) as reporter:
         reports = list(reporter.run(local_dataset))
         for report in reports:
             for report_name in reporter.get_report_names():
-                with open(os.path.join(output, "%s_%s_report.md" % (
-                        report["repo"], report_name)), "w") as f:
+                report_path = os.path.join(output, "%s_report.md" % report_name)
+                with open(report_path, "w") as f:
                     f.write(report[report_name])
+                log.info("Report %s is saved to %s", report_name, report_path)
+    log.info("Done.")
