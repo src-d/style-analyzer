@@ -3,6 +3,8 @@
 
 # Temporary reports
 lookout/style/format/benchmarks/reports/untagged/
+lookout/style/typos/benchmarks/reports/untagged/
+lookout/style/typos/benchmarks/reports/repos_cache
 lookout/style/typos/data/
 
 .idea

@@ -5,6 +5,7 @@ exclude=
     .git
     doc
     **/research
+    ./lookout/style/typos/benchmarks/reports
 inline-quotes="
 import-order-style=appnexus
 application-package-names=lookout.style
