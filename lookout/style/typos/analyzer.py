@@ -6,11 +6,11 @@ import os
 from typing import Any, Dict, Iterable, Iterator, List, Mapping, NamedTuple, Sequence, Tuple
 
 import bblfsh
-from lookout.core.analyzer import Analyzer, AnalyzerModel, DummyAnalyzerModel, ReferencePointer, \
-    UnicodeChange
+from lookout.core.analyzer import Analyzer, AnalyzerModel, DummyAnalyzerModel, ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.data_requests import DataService, with_changed_uasts_and_contents
 from lookout.core.lib import extract_changed_nodes, files_by_language, filter_files, find_new_lines
+from lookout.sdk.service_data_pb2 import Change
 import numpy
 import pandas
 from sourced.ml.algorithms import TokenParser, uast2sequence
@@ -20,13 +20,19 @@ from lookout.style.format.utils import generate_comment
 from lookout.style.typos.corrector_manager import TyposCorrectorManager
 from lookout.style.typos.utils import Candidate, Columns, flatten_df_by_column, TEMPLATE_DIR
 
+# TODO(zurk): Split TypoFix to FileFixes and TypoFix. content, path and identifiers_number should
+# be in the FileFixes.
 TypoFix = NamedTuple("TypoFix", (
     ("content", str),                                         # file content from head revision
     ("path", str),                                            # file path from head revision
     ("line_number", int),                                     # line number for the comment
     ("identifier", str),                                      # identifier where typo is found
     ("candidates", Iterable[Candidate]),                      # suggested identifiers
+    ("identifiers_number", int),                              # Number of all analyzed identifiers
 ))
+
+IDENTIFIER = bblfsh.role_id("IDENTIFIER")
+IMPORT = bblfsh.role_id("IMPORT")
 
 
 class IdTyposAnalyzer(Analyzer):
@@ -75,9 +81,9 @@ class IdTyposAnalyzer(Analyzer):
         """
         return TokenParser(stem_threshold=1000, single_shot=True, min_split_length=1)
 
-    @with_changed_uasts_and_contents(unicode=True)
+    @with_changed_uasts_and_contents(unicode=False)
     def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
-                data_service: DataService, changes: Iterable[UnicodeChange],
+                data_service: DataService, changes: Iterable[Change],
                 **data) -> List[Comment]:
         """
         Return the list of `Comment`-s - found typo corrections.
@@ -106,7 +112,7 @@ class IdTyposAnalyzer(Analyzer):
                                              line=typo_fix.line_number))
         return comments
 
-    def generate_typos_fixes(self, changes: Sequence[UnicodeChange]) -> Iterator[TypoFix]:
+    def generate_typos_fixes(self, changes: Sequence[Change]) -> Iterator[TypoFix]:
         """
         Generate all data about typo fix required for any type of further processing.
 
@@ -133,11 +139,9 @@ class IdTyposAnalyzer(Analyzer):
                         if bblfsh.role_id("IDENTIFIER") in node.roles
                         and bblfsh.role_id("IMPORT") not in node.roles and node.token
                     }
-                changed_nodes = extract_changed_nodes(file.uast, lines)
-                new_identifiers = [node for node in changed_nodes
-                                   if bblfsh.role_id("IDENTIFIER") in node.roles and
-                                   bblfsh.role_id("IMPORT") not in node.roles and
-                                   node.token and node.token not in old_identifiers]
+                identifiers = self._get_identifiers(file.uast, lines)
+                new_identifiers = [node for node in identifiers
+                                   if node.token not in old_identifiers]
                 if not new_identifiers:
                     continue
                 self._log.debug("Found %d new identifiers, first one: %s" %
@@ -162,11 +166,18 @@ class IdTyposAnalyzer(Analyzer):
                     ]
                     if identifier_candidates:
                         yield TypoFix(
-                            content=file.content,
+                            content=file.content.decode("utf-8", "replace"),
                             path=file.path,
                             identifier=identifier,
                             line_number=new_identifiers[index].start_position.line,
-                            candidates=identifier_candidates)
+                            candidates=identifier_candidates,
+                            identifiers_number=len(identifiers),
+                        )
+
+    @staticmethod
+    def _get_identifiers(uast, lines):
+        return [node for node in extract_changed_nodes(uast, lines)
+                if (IDENTIFIER in node.roles and IMPORT not in node.roles and node.token)]
 
     def render_comment_text(self, typo_fix: TypoFix) -> str:
         """

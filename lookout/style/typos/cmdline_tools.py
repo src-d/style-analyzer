@@ -10,6 +10,7 @@ from lookout.core.cmdline import ArgumentDefaultsHelpFormatterNoNone
 from modelforge import slogging
 import pandas
 
+from lookout.style.typos.benchmarks.typo_commits_report import generate_typos_report_entry
 from lookout.style.typos.preparation import DEFAULT_CORRECTOR_CONFIG, get_datasets, prepare_data, \
     train_and_evaluate, train_fasttext, train_from_scratch
 
@@ -146,6 +147,33 @@ def create_parser() -> ArgumentParser:
         "train-from-scratch", "Create and train TyposCorrector model on the given data.")
     train_from_scratch_parser.set_defaults(handler=train_from_scratch)
     add_config_arg(train_from_scratch_parser)
+
+    # Report for Typo Commits Dataset
+    typo_commits_report_parser = add_parser("typo-commits-report",
+                                            "Generate report for Typo Commits Dataset.")
+    typo_commits_report_parser.set_defaults(handler=generate_typos_report_entry)
+    add_config_arg(typo_commits_report_parser)
+    typo_commits_report_parser.add_argument(
+        "-i", "--dataset", required=True,
+        help="csv file with commits with typos. Must contain wrong_id, correct_id, file, line, "
+             "commit_fix, repo, commit_typo columns. It is possible to specify the xz compressed "
+             "file")
+    typo_commits_report_parser.add_argument(
+        "-o", "--output", required=True,
+        help="Directory where to save results.")
+    typo_commits_report_parser.add_argument(
+        "-b", "--bblfsh", help="Bblfsh address to use.")
+    typo_commits_report_parser.add_argument(
+        "--database", default=None, help="sqlite3 database path to store the models."
+                                         "Temporary file is used if not set.")
+    typo_commits_report_parser.add_argument(
+        "--fs", default=None, help="Model repository file system root. "
+                                   "Temporary directory is used if not set.")
+    typo_commits_report_parser.add_argument(
+        "--repos-cache", default=None, required=False,
+        help="Directory where to download repositories from the dataset. It is strongly \
+              recommended to set this parameter if there are more than 20 repositories \
+              in the dataset. Temporary directory is used if not set.")
 
     return parser
 

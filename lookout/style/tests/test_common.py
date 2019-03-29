@@ -3,7 +3,7 @@ import unittest
 from lookout.style.common import merge_dicts
 
 
-class RulesMergeDicts(unittest.TestCase):
+class CommonTests(unittest.TestCase):
     def test_merge_two_dicts(self):
         cases = [
             ({}, {}, {}),

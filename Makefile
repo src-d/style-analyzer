@@ -41,6 +41,7 @@ bblfsh-start:
 	docker exec style_analyzer_bblfshd bblfshctl driver install \
 		javascript docker://bblfsh/javascript-driver\:v2.7.1
 
+# Style analyzer Reporting system
 REPORTS_DIR ?= $(current_dir)/lookout/style/format/benchmarks/reports
 REPORT_VERSION ?= untagged
 REPORT_DIR ?= $(REPORTS_DIR)/$(REPORT_VERSION)
@@ -82,4 +83,22 @@ expected-vnodes-number:
 	python3 -m lookout.style.format calc-expected-vnodes-number -i $(QUALITY_REPORT_REPOS) \
 		-o $(QUALITY_REPORT_REPOS_WITH_VNODE)
 
-.PHONY: check docker-test bblfsh-start report-smoke report-noisy report-quality report-release expected-vnodes-number
+# Typos analyzer Reporting system
+TYPOS_REPORTS_DIR ?= $(current_dir)/lookout/style/typos/benchmarks/reports
+TYPOS_REPORT_VERSION ?= untagged
+TYPOS_REPORT_DIR ?= $(TYPOS_REPORTS_DIR)/$(TYPOS_REPORT_VERSION)
+TYPOS_COMMITS_REPORT_DIR ?= $(TYPOS_REPORT_DIR)/commits_with_typo
+TYPOS_COMMITS_DATASET ?= ./lookout/style/typos/benchmarks/data/commits_with_typo.csv.xz
+TYPOS_COMMITS_CACHE ?= $(TYPOS_REPORTS_DIR)/repos_cache
+
+$(TYPOS_COMMITS_REPORT_DIR):
+	mkdir -p $@
+
+typos-report: $(TYPOS_COMMITS_REPORT_DIR)
+	python3 -m lookout.style.typos --log-level DEBUG typo-commits-report \
+		-o $(TYPOS_COMMITS_REPORT_DIR) -i $(TYPOS_COMMITS_DATASET) \
+		--repos-cache $(TYPOS_COMMITS_CACHE) 2>&1 | tee $(TYPOS_COMMITS_REPORT_DIR)/logs.txt
+	xz -k -f $(TYPOS_COMMITS_REPORT_DIR)/logs.txt
+
+.PHONY: check docker-test bblfsh-start report-smoke report-noisy report-quality report-release \
+	expected-vnodes-number typos-report

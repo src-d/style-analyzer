@@ -1,7 +1,6 @@
 """Measure quality on several top repositories."""
 from collections import OrderedDict
 import csv
-from datetime import datetime
 import functools
 import json
 import logging
@@ -15,9 +14,10 @@ from typing import Dict, Iterable, Iterator, Mapping, NamedTuple, Optional, Sequ
 from dulwich import porcelain
 from lookout.core.helpers.analyzer_context_manager import AnalyzerContextManager
 import numpy
+from smart_open import smart_open
 from tabulate import tabulate
 
-from lookout.style.common import merge_dicts
+from lookout.style.common import huge_progress_bar, merge_dicts
 from lookout.style.format.benchmarks.general_report import QualityReportAnalyzer
 from lookout.style.format.feature_extractor import FeatureExtractor
 
@@ -221,7 +221,7 @@ def handle_input_arg(input_arg: str, log: Optional[logging.Logger] = None) -> It
         for line in sys.stdin:
             yield line
     else:
-        with open(input_arg) as f:
+        with smart_open(input_arg, "r") as f:
             for line in f:
                 yield line
 
@@ -299,28 +299,7 @@ def generate_quality_report(input: str, output: str, force: bool, bblfsh: str, c
         os.makedirs(fs, exist_ok=True)
         with AnalyzerContextManager(QualityReportAnalyzer, db=database, fs=fs,
                                     init=False) as context:
-            start_time = datetime.now()
-            for ri, row in enumerate(repositories):
-                now = datetime.now()
-                if ri > 0:
-                    left = (len(repositories) - ri) / ri * (now - start_time)
-                else:
-                    left = None
-                log.info("\n%s\n"
-                         "= %-76s =\n"
-                         "= %2d / %2d%s=\n"
-                         "= Now:  %-60s%s=\n"
-                         "= Left: %-40s%s=\n"
-                         "= Ends: %-60s%s=\n"
-                         "%s",
-                         "=" * 80,
-                         row["url"],
-                         ri + 1, len(repositories), " " * 70,
-                         now, " " * 11,
-                         left, " " * 31,
-                         now + left if left is not None else None, " " * 11,
-                         "=" * 80,
-                         )
+            for row in huge_progress_bar(repositories, log, lambda row: row["url"]):
                 path_tmpl = os.path.join(output, get_repo_name(row["url"])) + "-%s_report.md"
                 try:
                     if force or not any(os.path.exists(path_tmpl % name)

@@ -2,12 +2,18 @@
 
 import logging
 import os
+from pathlib import Path
 import shutil
 import tempfile
 from typing import Any, Dict, Iterable, Iterator, NamedTuple, Optional, Sequence, Tuple
 
+from dulwich import porcelain
+import dulwich.repo
 from lookout.core.analyzer import Analyzer
 from lookout.core.helpers.analyzer_context_manager import AnalyzerContextManager
+
+import lookout.style
+from lookout.style.common import huge_progress_bar
 
 
 class Reporter:
@@ -55,6 +61,7 @@ class Reporter:
         self._bblfsh = bblfsh
         self._database = database
         self._fs = fs
+        self._failures = {}
 
     def __enter__(self) -> "Reporter":
         self._tmpdir = tempfile.mkdtemp("reporter-") \
@@ -84,9 +91,12 @@ class Reporter:
         :return: Iterator through generated reports. Each Generated report is extended with the \
                  corresponding row data from the dataset.
         """
+        self._failures = {}
+
         def _run(dataset) -> Iterator[Dict[str, str]]:
-            for index, row in enumerate(dataset):
-                self._log.info("processing %d / %d (%s)", index + 1, len(dataset), row)
+            for index, row in enumerate(huge_progress_bar(dataset, self._log, self._get_row_repr),
+                                        start=1):
+                self._log.info("processing %d / %d (%s)", index, len(dataset), row)
                 try:
                     fixes = self._trigger_review_event(row)
                     reports = self._generate_reports(row, fixes)
@@ -95,6 +105,7 @@ class Reporter:
                 except Exception:
                     self._log.exception("failed to generate report %d / %d (%s)",
                                         index, len(dataset), row)
+                    self._failures[index] = row
 
         yield from self._finalize(_run(dataset))
 
@@ -142,3 +153,30 @@ class Reporter:
         :return: New finalized reports.
         """
         yield from reports
+
+    @staticmethod
+    def _get_package_version():
+        """Return lookout-style package version or "local" if it is a git repository."""
+        if (Path(__file__).parents[2] / ".git").exists():
+            return "local"
+        else:
+            return lookout.style.__version__
+
+    @staticmethod
+    def _get_commit():
+        """Return current head commit hash if you run inside git repository."""
+        if Reporter._get_package_version() != "local":
+            return "0"*40
+        clean_status = porcelain.GitStatus(
+            staged={"delete": [], "add": [], "modify": []}, unstaged=[], untracked=[])
+        repo_path = str(Path(__file__).parents[2])
+        head = dulwich.repo.Repo(repo_path).head().decode()
+        if porcelain.status(repo_path) == clean_status:
+            return head
+        else:
+            return "%s (dirty)" % head
+
+    @staticmethod
+    def _get_row_repr(dataset_row: Dict[str, Any]) -> str:
+        """Convert dataset row to its representation for logging purposes."""
+        return repr(dataset_row)[:37] + "..."
