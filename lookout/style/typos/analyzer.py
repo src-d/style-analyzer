@@ -7,24 +7,22 @@ from pprint import pformat
 from typing import Any, Dict, Iterable, Iterator, List, Mapping, NamedTuple, Sequence, Tuple
 
 import bblfsh
-from lookout.core.analyzer import Analyzer, AnalyzerModel, ReferencePointer, \
-    UnicodeChange
+from lookout.core.analyzer import Analyzer, ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
 from lookout.core.api.service_data_pb2 import File
 from lookout.core.data_requests import DataService, with_changed_uasts_and_contents, \
     with_uasts_and_contents
 from lookout.core.lib import extract_changed_nodes, files_by_language, filter_files, find_new_lines
 from lookout.sdk.service_data_pb2 import Change
-from modelforge import merge_strings, split_strings
 import numpy
 import pandas
-from sourced.ml.algorithms import TokenParser, uast2sequence
-from sourced.ml.models.license import DEFAULT_LICENSE
+from sourced.ml.algorithms import TokenParser
 
 from lookout.style import __version__
 from lookout.style.common import load_jinja2_template, merge_dicts
 from lookout.style.format.utils import generate_comment
 from lookout.style.typos.corrector_manager import TyposCorrectorManager
+from lookout.style.typos.model import IdTyposModel
 from lookout.style.typos.utils import Candidate, Columns, flatten_df_by_column, TEMPLATE_DIR
 
 # TODO(zurk): Split TypoFix to FileFixes and TypoFix. content, path and identifiers_number should
@@ -40,50 +38,7 @@ TypoFix = NamedTuple("TypoFix", (
 
 IDENTIFIER = bblfsh.role_id("IDENTIFIER")
 IMPORT = bblfsh.role_id("IMPORT")
-
-
-class IdTyposModel(AnalyzerModel):
-    """
-    A model to store approved identifiers from the repo.
-    """
-
-    LICENSE = DEFAULT_LICENSE
-
-    def __init__(self, **kwargs):
-        """Construct a FormatModel."""
-        super().__init__(**kwargs)
-        self._identifiers = set()
-
-    def update(self, new_identifiers: Iterable[str]) -> None:
-        """
-        Add new identifiers to the set of approved identifiers.
-
-        :param new_identifiers: New identifiers to add to the set of approved identifiers.
-        """
-        self._identifiers.update(new_identifiers)
-
-    def dump(self) -> str:
-        """Serialize this model and return the result as a string."""
-        return super().dump() + \
-            "\nNumber of known and approved identifiers is %s" % len(self._identifiers)
-
-    def _generate_tree(self) -> dict:
-        tree = super()._generate_tree()
-        tree.update(identifiers=merge_strings(self._identifiers))
-        return tree
-
-    def _load_tree(self, tree: dict) -> None:
-        super()._load_tree(tree)
-        self._identifiers = split_strings(tree["identifiers"])
-
-    def __len__(self) -> int:
-        return len(self._identifiers)
-
-    def __iter__(self):
-        yield from self._identifiers.__iter__()
-
-    def __contains__(self, identifier: str) -> bool:
-        return identifier in self._identifiers
+IDENTIFIER_ID_COLUMN = "identifier_id"
 
 
 class IdTyposAnalyzer(Analyzer):
@@ -100,6 +55,7 @@ class IdTyposAnalyzer(Analyzer):
     corrector_manager = TyposCorrectorManager()
 
     default_config = {
+        "check_all_identifiers": False,
         "line_length_limit": 500,
         "min_token_length": 1,
         "n_candidates": 3,
@@ -122,9 +78,10 @@ class IdTyposAnalyzer(Analyzer):
         self.corrector = self.corrector_manager.get(self.config["corrector"])
         self.parser = self.create_token_parser()
         self.comment_template = load_jinja2_template(self.config["comment_template"])
-        self.known_identifiers = model
-        for identifier in self.known_identifiers:
+        for identifier in model.identifiers:
             self.corrector.expand_vocabulary(set(self.parser.split(identifier)))
+        self.approved_identifiers = set() if self.config["check_all_identifiers"] else \
+            model.identifiers
 
     @staticmethod
     def create_token_parser() -> TokenParser:
@@ -163,7 +120,6 @@ class IdTyposAnalyzer(Analyzer):
             comment = generate_comment(text=text, confidence=int(100 * confidence),
                                        filename=typo_fix.path,
                                        line=typo_fix.line_number)
-            self._log.debug(comment)
             comments.append(comment)
         return comments
 
@@ -190,7 +146,7 @@ class IdTyposAnalyzer(Analyzer):
                     lines = find_new_lines(prev_file.content, file.content)
                 identifiers = self._get_identifiers(file.uast, lines)
                 new_identifiers = [node for node in identifiers
-                                   if node.token not in self.known_identifiers]
+                                   if node.token not in self.approved_identifiers]
                 if not new_identifiers:
                     continue
                 self._log.debug("found %d new identifiers" % len(new_identifiers))
@@ -267,8 +223,8 @@ class IdTyposAnalyzer(Analyzer):
 
         # prepare suggestions per initial token
         for token in initial_tokens:
-            #
-            token_candidates.append(suggestions.get(token, token))
+            # if no suggestion is provided, the token itself should be taken
+            token_candidates.append(suggestions.get(token, [Candidate(token, 1.0)]))
 
         # sort candidates by resulting identifier probability
         suggestion_candidates = list(reversed(sorted(itertools.product(*token_candidates),
@@ -336,9 +292,9 @@ class IdTyposAnalyzer(Analyzer):
         return "".join(res)
 
     @classmethod
-    @with_uasts_and_contents(unicode=True)
+    @with_uasts_and_contents(unicode=False)
     def train(cls, ptr: ReferencePointer, config: Mapping[str, Any], data_service: DataService,
-              files: Iterator[File], **data) -> AnalyzerModel:
+              files: Iterator[File], **data) -> IdTyposModel:
         """
         Generate a new model on top of the specified source code.
 
@@ -352,7 +308,7 @@ class IdTyposAnalyzer(Analyzer):
         :return: Instance of `AnalyzerModel` (`model_type`, to be precise).
         """
         _log = logging.getLogger(cls.__name__)
-        train_config = cls._load_config(config)["train"]
+        train_config = cls._load_config(config)
         _log.info("train %s %s %s %s", __version__, ptr.url, ptr.commit,
                   pformat(train_config, width=4096, compact=True))
         model = IdTyposModel()
@@ -360,10 +316,8 @@ class IdTyposAnalyzer(Analyzer):
             for file in filter_files(
                     files=files, line_length_limit=train_config["line_length_limit"],
                     overall_size_limit=train_config["overall_size_limit"], log=_log):
-                model.update({
-                    node.token for node in uast2sequence(file.uast)
-                    if IDENTIFIER in node.roles and IMPORT not in node.roles and node.token
-                })
+                model.identifiers.update({
+                    node.token for node in cls._get_identifiers(file.uast, [])})
         return model
 
     def check_identifiers(self, identifiers: List[str],
@@ -376,11 +330,11 @@ class IdTyposAnalyzer(Analyzer):
                  in 'identifiers' and typoed tokens which have correction suggestions.
         """
         identifiers_positions = defaultdict(list)
-        for i, identifier in identifiers:
+        for i, identifier in enumerate(identifiers):
             identifiers_positions[identifier].append(i)
-        unique_identifiers = list(identifiers_positions.keys())
-        df = pandas.DataFrame(columns=["identifier_id", Columns.Split])
-        df["identifier_id"] = range(len(unique_identifiers))
+        unique_identifiers = sorted(identifiers_positions.keys())
+        df = pandas.DataFrame(columns=[IDENTIFIER_ID_COLUMN, Columns.Split])
+        df[IDENTIFIER_ID_COLUMN] = range(len(unique_identifiers))
         df[Columns.Split] = [" ".join(self.parser.split(identifier))
                              for identifier in unique_identifiers]
         df = flatten_df_by_column(df, Columns.Split, Columns.Token, str.split)
