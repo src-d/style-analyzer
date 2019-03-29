@@ -207,6 +207,11 @@ class TypoCommitsReporter(Reporter):
         index, defaults = zip(*metrics)
         return pandas.Series(data=defaults, index=index)
 
+    @staticmethod
+    def _get_row_repr(dataset_row: Dict[str, Any]) -> str:
+        """Convert dataset row to its representation for logging purposes."""
+        return dataset_row["repo"]
+
 
 def generate_typos_report_entry(dataset: str, output: str, bblfsh: str, config: dict,
                                 database: Optional[str] = None, fs: Optional[str] = None,

@@ -1,7 +1,9 @@
 from copy import deepcopy
+from datetime import datetime
+import logging
 import os
 import pprint
-from typing import Mapping
+from typing import Callable, Iterator, Mapping, Sequence
 
 import jinja2
 
@@ -52,3 +54,31 @@ def load_jinja2_template(path: str) -> jinja2.Template:
     # the following is really needed, otherwise e.g. range is undefined
     template.globals = template.environment.globals
     return template
+
+
+def huge_progress_bar(sequence: Sequence, log: logging.Logger, get_iter_name: Callable,
+                      ) -> Iterator:
+    """Create big multi-line progress bar with the logs."""
+    start_time = datetime.now()
+    for index, item in enumerate(sequence):
+        now = datetime.now()
+        if index > 0:
+            left = (len(sequence) - index) / index * (now - start_time)
+        else:
+            left = None
+        log.info("\n%s\n"
+                 "= %-76s =\n"
+                 "= %2d / %2d%s=\n"
+                 "= Now:  %-60s%s=\n"
+                 "= Left: %-40s%s=\n"
+                 "= Ends: %-60s%s=\n"
+                 "%s",
+                 "=" * 80,
+                 get_iter_name(item),
+                 index + 1, len(sequence), " " * 70,
+                 now, " " * 11,
+                 left, " " * 31,
+                 now + left if left is not None else None, " " * 11,
+                 "=" * 80,
+                 )
+        yield item

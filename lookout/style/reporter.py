@@ -13,6 +13,7 @@ from lookout.core.analyzer import Analyzer
 from lookout.core.helpers.analyzer_context_manager import AnalyzerContextManager
 
 import lookout.style
+from lookout.style.common import huge_progress_bar
 
 
 class Reporter:
@@ -93,7 +94,8 @@ class Reporter:
         self._fails = {}
 
         def _run(dataset) -> Iterator[Dict[str, str]]:
-            for index, row in enumerate(dataset, start=1):
+            for index, row in enumerate(huge_progress_bar(dataset, self._log, self._get_row_repr),
+                                        start=1):
                 self._log.info("processing %d / %d (%s)", index, len(dataset), row)
                 try:
                     fixes = self._trigger_review_event(row)
@@ -173,3 +175,8 @@ class Reporter:
             return head
         else:
             return "%s (dirty)" % head
+
+    @staticmethod
+    def _get_row_repr(dataset_row: Dict[str, Any]) -> str:
+        """Convert dataset row to its representation for logging purposes."""
+        return repr(dataset_row)[:37] + "..."
