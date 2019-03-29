@@ -53,7 +53,7 @@ class AnalyzerTests(unittest.TestCase):
         dataservice = FakeDataService(
             self.bblfsh_client, files=self.base_files, changes=[])
         model = IdTyposAnalyzer.train(ptr=self.ptr, config={}, data_service=dataservice)
-        self.assertIsInstance(model, DummyAnalyzerModel)
+        self.assertSetEqual(set(model), {"name", "print_type", "get_length"})
 
     def test_analyze(self):
         dataservice = FakeDataService(
