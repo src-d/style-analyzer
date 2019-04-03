@@ -10,7 +10,7 @@ from lookout.core.api.service_data_pb2 import File
 import pandas
 
 from lookout.style.format.benchmarks.general_report import FakeDataService
-from lookout.style.typos.analyzer import IDENTIFIER_ID_COLUMN, IdTyposAnalyzer, IdTyposModel
+from lookout.style.typos.analyzer import IDENTIFIER_INDEX_COLUMN, IdTyposAnalyzer, IdTyposModel
 from lookout.style.typos.utils import Columns
 
 Change = NamedTuple("Change", [("base", File), ("head", File)])
@@ -153,7 +153,7 @@ class AnalyzerPayloadTest(unittest.TestCase):
         cls.identifiers = ["get", "gpt_tokeb"]
         cls.test_df = pandas.DataFrame(
             [[0, "get", "get"], [1, "gpt tokeb", "gpt"], [1, "gpt tokeb", "tokeb"]],
-            columns=[IDENTIFIER_ID_COLUMN, Columns.Split, Columns.Token])
+            columns=[IDENTIFIER_INDEX_COLUMN, Columns.Split, Columns.Token])
         cls.suggestions = {1: [("get", 0.9),
                                ("gpt", 0.3)],
                            2: [("token", 0.98),

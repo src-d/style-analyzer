@@ -38,7 +38,7 @@ TypoFix = NamedTuple("TypoFix", (
 
 IDENTIFIER = bblfsh.role_id("IDENTIFIER")
 IMPORT = bblfsh.role_id("IMPORT")
-IDENTIFIER_ID_COLUMN = "identifier_id"
+IDENTIFIER_INDEX_COLUMN = "identifier_index"
 
 
 class IdTyposAnalyzer(Analyzer):
@@ -80,7 +80,7 @@ class IdTyposAnalyzer(Analyzer):
         self.comment_template = load_jinja2_template(self.config["comment_template"])
         for identifier in model.identifiers:
             self.corrector.expand_vocabulary(set(self.parser.split(identifier)))
-        self.approved_identifiers = set() if self.config["check_all_identifiers"] else \
+        self.allowed_identifiers = set() if self.config["check_all_identifiers"] else \
             model.identifiers
 
     @staticmethod
@@ -146,7 +146,7 @@ class IdTyposAnalyzer(Analyzer):
                     lines = find_new_lines(prev_file.content, file.content)
                 identifiers = self._get_identifiers(file.uast, lines)
                 new_identifiers = [node for node in identifiers
-                                   if node.token not in self.approved_identifiers]
+                                   if node.token not in self.allowed_identifiers]
                 if not new_identifiers:
                     continue
                 self._log.debug("found %d new identifiers" % len(new_identifiers))
@@ -333,8 +333,8 @@ class IdTyposAnalyzer(Analyzer):
         for i, identifier in enumerate(identifiers):
             identifiers_positions[identifier].append(i)
         unique_identifiers = sorted(identifiers_positions.keys())
-        df = pandas.DataFrame(columns=[IDENTIFIER_ID_COLUMN, Columns.Split])
-        df[IDENTIFIER_ID_COLUMN] = range(len(unique_identifiers))
+        df = pandas.DataFrame(columns=[IDENTIFIER_INDEX_COLUMN, Columns.Split])
+        df[IDENTIFIER_INDEX_COLUMN] = range(len(unique_identifiers))
         df[Columns.Split] = [" ".join(self.parser.split(identifier))
                              for identifier in unique_identifiers]
         df = flatten_df_by_column(df, Columns.Split, Columns.Token, str.split)
@@ -345,7 +345,7 @@ class IdTyposAnalyzer(Analyzer):
         grouped_suggestions = defaultdict(dict)
         for index, row in df.iterrows():
             if index in suggestions.keys():
-                for pos in identifiers_positions[unique_identifiers[row["identifier_id"]]]:
+                for pos in identifiers_positions[unique_identifiers[row[IDENTIFIER_INDEX_COLUMN]]]:
                     grouped_suggestions[pos][row[Columns.Token]] = \
                         suggestions[index]
         return grouped_suggestions
