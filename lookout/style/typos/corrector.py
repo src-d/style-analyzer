@@ -222,6 +222,8 @@ class TyposCorrector(Model):
         Save the result metrics to the model metadata and print it to the standard output.
         :param test_data: DataFrame which contains column Columns.Token, \
                           column Columns.Split is optional, but used when present.
+        :return: Suggestions for correction of tokens inside the `test_data` and the quality
+                 report.
         """
         self._log.info("evaluate on test data with shape %s", test_data.shape)
         suggestions = self.suggest(test_data)
