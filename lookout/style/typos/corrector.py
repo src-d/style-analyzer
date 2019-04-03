@@ -1,7 +1,7 @@
 """Typo correction model."""
 from itertools import chain
 import logging
-from typing import Any, Dict, List, Mapping, Optional, Set
+from typing import Any, Dict, List, Mapping, Optional, Set, Tuple
 
 from modelforge import Model
 import pandas
@@ -215,18 +215,22 @@ class TyposCorrector(Model):
             all_suggestions.append(suggestions.items())
         return dict(chain.from_iterable(all_suggestions))
 
-    def evaluate(self, test_data: pandas.DataFrame) -> None:
+    def evaluate(self, test_data: pandas.DataFrame) -> Tuple[Dict[int, List[Candidate]], str]:
         """
         Evaluate the corrector on the given test dataset.
 
         Save the result metrics to the model metadata and print it to the standard output.
         :param test_data: DataFrame which contains column Columns.Token, \
                           column Columns.Split is optional, but used when present.
+        :return: Suggestions for correction of tokens inside the `test_data` and the quality
+                 report.
         """
         self._log.info("evaluate on test data with shape %s", test_data.shape)
         suggestions = self.suggest(test_data)
+        report = generate_report(test_data, suggestions)
         self.metrics = get_scores(test_data, suggestions)
-        self._log.info("evaluation report:\n%s", generate_report(test_data, suggestions))
+        self._log.info("evaluation report:\n%s", report)
+        return suggestions, report
 
     def __eq__(self, other: "TyposCorrector") -> bool:
         return self.generator == other.generator and self.ranker == other.ranker
