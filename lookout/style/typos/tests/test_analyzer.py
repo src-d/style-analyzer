@@ -53,7 +53,8 @@ class AnalyzerTests(unittest.TestCase):
         dataservice = FakeDataService(
             self.bblfsh_client, files=self.base_files, changes=[])
         model = IdTyposAnalyzer.train(ptr=self.ptr, config={}, data_service=dataservice)
-        self.assertSetEqual(model.identifiers, {"name", "print_type", "get_length"})
+        self.assertSetEqual(model.identifiers, {"name", "print_type", "get_length",
+                                                "customidentifiertostore"})
 
     def test_analyze(self):
         dataservice = FakeDataService(
@@ -61,10 +62,22 @@ class AnalyzerTests(unittest.TestCase):
             changes=[Change(base=self.base_files[0], head=self.head_files[0])])
         model = IdTyposAnalyzer.train(ptr=self.ptr, config={}, data_service=dataservice)
         analyzer = IdTyposAnalyzer(model=model, url=self.ptr.url, config=dict(
-                model=MODEL_PATH, confidence_threshold=0.0, n_candidates=3))
+            model=MODEL_PATH, confidence_threshold=0.0, n_candidates=3,
+            check_all_identifiers=False))
         comments = analyzer.analyze(ptr_from=self.ptr, ptr_to=self.ptr, data_service=dataservice)
         self.assertGreater(len(comments), 0)
         bad_names = ["nam", "print_tipe", "gett_lenght"]
+        good_names = ["name", "print_type", "get_length", "customidentifiertostore"]
+        for c in comments:
+            self.assertFalse(any(name in c.text.split(", fixes:")[0] for name in good_names))
+            self.assertTrue(any(name in c.text.split(", fixes:")[0] for name in bad_names))
+
+        analyzer = IdTyposAnalyzer(model=model, url=self.ptr.url, config=dict(
+            model=MODEL_PATH, confidence_threshold=0.0, n_candidates=3,
+            check_all_identifiers=True))
+        comments = analyzer.analyze(ptr_from=self.ptr, ptr_to=self.ptr, data_service=dataservice)
+        self.assertGreater(len(comments), 0)
+        bad_names = ["nam", "print_tipe", "gett_lenght", "customidentifiertostore"]
         good_names = ["name", "print_type", "get_length"]
         for c in comments:
             self.assertFalse(any(name in c.text.split(", fixes:")[0] for name in good_names))
