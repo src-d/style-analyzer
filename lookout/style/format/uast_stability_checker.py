@@ -39,7 +39,7 @@ class UASTStabilityChecker:
         self._parsing_cache = {}  # type: Dict[int, Optional[Tuple[bblfsh.Node, int, int]]]
         self._debug = debug
 
-    def _parse_code(self, parent: bblfsh.Node, content: str,
+    def _parse_code(self, vnode: VirtualNode, parent: bblfsh.Node, content: str,
                     stub: "bblfsh.aliases.ProtocolServiceStub",
                     node_parents: Mapping[int, bblfsh.Node], path: str,
                     ) -> Optional[Tuple[bblfsh.Node, int, int]]:
@@ -52,6 +52,7 @@ class UASTStabilityChecker:
         The cache will be used to avoid recomputations for parents that have already been
         considered.
 
+        :param vnode: Vnode that is modified. Used to check that we retrieve the correct parent.
         :param parent: First virtual node to try to parse. Will go up in the tree if it fails.
         :param content: Content of the file.
         :param stub: Babelfish GRPC service stub.
@@ -69,11 +70,12 @@ class UASTStabilityChecker:
             descendants.append(current_ancestor)
             start, end = (current_ancestor.start_position.offset,
                           current_ancestor.end_position.offset)
-            uast, errors = parse_uast(stub, content[start:end], filename="", unicode=True,
-                                      language=self._feature_extractor.language)
-            if not errors:
-                result = uast, start, end
-                break
+            if start <= vnode.start.offset and end > vnode.end.offset:
+                uast, errors = parse_uast(stub, content[start:end], filename="", unicode=True,
+                                          language=self._feature_extractor.language)
+                if not errors:
+                    result = uast, start, end
+                    break
             current_ancestor = node_parents.get(id(current_ancestor), None)
         else:
             result = None
@@ -101,7 +103,7 @@ class UASTStabilityChecker:
             if vnode.start.offset not in start_offset_to_vnodes:
                 # NOOP always included
                 start_offset_to_vnodes[vnode.start.offset] = i
-        for i, vnode in enumerate(vnodes[::-1], start=1):
+        for i, vnode in enumerate(vnodes[::-1]):
             if vnode.end.offset not in end_offset_to_vnodes:
                 # NOOP always included that is why we have reverse order in this loop
                 end_offset_to_vnodes[vnode.end.offset] = len(vnodes) - i
@@ -133,13 +135,17 @@ class UASTStabilityChecker:
                         unsafe_preds.append(i + 1)  # Second quote
                 continue
 
-            parsed_before = self._parse_code(vnode_parents[id(vnode_y)], file_content, stub,
-                                             node_parents, vnode_y.path)
+            parsed_before = self._parse_code(vnode_y, vnode_parents[id(vnode_y)], file_content,
+                                             stub, node_parents, vnode_y.path)
             if parsed_before is None:
                 continue
             parent_before, start, end = parsed_before
             vnode_start_index = start_offset_to_vnodes[start]
             vnode_end_index = end_offset_to_vnodes[end]
+
+            assert vnode_start_index <= vnodes_i < vnode_end_index, \
+                "Tried to fix vnode %d by using vnodes %d to %d of %d total vnodes" % (
+                    vnodes_i, vnode_start_index, vnode_end_index, len(vnodes))
 
             try:
                 content_after = self._code_generator.generate_one_change(
