@@ -245,7 +245,8 @@ def train_and_evaluate(train_data: pandas.DataFrame, test_data: pandas.DataFrame
                                embeddings_file=fasttext_path, config=generation_config)
     model.processes_number = processes_number
     model.train(train_data)
-    model.evaluate(test_data)
+    _, report = model.evaluate(test_data)
+    print(report)
     return model
 
 
