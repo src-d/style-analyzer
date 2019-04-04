@@ -1,7 +1,7 @@
 """Generation of the typo correction candidates. Contains features extraction and serialization."""
 from itertools import chain
 from multiprocessing import Pool
-from typing import Any, List, Mapping, NamedTuple, Optional, Set, Union
+from typing import Any, Iterable, List, Mapping, NamedTuple, Optional, Set, Union
 
 from gensim.models import FastText
 from gensim.models.keyedvectors import FastTextKeyedVectors, Vocab
@@ -111,13 +111,13 @@ class CandidatesGenerator(Model):
             config = {}
         self.config = merge_dicts(DEFAULT_CORRECTOR_CONFIG["generation"], config)
 
-    def expand_vocabulary(self, additional_tokens: Set[str]) -> None:
+    def expand_vocabulary(self, additional_tokens: Iterable[str]) -> None:
         """
         Add given tokens to the generator's vocabulary.
 
-        :param additional_tokens: Set of tokens to add to the vocabulary.
+        :param additional_tokens: Tokens to add to the vocabulary.
         """
-        self.tokens = self.tokens.union(additional_tokens)
+        self.tokens.update(additional_tokens)
 
     def generate_candidates(self, data: pandas.DataFrame, processes_number: int,
                             save_candidates_file: Optional[str] = None) -> pandas.DataFrame:

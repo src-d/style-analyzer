@@ -5,12 +5,12 @@ from typing import NamedTuple
 import unittest
 
 import bblfsh
-from lookout.core.analyzer import DummyAnalyzerModel, ReferencePointer
+from lookout.core.analyzer import ReferencePointer
 from lookout.core.api.service_data_pb2 import File
 import pandas
 
 from lookout.style.format.benchmarks.general_report import FakeDataService
-from lookout.style.typos.analyzer import IdTyposAnalyzer
+from lookout.style.typos.analyzer import IDENTIFIER_INDEX_COLUMN, IdTyposAnalyzer, IdTyposModel
 from lookout.style.typos.utils import Columns
 
 Change = NamedTuple("Change", [("base", File), ("head", File)])
@@ -53,7 +53,8 @@ class AnalyzerTests(unittest.TestCase):
         dataservice = FakeDataService(
             self.bblfsh_client, files=self.base_files, changes=[])
         model = IdTyposAnalyzer.train(ptr=self.ptr, config={}, data_service=dataservice)
-        self.assertIsInstance(model, DummyAnalyzerModel)
+        self.assertSetEqual(model.identifiers, {"name", "print_type", "get_length",
+                                                "customidentifiertostore"})
 
     def test_analyze(self):
         dataservice = FakeDataService(
@@ -61,10 +62,22 @@ class AnalyzerTests(unittest.TestCase):
             changes=[Change(base=self.base_files[0], head=self.head_files[0])])
         model = IdTyposAnalyzer.train(ptr=self.ptr, config={}, data_service=dataservice)
         analyzer = IdTyposAnalyzer(model=model, url=self.ptr.url, config=dict(
-                model=MODEL_PATH, confidence_threshold=0.0, n_candidates=3))
+            model=MODEL_PATH, confidence_threshold=0.0, n_candidates=3,
+            check_all_identifiers=False))
         comments = analyzer.analyze(ptr_from=self.ptr, ptr_to=self.ptr, data_service=dataservice)
         self.assertGreater(len(comments), 0)
         bad_names = ["nam", "print_tipe", "gett_lenght"]
+        good_names = ["name", "print_type", "get_length", "customidentifiertostore"]
+        for c in comments:
+            self.assertFalse(any(name in c.text.split(", fixes:")[0] for name in good_names))
+            self.assertTrue(any(name in c.text.split(", fixes:")[0] for name in bad_names))
+
+        analyzer = IdTyposAnalyzer(model=model, url=self.ptr.url, config=dict(
+            model=MODEL_PATH, confidence_threshold=0.0, n_candidates=3,
+            check_all_identifiers=True))
+        comments = analyzer.analyze(ptr_from=self.ptr, ptr_to=self.ptr, data_service=dataservice)
+        self.assertGreater(len(comments), 0)
+        bad_names = ["nam", "print_tipe", "gett_lenght", "customidentifiertostore"]
         good_names = ["name", "print_type", "get_length"]
         for c in comments:
             self.assertFalse(any(name in c.text.split(", fixes:")[0] for name in good_names))
@@ -135,12 +148,12 @@ class AnalyzerPayloadTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.checker = IdTyposAnalyzer(
-            model=DummyAnalyzerModel(), url="", config=dict(
+            model=IdTyposModel(), url="", config=dict(
                 model=MODEL_PATH, confidence_threshold=0.2, n_candidates=3))
         cls.identifiers = ["get", "gpt_tokeb"]
         cls.test_df = pandas.DataFrame(
             [[0, "get", "get"], [1, "gpt tokeb", "gpt"], [1, "gpt tokeb", "tokeb"]],
-            columns=[IdTyposAnalyzer.default_config["index_column"], Columns.Split, Columns.Token])
+            columns=[IDENTIFIER_INDEX_COLUMN, Columns.Split, Columns.Token])
         cls.suggestions = {1: [("get", 0.9),
                                ("gpt", 0.3)],
                            2: [("token", 0.98),

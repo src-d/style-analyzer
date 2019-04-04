@@ -1,7 +1,7 @@
 """Typo correction model."""
 from itertools import chain
 import logging
-from typing import Any, Dict, List, Mapping, Optional, Set, Tuple
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple
 
 from modelforge import Model
 import pandas
@@ -112,11 +112,11 @@ class TyposCorrector(Model):
         self.generator.set_config(config)
         self._log.debug("%s is initialized", repr(self.ranker))
 
-    def expand_vocabulary(self, additional_tokens: Set[str]) -> None:
+    def expand_vocabulary(self, additional_tokens: Iterable[str]) -> None:
         """
         Add given tokens to the model's vocabulary.
 
-        :param additional_tokens: Set of tokens to add to the vocabulary.
+        :param additional_tokens: Tokens to add to the vocabulary.
         """
         self.generator.expand_vocabulary(additional_tokens)
 

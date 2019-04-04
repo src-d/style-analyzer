@@ -67,10 +67,11 @@ class TypoCommitsReportTests(unittest.TestCase):
         dataservice = FakeDataService(
             self.bblfsh_client, files=self.head_files,
             changes=[Change(base=self.base_files[0], head=self.head_files[0])])
-        model = IdTyposAnalyzerSpy.train(ptr=self.ptr, config={}, data_service=dataservice)
+        model = IdTyposAnalyzerSpy.train(ptr=self.ptr, config={},
+                                         data_service=dataservice)
         analyzer = IdTyposAnalyzerSpy(model=model, url=self.ptr.url, config=dict(
             model=MODEL_PATH, confidence_threshold=0.0, n_candidates=3,
-            filepath_to_analyze=self.base_files[0].path))
+            filepath_to_analyze=self.base_files[0].path, check_all_identifiers=True))
         typo_fixes = list(analyzer.run(ptr=self.ptr, data_service=dataservice))
         self.assertGreater(len(typo_fixes), 0)
         for typo_fix in typo_fixes:
@@ -80,10 +81,11 @@ class TypoCommitsReportTests(unittest.TestCase):
         dataservice = FakeDataService(
             self.bblfsh_client, files=self.head_files,
             changes=[Change(base=self.base_files[0], head=self.head_files[0])])
-        model = IdTyposAnalyzerSpy.train(ptr=self.ptr, config={}, data_service=dataservice)
+        model = IdTyposAnalyzerSpy.train(ptr=self.ptr, config={},
+                                         data_service=dataservice)
         analyzer = IdTyposAnalyzerSpy(model=model, url=self.ptr.url, config=dict(
             model=MODEL_PATH, confidence_threshold=0.0, n_candidates=3,
-            filepath_to_analyze=self.base_files[0].path))
+            filepath_to_analyze=self.base_files[0].path, check_all_identifiers=True))
         comments = analyzer.analyze(ptr_from=self.ptr, ptr_to=self.ptr, data_service=dataservice)
         self.assertGreater(len(comments), 0)
         for comment in comments:
