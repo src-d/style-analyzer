@@ -96,7 +96,6 @@ class Reporter:
         def _run(dataset) -> Iterator[Dict[str, str]]:
             for index, row in enumerate(huge_progress_bar(dataset, self._log, self._get_row_repr),
                                         start=1):
-                self._log.info("processing %d / %d (%s)", index, len(dataset), row)
                 try:
                     fixes = self._trigger_review_event(row)
                     reports = self._generate_reports(row, fixes)
