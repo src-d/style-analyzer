@@ -1,0 +1,32 @@
+# Typos correction quality on identifiers
+{% do test.__setitem__(Columns.Split, test["wrong"].apply(tokenize)) %}
+{% do test.__setitem__(Columns.CorrectSplit, test["correct"].apply(tokenize)) %}
+{% do test.__setitem__(IDENTIFIER_INDEX_COLUMN, range(test|length)) %}
+{% set flat_test = flatten_df_by_column(test, Columns.Split, Columns.Token, str.split) %}
+{% set flat_correct = flatten_df_by_column(test, Columns.CorrectSplit, Columns.CorrectToken, str.split) %}
+{% do flat_test.__setitem__(Columns.CorrectToken, flat_correct[Columns.CorrectToken]) %}
+{% set flat_suggestions = {} %}
+{% for i, row in flat_test.iterrows() %}
+        {% do flat_suggestions.__setitem__(i, suggestions.get(row[IDENTIFIER_INDEX_COLUMN], {}).get(
+        row[Columns.Token], [Candidate(row[Columns.Token], 1.0)]))%}
+{% endfor %}
+## Vocabulary insights
+
+{% set correct_tokens = set(flat_test.correct_token) %}
+{% set tokens = set(flat_test.correct_token) %}
+Total correct tokens                 {{ correct_tokens|length }}
+Correct tokens inside the vocabulary {{ correct_tokens.intersection(vocabulary_tokens)|length }}
+Total checked tokens                 {{ tokens|length }}
+Checked tokens inside the vocabulary {{ tokens.intersection(vocabulary_tokens)|length }}
+
+## Separate tokens report
+
+{{ generate_report(flat_test, flat_suggestions) }}
+
+## Identifiers correction quality
+
+{% set s = {"cumsum": 0} %}
+{% for pos in range(n_candidates) %}
+{% do s.__setitem__("cumsum", s["cumsum"] + 100 * (test["sugg " + str(pos)].eq(test["correct"]).mean())) %}
+{{ "%.2f%% of <=%d-th suggestions are correct " % (s["cumsum"], pos + 1) }}
+{% endfor %}

@@ -18,17 +18,18 @@ class TyposCorrectorManager:
         """Initialize a new instance of TyposCorrectorManager."""
         self.correctors = {}
 
-    def get(self, source: str) -> TyposCorrector:
+    def get(self, source: str, processes_number: int) -> TyposCorrector:
         """
         Return the loaded TyposCorrector model for the specified model source.
 
         :param source: UUID or file path.
+        :param processes_number: Number of processes for multiprocessing.
         :return: TyposCorrector.
         """
         obj = self.correctors.get(source)
         if obj is None:
             obj = TyposCorrector().load(source, backend=modelforge.backends.create_backend())
-            obj.processes_number = 1
+            obj.processes_number = processes_number
             self.correctors[source] = obj
         return obj
 

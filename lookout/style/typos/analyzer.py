@@ -58,6 +58,7 @@ class IdTyposAnalyzer(Analyzer):
         "check_all_identifiers": False,
         "line_length_limit": 500,
         "min_token_length": 1,
+        "processes_number": 1,
         "n_candidates": 3,
         "confidence_threshold": 0.1,
         "overall_size_limit": 5 << 20,  # 5 MB
@@ -75,7 +76,8 @@ class IdTyposAnalyzer(Analyzer):
         """
         super().__init__(model, url, config)
         self.config = self._load_config(config)
-        self.corrector = self.corrector_manager.get(self.config["corrector"])
+        self.corrector = self.corrector_manager.get(self.config["corrector"],
+                                                    self.config["processes_number"])
         self.parser = self.create_token_parser()
         self.comment_template = load_jinja2_template(self.config["comment_template"])
         for identifier in model.identifiers:
@@ -324,7 +326,7 @@ class IdTyposAnalyzer(Analyzer):
         return model
 
     def check_identifiers(self, identifiers: List[str],
-                          ) -> Dict[int, Dict[str, List[Tuple[str, float]]]]:
+                          ) -> Dict[int, Dict[str, List[Candidate]]]:
         """
         Check tokens from identifiers for typos.
 
@@ -354,8 +356,8 @@ class IdTyposAnalyzer(Analyzer):
         return grouped_suggestions
 
     def filter_suggestions(self, test_df: pandas.DataFrame,
-                           suggestions: Dict[int, List[Tuple[str, float]]],
-                           ) -> Dict[int, List[Tuple[str, float]]]:
+                           suggestions: Dict[int, List[Candidate]],
+                           ) -> Dict[int, List[Candidate]]:
         """
         Filter suggestions based on the repo specifics and confidence threshold.
 
@@ -369,10 +371,10 @@ class IdTyposAnalyzer(Analyzer):
         for index, candidates in suggestions.items():
             filtered_candidates = []
             for candidate in candidates:
-                if candidate[1] < self.config["confidence_threshold"]:
+                if candidate.confidence < self.config["confidence_threshold"]:
                     break
                 filtered_candidates.append(candidate)
-                if candidate[0] == tokens[index]:
+                if candidate.token == tokens[index]:
                     break
             if filtered_candidates:
                 filtered_suggestions[index] = filtered_candidates

@@ -12,13 +12,3 @@
 | {{ "%24s" % item[0]}} | {% for metric in ["accuracy", "precision", "recall", "f1"] %} {{ "  %.3f " % item[1][metric] }} | {% endfor %}
 
 {% endfor %}
-
-
-<details>
-    <summary>Machine-readable report</summary>
-```json
-{
-  "scores": {{ scores | tojson }}
-}
-```
-</details>

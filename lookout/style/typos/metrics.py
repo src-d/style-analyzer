@@ -6,7 +6,7 @@ import pandas
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 
 from lookout.style.common import load_jinja2_template
-from lookout.style.typos.utils import Columns, TEMPLATE_DIR
+from lookout.style.typos.utils import Candidate, Columns, TEMPLATE_DIR
 
 
 @unique
@@ -27,7 +27,7 @@ class ScoreMode(Enum):
     on_corrected = "on_corrected"
 
 
-def get_scores(data: pandas.DataFrame, suggestions: Dict[int, List[Tuple[str, float]]],
+def get_scores(data: pandas.DataFrame, suggestions: Dict[int, List[Candidate]],
                mode: ScoreMode = ScoreMode.correction, k: int = 1) -> Dict[str, float]:
     """
     Calculate the score of the solution of the specific typo correction problem.
@@ -51,16 +51,18 @@ def get_scores(data: pandas.DataFrame, suggestions: Dict[int, List[Tuple[str, fl
     """
     y_true, y_pred = [], []
     for i in data.index:
-        if mode == ScoreMode.on_corrected and suggestions[i][0][0] == data.loc[i, Columns.Token]:
+        token = data.loc[i, Columns.Token]
+        correct_token = data.loc[i, Columns.CorrectToken]
+        suggestion = suggestions.get(i, [Candidate(token, 1.0)])
+        if mode == ScoreMode.on_corrected and suggestion[0].token == token:
             continue
-        typoed = data.loc[i, Columns.Token] != data.loc[i, Columns.CorrectToken]
+        typoed = token != correct_token
         if mode == ScoreMode.detection or not typoed:
             # If the word is not misspelled, model should not correct it in any mode
-            corrected_right = suggestions[i][0][0] != data.loc[i, Columns.Token]
+            corrected = suggestion[0].token != token
         else:
-            corrected_right = data.loc[i, Columns.CorrectToken] in {
-                correction for correction, _ in suggestions[i][:k]}
-        y_pred.append(corrected_right)
+            corrected = correct_token in {candidate.token for candidate in suggestion[:k]}
+        y_pred.append(corrected)
         y_true.append(typoed)
 
     precision, recall, f1, _ = precision_recall_fscore_support(y_true, y_pred, average="binary")
