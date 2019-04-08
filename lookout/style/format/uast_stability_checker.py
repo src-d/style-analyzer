@@ -93,7 +93,7 @@ class UASTStabilityChecker:
         # TODO(warenlg): Add current algorithm description.
         # TODO(vmarkovtsev): Apply ML to not parse all the parents.
         self._parsing_cache = {}
-        unsafe_preds = []
+        unsafe_preds = set()
         file_content = file.content
         vnodes_i = 0
         changes = numpy.where((y_pred != -1) & (y != y_pred))[0]
@@ -131,8 +131,8 @@ class UASTStabilityChecker:
                         stub, content_after, filename="", unicode=True,
                         language=self._feature_extractor.language)
                     if not self.check_uasts_equivalent(parsed_before, parsed_after):
-                        unsafe_preds.append(i)
-                        unsafe_preds.append(i + 1)  # Second quote
+                        unsafe_preds.add(i)
+                        unsafe_preds.add(i + 1)  # Second quote
                 continue
 
             parsed_before = self._parse_code(vnode_y, vnode_parents[id(vnode_y)], file_content,
@@ -153,13 +153,13 @@ class UASTStabilityChecker:
                     vnodes_i - vnode_start_index, y_pred[i])
             except CodeGenerationBaseError as e:
                 self._log.debug("Code generator can't generate code: %s", repr(e.args))
-                unsafe_preds.append(i)
+                unsafe_preds.add(i)
                 continue
             parent_after, errors_after = parse_uast(
                 stub, content_after, filename="", language=self._feature_extractor.language,
                 unicode=True)
             if errors_after:
-                unsafe_preds.append(i)
+                unsafe_preds.add(i)
                 continue
             if not self.check_uasts_equivalent(parent_before, parent_after):
                 if self._debug:
@@ -168,10 +168,10 @@ class UASTStabilityChecker:
                         "\n".join(line for line in difflib.unified_diff(
                             file_content[start:end].splitlines(), content_after.splitlines(),
                             fromfile="original", tofile="suggested", lineterm="")))
-                unsafe_preds.append(i)
+                unsafe_preds.add(i)
         self._log.info("%d filtered out of %d with changes", len(unsafe_preds), changes.shape[0])
-        unsafe_preds = frozenset(unsafe_preds)
-        safe_preds = numpy.array([i for i in range(len(y)) if i not in unsafe_preds])
+        safe_preds = numpy.array([i for i in range(len(y)) if i not in unsafe_preds],
+                                 dtype=numpy.int32)
         vnodes_y = [vn for i, vn in enumerate(list(vnodes_y)) if i not in unsafe_preds]
         return y[safe_preds], y_pred[safe_preds], vnodes_y, rule_winners[safe_preds], safe_preds
 
