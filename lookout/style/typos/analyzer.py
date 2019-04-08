@@ -183,8 +183,7 @@ class IdTyposAnalyzer(Analyzer):
         return [node for node in extract_changed_nodes(uast, lines)
                 if (IDENTIFIER in node.roles and IMPORT not in node.roles and node.token)]
 
-    @staticmethod
-    def _find_new_lines(prev_content: str, content: str) -> List[int]:
+    def _find_new_lines(self, prev_content: str, content: str) -> List[int]:
         return find_new_lines(prev_content, content)
 
     def render_comment_text(self, typo_fix: TypoFix) -> str:

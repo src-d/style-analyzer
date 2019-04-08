@@ -34,7 +34,16 @@ class IdTyposAnalyzerSpy(IdTyposAnalyzer):
     Thus the result does not depend on base revision (`ptr_from`).
     """
 
-    _find_new_lines_return_value = None  # type: List[int]
+    def __init__(self, model: IdTyposModel, url: str, config: Mapping[str, Any]):
+        """
+        Initialize a new instance of IdTyposAnalyzerSpy.
+
+        :param model: The instance of the model loaded from the repository or freshly trained.
+        :param url: The analyzed project's Git remote.
+        :param config: Configuration of the analyzer of unspecified structure.
+        """
+        super().__init__(model, url, config)
+        self._find_new_lines_return_value = None  # type: List[int]
 
     def run(self, ptr: ReferencePointer, data_service: DataService) -> Iterable[TypoFix]:
         """
@@ -52,7 +61,7 @@ class IdTyposAnalyzerSpy(IdTyposAnalyzer):
             raise ValueError("No such file %s in %s" % (self.config["analyze"]["filepath"], ptr))
         line = self.config["analyze"]["line"] + 1
         try:
-            IdTyposAnalyzerSpy._find_new_lines_return_value = [line]
+            self._find_new_lines_return_value = [line]
             typos_fixes = list(self.generate_typos_fixes([Change(head=file, base=file)]))
             line_identifiers = self._get_identifiers(file.uast, [line])
             line_identifiers = [n.token for n in line_identifiers]
@@ -70,7 +79,7 @@ class IdTyposAnalyzerSpy(IdTyposAnalyzer):
                             path=file.path, line_number=0, identifier="", candidates=[],
                             identifiers_number=identifiers_number)]
         finally:
-            IdTyposAnalyzerSpy._find_new_lines_return_value = None
+            self._find_new_lines_return_value = None
 
     @handle_analyze_rpc_errors
     def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
@@ -115,12 +124,10 @@ class IdTyposAnalyzerSpy(IdTyposAnalyzer):
             return IdTyposModel()
         return super().train(ptr, config, data_service, **data)
 
-    @staticmethod
-    def _find_new_lines(prev_content: str, content: str) -> List[int]:
-        assert IdTyposAnalyzerSpy._find_new_lines_return_value is not None, \
-            "IdTyposAnalyzerSpy._find_new_lines_return_value should be set before " \
-            "_find_new_lines() call"
-        return IdTyposAnalyzerSpy._find_new_lines_return_value
+    def _find_new_lines(self, prev_content: str, content: str) -> List[int]:
+        assert self._find_new_lines_return_value is not None, \
+            "_find_new_lines_return_value should be set before _find_new_lines() call"
+        return self._find_new_lines_return_value
 
 
 class TypoCommitsReporter(Reporter):
@@ -308,7 +315,7 @@ def generate_typos_report_entry(dataset: str, output: str, bblfsh: str, config: 
     """
     log = logging.getLogger("TyposReporter")
     os.makedirs(output, exist_ok=True)
-    dataset = list(csv.DictReader(handle_input_arg(dataset)))[0:10]
+    dataset = list(csv.DictReader(handle_input_arg(dataset)))
     repositories = sorted(set(row["repo"] for row in dataset))
 
     log.info("Generate report for dataset with %d entries", len(dataset))
