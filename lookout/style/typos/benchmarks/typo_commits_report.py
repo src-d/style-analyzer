@@ -229,7 +229,7 @@ class TypoCommitsReporter(Reporter):
             {IdTyposAnalyzerSpy.name: {
                 "check_all_identifiers": True,
                 "analyze": {
-                    "filepath": dataset_row["file"],
+                    "filepath": dataset_row["file_fix"],
                     "line": int(dataset_row["line"]),
                     "wrong_id": dataset_row["wrong_id"],
                 }}})
