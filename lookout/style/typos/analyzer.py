@@ -28,12 +28,12 @@ from lookout.style.typos.utils import Candidate, Columns, flatten_df_by_column, 
 # TODO(zurk): Split TypoFix to FileFixes and TypoFix. content, path and identifiers_number should
 # be in the FileFixes.
 TypoFix = NamedTuple("TypoFix", (
-    ("content", str),                                         # file content from head revision
-    ("path", str),                                            # file path from head revision
-    ("line_number", int),                                     # line number for the comment
-    ("identifier", str),                                      # identifier where typo is found
-    ("candidates", Iterable[Candidate]),                      # suggested identifiers
-    ("identifiers_number", int),                              # Number of all analyzed identifiers
+    ("content", str),                                       # file content from head revision
+    ("path", str),                                          # file path from head revision
+    ("line_number", int),                                   # line number for the comment
+    ("identifier", str),                                    # identifier where typo is found
+    ("candidates", Iterable[Candidate]),                    # suggested identifiers
+    ("identifiers_number", int),                            # number of unique analyzed identifiers
 ))
 
 IDENTIFIER = bblfsh.role_id("IDENTIFIER")
@@ -143,7 +143,7 @@ class IdTyposAnalyzer(Analyzer):
                 except KeyError:
                     lines = []
                 else:
-                    lines = find_new_lines(prev_file.content, file.content)
+                    lines = self._find_new_lines(prev_file.content, file.content)
                 identifiers = self._get_identifiers(file.uast, lines)
                 new_identifiers = [node for node in identifiers
                                    if node.token not in self.allowed_identifiers]
@@ -175,13 +175,16 @@ class IdTyposAnalyzer(Analyzer):
                             identifier=identifier,
                             line_number=new_identifiers[index].start_position.line,
                             candidates=identifier_candidates,
-                            identifiers_number=len(identifiers),
+                            identifiers_number=len(set(n.token for n in new_identifiers)),
                         )
 
     @staticmethod
     def _get_identifiers(uast, lines):
         return [node for node in extract_changed_nodes(uast, lines)
                 if (IDENTIFIER in node.roles and IMPORT not in node.roles and node.token)]
+
+    def _find_new_lines(self, prev_content: str, content: str) -> List[int]:
+        return find_new_lines(prev_content, content)
 
     def render_comment_text(self, typo_fix: TypoFix) -> str:
         """

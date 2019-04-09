@@ -7,12 +7,12 @@
                          "detection_false_negatives",
                          "fix_accuracy", "top3_fix_accuracy", "support", "review_time"] %}
 {{ tabulate(scores[scores_to_show].to_frame(),
-            tablefmt="pipe", headers=["metric", "value"], floatfmt=".3f",
-            stralign="right", numalign="left") }}
+            tablefmt="pipe", headers=["metric", "value"], floatfmt=".3g",
+            stralign="right", numalign="decimal") }}
 
 {% if failures|length != 0 %}
-Report generation failed for
-{% for row_index in failures %}
+Report generation failed for {{ failures|length }} entries
+{% for row_index in failures|sort %}
 {{ row_index }}. {{ failures[row_index]["repo"] }}
 {% endfor %}
 {% endif %}

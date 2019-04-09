@@ -28,7 +28,7 @@ _install: &_install
   - find . -name tests -type d -exec chmod 555 {} \;
   - pip3 install git+https://github.com/facebookresearch/fastText@51e6738d734286251b6ad02e4fdbbcfe5b679382
   - pip3 uninstall -y modelforge
-  - pip3 install --no-warn-conflicts modelforge>=0.12
+  - pip3 install --no-warn-conflicts modelforge>=0.12.1
 _coverage: &_coverage
   - coverage run --concurrency=multiprocessing -m unittest discover
   - coverage combine

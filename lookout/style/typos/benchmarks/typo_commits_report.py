@@ -4,13 +4,14 @@ import json
 import logging
 from operator import itemgetter
 import os
+import pprint
 import time
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterable, Iterator, List, Mapping, Optional, Sequence, Tuple
 
-from lookout.core.analyzer import ReferencePointer, UnicodeChange
+from lookout.core.analyzer import ReferencePointer
 from lookout.core.api.service_analyzer_pb2 import Comment
-from lookout.core.api.service_data_pb2 import File
-from lookout.core.data_requests import DataService, request_files
+from lookout.core.api.service_data_pb2 import Change
+from lookout.core.data_requests import DataService, handle_analyze_rpc_errors, request_files
 import pandas
 from tabulate import tabulate
 
@@ -21,6 +22,7 @@ from lookout.style.format.utils import generate_comment
 from lookout.style.reporter import Reporter
 from lookout.style.typos import IdTyposAnalyzer
 from lookout.style.typos.analyzer import TypoFix
+from lookout.style.typos.model import IdTyposModel
 from lookout.style.typos.utils import TEMPLATE_DIR
 
 
@@ -32,6 +34,17 @@ class IdTyposAnalyzerSpy(IdTyposAnalyzer):
     Thus the result does not depend on base revision (`ptr_from`).
     """
 
+    def __init__(self, model: IdTyposModel, url: str, config: Mapping[str, Any]):
+        """
+        Initialize a new instance of IdTyposAnalyzerSpy.
+
+        :param model: The instance of the model loaded from the repository or freshly trained.
+        :param url: The analyzed project's Git remote.
+        :param config: Configuration of the analyzer of unspecified structure.
+        """
+        super().__init__(model, url, config)
+        self._find_new_lines_return_value = None  # type: List[int]
+
     def run(self, ptr: ReferencePointer, data_service: DataService) -> Iterable[TypoFix]:
         """
         Run `generate_typos_fixes` for all lines and all files in `ptr_from` revision.
@@ -42,23 +55,33 @@ class IdTyposAnalyzerSpy(IdTyposAnalyzer):
         """
         for file in request_files(data_service.get_data(), ptr, contents=True, uast=True,
                                   unicode=False):
-            if file.path == self.config["filepath_to_analyze"]:
+            if file.path == self.config["analyze"]["filepath"]:
                 break
         else:
-            raise ValueError("No such file %s in %s" % (self.config["filepath_to_analyze"], ptr))
+            raise ValueError("No such file %s in %s" % (self.config["analyze"]["filepath"], ptr))
+        line = self.config["analyze"]["line"] + 1
+        try:
+            self._find_new_lines_return_value = [line]
+            typos_fixes = list(self.generate_typos_fixes([Change(head=file, base=file)]))
+            line_identifiers = self._get_identifiers(file.uast, [line])
+            line_identifiers = [n.token for n in line_identifiers]
+            identifiers_number = len(set(line_identifiers))
+            if not identifiers_number:
+                raise ValueError("No identifiers for %s:%d in %s" % (
+                    self.config["analyze"]["filepath"], self.config["analyze"]["line"] + 1, ptr))
+            assert self.config["analyze"]["wrong_id"] in line_identifiers, \
+                "Identifier %s was not found in the %s:%d.\nLine identifiers are %s" % (
+                    self.config["analyze"]["wrong_id"], self.config["analyze"]["filepath"], line,
+                    line_identifiers)
+            if typos_fixes:
+                return typos_fixes
+            return [TypoFix(content=file.content.decode("utf-8", "replace"),
+                            path=file.path, line_number=0, identifier="", candidates=[],
+                            identifiers_number=identifiers_number)]
+        finally:
+            self._find_new_lines_return_value = None
 
-        typos_fixes = list(self.generate_typos_fixes([
-            UnicodeChange(head=file, base=File(path=file.path, language=file.language))]))
-        if typos_fixes:
-            return typos_fixes
-        identifiers_number = len(self._get_identifiers(file.uast, []))
-        if not identifiers_number:
-            raise ValueError("No identifiers for file %s in %s" % (
-                self.config["filepath_to_analyze"], ptr))
-        return [TypoFix(content=file.content.decode("utf-8", "replace"),
-                        path=file.path, line_number=0, identifier="", candidates=[],
-                        identifiers_number=identifiers_number)]
-
+    @handle_analyze_rpc_errors
     def analyze(self, ptr_from: ReferencePointer, ptr_to: ReferencePointer,
                 data_service: DataService, **data) -> List[Comment]:
         """
@@ -74,17 +97,60 @@ class IdTyposAnalyzerSpy(IdTyposAnalyzer):
                      the data retrieval.
         :return: List of `Comment`-s with `TypoFix` in JSON format.
         """
-        return [generate_comment(
-            filename=typo_fix.path,
-            line=typo_fix.line_number,
-            text=json.dumps(typo_fix._asdict()),
-            confidence=100) for typo_fix in self.run(ptr_to, data_service)]
+        comments = []
+        id_to_fix = []
+        for typo_fix in self.run(ptr_from, data_service):
+            id_to_fix.append(typo_fix.identifier)
+            comments.append(generate_comment(
+                filename=typo_fix.path,
+                line=typo_fix.line_number,
+                text=json.dumps(typo_fix._asdict()),
+                confidence=100))
+        self._log.debug("Suggestion to fix %s.\nTypo %s in the set: %s", id_to_fix,
+                        self.config["analyze"]["wrong_id"],
+                        self.config["analyze"]["wrong_id"] in id_to_fix)
+        return comments
+
+    @classmethod
+    def train(cls, ptr: ReferencePointer, config: Mapping[str, Any], data_service: DataService,
+              **data) -> IdTyposModel:
+        """
+        Return empty model if check_all_identifiers is True.
+
+        It helps to speed up report generation. Such approach is not correct for original \
+        IdTyposAnalyzer but ok for Spy class.
+        """
+        if config.get("check_all_identifiers", True):
+            return IdTyposModel()
+        return super().train(ptr, config, data_service, **data)
+
+    def _find_new_lines(self, prev_content: str, content: str) -> List[int]:
+        assert self._find_new_lines_return_value is not None, \
+            "_find_new_lines_return_value should be set before _find_new_lines() call"
+        return self._find_new_lines_return_value
 
 
 class TypoCommitsReporter(Reporter):
     """
     Report system for Typos Analyser.
     """
+
+    def __init__(self, config: Optional[dict] = None, bblfsh: Optional[str] = None,
+                 database: Optional[str] = None, fs: Optional[str] = None):
+        """
+        Initialize a new `TypoCommitsReporter` instance.
+
+        You should provide `database` and `fs` in order to re-use existing models (no training).
+
+        :param config: Analyzer configuration for push and review events. The analyzer uses \
+                       default config if not provided.
+        :param bblfsh: Babelfish endpoint to use by lookout-sdk.
+        :param database: Database endpoint to use to read and store information about models. \
+            Sqlite3 database in a temporary file is used if not provided.
+        :param fs: Model repository file system root. Temporary directory is used if not provided.
+        """
+        super().__init__(config, bblfsh, database, fs)
+        self._review_time = 0
 
     inspected_analyzer_type = IdTyposAnalyzerSpy
     report_template_path = os.path.join(TEMPLATE_DIR, "commits_with_typo_dataset_report.jinja2")
@@ -120,37 +186,53 @@ class TypoCommitsReporter(Reporter):
         :param fixes: List of `TypoFix`-es provided by the `TyposAnalyzerSpy.analyze()` method.
         :return: Dictionary with report names as keys and report string as values.
         """
-        metrics = self.get_metrics_stub()
-        metrics.review_time = self._review_time
         if not fixes:
             raise ValueError("Should be at least one fix.")
+
+        metrics = self.get_metrics_stub()
+        metrics.review_time = self._review_time
+        metrics.support = fixes[0].identifiers_number
+
         correct_fix = dataset_row["correct_id"]
         wrong_identifier = dataset_row["wrong_id"]
+        processed_tokens = set()
         for fix in fixes:
             if fix.identifier == "":
                 # no fixes where suggested
                 assert len(fixes) == 1
                 break
+            if fix.identifier in processed_tokens:
+                # We do not want to count the same fix twice
+                continue
             candidates = [candidate[0] for candidate in fix.candidates]
             best_candidate = max(fix.candidates, key=itemgetter(1))
             if fix.identifier == wrong_identifier:
                 if correct_fix in candidates:
                     metrics.detection_true_positive += 1
                     metrics.top3_fix_accuracy += 1
-                if correct_fix == best_candidate:
+                if correct_fix == best_candidate[0]:
                     metrics.fix_accuracy += 1
             else:
                 metrics.detection_false_positive += 1
+            processed_tokens.add(fix.identifier)
 
-        metrics.support = fixes[0].identifiers_number
         # Because there is one typo per commit
         metrics.detection_false_negatives = 1 - metrics.detection_true_positive
+        assert metrics.detection_false_negatives >= 0
+        self._log.info("the metrics for %s are\n%s", self._get_row_repr(dataset_row),
+                       pprint.pformat(metrics))
         return json.dumps(metrics.to_dict())
 
     def _trigger_review_event(self, dataset_row: Dict[str, Any]) -> Sequence[TypoFix]:
         config = merge_dicts(
             self._config if self._config is not None else {},
-            {IdTyposAnalyzerSpy.name: {"filepath_to_analyze": dataset_row["file"]}})
+            {IdTyposAnalyzerSpy.name: {
+                "check_all_identifiers": True,
+                "analyze": {
+                    "filepath": dataset_row["file"],
+                    "line": int(dataset_row["line"]),
+                    "wrong_id": dataset_row["wrong_id"],
+                }}})
         start_time = time.perf_counter()
         comments = self._analyzer_context_manager.review(
             dataset_row["commit_typo"], "HEAD", git_dir=dataset_row["repo_path"],
@@ -174,8 +256,8 @@ class TypoCommitsReporter(Reporter):
         scores.detection_recall = scores.detection_true_positive / (
             scores.detection_true_positive + scores.detection_false_negatives
         )
-        scores.fix_accuracy = scores.fix_accuracy / len(reports)
-        scores.top3_fix_accuracy = scores.top3_fix_accuracy / len(reports)
+        scores.fix_accuracy = scores.fix_accuracy / scores.detection_true_positive
+        scores.top3_fix_accuracy = scores.top3_fix_accuracy / scores.detection_true_positive
         scores.review_time = scores.review_time / len(reports)
 
         template = load_jinja2_template(self.report_template_path)
@@ -251,4 +333,3 @@ def generate_typos_report_entry(dataset: str, output: str, bblfsh: str, config: 
                 with open(report_path, "w") as f:
                     f.write(report[report_name])
                 log.info("Report %s is saved to %s", report_name, report_path)
-    log.info("Done.")
