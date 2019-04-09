@@ -48,6 +48,9 @@ def load_jinja2_template(path: str) -> jinja2.Template:
         "pformat": pprint.pformat,
         "deepcopy": deepcopy,
     })
+    env.globals.update({
+        "zip": zip,
+    })
     root, name = os.path.split(path)
     loader = jinja2.FileSystemLoader((root,), followlinks=True)
     template = loader.load(env, name)
