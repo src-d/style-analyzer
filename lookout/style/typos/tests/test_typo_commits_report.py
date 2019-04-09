@@ -106,7 +106,7 @@ class TypoCommitsReportTests(unittest.TestCase):
         with TypoCommitsReporter() as reporter:
             dataset_row = {"repo_path": "",
                            "commit_typo": "",
-                           "file": "",
+                           "file_fix": "",
                            "wrong_id": "print_tipe",
                            "line": 1}
             typos_fix = reporter._trigger_review_event(dataset_row)
