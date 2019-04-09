@@ -11,7 +11,7 @@ import pandas
 
 from lookout.style.format.benchmarks.general_report import FakeDataService
 from lookout.style.typos.analyzer import IDENTIFIER_INDEX_COLUMN, IdTyposAnalyzer, IdTyposModel
-from lookout.style.typos.utils import Columns
+from lookout.style.typos.utils import Candidate, Columns
 
 Change = NamedTuple("Change", [("base", File), ("head", File)])
 MODEL_PATH = str(Path(__file__).parent / "test_corrector.asdf")
@@ -154,15 +154,15 @@ class AnalyzerPayloadTest(unittest.TestCase):
         cls.test_df = pandas.DataFrame(
             [[0, "get", "get"], [1, "gpt tokeb", "gpt"], [1, "gpt tokeb", "tokeb"]],
             columns=[IDENTIFIER_INDEX_COLUMN, Columns.Split, Columns.Token])
-        cls.suggestions = {1: [("get", 0.9),
-                               ("gpt", 0.3)],
-                           2: [("token", 0.98),
-                               ("taken", 0.3),
-                               ("tokem", 0.01)]}
-        cls.filtered_suggestions = {1: [("get", 0.9),
-                                        ("gpt", 0.3)],
-                                    2: [("token", 0.98),
-                                        ("taken", 0.3)]}
+        cls.suggestions = {1: [Candidate("get", 0.9),
+                               Candidate("gpt", 0.3)],
+                           2: [Candidate("token", 0.98),
+                               Candidate("taken", 0.3),
+                               Candidate("tokem", 0.01)]}
+        cls.filtered_suggestions = {1: [Candidate("get", 0.9),
+                                        Candidate("gpt", 0.3)],
+                                    2: [Candidate("token", 0.98),
+                                        Candidate("taken", 0.3)]}
 
     def test_filter_suggestions(self):
         self.assertDictEqual(self.checker.filter_suggestions(self.test_df, self.suggestions),
