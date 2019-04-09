@@ -2,11 +2,16 @@
 
 ## Metrics
 
-{% set scores_to_show = ["detection_precision", "detection_recall",
-                         "detection_true_positive", "detection_false_positive",
-                         "detection_false_negatives",
-                         "fix_accuracy", "top3_fix_accuracy", "support", "review_time"] %}
-{{ tabulate(scores[scores_to_show].to_frame(),
+{% set scores_to_show, formats = zip(("detection_precision", ".3f"),
+                                     ("detection_recall", ".3f"),
+                                     ("detection_true_positive", "d"),
+                                     ("detection_false_positive", "d"),
+                                     ("detection_false_negatives", "d"),
+                                     ("fix_accuracy",  ".3f"),
+                                     ("top3_fix_accuracy",  ".3f"),
+                                     ("support",  "d"),
+                                     ("review_time", "d")) %}
+{{ tabulate(scores[scores_to_show | list].to_frame(),
             tablefmt="pipe", headers=["metric", "value"], floatfmt=".3g",
             stralign="right", numalign="decimal") }}
 

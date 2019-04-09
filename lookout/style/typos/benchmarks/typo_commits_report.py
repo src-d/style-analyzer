@@ -207,8 +207,8 @@ class TypoCommitsReporter(Reporter):
             candidates = [candidate[0] for candidate in fix.candidates]
             best_candidate = max(fix.candidates, key=itemgetter(1))
             if fix.identifier == wrong_identifier:
+                metrics.detection_true_positive += 1
                 if correct_fix in candidates:
-                    metrics.detection_true_positive += 1
                     metrics.top3_fix_accuracy += 1
                 if correct_fix == best_candidate[0]:
                     metrics.fix_accuracy += 1
