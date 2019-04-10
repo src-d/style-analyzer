@@ -177,18 +177,18 @@ def create_parser() -> ArgumentParser:
               in the dataset. Temporary directory is used if not set.")
 
     # Report for typos on identifiers datasets
-    typos_report_parser = add_parser("typos-identifiers-report",
+    typos_report_parser = add_parser("evaluate-fixes",
                                      "Generate report for typo-ed identifiers dataset.")
     typos_report_parser.set_defaults(handler=evaluate_typos_on_identifiers)
     add_config_arg(typos_report_parser)
     typos_report_parser.add_argument(
         "-d", "--dataset", required=False,
-        help="csv file with with typos. Must contain wrong_id and correct_id as the first"
-             "two columns. It is possible to specify the xz compressed file. By default the "
+        help="CSV file with with typos. The first two columns are wrong_id and correct_id."
+             "It is possible to specify the xz compressed file. By default the "
              "identifiers from the Typo Commits Dataset are used.")
     typos_report_parser.add_argument(
         "-o", "--mistakes-output", required=False,
-        help="csv file where to put the wrong corrections.")
+        help="CSV file where to write the wrong corrections.")
 
     return parser
 

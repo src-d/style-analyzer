@@ -24,29 +24,27 @@ def evaluate_typos_on_identifiers(dataset: str = TYPOS_DATASET,
     :param mistakes_output: Path to the file for printing the wrong corrections.
     :return: Quality report.
     """
-    test = pandas.read_csv(dataset, header=0, usecols=[0, 1],
-                           names=["wrong", "correct"], keep_default_na=False)
+    identifiers = pandas.read_csv(dataset, header=0, usecols=[0, 1],
+                                  names=["wrong", "correct"], keep_default_na=False)
     analyzer = IdTyposAnalyzer(IdTyposModel(), "", {} if config is None else config)
-    suggestions = analyzer.check_identifiers(test["wrong"].tolist())
+    suggestions = analyzer.check_identifiers(identifiers["wrong"].tolist())
     corrections = []
-    for i, identifier in enumerate(test["wrong"]):
+    for i, identifier in enumerate(identifiers["wrong"]):
         candidates = list(analyzer.generate_identifier_suggestions(suggestions[i], identifier))
         corrections.append(candidates if len(candidates) > 0 else [Candidate(identifier, 1.0)])
 
     for pos in range(analyzer.config["n_candidates"]):
-        test["sugg " + str(pos)] = [correction[pos][0] if pos < len(correction) else "" for
-                                    correction in corrections]
+        identifiers["sugg " + str(pos)] = [correction[pos][0] if pos < len(correction) else "" for
+                                           correction in corrections]
     if mistakes_output is not None:
-        test[test["sugg 0"] != test.correct][["wrong", "sugg 0", "correct"]].to_csv(
-            mistakes_output)
+        identifiers[identifiers["sugg 0"] != identifiers["correct"]][
+            ["wrong", "sugg 0", "correct"]].to_csv(mistakes_output)
     template = load_jinja2_template(os.path.join(TEMPLATE_DIR, "quality_on_identifiers.md.jinja2"))
-    return template.render(generate_report=generate_report,
+    return template.render(identifiers=identifiers, suggestions=suggestions,
                            vocabulary_tokens=analyzer.corrector.generator.tokens,
                            n_candidates=analyzer.config["n_candidates"],
                            IDENTIFIER_INDEX_COLUMN=IDENTIFIER_INDEX_COLUMN,
                            Candidate=Candidate, Columns=Columns,
+                           tokenize=lambda x: list(analyzer.parser.split(x)),
                            flatten_df_by_column=flatten_df_by_column,
-                           test=test,
-                           suggestions=suggestions,
-                           tokenize=lambda x: " ".join(list(analyzer.parser.split(x))),
-                           str=str, set=set)
+                           generate_report=generate_report, set=set)

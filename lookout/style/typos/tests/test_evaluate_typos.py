@@ -13,4 +13,3 @@ class TyposCorrectorTest(unittest.TestCase):
         s = evaluate_typos_on_identifiers(str(TEST_DATA_PATH / "test_commits_with_typo.csv.xz"),
                                           config)
         self.assertGreater(len(s), 0)
-        print(s)
