@@ -106,7 +106,7 @@ class TypoCommitsReportTests(unittest.TestCase):
         with TypoCommitsReporter() as reporter:
             dataset_row = {"repo_path": "",
                            "commit_typo": "",
-                           "file_fix": "",
+                           "file_typo": "",
                            "wrong_id": "print_tipe",
                            "line": 1}
             typos_fix = reporter._trigger_review_event(dataset_row)
@@ -172,7 +172,7 @@ class TypoCommitsReportTests(unittest.TestCase):
 |              fix_accuracy |   0     |
 |         top3_fix_accuracy |   0.5   |
 |                   support |  12     |
-|               review_time |   2.91  |
+|               review_time |   2.913 |
 
 Report generation failed for 1 entries
 10. <Failed repo name>
