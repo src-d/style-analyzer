@@ -97,7 +97,8 @@ $(TYPOS_COMMITS_REPORT_DIR):
 typos-report: $(TYPOS_COMMITS_REPORT_DIR)
 	python3 -m lookout.style.typos --log-level DEBUG typo-commits-report \
 		-o $(TYPOS_COMMITS_REPORT_DIR) -i $(TYPOS_COMMITS_DATASET) \
-		--repos-cache $(TYPOS_COMMITS_CACHE) 2>&1 | tee $(TYPOS_COMMITS_REPORT_DIR)/logs.txt
+		--repos-cache $(TYPOS_COMMITS_CACHE) \
+		--checkpoint-dir $(TYPOS_COMMITS_REPORT_DIR)/checkpoints 2>&1 | tee $(TYPOS_COMMITS_REPORT_DIR)/logs.txt
 	xz -k -f $(TYPOS_COMMITS_REPORT_DIR)/logs.txt
 
 .PHONY: check docker-test bblfsh-start report-smoke report-noisy report-quality report-release \
