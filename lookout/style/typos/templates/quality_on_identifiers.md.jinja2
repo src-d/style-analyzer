@@ -10,12 +10,12 @@
 {% endfor %}
 ## Vocabulary insights
 
-{% set correct_tokens = set(flat_identifiers.correct_token) %}
-{% set tokens = set(flat_identifiers.correct_token) %}
-Total correct tokens                 {{ correct_tokens|length }}
-Correct tokens inside the vocabulary {{ correct_tokens.intersection(vocabulary_tokens)|length }}
-Total checked tokens                 {{ tokens|length }}
-Checked tokens inside the vocabulary {{ tokens.intersection(vocabulary_tokens)|length }}
+{% set correct_tokens = flat_identifiers[Columns.CorrectToken] | unique | list %}
+{% set tokens = flat_identifiers[Columns.Token] | unique | list %}
+Total correct tokens                 {{ correct_tokens | length }}
+Correct tokens inside the vocabulary {{ correct_tokens | intersect(vocabulary_tokens) | length }}
+Total checked tokens                 {{ tokens | length }}
+Checked tokens inside the vocabulary {{ tokens | intersect(vocabulary_tokens) | length }}
 
 ## Separate tokens report
 
