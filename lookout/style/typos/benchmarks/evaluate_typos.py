@@ -13,18 +13,18 @@ from lookout.style.typos.utils import Candidate, Columns, flatten_df_by_column, 
 TYPOS_DATASET = str(Path(__file__).parent / "data" / "commits_with_typo.csv.xz")
 
 
-def evaluate_typos_on_identifiers(eval_dataset: str = TYPOS_DATASET,
+def evaluate_typos_on_identifiers(dataset: str = TYPOS_DATASET,
                                   config: Optional[Mapping[str, Any]] = None,
-                                  mistakes_path: Optional[str] = None) -> str:
+                                  mistakes_output: Optional[str] = None) -> str:
     """
     Run IdTyposAnalyzer on the identifiers from the evaluation dataset.
 
-    :param eval_dataset: Dataset of misspelled identifiers.
+    :param dataset: Dataset of misspelled identifiers.
     :param config: Configuration for the IdTyposAnalyzer.
-    :param mistakes_path: Path to the file for printing the wrong corrections.
+    :param mistakes_output: Path to the file for printing the wrong corrections.
     :return: Quality report.
     """
-    test = pandas.read_csv(eval_dataset, header=0, usecols=[0, 1],
+    test = pandas.read_csv(dataset, header=0, usecols=[0, 1],
                            names=["wrong", "correct"], keep_default_na=False)
     analyzer = IdTyposAnalyzer(IdTyposModel(), "", {} if config is None else config)
     suggestions = analyzer.check_identifiers(test["wrong"].tolist())
@@ -36,9 +36,9 @@ def evaluate_typos_on_identifiers(eval_dataset: str = TYPOS_DATASET,
     for pos in range(analyzer.config["n_candidates"]):
         test["sugg " + str(pos)] = [correction[pos][0] if pos < len(correction) else "" for
                                     correction in corrections]
-    if mistakes_path is not None:
+    if mistakes_output is not None:
         test[test["sugg 0"] != test.correct][["wrong", "sugg 0", "correct"]].to_csv(
-            mistakes_path)
+            mistakes_output)
     template = load_jinja2_template(os.path.join(TEMPLATE_DIR, "quality_on_identifiers.md.jinja2"))
     return template.render(generate_report=generate_report,
                            vocabulary_tokens=analyzer.corrector.generator.tokens,
