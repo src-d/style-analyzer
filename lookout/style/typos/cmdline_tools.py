@@ -172,9 +172,17 @@ def create_parser() -> ArgumentParser:
                                    "Temporary directory is used if not set.")
     typo_commits_report_parser.add_argument(
         "--repos-cache", default=None, required=False,
-        help="Directory where to download repositories from the dataset. It is strongly \
-              recommended to set this parameter if there are more than 20 repositories \
-              in the dataset. Temporary directory is used if not set.")
+        help="Directory where to download repositories from the dataset. It is strongly "
+             "recommended to set this parameter if there are more than 20 repositories "
+             "in the dataset. Temporary directory is used if not set.")
+    typo_commits_report_parser.add_argument(
+        "--checkpoint-dir", default=None,
+        help="Directory where to save the intermediate reports, so that we do not have to start "
+             "from scratch in case of an error. If a checkpoint is found in that directory the "
+             "corresponding report is not calculated until --force flag is set.")
+    typo_commits_report_parser.add_argument(
+        "--force", action="store_true", default=False,
+        help="Always calculate reports from scratch disregarding`--checkpoint-dir`.")
 
     # Report for typos on identifiers datasets
     typos_report_parser = add_parser("evaluate-fixes",

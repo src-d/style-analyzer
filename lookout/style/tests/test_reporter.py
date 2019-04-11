@@ -1,4 +1,5 @@
 import json
+import tempfile
 from typing import Any, Dict, NamedTuple, Sequence
 import unittest
 from unittest import mock
@@ -6,7 +7,7 @@ from unittest import mock
 from lookout.core.analyzer import Analyzer, AnalyzerModel, DummyAnalyzerModel, ReferencePointer
 from lookout.core.data_requests import DataService
 from lookout.sdk.service_analyzer_pb2 import Comment
-
+from modelforge import slogging
 
 from lookout.style.reporter import Reporter
 
@@ -67,6 +68,10 @@ class DummyReporter(Reporter):
 
 
 class ReporterTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        slogging.setup("INFO", False)
+
     @mock.patch("lookout.core.helpers.analyzer_context_manager.AnalyzerContextManager.review",
                 side_effect=fake_review)
     def test_run(self, func):
@@ -92,6 +97,50 @@ class ReporterTests(unittest.TestCase):
                                 "to": "FF",
                                 "value": "bbb"}]
             self.assertEqual(reports, correct_reports)
+
+    @mock.patch("lookout.core.helpers.analyzer_context_manager.AnalyzerContextManager.review",
+                side_effect=fake_review)
+    def test_dump_checkpoints(self, func):
+        hit = 0
+
+        def fake_dump(*args, **kwargs):
+            if "level" in args[0]:
+                return
+            nonlocal hit
+            hit += 1
+
+        with tempfile.TemporaryDirectory() as cdir, \
+                mock.patch("json.dump", fake_dump):
+            with DummyReporter(checkpoint_dir=cdir, force=False) as reporter:
+                list(reporter.run([{"fr": "00", "to": "XX", "value": "aaa"},
+                                   {"fr": "11", "to": "FF", "value": "bbb"}]))
+        self.assertEqual(hit, 2)
+
+    @mock.patch("lookout.core.helpers.analyzer_context_manager.AnalyzerContextManager.review",
+                side_effect=fake_review)
+    def test_load_checkpoints(self, func):
+        hit = 0
+
+        def fake_load(*args, **kwargs):
+            nonlocal hit
+            hit += 1
+            return {"hit": hit}
+
+        with tempfile.TemporaryDirectory() as cdir, \
+                mock.patch("json.load", fake_load):
+            with DummyReporter(checkpoint_dir=cdir, force=False) as reporter:
+                reports = list(reporter.run([{"fr": "00", "to": "XX", "value": "aaa"},
+                                             {"fr": "11", "to": "FF", "value": "bbb"}]))
+            self.assertEqual(hit, 0)
+            with DummyReporter(checkpoint_dir=cdir, force=False) as reporter:
+                reports = list(reporter.run([{"fr": "00", "to": "XX", "value": "aaa"},
+                                             {"fr": "11", "to": "FF", "value": "bbb"}]))
+                self.assertEqual(reports, [{"hit": 1}, {"hit": 2}])
+            with DummyReporter(checkpoint_dir=cdir, force=True) as reporter:
+                reports = list(reporter.run([{"fr": "00", "to": "XX", "value": "aaa"},
+                                             {"fr": "11", "to": "FF", "value": "bbb"}]))
+                self.assertEqual(len(reports), 2)
+                self.assertNotEqual(reports, [{"hit": 1}, {"hit": 2}])
 
 
 if __name__ == "__main__":
