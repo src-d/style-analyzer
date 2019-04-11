@@ -44,7 +44,7 @@ setup(
         "scikit-learn>=0.20,<2.0",
         "scikit-optimize>=0.5,<2.0",
         "pandas>=0.22,<2.0",
-        "gensim>=3.7.1,<3.7.2",
+        "gensim>=3.7.3,<4.0",
         "google-compute-engine>=2.8.3,<3.0",  # for gensim
         "xgboost>=0.72,<2.0",
         "tabulate>=0.8.0,<2.0",
