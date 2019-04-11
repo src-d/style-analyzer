@@ -1,0 +1,30 @@
+# Typos correction quality on identifiers
+{% do identifiers.__setitem__(IDENTIFIER_INDEX_COLUMN, range(identifiers|length)) %}
+{% set flat_identifiers = flatten_df_by_column(identifiers, "wrong", Columns.Token, tokenize) %}
+{% set flat_correct = flatten_df_by_column(identifiers, "correct", Columns.CorrectToken, tokenize) %}
+{% do flat_identifiers.__setitem__(Columns.CorrectToken, flat_correct[Columns.CorrectToken]) %}
+{% set flat_suggestions = {} %}
+{% for i, row in flat_identifiers.iterrows() %}
+        {% do flat_suggestions.__setitem__(i, suggestions.get(row[IDENTIFIER_INDEX_COLUMN], {}).get(
+        row[Columns.Token], [Candidate(row[Columns.Token], 1.0)]))%}
+{% endfor %}
+## Vocabulary insights
+
+{% set correct_tokens = flat_identifiers[Columns.CorrectToken] | unique | list %}
+{% set tokens = flat_identifiers[Columns.Token] | unique | list %}
+Total correct tokens                 {{ correct_tokens | length }}
+Correct tokens inside the vocabulary {{ correct_tokens | intersect(vocabulary_tokens) | length }}
+Total checked tokens                 {{ tokens | length }}
+Checked tokens inside the vocabulary {{ tokens | intersect(vocabulary_tokens) | length }}
+
+## Separate tokens report
+
+{{ generate_report(flat_identifiers, flat_suggestions) }}
+
+## Identifiers correction quality
+
+{% set s = {"cumsum": 0} %}
+{% for pos in range(n_candidates) %}
+{% do s.__setitem__("cumsum", s["cumsum"] + 100 * (identifiers["sugg " + pos|string].eq(identifiers["correct"]).mean())) %}
+{{ "%.2f%% of <=%d-th suggestions are correct " % (s["cumsum"], pos + 1) }}
+{% endfor %}

@@ -4,7 +4,7 @@ import unittest
 import pandas
 
 from lookout.style.typos.metrics import generate_report, get_scores, ScoreMode
-from lookout.style.typos.utils import Columns
+from lookout.style.typos.utils import Candidate, Columns
 
 
 TEST_DATA_PATH = str(pathlib.Path(__file__).parent)
@@ -18,10 +18,12 @@ class MetricsTest(unittest.TestCase):
                                      ["tokem", "token"],
                                      ["token", "token"]],
                                     columns=[Columns.Token, Columns.CorrectToken])
-        cls.suggestions = {0: [("get", 1.0)],
-                           1: [("got", 0.9), ("get", 0.5), ("gwt", 0.01)],
-                           2: [("token", 0.98), ("taken", 0.3), ("tokem", 0.01)],
-                           3: [("taken", 0.98), ("token", 0.9)]}
+        cls.suggestions = {0: [Candidate("get", 1.0)],
+                           1: [Candidate("got", 0.9), Candidate("get", 0.5),
+                               Candidate("gwt", 0.01)],
+                           2: [Candidate("token", 0.98), Candidate("taken", 0.3),
+                               Candidate("tokem", 0.01)],
+                           3: [Candidate("taken", 0.98), Candidate("token", 0.9)]}
 
     def test_get_score(self):
 

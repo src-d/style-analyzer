@@ -47,6 +47,7 @@ def load_jinja2_template(path: str) -> jinja2.Template:
     env.filters.update({
         "pformat": pprint.pformat,
         "deepcopy": deepcopy,
+        "intersect": lambda x, y: set(x).intersection(set(y)),
     })
     env.globals.update({
         "zip": zip,

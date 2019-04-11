@@ -10,6 +10,7 @@ from lookout.core.cmdline import ArgumentDefaultsHelpFormatterNoNone
 from modelforge import slogging
 import pandas
 
+from lookout.style.typos.benchmarks.evaluate_typos import evaluate_typos_on_identifiers
 from lookout.style.typos.benchmarks.typo_commits_report import generate_typos_report_entry
 from lookout.style.typos.preparation import DEFAULT_CORRECTOR_CONFIG, get_datasets, prepare_data, \
     train_and_evaluate, train_fasttext, train_from_scratch
@@ -157,7 +158,7 @@ def create_parser() -> ArgumentParser:
         "-i", "--dataset", required=True,
         help="csv file with commits with typos. Must contain wrong_id, correct_id, file, line, "
              "commit_fix, repo, commit_typo columns. It is possible to specify the xz compressed "
-             "file")
+             "file.")
     typo_commits_report_parser.add_argument(
         "-o", "--output", required=True,
         help="Directory where to save results.")
@@ -174,6 +175,20 @@ def create_parser() -> ArgumentParser:
         help="Directory where to download repositories from the dataset. It is strongly \
               recommended to set this parameter if there are more than 20 repositories \
               in the dataset. Temporary directory is used if not set.")
+
+    # Report for typos on identifiers datasets
+    typos_report_parser = add_parser("evaluate-fixes",
+                                     "Generate report for typo-ed identifiers dataset.")
+    typos_report_parser.set_defaults(handler=evaluate_typos_on_identifiers)
+    add_config_arg(typos_report_parser)
+    typos_report_parser.add_argument(
+        "-d", "--dataset", required=False,
+        help="CSV file with with typos. The first two columns are wrong_id and correct_id."
+             "It is possible to specify the xz compressed file. By default the "
+             "identifiers from the Typo Commits Dataset are used.")
+    typos_report_parser.add_argument(
+        "-o", "--mistakes-output", required=False,
+        help="CSV file where to write the wrong corrections.")
 
     return parser
 
