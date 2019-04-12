@@ -57,17 +57,17 @@ $(SMOKE_REPORT_DIR) $(NOISY_REPORT_DIR) $(QUALITY_REPORT_DIR):
 	mkdir -p $@
 report-smoke: $(SMOKE_REPORT_DIR)
 	python3 -m lookout.style.format gen-smoke-dataset $(SMOKE_INIT) $(SMOKE_REPORT_DIR)/dataset \
-		2>&1 | tee $(SMOKE_REPORT_DIR)/dataset_logs.txt
+		2>&1 | tee -a $(SMOKE_REPORT_DIR)/dataset_logs.txt
 	python3 -m lookout.style.format eval-smoke-dataset $(SMOKE_REPORT_DIR)/dataset \
-		$(SMOKE_REPORT_DIR)/report 2>&1 | tee $(SMOKE_REPORT_DIR)/report_logs.txt
+		$(SMOKE_REPORT_DIR)/report 2>&1 | tee -a $(SMOKE_REPORT_DIR)/report_logs.txt
 	xz -k $(NOISY_REPORT_DIR)/logs.txt
 report-noisy: $(NOISY_REPORT_DIR)
 	python3 -m lookout.style.format quality-report-noisy --retrain -o $(NOISY_REPORT_DIR) \
-		2>&1 | tee $(NOISY_REPORT_DIR)/logs.txt
+		2>&1 | tee -a $(NOISY_REPORT_DIR)/logs.txt
 	xz -k $(NOISY_REPORT_DIR)/logs.txt
 report-quality: $(QUALITY_REPORT_DIR)
 	python3 -m lookout.style.format --log-level DEBUG quality-report -o $(QUALITY_REPORT_DIR) \
-		-i $(QUALITY_REPORT_REPOS) 2>&1 | tee $(QUALITY_REPORT_DIR)/logs.txt
+		-i $(QUALITY_REPORT_REPOS) 2>&1 | tee -a $(QUALITY_REPORT_DIR)/logs.txt
 	xz -k $(QUALITY_REPORT_DIR)/logs.txt
 report-compare:
 	python3 -m lookout.style.format compare-quality \
@@ -98,7 +98,7 @@ typos-report: $(TYPOS_COMMITS_REPORT_DIR)
 	python3 -m lookout.style.typos --log-level DEBUG typo-commits-report \
 		-o $(TYPOS_COMMITS_REPORT_DIR) -i $(TYPOS_COMMITS_DATASET) \
 		--repos-cache $(TYPOS_COMMITS_CACHE) \
-		--checkpoint-dir $(TYPOS_COMMITS_REPORT_DIR)/checkpoints 2>&1 | tee $(TYPOS_COMMITS_REPORT_DIR)/logs.txt
+		--checkpoint-dir $(TYPOS_COMMITS_REPORT_DIR)/checkpoints 2>&1 | tee -a $(TYPOS_COMMITS_REPORT_DIR)/logs.txt
 	xz -k -f $(TYPOS_COMMITS_REPORT_DIR)/logs.txt
 
 .PHONY: check docker-test bblfsh-start report-smoke report-noisy report-quality report-release \
