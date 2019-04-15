@@ -62,7 +62,7 @@ report-smoke: $(SMOKE_REPORT_DIR)
 		$(SMOKE_REPORT_DIR)/report 2>&1 | tee -a $(SMOKE_REPORT_DIR)/report_logs.txt
 	xz -k $(NOISY_REPORT_DIR)/logs.txt
 report-noisy: $(NOISY_REPORT_DIR)
-	python3 -m lookout.style.format quality-report-noisy --retrain -o $(NOISY_REPORT_DIR) \
+	python3 -m lookout.style.format quality-report-noisy -o $(NOISY_REPORT_DIR) \
 		2>&1 | tee -a $(NOISY_REPORT_DIR)/logs.txt
 	xz -k $(NOISY_REPORT_DIR)/logs.txt
 report-quality: $(QUALITY_REPORT_DIR)
