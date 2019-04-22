@@ -5,6 +5,8 @@ import sys
 import numpy as np
 from smart_open import smart_open
 
+from lookout.style.common import add_xz_to_smart_open
+
 
 class SymSpell:
     """SymSpell: 1 million times faster through Symmetric Delete
@@ -127,6 +129,7 @@ class SymSpell:
             corpus (str): Path to .csv corpus file.
         """
         if os.path.exists(corpus):
+            add_xz_to_smart_open()
             with smart_open(corpus, "r") as f:
                 for line in csv.reader(f):
                     self._create_dictionary_entry(line[0], int(line[1]))

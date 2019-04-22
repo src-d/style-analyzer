@@ -17,7 +17,7 @@ import numpy
 from smart_open import smart_open
 from tabulate import tabulate
 
-from lookout.style.common import huge_progress_bar, merge_dicts
+from lookout.style.common import add_xz_to_smart_open, huge_progress_bar, merge_dicts
 from lookout.style.format.benchmarks.general_report import QualityReportAnalyzer
 from lookout.style.format.feature_extractor import FeatureExtractor
 
@@ -221,6 +221,7 @@ def handle_input_arg(input_arg: str, log: Optional[logging.Logger] = None) -> It
         for line in sys.stdin:
             yield line
     else:
+        add_xz_to_smart_open()
         with smart_open(input_arg, "r") as f:
             for line in f:
                 yield line

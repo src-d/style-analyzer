@@ -1,11 +1,20 @@
 from copy import deepcopy
 from datetime import datetime
 import logging
+import lzma
 import os
 import pprint
 from typing import Callable, Iterator, Mapping, Sequence
 
 import jinja2
+from smart_open import register_compressor
+
+
+def add_xz_to_smart_open():
+    """Add .xz support to smart_open."""
+    def _handle_xz(file_obj, mode):
+        return lzma.LZMAFile(filename=file_obj, mode=mode, format=lzma.FORMAT_XZ)
+    register_compressor(".xz", _handle_xz)
 
 
 def merge_dicts(*dicts: Mapping) -> dict:

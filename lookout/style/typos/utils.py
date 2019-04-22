@@ -8,6 +8,8 @@ import numpy
 import pandas
 from smart_open import smart_open
 
+from lookout.style.common import add_xz_to_smart_open
+
 
 Columns = NamedTuple(
     "Columns",
@@ -45,6 +47,7 @@ def print_frequencies(frequencies: Dict[str, int], path: str) -> None:
     :param frequencies: Dictionary of tokens' frequencies.
     :param path: Path to a .csv file to print frequencies to.
     """
+    add_xz_to_smart_open()
     with smart_open(path, "w") as f:
         writer = csv.writer(f)
         for line in sorted(frequencies.items(), key=lambda x: -x[1]):
@@ -59,6 +62,7 @@ def read_frequencies(file: str) -> Dict[str, int]:
     :return: Dictionary of tokens frequencies.
     """
     frequencies = {}
+    add_xz_to_smart_open()
     with smart_open(file, "r") as f:
         for line in csv.reader(f):
             frequencies[line[0]] = int(line[1])
@@ -73,6 +77,7 @@ def read_vocabulary(file: str) -> List[str]:
                  First token in every line split-by-space is added to the vocabulary. \
     :return: List of tokens of the vocabulary.
     """
+    add_xz_to_smart_open()
     with smart_open(file, "r") as f:
         tokens = [line[0] for line in csv.reader(f)]
     return tokens
