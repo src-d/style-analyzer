@@ -48,7 +48,7 @@ setup(
         "xgboost>=0.72,<2.0",
         "tabulate>=0.8.0,<2.0",
         "python-igraph>=0.7.0,<2.0",
-        "smart-open>=1.8.1,<2.0",
+        "smart-open==1.8.1",
         "joblib>=0.13.2,<1.0",
     ],
     extras_require={
