@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 from typing import Any, Mapping, Optional
 
+import numpy
 import pandas
 
 from lookout.style.common import load_jinja2_template
@@ -47,4 +48,4 @@ def evaluate_typos_on_identifiers(dataset: str = TYPOS_DATASET,
                            Candidate=Candidate, Columns=Columns,
                            tokenize=lambda x: list(analyzer.parser.split(x)),
                            flatten_df_by_column=flatten_df_by_column,
-                           generate_report=generate_report)
+                           generate_report=generate_report, logical_and=numpy.logical_and)
