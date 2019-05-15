@@ -10,7 +10,7 @@ from lookout.style.typos.metrics import generate_report
 from lookout.style.typos.utils import Candidate, Columns, flatten_df_by_column, TEMPLATE_DIR
 
 
-TYPOS_DATASET = str(Path(__file__).parent / "data" / "commits_with_typo.csv.xz")
+TYPOS_DATASET = str(Path(__file__).parent / "data" / "filtered_commits_with_typo.csv.xz")
 
 
 def evaluate_typos_on_identifiers(dataset: str = TYPOS_DATASET,
