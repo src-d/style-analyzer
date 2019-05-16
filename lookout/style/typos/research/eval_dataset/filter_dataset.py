@@ -6,7 +6,16 @@ import spacy
 from sourced.ml.algorithms import TokenParser
 
 
-def filter_equal_identifiers(dataset: str, filtered_dataset: str) -> None:
+def filter_test_dataset(dataset: str, filtered_dataset: str) -> None:
+    """
+    Filter non-typo-ed identifiers from the dataset.
+
+    1. Filter items, where token splits of the wrong and the correct identifiers are equal (they differ in non-letter \
+    symbols or case spelling).
+    2. Filter items, where wrong and correct identifiers are equal on lemmas level.
+    :param dataset: Path to the test dataset.
+    :param filtered_dataset: Path to save the filtered test dataset to.
+    """
     data = pandas.read_csv(dataset, header=0, usecols=[0, 1], names=["wrong", "correct"], keep_default_na=False)
 
     # Filter examples with equal splits
