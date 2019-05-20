@@ -194,8 +194,8 @@ class FeatureExtractor:
                  the corresponding `VirtualNode`-s and the parents mapping \
                  or None in case no features were extracted.
         """
-        files = self._parse_vnodes(files, lines)
-        parsed_files, node_parents, vnode_parents = to_vnodes_format(files)
+        files = self._annotate_files(files, lines)
+        parsed_files, node_parents, vnode_parents = files_to_old_parse_vnodes_format(files)
         xy = self._convert_files_to_xy(parsed_files)
         if xy is None:
             return None
@@ -304,8 +304,8 @@ class FeatureExtractor:
                                       for group, counts in self._feature_node_counts.items()}
         self._feature_count = sum(self._feature_group_counts.values())
 
-    def _parse_vnodes(self, files: Iterable[UnicodeFile], lines: Optional[List[List[int]]] = None,
-                      ) -> List[AnnotationManager]:
+    def _annotate_files(self, files: Iterable[UnicodeFile],
+                        lines: Optional[List[List[int]]] = None) -> List[AnnotationManager]:
         parsed_files = []
         for i, file in enumerate(files):
             path = file.path
@@ -450,13 +450,13 @@ class FeatureExtractor:
         Annotate source code with `AtomicTokenAnnotation`, `ClassAnnotation` and \
         `AccumulatedIndentationAnnotation`.
 
-        `ClassAnnotation` caontains the index of the corresponding class to predict.
-        We detect indentation changes so several whitespace nodes are merged together.
+        `ClassAnnotation` contains the index of the corresponding class to predict.
+        We detect indentation changes, so several whitespace nodes are merged together.
 
         :param file: Source code annotated with `RawTokenAnnotation`.
         """
         indentation = []
-        for token in file.iter_annotation(RawTokenAnnotation):
+        for token in file.iter_by_type(RawTokenAnnotation):
             token_value = file[token.span]
             if token.has_node:
                 file.add(token.to_atomic_token_annotation())
@@ -574,7 +574,7 @@ class FeatureExtractor:
 
         start, stop, current_class_seq = None, None, []
 
-        for annotations in file.iter_annotations(
+        for annotations in file.iter_by_type_nested(
                 AtomicTokenAnnotation, ClassAnnotation, AccumulatedIndentationAnnotation):
             has_target = ClassAnnotation in annotations
             acc_indent = AccumulatedIndentationAnnotation in annotations
@@ -609,7 +609,8 @@ class FeatureExtractor:
             return
 
         prev_annotations = None
-        for i, annotations in enumerate(file.iter_annotations(TokenAnnotation, LabelAnnotation)):
+        for i, annotations in enumerate(file.iter_by_type_nested(
+                TokenAnnotation, LabelAnnotation)):
             if i == 0:
                 if LabelAnnotation not in annotations:
                     file.add(TokenAnnotation(0, 0))
@@ -630,7 +631,7 @@ class FeatureExtractor:
                      ) -> Optional[bblfsh.Node]:
         """
         Compute the UAST parent of the `TokenAnnotation` as the LCA of the closest left and right \
-        babelfish nodes.
+        Babelfish nodes.
 
         :param search_start_offset: Offset of the current node.
         :param file: Source code annotated with `UASTAnnotation` and `TokenAnnotation`.
@@ -644,8 +645,8 @@ class FeatureExtractor:
             left_ancestors.add(id(parents[current_left_ancestor_id]))
             current_left_ancestor_id = id(parents[current_left_ancestor_id])
 
-        for future_vnode in file.iter_annotation(TokenAnnotation,
-                                                 start_offset=search_start_offset):
+        for future_vnode in file.iter_by_type(TokenAnnotation,
+                                              start_offset=search_start_offset):
             if future_vnode.has_node:
                 break
         else:
@@ -798,7 +799,7 @@ class FeatureExtractor:
     def _fill_vnode_parents(self, file: AnnotationManager):
         closest_left_node_id = None
         uast_annotation = file.get(UASTAnnotation)
-        for annotation in file.iter_annotation(TokenAnnotation):
+        for annotation in file.iter_by_type(TokenAnnotation):
             if annotation.has_node:
                 closest_left_node_id = id(annotation.node)
                 file.add(TokenParentAnnotation(*annotation.span,
@@ -821,13 +822,13 @@ def _to_position(raw_lines_data, _lines_start_offset, offset):
     return Position(offset, line_num + 1, col + 1)
 
 
-def raw_file_to_vnodes_and_parents(file: AnnotationManager) -> Tuple[List["VirtualNode"],
-                                                                     Dict[int, bblfsh.Node]]:
+def file_to_old_parse_file_format(file: AnnotationManager) -> Tuple[List["VirtualNode"],
+                                                                    Dict[int, bblfsh.Node]]:
     """
     Convert `AnnotationManager` instance to the deprecated output format of \
     `FeatureExtractor._parse_file()`.
 
-    The function is created for backwards capability and should be removed after refactoring is \
+    The function exists for backward compatibility and should be removed after the refactoring is \
     finished.
 
     :param file: file annotated with `UASTAnnotation`, `PathAnnotation` and `RawTokenAnnotation`. \
@@ -841,7 +842,7 @@ def raw_file_to_vnodes_and_parents(file: AnnotationManager) -> Tuple[List["Virtu
     line_lens = [0] + [len(d) for d in raw_lines_data]
     line_lens[-1] += 1
     _line_start_offsets = numpy.array(line_lens).cumsum()
-    for annotation in file.iter_annotation(RawTokenAnnotation):
+    for annotation in file.iter_by_type(RawTokenAnnotation):
         vnode = VirtualNode(
             file[annotation.span],
             _to_position(raw_lines_data, _line_start_offsets, annotation.start),
@@ -855,13 +856,19 @@ def raw_file_to_vnodes_and_parents(file: AnnotationManager) -> Tuple[List["Virtu
     return vnodes, file.get(UASTAnnotation).parents
 
 
-def file_to_vnodes_and_parents(file: AnnotationManager) -> Tuple[List["VirtualNode"],
-                                                                 Dict[int, bblfsh.Node]]:
+def _file_to_vnodes_and_parents(file: AnnotationManager) -> Tuple[List["VirtualNode"],
+                                                                  Dict[int, bblfsh.Node]]:
     """
-    Convert `AnnotationManager` instance to an old format, that is a sequence of vnodes and \
-    vnodes parents mapping.
+    Convert one `AnnotationManager` instance to the deprecated format of \
+    `FeatureExtractor._annotate_files()` (`_parse_vnodes()` before refactoring).
 
-    The function is created for backwards capability and should be removed after refactoring is \
+    The old format is a sequence of vnodes and vnodes parents mapping. Used by
+    `files_to_old_parse_file_format` to generate the old `_parse_vnodes`-like output format for a
+    sequence of `AnnotationManager`-s. This function is different from
+    `file_to_old_parse_file_format()` because it is created for `_parse_vnodes()` backward
+    compatibility and `file_to_old_parse_file_format()` for `_parse_file()` backward compatibility.
+
+    The function exists for backward compatibility and should be removed after the refactoring is \
     finished.
 
     :param file: file annotated with `Path`-, `Token`-, `Label`-, `TokenParent`- `Annotation`.
@@ -874,8 +881,8 @@ def file_to_vnodes_and_parents(file: AnnotationManager) -> Tuple[List["VirtualNo
     line_lens[-1] += 1
     _line_start_offsets = numpy.array(line_lens).cumsum()
     vnode_parents = {}
-    for annotations in file.iter_annotations(TokenAnnotation,
-                                             LabelAnnotation, TokenParentAnnotation):
+    for annotations in file.iter_by_type_nested(TokenAnnotation,
+                                                LabelAnnotation, TokenParentAnnotation):
         vnode = VirtualNode(
             file[annotations.span],
             _to_position(raw_lines_data, _line_start_offsets, annotations.start),
@@ -891,15 +898,18 @@ def file_to_vnodes_and_parents(file: AnnotationManager) -> Tuple[List["VirtualNo
     return vnodes, vnode_parents
 
 
-def to_vnodes_format(files: Sequence[AnnotationManager],
-                     ) -> Tuple[List[Tuple[List[VirtualNode], Dict[int, bblfsh.Node], Set[int]]],
-                                Dict[int, bblfsh.Node],
-                                Dict[int, bblfsh.Node]]:
+def files_to_old_parse_vnodes_format(
+        files: Sequence[AnnotationManager],
+    ) -> Tuple[List[Tuple[List[VirtualNode], Dict[int, bblfsh.Node], Set[int]]],
+               Dict[int, bblfsh.Node],
+               Dict[int, bblfsh.Node]]:
     """
-    Convert `AnnotationManager` instances to the deprecated output format of \
-    `FeatureExtractor._parse_vnodes()`.
+    Convert a sequence of `AnnotationManager` instances to the deprecated output format of \
+    `FeatureExtractor._annotate_files()` (`_parse_vnodes()` before refactoring).
 
-    The function is created for backwards capability and should be removed after refactoring is \
+    In addition to `_file_to_vnodes_and_parents()` it provides the `node_parents` mapping.
+
+    The function exists for backward compatibility and should be removed after the refactoring is \
     finished.
 
     :param files: Sequence of fully annotated files. It is expected to be the output of \
@@ -911,11 +921,11 @@ def to_vnodes_format(files: Sequence[AnnotationManager],
     node_parents = {}
     vnodes = []
     for file in files:
-        file_vnodes, file_vnode_parents = file_to_vnodes_and_parents(file)
+        file_vnodes, file_vnode_parents = _file_to_vnodes_and_parents(file)
         file_node_parents = file.get(UASTAnnotation).parents
         try:
             file_lines = set(file.get(LinesToCheckAnnotation).lines)
-        except Exception:
+        except KeyError:
             file_lines = None
         vnodes.append((file_vnodes, file_node_parents, file_lines))
         vnode_parents.update(file_vnode_parents)

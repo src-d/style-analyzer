@@ -1,4 +1,4 @@
-from typing import Dict, Iterator, Optional, Tuple, Union, Type  # noqa F401
+from typing import Dict, Iterator, Optional, Tuple, Union, Type, Callable  # noqa F401
 
 from lookout.core.analyzer import UnicodeFile
 from sortedcontainers import SortedDict
@@ -39,9 +39,7 @@ class AnnotationsSpan(dict):
         self._stop = stop
 
     start = property(lambda self: self._start)
-
     stop = property(lambda self: self._stop)
-
     span = property(lambda self: self._span)
 
 
@@ -66,14 +64,14 @@ class AnnotationManager:
         # Dictionary to store annotations for the whole file (aka `global` annotations)
         self._global_annotations = {}  # type: Dict[Type[Annotation], Annotation]
 
-        # Next dictionaries are the main core of this class. The most common use-case we have in
-        # style-analyzer is iterating through Token annotations in the sorted order. That is why
+        # The following dictionaries are the main members. The most common use case we have in
+        # style-analyzer is iterating through Token annotations in the sorted order. This is why
         # ordered dict is used.
         # `self._type_to_annotations` is the main storage of the Annotations. It is a mapping
-        # from the annotation type to all annotations of this type which are are stored in the \
+        # from the annotation type to all annotations of this type which are stored in the \
         # dictionary that is sorted by spans.
         # `self._span_to_annotations` dict is an optimization to quickly lookup all
-        # `Annotation`-s that belongs to the same [start, stop) span.
+        # `Annotation`-s that belong to the same [start, stop) span.
         self._span_to_annotations = SortedDict()  # type: SortedDict[(int, int), Dict[Type[Annotation], Annotation]]  # noqa E501
         self._type_to_annotations = {}  # type: Dict[Type[Annotation], SortedDict[(int, int), Annotation]]  # noqa E501
 
@@ -85,7 +83,7 @@ class AnnotationManager:
 
     def __getitem__(self, item: Union[int, slice, Tuple[int, int]]) -> str:
         """
-        Get the underlying sequence item or slice for the specified range.
+        Get the underlying sequence item or sequence slice for the specified range.
 
         :param item: index, slice or (start, stop) tuple.
         :return: The corresponding part of the sequence.
@@ -98,14 +96,11 @@ class AnnotationManager:
 
     def count(self, annotation_type: Type[Annotation]):
         """Count the number of annotations of a specific type."""
-        try:
-            return len(self._type_to_annotations[annotation_type])
-        except KeyError:
-            return 0
+        return len(self._type_to_annotations.get(annotation_type, []))
 
     def add(self, *annotations: Annotation) -> None:
         """
-        Add multiple annotations.
+        Add several annotations.
         """
         for annotation in annotations:
             self._add(annotation)
@@ -132,13 +127,13 @@ class AnnotationManager:
                         self._type_to_annotations[annotation_type].peekitem(right_span_index)
                     if self._check_spans_overlap(*right_span, *annotation.span):
                         raise ValueError(
-                            "Trying to add Annotation %s which is overlaps with existing %s" % (
+                            "Trying to add Annotation %s which overlaps with existing %s" % (
                                 right_annotation, annotation))
                 left_span_index = max(0, right_span_index - 1)
                 left_span, left_annotation = self._type_to_annotations[annotation_type].peekitem(
                     left_span_index)
                 if self._check_spans_overlap(*left_span, *annotation.span):
-                    raise ValueError("Trying to add Annotation %s which is overlaps with existing"
+                    raise ValueError("Trying to add Annotation %s which overlaps with existing"
                                      "%s" % (left_annotation, annotation))
             self._span_to_annotations[annotation.span][annotation_type] = annotation
             self._type_to_annotations[annotation_type][annotation.span] = annotation
@@ -148,7 +143,7 @@ class AnnotationManager:
         """
         Return an annotation for the given span and type.
 
-        Looking for an exact match only.
+        Looking for an exact (type and span) match only.
 
         :param annotation_type: Annotation type to get.
         :param span: Annotation span (range) to get. If span is not specified it returns an \
@@ -157,32 +152,47 @@ class AnnotationManager:
         """
         if span is None:
             return self._global_annotations[annotation_type]
-        else:
-            check_span(*span)
-            return self._type_to_annotations[annotation_type][span]
+        check_span(*span)
+        return self._type_to_annotations[annotation_type][span]
 
-    def iter_annotations(self, annotation_type: Type[Annotation],
-                         *additional: Type[Annotation],
-                         start_offset: Optional[int] = None) -> Union[Iterator[AnnotationsSpan]]:
+    def iter_by_type_nested(self, annotation_type: Type[Annotation],
+                            *covered_by: Type[Annotation],
+                            start_offset: Optional[int] = None) -> Iterator[AnnotationsSpan]:
         """
-        Iterate through annotations with specified type.
+        Iterate over annotations of the specified type which are covered by some other annotation \
+        types.
 
-        Iteration goes through `annotation_type`. It is additionally annotated with annotations
-        specified in `additional`. `additional` can't be empty. If you need to iterate through \
-        one annotation only use `AnnotationManager.iter_annotation()`.
+        Iteration goes over `annotation_type` objects. Annotations which are specified in
+        `covered_by` are added to the resulting `AnnotationsSpan` object. Spans of the additional
+        annotations should fully cover the spans of `annotation_type`. For example, suppose that
+        you have *line* and *token* annotations. Each line contains several tokens. If you try to
+        iterate through *line* and set *token* as `covered_by` annotation you get only *line*
+        annotation inside `AnnotationsSpan`. It happens because you can annotate *token* with
+        *line* but not *line* with *token*: *token* is covered by only one line and not vice versa.
+
+        So,
+        manager.iter_by_type_nested(line, token)  # gives you only line annotation as output,
+                                                  # *token* annotations not found
+        manager.iter_by_type_nested(token, line)  # gives you *token* and *line* annotations
+                                                  # because it is possible to find only one
+                                                  # covering *line* annotation.
+
+        `covered_by` can't be empty. If you need to iterate over a single annotation type, you
+        should call `AnnotationManager.iter_annotation()` instead.
 
         :param annotation_type: Type of annotation to iterate through.
-        :param additional: Additional annotations that should be added to the main one.
-        :param start_offset: Start to iterate from the spesific offset. \
+        :param covered_by: Additional annotations that should be added to the main one if they \
+                           cover its span.
+        :param start_offset: Start to iterate from a specific offset. \
                              Can be used as a key argument only.
-        :return: Iterator through annotations of requested types.
+        :return: Iterator over annotations of the requested type.
         """
-        if not additional:
-            raise ValueError("At least one additional annotation should be specified. "
-                             "If you need to iterate through only one annotation use "
+        if not covered_by:
+            raise ValueError("At least one covered_by annotation must be specified. "
+                             "If you need to iterate over a single annotation type use "
                              "`iter_annotation()`.")
-        types = set(additional) | {annotation_type}
-        for annotation in self.iter_annotation(annotation_type, start_offset=start_offset):
+        types = set(covered_by) | {annotation_type}
+        for annotation in self.iter_by_type(annotation_type, start_offset=start_offset):
             # Annotations with the same span
             same_span_annotations = self._span_to_annotations[annotation.span]
             same_span_annotations_type = set(same_span_annotations.keys())
@@ -198,10 +208,10 @@ class AnnotationManager:
             annotations.update({type: same_span_annotations[type] for type in common_types})
             yield AnnotationsSpan(*annotation.span, annotations)
 
-    def iter_annotation(self, annotation_type: Type[Annotation], *,
-                        start_offset: Optional[int] = None) -> Iterator[Annotation]:
+    def iter_by_type(self, annotation_type: Type[Annotation], *,
+                     start_offset: Optional[int] = None) -> Iterator[Annotation]:
         """
-        Iterate through a specific type of annotation.
+        Iterate over annotations of the specified type.
 
         If you need to iterate through several annotations use \
         `AnnotationManager.iter_annotations()` instead.
@@ -219,6 +229,21 @@ class AnnotationManager:
         for value in self._type_to_annotations[annotation_type].values()[search_from:]:
             yield value
 
+    def _find_annotations(self, annotation_type: Type[Annotation], start: int, stop: int,
+                          inspect: Callable, action: str) -> Annotation:
+        try:
+            annotation_layer = self._type_to_annotations[annotation_type]
+        except KeyError:
+            raise NoAnnotation("There is no annotation type %s" % annotation_type)
+        check_span(start, stop)
+        search_start = max(0, annotation_layer.bisect_left((start, start)) - 1)
+        search_stop = annotation_layer.bisect_right((stop, stop))
+        for span in annotation_layer.islice(search_start, search_stop):
+            if inspect(*span):
+                return annotation_layer[span]
+        raise NoAnnotation("There is no annotation %s that %s [%d, %d)" % (
+            annotation_type, action, start, stop))
+
     def find_overlapping_annotation(self, annotation_type: Type[Annotation],
                                     start: int, stop: int) -> Annotation:
         """
@@ -230,19 +255,10 @@ class AnnotationManager:
         :raise NoAnnotation: There is no such annotation that overlaps with the given interval.
         :return: `Annotation` of the requested type.
         """
-        try:
-            annotation_layer = self._type_to_annotations[annotation_type]
-        except KeyError:
-            raise NoAnnotation("There is no annotation layer %s" % annotation_type)
-        check_span(start, stop)
-        search_start = max(0, annotation_layer.bisect_left((start, start)) - 1)
-        search_stop = annotation_layer.bisect_right((stop, stop))
-        for span in annotation_layer.islice(search_start, search_stop):
-            if self._check_spans_overlap(start, stop, *span):
-                # assuming that there is only one such annotation
-                return annotation_layer[span]
-        raise NoAnnotation("There is no annotation %s from %d to %d" % (
-            annotation_type, start, stop))
+        return self._find_annotations(
+            annotation_type, start, stop, action="overlaps",
+            inspect=lambda span_start, span_stop: self._check_spans_overlap(
+                start, stop, span_start, span_stop))
 
     def find_covering_annotation(self, annotation_type: Type[Annotation],
                                  start: int, stop: int) -> Annotation:
@@ -255,27 +271,18 @@ class AnnotationManager:
         :raise NoAnnotation: There is no such annotation that overlaps with the given interval.
         :return: `Annotation` of the requested type.
         """
-        try:
-            annotation_layer = self._type_to_annotations[annotation_type]
-        except KeyError:
-            raise NoAnnotation("There is no annotation layer %s" % annotation_type)
-        check_span(start, stop)
-        search_start = max(0, annotation_layer.bisect_left((start, start)) - 1)
-        search_stop = annotation_layer.bisect_right((stop, stop))
-        for span_start, span_stop in annotation_layer.islice(search_start, search_stop):
+        def check_cover(span_start, span_stop):
             if start == stop:
-                if self._check_spans_overlap(start, stop, span_start, span_stop):
-                    return annotation_layer[(span_start, span_stop)]
-            elif span_start <= start and stop <= span_stop:
-                # assuming that there is only one such annotation because they cannot overlap
-                return annotation_layer[(span_start, span_stop)]
-        raise NoAnnotation("There is no annotation %s that contains i%d to %d" % (
-            annotation_type, start, stop))
+                return self._check_spans_overlap(start, stop, span_start, span_stop)
+            return span_start <= start and stop <= span_stop
+
+        return self._find_annotations(annotation_type, start, stop, action="contains",
+                                      inspect=check_cover)
 
     @classmethod
     def _check_spans_overlap(cls, start1: int, stop1: int, start2: int, stop2: int) -> bool:
         """
-        Check if two spans have at least 1 common point in their overlap.
+        Check if two spans have at least 1 common point.
 
         Span 1 is [start1, stop1). `stop1` itself is excluded.
         Span 2 is [start2, stop2). `stop2` itself is excluded.
@@ -289,28 +296,25 @@ class AnnotationManager:
             2.3. [x, y) and [y, y) have no overlap.
             2.4. [x, z) and [y, y) are overlapping because [x, z) fully covers y point.
 
-        Despite the fact that overlapping rules are defined for 0-intervals it is not recommended \
-        to rely on them. If you want to get an additional annotation of the 0-interval annotation \
-        link one annotation to another. See `TokenAnnotation` as an example.
+        Despite the fact that overlapping rules are defined for 0-intervals, it is unsafe \
+        to rely on them. If you want to get an additional annotation of the 0-interval \
+        annotation, link one annotation to another. See `TokenAnnotation` for example.
 
         :param start1: Start offset of the first span.
         :param stop1: Stop offset of the first span.
         :param start2: Start offset of the second span.
         :param stop2: Stop offset of the second span.
-        :return: True if spans are overlapping else False.
+        :return: True if two spans overlap, otherwise False.
         """
         if start1 == stop1:
             if start2 == stop2:
                 return start1 == start2
-            else:
-                return start2 < start1 < stop2
-        else:
-            if start2 == stop2:
-                return start1 < start2 < stop1
-            else:
-                return (start1 <= start2 < stop1 or
-                        start1 < stop2 < stop1 or
-                        start2 <= start1 < stop2)
+            return start2 < start1 < stop2
+        if start2 == stop2:
+            return start1 < start2 < stop1
+        return (start1 <= start2 < stop1 or
+                start1 < stop2 < stop1 or
+                start2 <= start1 < stop2)
 
     @classmethod
     def from_file(cls, file: UnicodeFile) -> "AnnotationManager":

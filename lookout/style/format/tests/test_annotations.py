@@ -86,9 +86,10 @@ class AnnotationsTests(unittest.TestCase):
                                       AnotherAnnotation: another_annotation}),
                AnnotationsSpan(3, 4, {Annotation: annotations[2],
                                       AnotherAnnotation: another_annotation})]
-        self.assertEqual(list(annotated_data.iter_annotations(Annotation, AnotherAnnotation)), res)
+        self.assertEqual(list(annotated_data.iter_by_type_nested(
+            Annotation, AnotherAnnotation)), res)
 
-        annotations = list(annotated_data.iter_annotations(AnotherAnnotation, Annotation))
+        annotations = list(annotated_data.iter_by_type_nested(AnotherAnnotation, Annotation))
         res = [AnnotationsSpan(0, len(code)-1, {AnotherAnnotation: another_annotation})]
         self.assertEqual(annotations, res)
 
@@ -96,15 +97,15 @@ class AnnotationsTests(unittest.TestCase):
         code = "0123456789"
         annotated_data = AnnotationManager(code)
         with self.assertRaises(KeyError):
-            list(annotated_data.iter_annotation(Annotation))
+            list(annotated_data.iter_by_type(Annotation))
 
         annotations = [Annotation(0, 3), Annotation(3, 3), Annotation(3, 4)]
         annotated_data.add(*annotations[::-1])
-        self.assertEqual(list(annotated_data.iter_annotation(Annotation)),
+        self.assertEqual(list(annotated_data.iter_by_type(Annotation)),
                          annotations)
         more_annotations = [Annotation(0, 0), Annotation(4, 4), Annotation(4, 7)]
         annotated_data.add(*more_annotations)
-        self.assertEqual(list(annotated_data.iter_annotation(Annotation)),
+        self.assertEqual(list(annotated_data.iter_by_type(Annotation)),
                          sorted(annotations + more_annotations, key=lambda x: x.span))
 
     def test_find_overlapping_annotation(self):

@@ -10,10 +10,12 @@ from lookout.style.format.benchmarks.expected_vnodes_number import \
 
 
 class ExpectedVnodesTest(unittest.TestCase):
+    def setUp(self):
+        slogging.setup("INFO", False)
+
     @unittest.skipIf(sys.version_info.minor == 6, "We test python 3.6 inside docker container, "
                                                   "so there is no another docker inside.")
     def test_calc_expected_vnodes_number_entry(self):
-        slogging.setup("INFO", False)
         quality_report_repos_filepath = os.path.abspath(
             os.path.join(os.path.split(__file__)[0],
                          "../benchmarks/data/quality_report_repos.csv"))

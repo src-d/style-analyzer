@@ -18,7 +18,7 @@ from lookout.style.format.annotations.annotations import AtomicTokenAnnotation, 
     LabelAnnotation, RawTokenAnnotation, TokenAnnotation, UASTAnnotation
 from lookout.style.format.classes import CLASS_INDEX, CLASSES, CLS_NEWLINE, CLS_NOOP, \
     CLS_SINGLE_QUOTE, CLS_SPACE, CLS_SPACE_DEC, CLS_SPACE_INC
-from lookout.style.format.feature_extractor import FeatureExtractor, raw_file_to_vnodes_and_parents
+from lookout.style.format.feature_extractor import FeatureExtractor, file_to_old_parse_file_format
 from lookout.style.format.tests.test_analyzer import get_config
 from lookout.style.format.virtual_node import Position, VirtualNode
 
@@ -54,10 +54,10 @@ class FeaturesTests(unittest.TestCase):
             File(uast=uast, content=code, language="javascript", path=""))
         annotated_file = AnnotationManager.from_file(file)
         self.extractor._parse_file(annotated_file)
-        nodes, _ = raw_file_to_vnodes_and_parents(annotated_file)
+        nodes, _ = file_to_old_parse_file_format(annotated_file)
         self.assertEqual("".join(n.value for n in nodes), code.decode())
         self.assertEqual("".join(annotated_file[token.span]
-                                 for token in annotated_file.iter_annotation(RawTokenAnnotation)),
+                                 for token in annotated_file.iter_by_type(RawTokenAnnotation)),
                          code.decode())
 
     def test_extract_features_exact_match(self):
@@ -76,14 +76,14 @@ class FeaturesTests(unittest.TestCase):
         annotated_file = AnnotationManager.from_file(file)
         self.extractor._parse_file(annotated_file)
         self.assertEqual("".join(annotated_file[token.span] for token in
-                                 annotated_file.iter_annotation(RawTokenAnnotation)),
+                                 annotated_file.iter_by_type(RawTokenAnnotation)),
                          code.decode())
 
     def test_parse_file(self):
         self.extractor._parse_file(self.annotated_file)
         text = []
         offset = line = col = 0
-        nodes, _ = raw_file_to_vnodes_and_parents(self.annotated_file)
+        nodes, _ = file_to_old_parse_file_format(self.annotated_file)
         parents = self.annotated_file.get(UASTAnnotation).parents
         for n in nodes:
             if line == n.start.line - 1:
@@ -105,7 +105,7 @@ class FeaturesTests(unittest.TestCase):
             File(content=contents.encode(), uast=self.uast, language="javascript", path="test"))
         annotated_data = AnnotationManager.from_file(file)
         self.extractor._parse_file(annotated_data)
-        nodes, _ = raw_file_to_vnodes_and_parents(annotated_data)
+        nodes, _ = file_to_old_parse_file_format(annotated_data)
         offset, line, col = nodes[-1].end
         self.assertEqual(len(contents), offset)
         # Space token always ends on the same line
@@ -116,12 +116,12 @@ class FeaturesTests(unittest.TestCase):
         self.extractor._parse_file(self.annotated_file)
         self.extractor._classify_vnodes(self.annotated_file)
         text = "".join(self.annotated_file[token.span] for token in
-                       self.annotated_file.iter_annotation(AtomicTokenAnnotation))
+                       self.annotated_file.iter_by_type(AtomicTokenAnnotation))
         self.assertEqual(text, self.contents)
         cls_counts = Counter()
         old_stop = 0
-        for annotations in self.annotated_file.iter_annotations(AtomicTokenAnnotation,
-                                                                ClassAnnotation):
+        for annotations in self.annotated_file.iter_by_type_nested(AtomicTokenAnnotation,
+                                                                   ClassAnnotation):
             self.assertEqual(old_stop, annotations.start)
             if ClassAnnotation in annotations:
                 cls_counts.update(map(CLASSES.__getitem__,
@@ -143,12 +143,12 @@ class FeaturesTests(unittest.TestCase):
         self.extractor._parse_file(annotated_file)
         self.extractor._classify_vnodes(annotated_file)
         text = "".join(annotated_file[token.span] for token in
-                       annotated_file.iter_annotation(AtomicTokenAnnotation))
+                       annotated_file.iter_by_type(AtomicTokenAnnotation))
         self.assertEqual(text, contents)
         cls_counts = Counter()
         old_stop = 0
-        for annotations in annotated_file.iter_annotations(AtomicTokenAnnotation,
-                                                           ClassAnnotation):
+        for annotations in annotated_file.iter_by_type_nested(AtomicTokenAnnotation,
+                                                              ClassAnnotation):
             self.assertEqual(old_stop, annotations.start)
             if ClassAnnotation in annotations:
                 cls_counts.update(map(CLASSES.__getitem__,
@@ -245,7 +245,8 @@ class FeaturesTests(unittest.TestCase):
         self.extractor._classify_vnodes(self.annotated_file)
         self.extractor._merge_classes_to_composite_labels(self.annotated_file)
         self.extractor._add_noops(self.annotated_file)
-        annotations = list(self.annotated_file.iter_annotations(TokenAnnotation, LabelAnnotation))
+        annotations = list(self.annotated_file.iter_by_type_nested(
+            TokenAnnotation, LabelAnnotation))
         for ann1, ann2, ann3 in zip(annotations,
                                     islice(annotations, 1, None),
                                     islice(annotations, 2, None)):

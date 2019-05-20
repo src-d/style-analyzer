@@ -1,26 +1,28 @@
 """Annotations for style-analyzer."""
-from typing import FrozenSet, Optional, Tuple
+from typing import FrozenSet, Optional, Tuple, Union
+
+import numpy
 
 from lookout.style.format.utils import get_uast_parents
 
 
-def check_offset(value: int, name: str) -> None:
+def check_offset(value: Union[int, numpy.int], name: str) -> None:
     """
-    Check offset value for unexpected values as wrong type and negative.
+    Validate the offset: check the type and reject negative values.
 
     :param value: Offset value to check.
-    :param name: Variable name for exception message.
+    :param name: Variable name for the exception message.
     :raises ValueError: if value is incorrect.
     """
-    if not isinstance(value, int):
-        raise ValueError("Type of `%s` should be int. Get %s" % (name, type(value)))
+    if not (isinstance(value, int) or isinstance(value, numpy.int)):
+        raise ValueError("Type of `%s` should be int. Got %s" % (name, type(value)))
     if value < 0:
-        raise ValueError("`%s` should be non-negative. Get %d" % (name, value))
+        raise ValueError("`%s` should be non-negative. Got %d" % (name, value))
 
 
 def check_span(start: int, stop: int) -> None:
     """
-    Check span value for unexpected values as wrong type and negative or wrong order.
+    Validate span value: check the type, reject negative values and ensure an increasing order.
 
     :param start: Start offset of the span.
     :param stop: Stop offset of the span.
@@ -29,7 +31,7 @@ def check_span(start: int, stop: int) -> None:
     check_offset(start, "start")
     check_offset(stop, "stop")
     if stop < start:
-        raise ValueError("`stop` should be not less than `start`. Get start=%d, stop=%d" % (
+        raise ValueError("`stop` should be not less than `start`. Got start=%d, stop=%d" % (
             start, stop))
 
 
@@ -48,11 +50,8 @@ class Annotation:
         self._stop = stop
 
     start = property(lambda self: self._start)
-
     stop = property(lambda self: self._stop)
-
     span = property(lambda self: (self._start, self._stop))
-
     name = property(lambda self: type(self).__name__)
 
     def __repr__(self) -> str:
@@ -68,16 +67,16 @@ class LineAnnotation(Annotation):
     """
     Line number annotation.
 
-    Line number in 1-based.
+    Line numbers are 1-based.
     """
 
     def __init__(self, start: int, stop: int, line: int):
         """Initialize a new instance of `LineAnnotation`."""
         super().__init__(start, stop)
         if not isinstance(line, int):
-            raise ValueError("Type of `line` should be int. Get %s" % type(line))
+            raise ValueError("Type of `line` should be int. Got %s" % type(line))
         if line < 1:
-            raise ValueError("`line` value should be positive. Get %d" % line)
+            raise ValueError("`line` value should be positive. Got %d" % line)
         self._line = line
 
     line = property(lambda self: self._line)
@@ -116,7 +115,6 @@ class UASTAnnotation(UASTNodeAnnotation):
         self._parents = get_uast_parents(uast)
 
     uast = property(lambda self: self._node)
-
     parents = property(lambda self: self._parents)
 
 
@@ -128,8 +126,8 @@ class TokenAnnotation(Annotation):
         """
         Initialize a new instance of `TokenAnnotation`.
 
-        `TokenAnnotation` can be 0-interval: [x, x). To avoid the complex search of related uast
-        annotation it is required to pass `UASTNodeAnnotation` to `__init__()`.
+        `TokenAnnotation` may have 0 length: [x, x). To avoid the complex search of the related
+        UAST annotation it is required to pass `UASTNodeAnnotation` to `__init__()`.
 
         :param start: Annotation start.
         :param stop: Annotation end.
@@ -235,9 +233,9 @@ class LinesToCheckAnnotation(Annotation):
         super().__init__(start, stop)
         for line in lines:
             if not isinstance(line, int):
-                raise ValueError("Type of `line` should be int. Get %s" % type(line))
+                raise ValueError("Type of `line` should be int. Got %s" % type(line))
             if line < 1:
-                raise ValueError("`line` value should be positive. Get %d" % line)
+                raise ValueError("`line` value should be positive. Got %d" % line)
         self._lines = lines
 
     lines = property(lambda self: self._lines)
