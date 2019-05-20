@@ -45,8 +45,10 @@ class ClonerTests(unittest.TestCase):
             "failed to clone",
             "successfully cloned 5/6 repositories",
         ]
-        output = (json.loads(log_entry)["msg"] for log_entry in output)
-        output = [o for o in output if "| elapsed" not in o and "Using backend" not in o]
+        output = "\n".join((("}," if o == "}" else o) for o in output))
+        output = json.loads("[%s]" % output[:-1])
+        output = [o["msg"] for o in output
+                  if "| elapsed" not in o["msg"] and "Using backend" not in o["msg"]]
         self.assertEqual(len(output), len(expected_log))
         for expected_msg, log_msg in zip(expected_log, output):
             self.assertEqual(expected_msg, log_msg[:len(expected_msg)])
