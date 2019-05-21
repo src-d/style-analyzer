@@ -1,44 +1,35 @@
-import csv
-import gzip
+import lzma
 import re
 import sys
 
 from tqdm import tqdm
 
+typosre = re.compile(
+    r"((fix|correct)(|ed)\s+(|a\s+|the\s+)(typo|misprint)s?\s+.*(func|function|method|var|variable|cls|class|struct|identifier|attr|attribute|prop|property|name))|(^s/[^/]+/[^/]+)",
+    re.IGNORECASE)
+typosblackre = re.compile(r"filename|file name|\spath|\scomment", re.IGNORECASE)
 
-# >>> include s/xxx/yyy/
 
-typosre = re.compile(r"(fix|correct)(|ed)\s+(|a\s+|the\s+)(typo|misprint)s?\s+.*(func|function|method|var|variable|cls|class|struct|identifier|attr|attribute|prop|property|name)")
-typosblackre = re.compile(r"(filename|file name|\spath|\scomment)")
-dates = input().split(" ")
+with open("candidates.txt", "w") as fout:
+    with open("messages.txt.xz", "rb") as xzfile:
+        xzfile.seek(0, 2)
+        with tqdm(total=xzfile.tell()) as progress:
+            xzfile.seek(0, 0)
+            with lzma.open(xzfile) as messages:
+                extra = b""
+                i = 0
+                while True:
+                    chunk = messages.read(1 << 18)
+                    if len(chunk) != 1 << 18:
+                        break
+                    progress.n = xzfile.tell()
+                    progress.update(0)
+                    parts = chunk.split(b"\0")
+                    parts[0] = extra + parts[0]
+                    extra = parts[-1]
+                    for part in parts[:-1]:
+                        msg = part.decode("utf-8", errors="ignore")
+                        if typosre.search(msg) and not typosblackre.search(msg):
+                            fout.write(str(i) + "\n")
+                        i += 1
 
-typos = []
-for date in tqdm(dates):
-    with gzip.open("updates/messages-%s.txt.gz" % date) as msgfile:
-        messages = msgfile.read().split(b"\0")
-    with gzip.open("updates/repos-%s.txt.gz" % date) as repofile:
-        repos = repofile.read().split(b"\0")
-    with open("updates/commits-%s.bin" % date, "rb") as fin:
-        commits = []
-        while True:
-            buf = fin.read(20)
-            if len(buf) != 20:
-                break
-            commits.append(buf.hex())
-    if messages[-1] == b"":
-        messages = messages[:-1]
-    if repos[-1] == b"":
-        repos = repos[:-1]
-    assert len(messages) == len(repos)
-    assert len(repos) == len(commits)
-    for msg, repo, commit in zip(messages, repos, commits):
-        msg = msg.decode(errors="ignore")
-        lmsg = msg.lower()
-        if typosre.search(lmsg) and not typosblackre.search(lmsg):
-            typos.append((repo.decode(), commit, msg))
-
-typos.sort()
-with open(sys.argv[1], "w") as fout:
-    writer = csv.writer(fout)
-    for t in typos:
-        writer.writerow(t)
