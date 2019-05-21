@@ -28,11 +28,11 @@ Checked tokens inside the vocabulary {{ tokens | intersect(vocabulary_tokens) | 
 
 {% set accuracies = {-1: 0} %}
 {% for pos in range(n_candidates) %}
-{% do accuracies.__setitem__(pos, accuracies[pos - 1] + 100 * (logical_and(identifiers["sugg " + pos|string].eq(identifiers["correct"]), typoed).sum() / typoed.sum())) %}
+{% do accuracies.__setitem__(pos, accuracies[pos - 1] + 100 * (identifiers["sugg " + pos|string].eq(identifiers["correct"]).__and__(typoed).sum() / typoed.sum())) %}
 {% endfor %}
 
-Detection precision | {{ "%.2f%%" % (100.0 * logical_and(corrected, typoed).sum() / corrected.sum()) }}
-Detection recall | {{ "%.2f%%" % (100.0 * logical_and(corrected, typoed).sum() / typoed.sum()) }}
+Detection precision | {{ "%.2f%%" % (100.0 * corrected.__and__(typoed).sum() / corrected.sum()) }}
+Detection recall | {{ "%.2f%%" % (100.0 * corrected.__and__(typoed).sum() / typoed.sum()) }}
 Total top1 accuracy | {{ "%.2f%%" % (100.0 * identifiers["sugg 0"].eq(identifiers["correct"]).mean())}}
 Top1 accuracy on typo-ed | {{ "%.2f%%" % accuracies[0] }}
 Top2 accuracy on typo-ed | {{ "%.2f%%" % accuracies[1] }}
