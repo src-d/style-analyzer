@@ -2,7 +2,6 @@ import os
 from pathlib import Path
 from typing import Any, Mapping, Optional
 
-import numpy
 import pandas
 
 from lookout.style.common import load_jinja2_template
