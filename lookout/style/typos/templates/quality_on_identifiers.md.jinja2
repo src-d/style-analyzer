@@ -23,8 +23,17 @@ Checked tokens inside the vocabulary {{ tokens | intersect(vocabulary_tokens) | 
 
 ## Identifiers correction quality
 
-{% set s = {"cumsum": 0} %}
+{% set typoed = identifiers["wrong"].ne(identifiers["correct"]).values %}
+{% set corrected = identifiers["sugg 0"].ne(identifiers["wrong"]).values %}
+
+{% set accuracies = {-1: 0} %}
 {% for pos in range(n_candidates) %}
-{% do s.__setitem__("cumsum", s["cumsum"] + 100 * (identifiers["sugg " + pos|string].eq(identifiers["correct"]).mean())) %}
-{{ "%.2f%% of <=%d-th suggestions are correct " % (s["cumsum"], pos + 1) }}
+{% do accuracies.__setitem__(pos, accuracies[pos - 1] + 100 * (identifiers["sugg " + pos|string].eq(identifiers["correct"]).__and__(typoed).sum() / typoed.sum())) %}
 {% endfor %}
+
+Detection precision | {{ "%.2f%%" % (100.0 * corrected.__and__(typoed).sum() / corrected.sum()) }}
+Detection recall | {{ "%.2f%%" % (100.0 * corrected.__and__(typoed).sum() / typoed.sum()) }}
+Total top1 accuracy | {{ "%.2f%%" % (100.0 * identifiers["sugg 0"].eq(identifiers["correct"]).mean())}}
+Top1 accuracy on typo-ed | {{ "%.2f%%" % accuracies[0] }}
+Top2 accuracy on typo-ed | {{ "%.2f%%" % accuracies[1] }}
+Top3 accuracy on typo-ed | {{ "%.2f%%" % accuracies[2] }}
