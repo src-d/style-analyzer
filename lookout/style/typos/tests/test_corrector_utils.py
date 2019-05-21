@@ -124,7 +124,8 @@ class RankCandidatesTest(unittest.TestCase):
     def test_rank_candidates(self):
         candidates = pandas.read_csv(join(TEST_DATA_PATH, "test_data_candidates.csv.xz"),
                                      index_col=0, keep_default_na=False)
-        proba = numpy.load(join(TEST_DATA_PATH, "test_data_candidates_proba.pickle"))
+        with open(join(TEST_DATA_PATH, "test_data_candidates_proba.pickle"), "rb") as fin:
+            proba = pickle.load(fin)
         self.assertDictEqual(rank_candidates(candidates, proba, n_candidates=3), self.suggestions)
 
         proba = numpy.array([1.0, 0.9, 0.05, 0.01, 0.3, 0.98], dtype=float)
