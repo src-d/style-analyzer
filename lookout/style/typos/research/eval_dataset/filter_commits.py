@@ -5,7 +5,7 @@ import sys
 from tqdm import tqdm
 
 typosre = re.compile(
-    r"((fix|correct)(|ed)\s+(|a\s+|the\s+)(typo|misprint)s?\s+.*(func|function|method|var|variable|cls|class|struct|identifier|attr|attribute|prop|property|name))|(^s/[^/]+/[^/]+)",
+    r"((fix|correct)(|ed)\s+(|a\s+|the\s+)(typo|misprint)s?\s+.*(func|function|method|var|variable|cls|class|struct|identifier|attr|attribute|prop|property|name))|(^s/[^/]+/[^/]+)",  # noqa: E501
     re.IGNORECASE)
 typosblackre = re.compile(r"filename|file name|\spath|\scomment", re.IGNORECASE)
 
@@ -32,4 +32,3 @@ with open("candidates.txt", "w") as fout:
                         if typosre.search(msg) and not typosblackre.search(msg):
                             fout.write(str(i) + "\n")
                         i += 1
-

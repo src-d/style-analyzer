@@ -20,6 +20,7 @@ check:
 	! grep -R /tmp lookout/style/*/tests
 	flake8 --count
 	pylint lookout
+	pycodestyle --max-line-length=99 ./lookout/style/*/research/
 
 docker-check:
 	version=$$(grep lookout-sdk-ml requirements.txt|cut -d"=" -f3)

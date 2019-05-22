@@ -9,7 +9,6 @@ import numpy
 import seaborn as sns
 
 
-
 pattern_quality = re.compile(r'```json(.*)```', re.M | re.DOTALL)
 pattern_model = re.compile(r'''<details>
     <summary>Machine-readable report</summary>

@@ -32,7 +32,8 @@ with open("result.txt", "w") as fout:
                         progress.n = indices.tell()
                         progress.update(0)
                         new_index = int(line)
-                        commit = commits.read(20 * (new_index - index + int(not index)))[-20:].hex()
+                        commit = commits.read(
+                            20 * (new_index - index + int(not index)))[-20:].hex()
                         index = new_index
 
                         while not scan():
@@ -44,4 +45,3 @@ with open("result.txt", "w") as fout:
                             extra = parts[-1]
                             parts = parts[:-1]
                         line = indices.readline()
-
