@@ -10,6 +10,7 @@ def pick_subset(args):
     if args.weight_column in data.columns:
         weights = numpy.array(args.weight_column)
         average = numpy.sum(weights * 1.0 / len(occs))
-        pick_indices = [rand_bool(1.0 * args.picked_portion * weight / average) for weight in weights]
+        pick_indices = [
+            rand_bool(1.0 * args.picked_portion * weight / average) for weight in weights]
     data = data[pick_indices]
     data.to_pickle(args.out_file)

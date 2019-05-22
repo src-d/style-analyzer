@@ -173,7 +173,7 @@ def _parallel_comp(args):
                                           identifier=args[COL2IND["identifier"]],
                                           commit=args[COL2IND["commit"]],
                                           directory=None)()
-    except:
+    except:  # noqa: E722
         # in case of any exception we should return something
         return "error", "error"
 
