@@ -3,11 +3,16 @@ import sys
 from tempfile import NamedTemporaryFile
 import unittest
 
+from modelforge import slogging
+
 from lookout.style.format.benchmarks.expected_vnodes_number import \
     calc_expected_vnodes_number_entry
 
 
 class ExpectedVnodesTest(unittest.TestCase):
+    def setUp(self):
+        slogging.setup("INFO", False)
+
     @unittest.skipIf(sys.version_info.minor == 6, "We test python 3.6 inside docker container, "
                                                   "so there is no another docker inside.")
     def test_calc_expected_vnodes_number_entry(self):
