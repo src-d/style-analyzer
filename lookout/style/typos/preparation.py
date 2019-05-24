@@ -112,15 +112,13 @@ def prepare_data(config: Optional[Mapping[str, Any]] = None) -> pandas.DataFrame
     log.info("tokens with frequencies data are saved to %s", frequencies_filepath)
 
     # Leave only splits that contain tokens from vocabulary
-    prepared_data = filter_splits(flat_data, set(vocabulary.keys()))[
-        [Columns.Frequency, Columns.Split, Columns.Token]]
-    prepared_data.reset_index(drop=True, inplace=True)
-    log.info("final dataset shape: %s", prepared_data.shape)
+    flat_data.reset_index(drop=True, inplace=True)
+    log.info("final dataset shape: %s", flat_data.shape)
     if config["prepared_filename"] is not None:
         prepared_data_filepath = os.path.join(config["data_dir"], config["prepared_filename"])
-        prepared_data.to_csv(prepared_data_filepath)
+        flat_data.to_csv(prepared_data_filepath)
         log.info("final dataset is saved to %s", prepared_data_filepath)
-    return prepared_data
+    return flat_data
 
 
 def train_fasttext(data: pandas.DataFrame, config: Optional[Mapping[str, Any]] = None) -> None:
@@ -193,6 +191,10 @@ def get_datasets(prepared_data: pandas.DataFrame,
     if config is None:
         config = {}
     config = merge_dicts(DEFAULT_CORRECTOR_CONFIG["datasets"], config)
+
+    # Use only the given number of the most frequent identifiers (less likely to contain typos)
+    prepared_data = prepared_data[:config["portion"]]
+
     # With replace=True we get the real examples distribution, but there's a small
     # probability of having the same examples of misspellings in train and test datasets
     # (it IS small because a big number of random typos can be made in a single word)
