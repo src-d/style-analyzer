@@ -10,8 +10,11 @@ DEFAULT_CORRECTOR_CONFIG = {
         "dataset_url": "https://docs.google.com/uc?export=download&"
                        "id=1lDZEXAoA_LFrtZ4azGesKhrhx5danHzV",
         "frequency_column": "num_occ",
-        "vocabulary_size": 10000,
-        "frequencies_size": None,
+        "vocabulary": {
+            "stable": 6000,
+            "suspicious": 2500,
+            "non_suspicious": 3000,
+        },
         "raw_data_filename": "raw_data.csv",
         "vocabulary_filename": "vocabulary.csv",
         "frequencies_filename": "frequencies.csv",
@@ -34,6 +37,7 @@ DEFAULT_CORRECTOR_CONFIG = {
         "add_typo_probability": 0.01,
         "train_path": str(DEFAULT_DATA_DIR / "train.csv"),
         "test_path": str(DEFAULT_DATA_DIR / "test.csv"),
+        "processes_number": multiprocessing.cpu_count(),
     },
     "generation": {
         "radius": 3,

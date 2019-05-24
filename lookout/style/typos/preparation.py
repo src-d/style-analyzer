@@ -3,18 +3,21 @@ import os
 from pprint import pformat
 import sys
 import tempfile
-from typing import Any, Mapping, Optional, Tuple
+from typing import Any, Dict, Mapping, Optional, Tuple
 import urllib.request
 
 import pandas
 from sklearn.model_selection import train_test_split
+import spacy
 from tqdm import tqdm
 
 from lookout.style.common import merge_dicts
 from lookout.style.typos.config import DEFAULT_CORRECTOR_CONFIG
 from lookout.style.typos.corrector import TyposCorrector
 from lookout.style.typos.corruption import corrupt_tokens_in_df
-from lookout.style.typos.utils import Columns, flatten_df_by_column, print_frequencies
+from lookout.style.typos.symspell import SymSpell
+from lookout.style.typos.utils import Columns, filter_splits, flatten_df_by_column, \
+    print_frequencies, read_frequencies
 
 
 class _DownloadProgressBar(tqdm):
@@ -28,6 +31,108 @@ def _download_url(url: str, output_path: str) -> None:
     with _DownloadProgressBar(unit="MB", unit_scale=True,
                               miniters=1, desc=url.split("/")[-1]) as t:
         urllib.request.urlretrieve(url, filename=output_path, reporthook=t.update_to)
+
+
+def get_vocabulary(frequencies_path: str, config: Mapping[str, Any]) -> Dict[str, int]:
+    """
+    Comprise vocabulary from the set of tokens with known frequencies.
+
+    Filtering of the input tokens depends on their frequencies and edit distances between them.
+    All found English words and tokens that the algorithm considers word-like are added \
+    regardless of their frequencies.
+    :param frequencies_path: Path to the .csv file with space-separated word-frequency pairs one-per-line.
+    :param config: Configuration for the vocabulary creation:
+                   stable: How much tokens, which don't have more frequent edit-distance-neighbors, to take into \
+                           the vocabulary.
+                   suspicious: How much tokens, whose more frequent edit-distance-neighbor is and English word, \
+                               to take into the vocabulary.
+                   non_suspicious: How much tokens, whose more frequent edit-distance-neighbor is and English word, \
+                                   to take into the vocabulary.
+    :return: Dictionary with the vocabulary tokens as keys and their corresponding frequencies as values.
+    """
+    checker = SymSpell(max_dictionary_edit_distance=2, prefix_length=100)
+    checker.load_dictionary(frequencies_path)
+    frequencies = read_frequencies(frequencies_path)
+    sorted_frequencies = list(sorted(frequencies.items(), key=lambda x: -x[1]))
+
+    # For every token, find a token on edit distance 1, which has higher frequency, if there is one
+    def _correct_token(token_freq):
+        token, freq = token_freq
+        suggestions = checker.lookup(token, 2, 1)
+        if len(suggestions) > 1:
+            correction = suggestions[1].term
+            return correction, frequencies[correction]
+        else:
+            return token, freq
+    corrections = list(tqdm(map(_correct_token, sorted_frequencies), total=len(sorted_frequencies)))
+
+    all_tokens = pandas.DataFrame(columns=["token", "token_freq", "correction", "correction_freq"])
+    all_tokens["token"] = [token for token, _ in sorted_frequencies]
+    all_tokens["token_freq"] = [freq for _, freq in sorted_frequencies]
+    all_tokens["correction"] = [token_freq[0] if token_freq[1] > sorted_frequencies[i][1] else sorted_frequencies[i][0]
+                                for i, token_freq in enumerate(corrections)]
+    all_tokens["correction_freq"] = [token_freq[1] if token_freq[1] > sorted_frequencies[i][1] else sorted_frequencies[i][1]
+                                     for i, token_freq in enumerate(corrections)]
+    all_tokens["rel"] = all_tokens["correction_freq"] / all_tokens["token_freq"]
+
+    # Find all English words among all the tokens
+    eng_voc = set()
+    with tempfile.NamedTemporaryFile() as temp_file:
+        _download_url("https://raw.githubusercontent.com/dwyl/english-words/master/words_alpha.txt", temp_file.name)
+        with open(temp_file.name, "r") as f:
+            for line in f:
+                eng_voc.add(line.strip())
+
+    # Leave only non-english tokens for analysis
+    stable = all_tokens[(all_tokens.rel == 1.0) & ~all_tokens.token.isin(eng_voc)]
+    unstable = all_tokens[(all_tokens.rel > 1) & ~all_tokens.token.isin(eng_voc)]
+
+    # Get tokens and their corrections lemmas
+    os.system("python3 -m spacy download en")
+    nlp = spacy.load('en', disable=['parser', 'ner'])
+
+    def _lemmatize(token):
+        lemm = nlp(token)
+        if len(lemm) > 1 or lemm[0].lemma_ == "-PRON-" or (token[-2:] == "ss" and lemm[0].lemma_ == token[:-1]):
+            return token
+        return lemm[0].lemma_
+    token_lemma = list(tqdm(map(_lemmatize, list(unstable.token)), total=len(unstable)))
+    correction_lemma = list(tqdm(map(_lemmatize, list(unstable.correction)), total=len(unstable)))
+    unstable["token_lemma"] = token_lemma
+    unstable["cor_lemma"] = correction_lemma
+
+    # Equal lemmas -> different forms of a morphologically changing token -> token is a frequently used word
+    # Use some heuristics to remove noise
+    eq_lemmas = unstable[
+        (unstable["token_lemma"] == unstable["cor_lemma"]) | (unstable["token_lemma"] == unstable["correction"]) &
+        (~unstable["correction"].isin(eng_voc) | (unstable["correction"].apply(lambda x: x[-3:]) == "ing"))]
+    dif_lemmas = unstable[(unstable["token_lemma"] != unstable["cor_lemma"]) &
+                          (unstable["token_lemma"] != unstable["correction"])]
+
+    # Stemming heuristics
+    def _norm(word: str) -> str:
+        if word[-2:] == "ed" or word[-2:] == "er" or word[-1] == "s" and word[-2] != "s":
+            return word[:-1]
+        return word
+    norm_eq = dif_lemmas[(dif_lemmas.token.apply(_norm) == dif_lemmas.correction)]
+
+    # Gather all results
+    good = all_tokens[all_tokens.token.isin(set(
+        list(eq_lemmas[:].token) + list(eq_lemmas[:].correction) +
+        list(norm_eq.token) + list(norm_eq.correction)))]
+    unstable = unstable[~unstable.token.isin(good.token)]
+    stable = stable[~stable.token.isin(good.token)]
+
+    # Suspicious - have high probability to be typo-ed English words
+    suspicious = unstable[unstable.correction.isin(eng_voc)]
+    non_suspicious = unstable[~unstable.correction.isin(eng_voc)]
+    vocabulary = all_tokens[all_tokens.token.isin(set(
+        list(stable[:config["stable"]].token) +
+        list(suspicious[:config["suspicious"]].token) +
+        list(non_suspicious[:config["non_suspicious"]].token) +
+        list(eng_voc) +
+        list(good.token)))]
+    return {token: freq for token, freq in vocabulary[["token", "token_freq"]].values}
 
 
 def prepare_data(config: Optional[Mapping[str, Any]] = None) -> pandas.DataFrame:
@@ -98,17 +203,18 @@ def prepare_data(config: Optional[Mapping[str, Any]] = None) -> pandas.DataFrame
     stats = flat_data[[Columns.Frequency, Columns.Token]].groupby([Columns.Token]).sum()
     stats = stats.sort_values(by=Columns.Frequency, ascending=False)[Columns.Frequency]
 
-    log.info("derive the new vocabulary")
-    frequencies = stats.iloc[:(config["frequencies_size"] or len(stats))].to_dict()
+    log.info("save all frequencies")
+    frequencies = stats.to_dict()
     log.info("tokens with frequencies data size: %d", len(frequencies))
-    vocabulary = stats.iloc[:config["vocabulary_size"]].to_dict()
+    frequencies_filepath = os.path.join(config["data_dir"], config["frequencies_filename"])
+    print_frequencies(frequencies, frequencies_filepath)
+    log.info("tokens with frequencies data are saved to %s", frequencies_filepath)
+
+    vocabulary = get_vocabulary(frequencies_filepath, config["vocabulary"])
     log.info("vocabulary size: %d", len(vocabulary))
     vocabulary_filepath = os.path.join(config["data_dir"], config["vocabulary_filename"])
     print_frequencies(vocabulary, vocabulary_filepath)
     log.info("vocabulary saved to %s", vocabulary_filepath)
-    frequencies_filepath = os.path.join(config["data_dir"], config["frequencies_filename"])
-    print_frequencies(frequencies, frequencies_filepath)
-    log.info("tokens with frequencies data are saved to %s", frequencies_filepath)
 
     # Leave only splits that contain tokens from vocabulary
     flat_data.reset_index(drop=True, inplace=True)
@@ -166,7 +272,6 @@ def train_fasttext(data: pandas.DataFrame, config: Optional[Mapping[str, Any]] =
 
 def get_datasets(prepared_data: pandas.DataFrame,
                  config: Optional[Mapping[str, Any]] = None,
-                 processes_number: int = DEFAULT_CORRECTOR_CONFIG["processes_number"],
                  ) -> Tuple[pandas.DataFrame, pandas.DataFrame]:
     """
     Create the train and the test datasets of typos.
@@ -183,7 +288,7 @@ def get_datasets(prepared_data: pandas.DataFrame,
                    add_typo_probability: Probability of second corruption for a corrupted token.
                    train_path: Path to the .csv file where to save the train dataset.
                    test_path: Path to the .csv file where to save the test dataset.
-    :param processes_number: Number of processes for multiprocessing.
+                   processes_number: Number of processes for multiprocessing.
     :return: Train and test datasets.
     """
     log = logging.getLogger("get_datasets")
@@ -207,9 +312,9 @@ def get_datasets(prepared_data: pandas.DataFrame,
     log.info("train dataset shape: %s", train.shape)
     log.info("test dataset shape: %s", test.shape)
     train = corrupt_tokens_in_df(train, config["typo_probability"], config["add_typo_probability"],
-                                 processes_number)
+                                 config["processes_number"])
     test = corrupt_tokens_in_df(test, config["typo_probability"], config["add_typo_probability"],
-                                processes_number)
+                                config["processes_number"])
     if config["test_path"] is not None:
         test.to_csv(config["test_path"])
         log.info("test dataset is saved to %s", config["test_path"])

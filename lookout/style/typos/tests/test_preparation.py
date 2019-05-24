@@ -6,7 +6,7 @@ import unittest
 from gensim.models import FastText
 import pandas
 
-from lookout.style.typos.preparation import (get_datasets, prepare_data, train_and_evaluate,
+from lookout.style.typos.preparation import (get_datasets, get_vocabulary, prepare_data, train_and_evaluate,
                                              train_fasttext, train_from_scratch)
 from lookout.style.typos.utils import Columns, read_frequencies, read_vocabulary
 
@@ -15,6 +15,16 @@ TEST_DATA_DIR = pathlib.Path(__file__).parent
 
 
 class PreparationTest(unittest.TestCase):
+    def test_get_vocabulary(self):
+        config = {
+            "stable": 0,
+            "suspicious": 0,
+            "non_suspicious": 0,
+            "processes_number": 1,
+        }
+        vocabulary = get_vocabulary(str(TEST_DATA_DIR / "test_frequencies.csv.xz"), config)
+        self.assertEqual(len(vocabulary), 98)
+
     def test_prepare_data_with_load(self):
         with tempfile.TemporaryDirectory(prefix="lookout_typos_prepare_load_") as temp_dir:
             config = {
@@ -23,17 +33,13 @@ class PreparationTest(unittest.TestCase):
                                "id=1htVU1UR0gSmopVbvU6_Oc-4iD0cw1ldo",
                 "input_path": None,
                 "raw_data_filename": "raw_test_data.csv.xz",
-                "vocabulary_size": 10,
-                "frequencies_size": 20,
                 "vocabulary_filename": "vocabulary.csv",
                 "frequencies_filename": "frequencies.csv",
             }
             data = prepare_data(config)
             vocabulary = read_vocabulary(os.path.join(temp_dir, config["vocabulary_filename"]))
-            self.assertEqual(len(vocabulary), config["vocabulary_size"])
-            self.assertTrue(set(vocabulary).issubset(set(data[Columns.Token])))
+            self.assertTrue(set(data[Columns.Token]).issubset(set(vocabulary)))
             frequencies = read_frequencies(os.path.join(temp_dir, config["frequencies_filename"]))
-            self.assertEqual(len(frequencies), config["frequencies_size"])
             self.assertTrue(set(vocabulary).issubset(set(frequencies.keys())))
             self.assertTrue({Columns.Token, Columns.Split}.issubset(data.columns))
 
@@ -42,17 +48,13 @@ class PreparationTest(unittest.TestCase):
             config = {
                 "data_dir": temp_dir,
                 "input_path": str(TEST_DATA_DIR / "raw_test_data.csv.xz"),
-                "vocabulary_size": 10,
-                "frequencies_size": 20,
                 "vocabulary_filename": "vocabulary.csv",
                 "frequencies_filename": "frequencies.csv",
             }
             data = prepare_data(config)
             vocabulary = read_vocabulary(os.path.join(temp_dir, config["vocabulary_filename"]))
-            self.assertEqual(len(vocabulary), config["vocabulary_size"])
-            self.assertTrue(set(vocabulary).issubset(set(data[Columns.Token])))
+            self.assertTrue(set(data[Columns.Token]).issubset(set(vocabulary)))
             frequencies = read_frequencies(os.path.join(temp_dir, config["frequencies_filename"]))
-            self.assertEqual(len(frequencies), config["frequencies_size"])
             self.assertTrue(set(vocabulary).issubset(set(frequencies.keys())))
             self.assertTrue({Columns.Token, Columns.Split}.issubset(data.columns))
 
