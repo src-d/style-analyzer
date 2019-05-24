@@ -8,7 +8,7 @@ DEFAULT_CORRECTOR_CONFIG = {
         "data_dir": str(DEFAULT_DATA_DIR),
         "input_path": str(DEFAULT_DATA_DIR / "raw_data.csv"),
         "dataset_url": "https://docs.google.com/uc?export=download&"
-                       "id=1muNVWPe68XK8SFvqIv3V728NmkT46aTx",
+                       "id=1lDZEXAoA_LFrtZ4azGesKhrhx5danHzV",
         "frequency_column": "num_occ",
         "vocabulary_size": 10000,
         "frequencies_size": None,
