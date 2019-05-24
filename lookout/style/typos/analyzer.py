@@ -62,7 +62,7 @@ class IdTyposAnalyzer(Analyzer):
         "n_candidates": 3,
         "confidence_threshold": 0.1,
         "overall_size_limit": 5 << 20,  # 5 MB
-        "corrector": "245fae3a-2f87-4990-ab9a-c463393cfe51",
+        "corrector": "16577a2c-7f17-4a6f-a759-92f3a00cf339",
         "comment_template": os.path.join(TEMPLATE_DIR, "comment.md.jinja2"),
     }
 
