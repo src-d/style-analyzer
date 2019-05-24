@@ -18,12 +18,12 @@ DEFAULT_CORRECTOR_CONFIG = {
         "prepared_filename": "prepared.csv",
     },
     "fasttext": {
-        "size": 100000000,  # Number of identifiers to pick to train fasttext on
-        "corrupt": True,  # Whether to corrupt some of the identifiers with artificial typos
+        "size": 500000000,  # Number of identifiers to pick to train fasttext on
+        "corrupt": False,  # Whether to corrupt some of the identifiers with artificial typos
         "typo_probability": 0.2,  # Which portion of picked identifiers contain a typoed token
         "add_typo_probability": 0.005,  # Which portion of corrupted tokens contain >1 mistake
         "path": str(DEFAULT_DATA_DIR / "fasttext.bin"),  # Where to store trained fasttext model
-        "dim": 8,  # Number of dimensions of embeddings
+        "dim": 10,  # Number of dimensions of embeddings
         "bucket": 200000,  # Number of hash buckets in the model
     },
     "datasets": {
