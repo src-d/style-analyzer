@@ -6,8 +6,9 @@ import unittest
 from gensim.models import FastText
 import pandas
 
-from lookout.style.typos.preparation import (get_datasets, get_vocabulary, prepare_data, train_and_evaluate,
-                                             train_fasttext, train_from_scratch)
+from lookout.style.typos.preparation import (get_datasets, get_vocabulary, prepare_data,
+                                             train_and_evaluate, train_fasttext,
+                                             train_from_scratch)
 from lookout.style.typos.utils import Columns, read_frequencies, read_vocabulary
 
 

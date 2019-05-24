@@ -1,5 +1,6 @@
 import logging
 import os
+import pathlib
 from pprint import pformat
 import sys
 import tempfile
@@ -8,6 +9,7 @@ import urllib.request
 
 import pandas
 from sklearn.model_selection import train_test_split
+from smart_open import smart_open
 import spacy
 from tqdm import tqdm
 
@@ -40,20 +42,22 @@ def get_vocabulary(frequencies_path: str, config: Mapping[str, Any]) -> Dict[str
     Filtering of the input tokens depends on their frequencies and edit distances between them.
     All found English words and tokens that the algorithm considers word-like are added \
     regardless of their frequencies.
-    :param frequencies_path: Path to the .csv file with space-separated word-frequency pairs one-per-line.
+    :param frequencies_path: Path to the .csv file with space-separated word-frequency pairs \
+                             one-per-line.
     :param config: Configuration for the vocabulary creation:
-                   stable: How much tokens, which don't have more frequent edit-distance-neighbors, to take into \
-                           the vocabulary.
-                   suspicious: How much tokens, whose more frequent edit-distance-neighbor is and English word, \
-                               to take into the vocabulary.
-                   non_suspicious: How much tokens, whose more frequent edit-distance-neighbor is and English word, \
-                                   to take into the vocabulary.
-    :return: Dictionary with the vocabulary tokens as keys and their corresponding frequencies as values.
+                   stable: How much tokens, which don't have more frequent \
+                           edit-distance-neighbors, to take into the vocabulary.
+                   suspicious: How much tokens, whose more frequent edit-distance-neighbor is
+                               an English word, to take into the vocabulary.
+                   non_suspicious: How much tokens, whose more frequent edit-distance-neighbor \
+                                   is not an English word, to take into the vocabulary.
+    :return: Dictionary with the vocabulary tokens as keys and their corresponding \
+             frequencies as values.
     """
     checker = SymSpell(max_dictionary_edit_distance=2, prefix_length=100)
     checker.load_dictionary(frequencies_path)
     frequencies = read_frequencies(frequencies_path)
-    sorted_frequencies = list(sorted(frequencies.items(), key=lambda x: -x[1]))
+    sorted_frequencies = sorted(frequencies.items(), key=lambda x: -x[1])
 
     # For every token, find a token on edit distance 1, which has higher frequency, if there is one
     def _correct_token(token_freq):
@@ -62,38 +66,39 @@ def get_vocabulary(frequencies_path: str, config: Mapping[str, Any]) -> Dict[str
         if len(suggestions) > 1:
             correction = suggestions[1].term
             return correction, frequencies[correction]
-        else:
-            return token, freq
-    corrections = list(tqdm(map(_correct_token, sorted_frequencies), total=len(sorted_frequencies)))
+        return token, freq
+    corrections = list(tqdm(map(_correct_token, sorted_frequencies),
+                            total=len(sorted_frequencies)))
 
     all_tokens = pandas.DataFrame(columns=["token", "token_freq", "correction", "correction_freq"])
     all_tokens["token"] = [token for token, _ in sorted_frequencies]
     all_tokens["token_freq"] = [freq for _, freq in sorted_frequencies]
-    all_tokens["correction"] = [token_freq[0] if token_freq[1] > sorted_frequencies[i][1] else sorted_frequencies[i][0]
+    all_tokens["correction"] = [token_freq[0] if token_freq[1] > sorted_frequencies[i][1]
+                                else sorted_frequencies[i][0]
                                 for i, token_freq in enumerate(corrections)]
-    all_tokens["correction_freq"] = [token_freq[1] if token_freq[1] > sorted_frequencies[i][1] else sorted_frequencies[i][1]
+    all_tokens["correction_freq"] = [token_freq[1] if token_freq[1] > sorted_frequencies[i][1]
+                                     else sorted_frequencies[i][1]
                                      for i, token_freq in enumerate(corrections)]
     all_tokens["rel"] = all_tokens["correction_freq"] / all_tokens["token_freq"]
 
     # Find all English words among all the tokens
     eng_voc = set()
-    with tempfile.NamedTemporaryFile() as temp_file:
-        _download_url("https://raw.githubusercontent.com/dwyl/english-words/master/words_alpha.txt", temp_file.name)
-        with open(temp_file.name, "r") as f:
-            for line in f:
-                eng_voc.add(line.strip())
+    with smart_open(str(pathlib.Path(__file__).parent / "words_alpha.txt.xz"), "r") as f:
+        for line in f:
+            eng_voc.add(line.strip())
 
     # Leave only non-english tokens for analysis
     stable = all_tokens[(all_tokens.rel == 1.0) & ~all_tokens.token.isin(eng_voc)]
     unstable = all_tokens[(all_tokens.rel > 1) & ~all_tokens.token.isin(eng_voc)]
 
     # Get tokens and their corrections lemmas
-    os.system("python3 -m spacy download en")
-    nlp = spacy.load('en', disable=['parser', 'ner'])
+    spacy.cli.download("en")
+    nlp = spacy.load("en", disable=["parser", "ner"])
 
     def _lemmatize(token):
         lemm = nlp(token)
-        if len(lemm) > 1 or lemm[0].lemma_ == "-PRON-" or (token[-2:] == "ss" and lemm[0].lemma_ == token[:-1]):
+        if len(lemm) > 1 or lemm[0].lemma_ == "-PRON-" or (token[-2:] == "ss" and
+                                                           lemm[0].lemma_ == token[:-1]):
             return token
         return lemm[0].lemma_
     token_lemma = list(tqdm(map(_lemmatize, list(unstable.token)), total=len(unstable)))
@@ -101,11 +106,13 @@ def get_vocabulary(frequencies_path: str, config: Mapping[str, Any]) -> Dict[str
     unstable["token_lemma"] = token_lemma
     unstable["cor_lemma"] = correction_lemma
 
-    # Equal lemmas -> different forms of a morphologically changing token -> token is a frequently used word
+    # Equal lemmas -> different forms of a morphologically changing token -> token is a "word"
     # Use some heuristics to remove noise
     eq_lemmas = unstable[
-        (unstable["token_lemma"] == unstable["cor_lemma"]) | (unstable["token_lemma"] == unstable["correction"]) &
-        (~unstable["correction"].isin(eng_voc) | (unstable["correction"].apply(lambda x: x[-3:]) == "ing"))]
+        (unstable["token_lemma"] == unstable["cor_lemma"]) |
+        (unstable["token_lemma"] == unstable["correction"]) &
+        (~unstable["correction"].isin(eng_voc) |
+         (unstable["correction"].apply(lambda x: x[-3:]) == "ing"))]
     dif_lemmas = unstable[(unstable["token_lemma"] != unstable["cor_lemma"]) &
                           (unstable["token_lemma"] != unstable["correction"])]
 
