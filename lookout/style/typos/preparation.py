@@ -14,8 +14,7 @@ from lookout.style.common import merge_dicts
 from lookout.style.typos.config import DEFAULT_CORRECTOR_CONFIG
 from lookout.style.typos.corrector import TyposCorrector
 from lookout.style.typos.corruption import corrupt_tokens_in_df
-from lookout.style.typos.utils import Columns, filter_splits, flatten_df_by_column, \
-    print_frequencies
+from lookout.style.typos.utils import Columns, flatten_df_by_column, print_frequencies
 
 
 class _DownloadProgressBar(tqdm):
