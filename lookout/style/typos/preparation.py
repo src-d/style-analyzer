@@ -35,9 +35,9 @@ def _download_url(url: str, output_path: str) -> None:
         urllib.request.urlretrieve(url, filename=output_path, reporthook=t.update_to)
 
 
-def get_vocabulary(frequencies_path: str, config: Mapping[str, Any]) -> Dict[str, int]:
+def generate_vocabulary(frequencies_path: str, config: Mapping[str, Any]) -> Dict[str, int]:
     """
-    Comprise vocabulary from the set of tokens with known frequencies.
+    Compose vocabulary from a set of tokens with known frequencies.
 
     Filtering of the input tokens depends on their frequencies and edit distances between them.
     All found English words and tokens that the algorithm considers word-like are added \
@@ -45,11 +45,11 @@ def get_vocabulary(frequencies_path: str, config: Mapping[str, Any]) -> Dict[str
     :param frequencies_path: Path to the .csv file with space-separated word-frequency pairs \
                              one-per-line.
     :param config: Configuration for the vocabulary creation:
-                   stable: How much tokens, which don't have more frequent \
+                   stable: How many tokens, which don't have more frequent \
                            edit-distance-neighbors, to take into the vocabulary.
-                   suspicious: How much tokens, whose more frequent edit-distance-neighbor is
+                   suspicious: How many tokens, whose more frequent edit-distance-neighbor is
                                an English word, to take into the vocabulary.
-                   non_suspicious: How much tokens, whose more frequent edit-distance-neighbor \
+                   non_suspicious: How many tokens, whose more frequent edit-distance-neighbor \
                                    is not an English word, to take into the vocabulary.
     :return: Dictionary with the vocabulary tokens as keys and their corresponding \
              frequencies as values.
