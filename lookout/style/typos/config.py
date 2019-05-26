@@ -27,7 +27,8 @@ DEFAULT_CORRECTOR_CONFIG = {
         "bucket": 200000,  # Number of hash buckets in the model
     },
     "datasets": {
-        "train_size": 50000,
+        "portion": 400000,
+        "train_size": 100000,
         "test_size": 10000,
         "typo_probability": 0.5,
         "add_typo_probability": 0.01,
