@@ -6,7 +6,7 @@ import unittest
 from gensim.models import FastText
 import pandas
 
-from lookout.style.typos.preparation import (get_datasets, get_vocabulary, prepare_data,
+from lookout.style.typos.preparation import (generate_vocabulary, get_datasets, prepare_data,
                                              train_and_evaluate, train_fasttext,
                                              train_from_scratch)
 from lookout.style.typos.utils import Columns, read_frequencies, read_vocabulary
@@ -23,7 +23,7 @@ class PreparationTest(unittest.TestCase):
             "non_suspicious": 0,
             "processes_number": 1,
         }
-        vocabulary = get_vocabulary(str(TEST_DATA_DIR / "test_frequencies.csv.xz"), config)
+        vocabulary = generate_vocabulary(str(TEST_DATA_DIR / "test_frequencies.csv.xz"), config)
         self.assertEqual(len(vocabulary), 98)
 
     def test_prepare_data_with_load(self):
@@ -39,8 +39,8 @@ class PreparationTest(unittest.TestCase):
             }
             data = prepare_data(config)
             vocabulary = read_vocabulary(os.path.join(temp_dir, config["vocabulary_filename"]))
-            self.assertTrue(set(data[Columns.Token]).issubset(set(vocabulary)))
             frequencies = read_frequencies(os.path.join(temp_dir, config["frequencies_filename"]))
+            self.assertTrue(set(data[Columns.Token]).issubset(set(frequencies.keys())))
             self.assertTrue(set(vocabulary).issubset(set(frequencies.keys())))
             self.assertTrue({Columns.Token, Columns.Split}.issubset(data.columns))
 
@@ -54,8 +54,8 @@ class PreparationTest(unittest.TestCase):
             }
             data = prepare_data(config)
             vocabulary = read_vocabulary(os.path.join(temp_dir, config["vocabulary_filename"]))
-            self.assertTrue(set(data[Columns.Token]).issubset(set(vocabulary)))
             frequencies = read_frequencies(os.path.join(temp_dir, config["frequencies_filename"]))
+            self.assertTrue(set(data[Columns.Token]).issubset(set(frequencies.keys())))
             self.assertTrue(set(vocabulary).issubset(set(frequencies.keys())))
             self.assertTrue({Columns.Token, Columns.Split}.issubset(data.columns))
 

@@ -18,8 +18,8 @@ from lookout.style.typos.config import DEFAULT_CORRECTOR_CONFIG
 from lookout.style.typos.corrector import TyposCorrector
 from lookout.style.typos.corruption import corrupt_tokens_in_df
 from lookout.style.typos.symspell import SymSpell
-from lookout.style.typos.utils import Columns, filter_splits, flatten_df_by_column, \
-    print_frequencies, read_frequencies
+from lookout.style.typos.utils import Columns, flatten_df_by_column, print_frequencies,\
+    read_frequencies
 
 
 class _DownloadProgressBar(tqdm):
@@ -217,7 +217,7 @@ def prepare_data(config: Optional[Mapping[str, Any]] = None) -> pandas.DataFrame
     print_frequencies(frequencies, frequencies_filepath)
     log.info("tokens with frequencies data are saved to %s", frequencies_filepath)
 
-    vocabulary = get_vocabulary(frequencies_filepath, config["vocabulary"])
+    vocabulary = generate_vocabulary(frequencies_filepath, config["vocabulary"])
     log.info("vocabulary size: %d", len(vocabulary))
     vocabulary_filepath = os.path.join(config["data_dir"], config["vocabulary_filename"])
     print_frequencies(vocabulary, vocabulary_filepath)
