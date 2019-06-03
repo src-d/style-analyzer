@@ -79,7 +79,7 @@ setup(
                       ["jquery.layout.js"],
                   "lookout.style.format.tests.bugs.004_generate_each_line":
                       ["jquery.layout.js"],
-                  "lookout.style.typos": ["templates/*.jinja2"],
+                  "lookout.style.typos": ["templates/*.jinja2", "*.xz"],
                   "lookout.style.typos.tests": ["*.asdf", "*.xz", "*.pickle", "*.bin"]},
     classifiers=[
         "Development Status :: 3 - Alpha",
