@@ -14,3 +14,4 @@ smart-open==1.8.1
 joblib==0.13.2
 sortedcontainers==2.1.0  # TODO(zurk): move to lookout sdk ml
 git+https://github.com/facebookresearch/fastText@51e6738d734286251b6ad02e4fdbbcfe5b679382
+spacy==2.1.4

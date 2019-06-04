@@ -52,6 +52,7 @@ setup(
         "smart-open==1.8.1",
         "joblib>=0.13.2,<1.0",
         "sortedcontainers>=2.1.0,<3.0",  # TODO(zurk): move to lookout-sdk-ml
+        "spacy>=2.1.4,<3.0",
     ],
     extras_require={
         "tf": tf_requires,
@@ -78,7 +79,7 @@ setup(
                       ["jquery.layout.js"],
                   "lookout.style.format.tests.bugs.004_generate_each_line":
                       ["jquery.layout.js"],
-                  "lookout.style.typos": ["templates/*.jinja2"],
+                  "lookout.style.typos": ["templates/*.jinja2", "*.xz"],
                   "lookout.style.typos.tests": ["*.asdf", "*.xz", "*.pickle", "*.bin"]},
     classifiers=[
         "Development Status :: 3 - Alpha",
