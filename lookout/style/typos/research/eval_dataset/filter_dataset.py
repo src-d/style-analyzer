@@ -3,7 +3,7 @@ import os
 import pandas
 import spacy
 
-from sourced.ml.algorithms import TokenParser
+from sourced.ml.core.algorithms.token_parser import TokenParser
 
 
 def remove_non_typos(dataset: str, filtered_dataset: str) -> None:

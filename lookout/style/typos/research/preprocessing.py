@@ -1,7 +1,7 @@
 import argparse
 import sys
 
-from sourced.ml.cmd.args import ArgumentDefaultsHelpFormatterNoNone
+from lookout.core.cmdline import ArgumentDefaultsHelpFormatterNoNone
 
 from lookout.style.typos.research.baseline import baseline
 from lookout.style.typos.research.create_typos import create_typos

@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Mapping, Optional
 from modelforge import Model
 import numpy
 import pandas
-from sourced.ml.models.license import DEFAULT_LICENSE
+from sourced.ml.core.models.license import DEFAULT_LICENSE
 import xgboost as xgb
 
 from lookout.style.common import merge_dicts

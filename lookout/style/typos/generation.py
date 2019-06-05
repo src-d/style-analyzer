@@ -9,7 +9,7 @@ from modelforge import merge_strings, Model, split_strings
 import numpy
 import pandas
 from scipy.spatial.distance import cosine
-from sourced.ml.models.license import DEFAULT_LICENSE
+from sourced.ml.core.models.license import DEFAULT_LICENSE
 from tqdm import tqdm
 
 from lookout.style.common import merge_dicts
