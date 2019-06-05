@@ -105,8 +105,8 @@ def handle_input_arg(input_arg: Union[str, Iterable[str]],
                      log: Optional[logging.Logger] = None):
     """
     Process input arguments and return an iterator over input files.
-    :param input_arg: list of files to process or `-` to get \
-        file paths from stdin.
+
+    :param input_arg: list of files to process or `-` to get file paths from stdin.
     :param log: Logger if you want to log handling process.
     :return: An iterator over input files.
     """
