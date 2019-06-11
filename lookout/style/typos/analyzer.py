@@ -16,7 +16,7 @@ from lookout.core.lib import extract_changed_nodes, files_by_language, filter_fi
 from lookout.sdk.service_data_pb2 import Change
 import numpy
 import pandas
-from sourced.ml.algorithms import TokenParser
+from sourced.ml.core.algorithms.token_parser import TokenParser
 
 from lookout.style import __version__
 from lookout.style.common import load_jinja2_template, merge_dicts

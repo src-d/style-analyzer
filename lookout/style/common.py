@@ -3,7 +3,8 @@ from datetime import datetime
 import logging
 import os
 import pprint
-from typing import Callable, Iterator, Mapping, Sequence
+import sys
+from typing import Callable, Iterable, Iterator, Mapping, Optional, Sequence, Union
 
 import jinja2
 
@@ -98,3 +99,24 @@ def huge_progress_bar(sequence: Sequence, log: logging.Logger, get_iter_name: Ca
              now, " " * 11,
              "=" * 80,
              )
+
+
+def handle_input_arg(input_arg: Union[str, Iterable[str]],
+                     log: Optional[logging.Logger] = None):
+    """
+    Process input arguments and return an iterator over input files.
+
+    :param input_arg: list of files to process or `-` to get file paths from stdin.
+    :param log: Logger if you want to log handling process.
+    :return: An iterator over input files.
+    """
+    log = log.info if log else (lambda *x: None)
+    if input_arg == "-" or input_arg == ["-"]:
+        log("Reading file paths from stdin.")
+        for line in sys.stdin:
+            yield line.strip()
+    else:
+        if isinstance(input_arg, str):
+            yield input_arg
+        else:
+            yield from input_arg

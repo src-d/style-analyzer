@@ -3,7 +3,7 @@ from typing import Set
 
 from lookout.core.analyzer import AnalyzerModel
 from modelforge import merge_strings, split_strings
-from sourced.ml.models.license import DEFAULT_LICENSE
+from sourced.ml.core.models.license import DEFAULT_LICENSE
 
 
 class IdTyposModel(AnalyzerModel):
