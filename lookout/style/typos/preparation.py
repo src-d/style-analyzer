@@ -260,8 +260,9 @@ def train_fasttext(data: pandas.DataFrame, config: Optional[Mapping[str, Any]] =
     if config is None:
         config = {}
     config = merge_dicts(DEFAULT_CORRECTOR_CONFIG["fasttext"], config)
-    train_data = data[[len(str(x).split()) > 2 for x in data[Columns.Split]]].sample(
-        config["size"], weights=Columns.Frequency, replace=True)
+    lengths = data[Columns.Split].apply(lambda x: len(str(x).split()))
+    train_data = data[lengths > 1].sample(
+        config["size"], weights=data[Columns.Frequency] / lengths, replace=True)
     if config["corrupt"]:
         train_data = corrupt_tokens_in_df(train_data, config["typo_probability"],
                                           config["add_typo_probability"])
