@@ -49,10 +49,11 @@ DEFAULT_CORRECTOR_CONFIG = {
         "chunksize": 256,
     },
     "ranking": {
-        "train_rounds": 4000,
-        "early_stopping": 200,
+        "train_rounds": 1000,
+        "early_stopping": 100,
+        "verbose_eval": False,
         "boost_param": {
-            "max_depth": 6,
+            "max_depth": 5,
             "eta": 0.03,
             "min_child_weight": 2,
             "silent": 1,
