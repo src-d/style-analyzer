@@ -92,14 +92,14 @@ matrix:
       install:
         - make install-helm
       script:
-        - HELM_RELEASE=lookout-style-analyzer HELM_CHART=lookout-style-analyzer K8S_NAMESPACE=lookout HELM_ARGS="--tiller-namespace=lookout --repo https://src-d.github.io/charts/ --set image.tag=$TRAVIS_TAG -f .helm_staging_format.yml" make deploy
+        - HELM_RELEASE=lookout-style-analyzer HELM_CHART=lookout-style-analyzer K8S_NAMESPACE=lookout HELM_ARGS="--tiller-namespace=lookout --repo https://src-d.github.io/charts/stable/ --set image.tag=$TRAVIS_TAG -f .helm_staging_format.yml" make deploy
     - name: 'Deploy typos to staging'
       stage: deploy-k8s
       python: 3.5
       install:
         - make install-helm
       script:
-        - HELM_RELEASE=lookout-typos-analyzer HELM_CHART=lookout-typos-analyzer K8S_NAMESPACE=lookout HELM_ARGS="--tiller-namespace=lookout --repo https://src-d.github.io/charts/ --set image.tag=$TRAVIS_TAG -f .helm_staging_typos.yml" make deploy
+        - HELM_RELEASE=lookout-typos-analyzer HELM_CHART=lookout-typos-analyzer K8S_NAMESPACE=lookout HELM_ARGS="--tiller-namespace=lookout --repo https://src-d.github.io/charts/stable/ --set image.tag=$TRAVIS_TAG -f .helm_staging_typos.yml" make deploy
   fast_finish: true
 notifications:
   email: false
