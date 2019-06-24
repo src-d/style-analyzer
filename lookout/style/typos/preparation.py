@@ -249,6 +249,10 @@ def train_fasttext(data: pandas.DataFrame, config: Optional[Mapping[str, Any]] =
                    dim: Number of dimensions for embeddings in the new model.
                    bucket: Number of hash buckets to keep in the fasttext model: \
                            the less there are, the more compact the model gets.
+                   adjust_frequencies: Whether to divide frequencies by the number of tokens in \
+                                       the identifiers. Needs to be done when the result of the \
+                                       `prepare` function is used as data to have a true \
+                                       identifiers distribution.
     """
     try:
         import fastText
@@ -260,9 +264,12 @@ def train_fasttext(data: pandas.DataFrame, config: Optional[Mapping[str, Any]] =
     if config is None:
         config = {}
     config = merge_dicts(DEFAULT_CORRECTOR_CONFIG["fasttext"], config)
-    lengths = data[Columns.Split].apply(lambda x: len(str(x).split()))
-    train_data = data[lengths > 1].sample(
-        config["size"], weights=data[Columns.Frequency] / lengths, replace=True)
+    tokens_number = data[Columns.Split].apply(lambda x: len(str(x).split()))
+    if config["adjust_frequencies"]:
+        weights = data[Columns.Frequency] / tokens_number
+    else:
+        weights = data[Columns.Frequency]
+    train_data = data[tokens_number > 1].sample(config["size"], weights=weights, replace=True)
     if config["corrupt"]:
         train_data = corrupt_tokens_in_df(train_data, config["typo_probability"],
                                           config["add_typo_probability"])

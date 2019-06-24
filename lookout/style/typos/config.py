@@ -28,6 +28,7 @@ DEFAULT_CORRECTOR_CONFIG = {
         "path": str(DEFAULT_DATA_DIR / "fasttext.bin"),  # Where to store trained fasttext model
         "dim": 10,  # Number of dimensions of embeddings
         "bucket": 200000,  # Number of hash buckets in the model
+        "adjust_frequencies": True,
     },
     "datasets": {
         "portion": 400000,
