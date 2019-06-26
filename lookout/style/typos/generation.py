@@ -329,7 +329,7 @@ class CandidatesGenerator(Model):
 
     def _compound_vec(self, text: str) -> numpy.ndarray:
         split = text.split()
-        compound_vec = numpy.zeros(self.wv.vectors.shape[1])
+        compound_vec = numpy.zeros(self.wv.vector_size)
         for token in split:
             compound_vec += self.wv[token]
         return compound_vec
@@ -383,18 +383,6 @@ class CandidatesGenerator(Model):
         for key, val in self.wv.vocab.items():
             vocab_strings[val.index] = key
             vocab_counts[val.index] = val.count
-        if isinstance(self.wv.buckets_word, dict):
-            buckets_word_lengths = numpy.zeros(len(self.wv.buckets_word), dtype=numpy.uint32)
-            buckets_word_values = []
-            for word_index in range(len(self.wv.buckets_word)):
-                buckets = self.wv.buckets_word[word_index]
-                buckets_word_lengths[word_index] = len(buckets)
-                buckets_word_values.extend(sorted(buckets))
-            buckets_word = {"lengths": buckets_word_lengths,
-                            "values": numpy.array(buckets_word_values)}
-        else:
-            buckets_word = {"lengths": numpy.array([]),
-                            "values": numpy.array([])}
         tree["wv"] = {
             "vocab": {"strings": merge_strings(vocab_strings), "counts": vocab_counts},
             "vectors": self.wv.vectors,
@@ -402,7 +390,6 @@ class CandidatesGenerator(Model):
             "max_n": self.wv.max_n,
             "bucket": self.wv.bucket,
             "vectors_ngrams": self.wv.vectors_ngrams,
-            "buckets_word": buckets_word,
         }
         return tree
 
@@ -425,10 +412,9 @@ class CandidatesGenerator(Model):
             offset += length
         self.checker._deletes = deletes
         self.checker._words = {w: self.checker._words[i] for i, w in enumerate(words)}
-        vectors = self.wv["vectors"]
-        wv = FastTextKeyedVectors(vectors.shape[1], self.wv["min_n"], self.wv["max_n"],
+        wv = FastTextKeyedVectors(self.wv["vectors"].shape[1], self.wv["min_n"], self.wv["max_n"],
                                   self.wv["bucket"], True)
-        wv.vectors = numpy.array(vectors)
+        wv.vectors = numpy.array(self.wv["vectors"])
         vocab = split_strings(self.wv["vocab"]["strings"])
         wv.vocab = {
             s: Vocab(index=i, count=self.wv["vocab"]["counts"][i])
@@ -436,15 +422,6 @@ class CandidatesGenerator(Model):
         wv.bucket = self.wv["bucket"]
         wv.index2word = wv.index2entity = vocab
         wv.vectors_ngrams = numpy.array(self.wv["vectors_ngrams"])
-        # This if check is needed for supporting models that were saved with gensim < 3.7.2
-        if "buckets_word" in self.wv:
-            wv.buckets_word = {}
-            cumsum = 0
-            for word_index, length in enumerate(self.wv["buckets_word"]["lengths"]):
-                wv.buckets_word[word_index] = self.wv[cumsum:cumsum + length]
-                cumsum += length
-        else:
-            wv.buckets_word = None
         self.wv = wv
 
 
