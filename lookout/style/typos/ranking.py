@@ -37,6 +37,7 @@ class CandidatesRanker(Model):
         :param kwargs: Extra keyword arguments which are consumed by Model.
         """
         super().__init__(**kwargs)
+        self.config = DEFAULT_CORRECTOR_CONFIG["ranking"]
         self.set_config(config)
         self.bst = None  # type: xgb.Booster
 
@@ -51,7 +52,7 @@ class CandidatesRanker(Model):
         """
         if config is None:
             config = {}
-        self.config = merge_dicts(DEFAULT_CORRECTOR_CONFIG["ranking"], config)
+        self.config = merge_dicts(self.config, config)
 
     def fit(self, identifiers: pandas.Series, candidates: pandas.DataFrame,
             features: numpy.ndarray, val_part: float = 0.1) -> None:
@@ -70,15 +71,23 @@ class CandidatesRanker(Model):
         self._log.info("candidates shape %s", candidates.shape)
         self._log.info("features shape %s", features.shape)
         labels = self._create_labels(identifiers, candidates)
-        edge = int(features.shape[0] * (1 - val_part))
-        data_train = xgb.DMatrix(features[:edge, :], label=labels[:edge])
-        data_val = xgb.DMatrix(features[edge:, :], label=labels[edge:])
+        all_tokens = numpy.array(list(set(candidates[Columns.Token])))
+        indices = numpy.zeros(len(all_tokens), dtype=bool)
+        indices[numpy.random.choice(len(all_tokens),
+                                    int((1 - val_part) * len(all_tokens)),
+                                    replace=False)] = True
+        train_token = {all_tokens[i]: indices[i] for i in range(len(all_tokens))}
+        in_train = numpy.array(
+            [train_token[row[Columns.Token]] for _, row in candidates.iterrows()], dtype=bool)
+        data_train = xgb.DMatrix(features[in_train], label=labels[in_train])
+        data_val = xgb.DMatrix(features[~in_train], label=labels[~in_train])
         self.config["boost_param"]["scale_pos_weight"] = float(
-            1.0 * (edge - numpy.sum(labels[:edge])) / numpy.sum(labels[:edge]))
+            1.0 * (numpy.sum(in_train) - numpy.sum(labels[in_train])) / numpy.sum(
+                labels[in_train]))
         evallist = [(data_train, "train"), (data_val, "validation")]
         self.bst = xgb.train(self.config["boost_param"], data_train, self.config["train_rounds"],
                              evallist, early_stopping_rounds=self.config["early_stopping"],
-                             verbose_eval=False)
+                             verbose_eval=self.config["verbose_eval"])
         self._log.debug("successfully fitted")
 
     def rank(self, candidates: pandas.DataFrame, features: numpy.ndarray, n_candidates: int = 3,
