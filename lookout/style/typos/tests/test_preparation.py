@@ -3,7 +3,7 @@ import pathlib
 import tempfile
 import unittest
 
-from gensim.models import FastText
+from gensim.models.fasttext import load_facebook_vectors
 import pandas
 
 from lookout.style.typos.preparation import (generate_vocabulary, get_datasets, prepare_data,
@@ -89,8 +89,8 @@ class FasttextTest(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="lookout_typos_fasttext_") as temp_dir:
             config = {"size": 100, "path": os.path.join(temp_dir, "ft.bin"), "dim": 5}
             train_fasttext(data, config)
-            model = FastText.load_fasttext_format(config["path"])
-            self.assertTupleEqual(model.wv["get"].shape, (5,))
+            wv = load_facebook_vectors(config["path"])
+            self.assertTupleEqual(wv["get"].shape, (5,))
 
 
 class TrainingTest(unittest.TestCase):
