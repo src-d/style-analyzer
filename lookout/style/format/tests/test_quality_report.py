@@ -36,7 +36,26 @@ class PretrainedModelTests(unittest.TestCase):
         cls.jquery_dir = os.path.join(cls.base_dir, "jquery")
         # str() is needed for Python 3.5
         with tarfile.open(str(parent_loc / "jquery.tar.xz")) as tar:
-            tar.extractall(path=cls.base_dir)
+            def is_within_directory(directory, target):
+                
+                abs_directory = os.path.abspath(directory)
+                abs_target = os.path.abspath(target)
+            
+                prefix = os.path.commonprefix([abs_directory, abs_target])
+                
+                return prefix == abs_directory
+            
+            def safe_extract(tar, path=".", members=None, *, numeric_owner=False):
+            
+                for member in tar.getmembers():
+                    member_path = os.path.join(path, member.name)
+                    if not is_within_directory(path, member_path):
+                        raise Exception("Attempted Path Traversal in Tar File")
+            
+                tar.extractall(path, members, numeric_owner=numeric_owner) 
+                
+            
+            safe_extract(tar, path=cls.base_dir)
         files = glob.glob(os.path.join(cls.jquery_dir, "**", "*"), recursive=True)
         assert len(files) == 15, len(files)
         cls.model_path = os.path.join(str(parent_loc), "model_jquery.asdf")
